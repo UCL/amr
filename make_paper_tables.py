@@ -1355,6 +1355,52 @@ _F2_COLOUR_SIM    = "#2196F3"   # blue — simulation
 _F2_COLOUR_TARGET = "#FF7043"   # deep orange — surveillance target
 
 
+def _parse_interval_val(v: object) -> tuple[float, float, float] | None:
+    """Parse an aggregated calibration value into (median, lo, hi)."""
+    if v is None:
+        return None
+    if isinstance(v, float) and np.isnan(v):
+        return None
+    if isinstance(v, (int, float)):
+        f = float(v)
+        return (f, f, f)
+    s = str(v).strip()
+    if s in ("-", "", "N/A", "nan", "\u2014", "\u00e2\u20ac\u201d"):
+        return None
+    for dash in ("\u2013", "\u2014", "\u2212", "\u00e2\u20ac\u201c", "\u00e2\u20ac\u201d"):
+        s = s.replace(dash, "-")
+    nums = re.findall(r"[-+]?(?:\d[\d,]*\.?\d*|\.\d+)", s)
+    if len(nums) >= 3:
+        parsed = [float(x.replace(",", "")) for x in nums[:3]]
+        return (parsed[0], parsed[1], parsed[2])
+    if len(nums) == 1:
+        f = float(nums[0].replace(",", ""))
+        return (f, f, f)
+    try:
+        f = float(s.replace(",", ""))
+        return (f, f, f)
+    except ValueError:
+        return None
+
+
+def _add_interval_columns(df: pd.DataFrame, source_col: str, prefix: str) -> pd.DataFrame:
+    """Add median/lo/hi numeric columns parsed from an aggregated value column."""
+    df = df.copy()
+    parsed = df[source_col].apply(_parse_interval_val)
+    df[f"{prefix}_med"] = parsed.apply(lambda x: x[0] if x else np.nan)
+    df[f"{prefix}_lo"] = parsed.apply(lambda x: x[1] if x else np.nan)
+    df[f"{prefix}_hi"] = parsed.apply(lambda x: x[2] if x else np.nan)
+    return df
+
+
+def _asymmetric_errors(df: pd.DataFrame, prefix: str) -> tuple[np.ndarray, np.ndarray]:
+    """Return non-negative asymmetric lower/upper errors for parsed interval columns."""
+    med = df[f"{prefix}_med"].to_numpy(dtype=float)
+    lo = df[f"{prefix}_lo"].to_numpy(dtype=float)
+    hi = df[f"{prefix}_hi"].to_numpy(dtype=float)
+    return np.clip(med - lo, 0, None), np.clip(hi - med, 0, None)
+
+
 def _parse_resistance_val(v: object) -> tuple[float, float, float] | None:
     """
     Parse a resistance value from resistance_benchmarks into (median, lo, hi).
@@ -1607,19 +1653,27 @@ def make_f3_calibration_scores(agg: dict, out_dir: Path) -> None:
         print("  F3: no 'Score' column — skipping.")
         return
     bs = bs[[block_col, score_col]].copy()
-    bs[score_col] = pd.to_numeric(bs[score_col], errors="coerce")
-    bs = bs.dropna(subset=[score_col]).sort_values(score_col, ascending=True)
-    colors = ["#EF5350" if v > 1.0 else "#42A5F5" for v in bs[score_col]]
+    bs = _add_interval_columns(bs, score_col, "_score")
+    bs = bs.dropna(subset=["_score_med"]).sort_values("_score_med", ascending=True)
+    colors = ["#EF5350" if v > 1.0 else "#42A5F5" for v in bs["_score_med"]]
     fig, ax = plt.subplots(figsize=(8, max(2.5, 0.7 * len(bs))))
-    bars = ax.barh(range(len(bs)), bs[score_col].values,
-                   color=colors, edgecolor="none", height=0.6)
+    err_lo, err_hi = _asymmetric_errors(bs, "_score")
+    bars = ax.barh(
+        range(len(bs)),
+        bs["_score_med"].values,
+        color=colors,
+        edgecolor="none",
+        height=0.6,
+        xerr=[err_lo, err_hi] if n > 1 else None,
+        error_kw={"elinewidth": 1.0, "ecolor": "#333", "capthick": 1.0, "capsize": 3},
+    )
     ax.set_yticks(range(len(bs)))
     ax.set_yticklabels(bs[block_col].values, fontsize=10)
     ax.axvline(1.0, color="#333", linewidth=1.2, linestyle="--", alpha=0.8)
     ax.set_xlabel("Block score (lower = better fit)", fontsize=10)
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="x", linewidth=0.4, alpha=0.5)
-    for bar, val in zip(bars, bs[score_col]):
+    for bar, val in zip(bars, bs["_score_med"]):
         ax.text(val + 0.02, bar.get_y() + bar.get_height() / 2,
                 f"{val:.3f}", va="center", ha="left", fontsize=9)
     accepted = mpatches.Patch(color="#42A5F5", label="Score \u2264 1.0 (accepted)")
@@ -1635,7 +1689,8 @@ def make_f3_calibration_scores(agg: dict, out_dir: Path) -> None:
         "Figure F3 \u2014 Calibration Block Scores",
         f"Normalised block scores for the accepted calibration run{'s' if n > 1 else ''} "
         f"(n\u2009=\u2009{n}). Scores \u2264 1.0 (dashed line) indicate all targets within "
-        f"the block are within tolerance. Blue = accepted; red = failed.",
+        f"the block are within tolerance. Blue = accepted; red = failed. "
+        f"{'Error bars show 5th-95th percentile ranges across accepted runs.' if n > 1 else ''}",
         [
             "Block scores are normalised so that 1.0 represents the acceptance boundary. "
             "A score below 1.0 means all targets in that calibration block are within the "
@@ -1788,14 +1843,10 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
 
     plot_df = dc.copy()
 
-    def _leading_numeric(series: pd.Series) -> pd.Series:
-        extracted = series.astype(str).str.extract(r"([-+]?\d*\.?\d+)", expand=False)
-        return pd.to_numeric(extracted, errors="coerce")
-
-    plot_df[sim_col] = _leading_numeric(plot_df[sim_col])
+    plot_df = _add_interval_columns(plot_df, sim_col, "_sim")
     if tgt_col:
-        plot_df[tgt_col] = _leading_numeric(plot_df[tgt_col])
-    sort_col = tgt_col if tgt_col else sim_col
+        plot_df = _add_interval_columns(plot_df, tgt_col, "_tgt")
+    sort_col = "_tgt_med" if tgt_col else "_sim_med"
     order = plot_df.sort_values(sort_col, ascending=True, na_position="first").index
     plot_df = plot_df.loc[order].reset_index(drop=True)
     dc = dc.loc[order].reset_index(drop=True)
@@ -1804,10 +1855,19 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
     y     = np.arange(n_cls)
     bar_h = 0.36
     sim_colors = [_F5_AWARE.get(str(c), "#78909C") for c in plot_df[class_col]]
-    ax.barh(y + bar_h / 2, plot_df[sim_col].fillna(0), bar_h,
-            color=sim_colors, alpha=0.85, label="Simulation")
+    sim_err_lo, sim_err_hi = _asymmetric_errors(plot_df, "_sim")
+    ax.barh(
+        y + bar_h / 2,
+        plot_df["_sim_med"].fillna(0),
+        bar_h,
+        color=sim_colors,
+        alpha=0.85,
+        label="Simulation",
+        xerr=[sim_err_lo, sim_err_hi] if n > 1 else None,
+        error_kw={"elinewidth": 0.9, "ecolor": "#263238", "capthick": 0.9, "capsize": 2.5},
+    )
     if tgt_col:
-        ax.barh(y - bar_h / 2, plot_df[tgt_col].fillna(0), bar_h,
+        ax.barh(y - bar_h / 2, plot_df["_tgt_med"].fillna(0), bar_h,
                 color="none", edgecolor="#444", linewidth=0.9, hatch="///",
                 label="Target (estimate)")
     ax.set_yticks(y)
@@ -1821,7 +1881,11 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
     other_p   = mpatches.Patch(color="#9E9E9E", alpha=0.85, label="Not classified")
     tgt_p     = mpatches.Patch(facecolor="none", edgecolor="#444",
                                 hatch="///", label="Target (estimate)")
-    ax.legend(handles=[access_p, watch_p, reserve_p, other_p, tgt_p],
+    handles = [access_p, watch_p, reserve_p, other_p, tgt_p]
+    if n > 1:
+        handles.append(plt.Line2D([0], [0], color="#263238", linewidth=1.0,
+                                  label="Simulation 5th-95th percentile"))
+    ax.legend(handles=handles,
               fontsize=7.5, frameon=False, loc="lower right")
     fig.suptitle(
         "Figure F5 \u2014 Antibiotic use by drug class: simulation vs. global estimates",
@@ -1839,7 +1903,9 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
         "Figure F5 \u2014 Antibiotic Use by Drug Class: Simulation vs. Global Estimates",
         f"Figure version of Table T3. Bars coloured by WHO AWaRe category "
         f"(green = Access, orange = Watch, red = Reserve). "
-        f"Hatched outlines = global target estimates. n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        f"Hatched outlines = global target estimates. "
+        f"{'Error bars show simulation 5th-95th percentile ranges. ' if n > 1 else ''}"
+        f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         ["WHO AWaRe classification: Access, Watch, Reserve (WHO 2023 AWaRe antibiotic book).",
          "See Table T3 footnotes for target data sources and uncertainty notes."],
         agg=agg,
@@ -1871,8 +1937,10 @@ def make_f6_bacteria_scatter(agg: dict, out_dir: Path) -> None:
     if tgt_col is None or sim_col is None:
         print("  F6: cannot identify infection target/simulation columns — skipping.")
         return
-    bi["_tgt"] = pd.to_numeric(bi[tgt_col], errors="coerce")
-    bi["_sim"] = pd.to_numeric(bi[sim_col], errors="coerce")
+    bi = _add_interval_columns(bi, tgt_col, "_tgt")
+    bi = _add_interval_columns(bi, sim_col, "_sim")
+    bi["_tgt"] = bi["_tgt_med"]
+    bi["_sim"] = bi["_sim_med"]
     bi = bi.dropna(subset=["_tgt", "_sim"])
     bi = bi[bi["_tgt"] > 0].copy()
     if bi.empty:
@@ -1890,6 +1958,21 @@ def make_f6_bacteria_scatter(agg: dict, out_dir: Path) -> None:
                else "#66BB6A"
                for r in bi["_ratio"]]
     fig, ax = plt.subplots(figsize=(8, 7))
+    tgt_err_lo, tgt_err_hi = _asymmetric_errors(bi, "_tgt")
+    sim_err_lo, sim_err_hi = _asymmetric_errors(bi, "_sim")
+    if n > 1:
+        ax.errorbar(
+            bi["_tgt"],
+            bi["_sim"],
+            xerr=[tgt_err_lo, tgt_err_hi],
+            yerr=[sim_err_lo, sim_err_hi],
+            fmt="none",
+            ecolor="#455A64",
+            elinewidth=0.7,
+            capsize=2.0,
+            alpha=0.55,
+            zorder=2,
+        )
     ax.scatter(bi["_tgt"], bi["_sim"], c=colors, s=50,
                edgecolors="white", linewidths=0.4, zorder=3)
     ax.plot([0, max_val], [0, max_val], color="#555", linewidth=1.0,
@@ -1926,6 +2009,7 @@ def make_f6_bacteria_scatter(agg: dict, out_dir: Path) -> None:
         f"Each point represents one of 42 organisms. Dashed diagonal = perfect fit. "
         f"Orange dotted lines = \xd72/\xf70.5 tolerance. "
         f"Outliers (>2\xd7 or <0.5\xd7 target) labelled with abbreviated names. "
+        f"{'Error bars show 5th-95th percentile ranges across accepted runs. ' if n > 1 else ''}"
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         ["Infection prevalence is the percentage of the world population with an active "
          "infection from the specified organism on an average day during the "
@@ -1958,7 +2042,8 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
     srl = srl[~summary_mask].copy()
     target_col = "Target H:C ratio"
     if target_col in srl.columns:
-        srl[target_col] = pd.to_numeric(srl[target_col], errors="coerce")
+        srl = _add_interval_columns(srl, target_col, "_target_hc")
+        srl[target_col] = srl["_target_hc_med"]
         srl = srl[srl[target_col] > 1.0].copy()
     # Build merged matrix
     keep_srl = ["Bacteria"] + [c for c in ["Hospital Serious-R (%)", "Community Serious-R (%)"]
@@ -1984,7 +2069,8 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
     out = out.rename(columns=col_renames)
     value_cols = [v for v in col_renames.values() if v in out.columns]
     for c in value_cols:
-        out[c] = pd.to_numeric(out[c], errors="coerce")
+        out = _add_interval_columns(out, c, f"_{c.replace(chr(10), '_').lower()}")
+        out[c] = out[f"_{c.replace(chr(10), '_').lower()}_med"]
     matrix  = out[value_cols].values.astype(float)
     yticks  = out["Bacteria"].values
     fig_h   = max(5, 0.40 * len(yticks))
@@ -2045,8 +2131,13 @@ def make_fs1_mortality_bars(agg: dict, out_dir: Path) -> None:
                      if "simulation" in c.lower() and "death" in c.lower()), None)
     if sim_col is None:
         return
-    bm["_tgt"] = pd.to_numeric(bm[tgt_col], errors="coerce") if tgt_col else np.nan
-    bm["_sim"] = pd.to_numeric(bm[sim_col], errors="coerce")
+    if tgt_col:
+        bm = _add_interval_columns(bm, tgt_col, "_tgt")
+        bm["_tgt"] = bm["_tgt_med"]
+    else:
+        bm["_tgt"] = np.nan
+    bm = _add_interval_columns(bm, sim_col, "_sim")
+    bm["_sim"] = bm["_sim_med"]
     bm = bm.dropna(subset=["_sim"])
     bm = bm[(bm["_tgt"].fillna(0) > 0) | (bm["_sim"].fillna(0) > 0)].copy()
     sort_key = "_tgt" if bm["_tgt"].notna().any() else "_sim"
@@ -2055,8 +2146,17 @@ def make_fs1_mortality_bars(agg: dict, out_dir: Path) -> None:
     fig, ax = plt.subplots(figsize=(9, max(4, 0.42 * n_orgs)))
     y = np.arange(n_orgs)
     bar_h = 0.38
-    ax.barh(y + bar_h / 2, bm["_sim"].fillna(0), bar_h,
-            color="#2196F3", alpha=0.85, label="Simulation")
+    sim_err_lo, sim_err_hi = _asymmetric_errors(bm, "_sim")
+    ax.barh(
+        y + bar_h / 2,
+        bm["_sim"].fillna(0),
+        bar_h,
+        color="#2196F3",
+        alpha=0.85,
+        label="Simulation",
+        xerr=[sim_err_lo, sim_err_hi] if n > 1 else None,
+        error_kw={"elinewidth": 0.9, "ecolor": "#0D47A1", "capthick": 0.9, "capsize": 2.5},
+    )
     if bm["_tgt"].notna().any():
         ax.barh(y - bar_h / 2, bm["_tgt"].fillna(0), bar_h,
                 color="#FF7043", alpha=0.85, label="Observed estimate")
@@ -2074,7 +2174,9 @@ def make_fs1_mortality_bars(agg: dict, out_dir: Path) -> None:
         fig, out_dir, "FS1_mortality_bars",
         "Figure FS1 \u2014 Infection Deaths per Organism: Simulation vs. Observed Estimate",
         f"Figure version of Supplementary Table S1. Organisms with zero modelled deaths "
-        f"are omitted. Sorted by observed estimate. n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        f"are omitted. Sorted by observed estimate. "
+        f"{'Error bars show simulation 5th-95th percentile ranges. ' if n > 1 else ''}"
+        f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         ["Deaths scaled to global population using the run-specific population scale factor "
          "and annualised to yearly equivalents.",
          "Figure version of Supplementary Table S1."],
@@ -2102,15 +2204,25 @@ def make_fs2_syndrome_bars(agg: dict, out_dir: Path) -> None:
     inc_col = next((c for c in si.columns if "incidence" in c.lower()), None)
     if inc_col is None:
         return
-    si[inc_col] = pd.to_numeric(si[inc_col], errors="coerce")
+    si = _add_interval_columns(si, inc_col, "_inc")
+    si[inc_col] = si["_inc_med"]
     si = si.dropna(subset=[inc_col]).sort_values(inc_col, ascending=True)
     share_col = next((c for c in si.columns if "share" in c.lower()), None)
     if share_col:
-        si[share_col] = pd.to_numeric(si[share_col], errors="coerce")
+        si = _add_interval_columns(si, share_col, "_share")
+        si[share_col] = si["_share_med"]
     tab_colors = plt.cm.tab10(np.linspace(0, 0.9, len(si)))
     fig, ax = plt.subplots(figsize=(8, max(3, 0.55 * len(si))))
-    ax.barh(range(len(si)), si[inc_col].values,
-            color=tab_colors, edgecolor="none", height=0.6)
+    inc_err_lo, inc_err_hi = _asymmetric_errors(si, "_inc")
+    ax.barh(
+        range(len(si)),
+        si[inc_col].values,
+        color=tab_colors,
+        edgecolor="none",
+        height=0.6,
+        xerr=[inc_err_lo, inc_err_hi] if n > 1 else None,
+        error_kw={"elinewidth": 0.9, "ecolor": "#333", "capthick": 0.9, "capsize": 2.5},
+    )
     ax.set_yticks(range(len(si)))
     ax.set_yticklabels(si[first_col].values, fontsize=9)
     ax.set_xlabel("Incidence per 100,000 population per year", fontsize=10)
@@ -2126,6 +2238,7 @@ def make_fs2_syndrome_bars(agg: dict, out_dir: Path) -> None:
         fig, out_dir, "FS2_syndrome_bars",
         "Figure FS2 \u2014 Syndrome Incidence: Simulated Annual Rates",
         f"Figure version of Supplementary Table S2. "
+        f"{'Error bars show 5th-95th percentile ranges across accepted runs. ' if n > 1 else ''}"
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         ["Syndrome incidence is the simulated annual rate per 100,000 population during "
          "the 2022\u20132025 calibration window.",
@@ -2165,8 +2278,10 @@ def make_fs3_resistance_scatter(agg: dict, out_dir: Path) -> None:
     if hosp_col is None or comm_col is None:
         print("  FS3: cannot find hospital/community resistance columns — skipping.")
         return
-    ril[hosp_col] = pd.to_numeric(ril[hosp_col], errors="coerce")
-    ril[comm_col] = pd.to_numeric(ril[comm_col], errors="coerce")
+    ril = _add_interval_columns(ril, hosp_col, "_hosp")
+    ril = _add_interval_columns(ril, comm_col, "_comm")
+    ril[hosp_col] = ril["_hosp_med"]
+    ril[comm_col] = ril["_comm_med"]
     ril = ril.dropna(subset=[hosp_col, comm_col])
     if ril.empty:
         print("  FS3: no valid resistance rows after filtering — skipping.")
@@ -2179,6 +2294,21 @@ def make_fs3_resistance_scatter(agg: dict, out_dir: Path) -> None:
     fig, ax = plt.subplots(figsize=(8, 7))
     ax.fill_between([0, max_val], [0, max_val], [max_val, max_val],
                     alpha=0.05, color="#5C6BC0")
+    comm_err_lo, comm_err_hi = _asymmetric_errors(ril, "_comm")
+    hosp_err_lo, hosp_err_hi = _asymmetric_errors(ril, "_hosp")
+    if n > 1:
+        ax.errorbar(
+            ril[comm_col],
+            ril[hosp_col],
+            xerr=[comm_err_lo, comm_err_hi],
+            yerr=[hosp_err_lo, hosp_err_hi],
+            fmt="none",
+            ecolor="#455A64",
+            elinewidth=0.7,
+            capsize=2.0,
+            alpha=0.55,
+            zorder=2,
+        )
     ax.scatter(ril[comm_col], ril[hosp_col], s=52,
                color="#5C6BC0", edgecolors="white", linewidths=0.4, zorder=3, alpha=0.85)
     ax.plot([0, max_val], [0, max_val], color="#555", linewidth=1.0, linestyle="--",
@@ -2208,6 +2338,7 @@ def make_fs3_resistance_scatter(agg: dict, out_dir: Path) -> None:
         "Figure FS3 \u2014 Resistance by Acquisition Route: Hospital vs. Community",
         f"Each point is one organism. Points above the dashed diagonal carry higher resistance "
         f"in hospital-acquired than community-acquired infections (blue shaded region). "
+        f"{'Error bars show 5th-95th percentile ranges across accepted runs. ' if n > 1 else ''}"
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         ["Each axis shows the percentage of new infections of that organism carrying any "
          "resistance mechanism, averaged across all drugs with non-negligible potency for "
@@ -2239,8 +2370,10 @@ def make_fa1_infection_carriage(agg: dict, out_dir: Path) -> None:
     if inf_col is None or carr_col is None:
         print("  FA1: infection/carriage simulation columns not found — skipping.")
         return
-    bi[inf_col]  = pd.to_numeric(bi[inf_col],  errors="coerce")
-    bi[carr_col] = pd.to_numeric(bi[carr_col], errors="coerce")
+    bi = _add_interval_columns(bi, inf_col, "_inf")
+    bi = _add_interval_columns(bi, carr_col, "_carr")
+    bi[inf_col] = bi["_inf_med"]
+    bi[carr_col] = bi["_carr_med"]
     df = bi[[bact_col, inf_col, carr_col]].dropna(subset=[inf_col, carr_col]).copy()
     if df.empty:
         print("  FA1: no valid infection/carriage rows after filtering — skipping.")
@@ -2249,7 +2382,8 @@ def make_fa1_infection_carriage(agg: dict, out_dir: Path) -> None:
         death_col = next((c for c in bm.columns
                           if "simulation" in c.lower() and "death" in c.lower()), None)
         if death_col:
-            bm[death_col] = pd.to_numeric(bm[death_col], errors="coerce")
+            bm = _add_interval_columns(bm, death_col, "_death")
+            bm[death_col] = bm["_death_med"]
             df = df.merge(bm[[bm.columns[0], death_col]],
                           left_on=bact_col, right_on=bm.columns[0], how="left")
             df["_deaths"] = df[death_col].fillna(0)

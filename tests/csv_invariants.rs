@@ -43,6 +43,18 @@ fn assert_csv_rows_match_header_width(path: &Path) {
     }
 }
 
+fn csv_header(path: &Path) -> csv::StringRecord {
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_path(path)
+        .expect("CSV should open");
+    reader
+        .records()
+        .next()
+        .expect("CSV should include a header row")
+        .expect("header row should parse")
+}
+
 fn journey_output_path() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("infection_journeys");
@@ -111,5 +123,12 @@ fn journey_csv_rows_match_header_width_for_forced_infection() {
     logger.close().expect("journey logger should close");
 
     assert_csv_rows_match_header_width(&path);
+    let header = csv_header(&path);
+    assert!(
+        !header
+            .iter()
+            .any(|column| column == "resistance_majority_r"),
+        "journey CSV should not export the removed majority_r scalar"
+    );
     let _ = fs::remove_file(&path);
 }

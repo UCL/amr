@@ -489,7 +489,8 @@ impl<'de> Deserialize<'de> for BranchSnapshot {
                     }
                 }
 
-                let population = population.ok_or_else(|| de::Error::missing_field("population"))?;
+                let population =
+                    population.ok_or_else(|| de::Error::missing_field("population"))?;
                 let mechanism_cache =
                     mechanism_cache.ok_or_else(|| de::Error::missing_field("mechanism_cache"))?;
                 let summary_log =
@@ -1265,7 +1266,7 @@ impl IndividualLogger {
         };
 
         if !self.header_written {
-            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,cause_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs,predicted_infection_risk") {
+            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,cause_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs,predicted_infection_risk") {
                 eprintln!(
                     "Error writing header for {}: {}",
                     self.path.display(),
@@ -1343,7 +1344,7 @@ impl IndividualLogger {
                 .map(|t| t.as_str())
                 .unwrap_or("none");
 
-            let mut row: Vec<String> = Vec::with_capacity(41);
+            let mut row: Vec<String> = Vec::with_capacity(40);
             row.push(timestep.to_string());
             row.push(i.to_string());
             row.push(ind.id.to_string());
@@ -1378,7 +1379,6 @@ impl IndividualLogger {
             row.push(Self::fmt_vec(&test_r));
             row.push(Self::fmt_vec(&activity_r));
             row.push(Self::fmt_vec(&any_r));
-            row.push(Self::fmt_vec(&any_r)); // majority_r column now outputs any_r (majority_r removed)
             row.push(mechanisms.join(";"));
             row.push(ind.bacteria_on_selection_day.to_string());
             row.push(Self::fmt_vec(&ind.drug_score_on_selection_day));
@@ -1860,8 +1860,8 @@ impl Simulation {
             }
         }
 
-        // Build sparse bacteria->drug mapping: only include drugs with potency > 0.01 (clinically relevant)
-        // This reduces majority_r collection iterations from 52 drugs to ~8-15 per bacteria
+        // Build sparse bacteria->drug mapping: only include drugs with potency > 0.01 (clinically relevant).
+        // This keeps per-bacteria drug iteration focused on clinically relevant pairs.
         let mut relevant_drugs_by_bacteria: Vec<Vec<usize>> = Vec::with_capacity(num_bacteria);
         for b_idx in 0..num_bacteria {
             let mut relevant_drugs = Vec::new();
@@ -4608,8 +4608,8 @@ impl Simulation {
             //     for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
             //         let resistance = &individual_0.resistances[b_idx][d_idx];
             //         println!(
-            //             "Resistance for bacteria {} and drug {}: any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
-            //             bacteria_name, drug_name, resistance.any_r, resistance.activity_r, resistance.majority_r
+            //             "Resistance for bacteria {} and drug {}: any_r = {:.4}, activity_r = {:.4}",
+            //             bacteria_name, drug_name, resistance.any_r, resistance.activity_r
             //         );
             //     }
             // }

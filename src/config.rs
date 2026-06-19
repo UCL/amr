@@ -757,7 +757,7 @@ impl GlobalScalars {
             empiric_therapy_ineffective_penalty: get_or_default(
                 map,
                 "empiric_therapy_ineffective_drug_penalty",
-                0.05,
+                0.02,                   // 0.05
             ),
             sepsis_minimum_duration_days: get_or_default(map, "sepsis_minimum_duration_days", 1.0)
                 as i32,
@@ -2144,7 +2144,7 @@ impl BacteriaParameters {
             sepsis_baseline_log_odds.push(get_or_default(
                 map,
                 &format!("{}_sepsis_baseline_log_odds", prefix),
-                get_or_default(map, "sepsis_baseline_log_odds", -14.0),
+                get_or_default(map, "sepsis_baseline_log_odds", -13.0),    // -14.0
             ));
             sepsis_log_odds_infection_level.push(get_or_default(
                 map,
@@ -3355,8 +3355,10 @@ lazy_static! {
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
 
         // Drug Selection Algorithm Parameters
+        
+        // ^^^^
             map.insert("drug_selection_temperature".to_string(), 0.55); // Lowered from 0.70 to concentrate prescribing on template drugs, reducing long-tail class leakage
-            map.insert("reserve_drug_score_penalty".to_string(), 0.06); // Keep reserve agents restricted overall, but allow realistic hospital escalation/overuse pressure
+            map.insert("reserve_drug_score_penalty".to_string(), 0.35); // Aggressive calibration: substantially relax reserve-drug suppression so carbapenems can compete in severe Gram-negative care
 
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -3675,6 +3677,9 @@ lazy_static! {
         // to reflect antimicrobial stewardship principles. These are "last resort" drugs
         // that should only be used when first-line agents fail or resistance is documented.
         // Apply across ALL bacteria to ensure consistent stewardship behavior.
+
+        // ^^^^
+
         let carbapenem_reserve_drugs = vec![
             "meropenem",
             "meropenem_vaborbactam",
@@ -3692,7 +3697,7 @@ lazy_static! {
                 // This will be overridden by specific bacteria-drug combinations where appropriate
             map.insert(
                     format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria),
-                    0.005,
+                    0.5,     // 0.005
                 );
             }
         }
@@ -6874,7 +6879,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 3.5); // Fluoroquinolone rescue
         map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05); // Not susceptible (low potency; L1/L2 beta-lactamases constitutive)
         map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.1);
-        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01); 
         map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01);
 
         map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.05);
@@ -6953,7 +6958,8 @@ lazy_static! {
         map.insert("drug_erythromycin_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05);
         map.insert("drug_azithromycin_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05);
         map.insert("drug_clarithromycin_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05);
-        map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01);
+        // ^^^^
+        map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 1.00);   // 0.01
 
         // ANTI-VRE AGENTS FOR ENTEROCOCCI
         // Vancomycin was licensed 1958 but abandoned 1960s-70s due to early nephrotoxic formulations.
@@ -6984,11 +6990,12 @@ lazy_static! {
 
         // CARBAPENEMS FOR ESBL PRODUCERS - reserve agents with strong stewardship
         // CALIBRATION: Reduced to target <10% reserve drug usage; carbapenems reserved for confirmed ESBL
-        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.20); // Reserve - ESBL Klebsiella only
-        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.20); // Reserve - ESBL Klebsiella only
-        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.25); // Reserve - outpatient ESBL option
-        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 0.20); // Reserve - ESBL E. coli only
-        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 0.25); // Reserve - outpatient ESBL option
+        // ^^^^
+        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0 ); // 0.20  Reserve - ESBL Klebsiella only
+        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0 ); // 0.20 Reserve - ESBL Klebsiella only
+        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0 ); // 0.25 Reserve - outpatient ESBL option
+        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 5.0 ); // 0.20 Reserve - ESBL E. coli only
+        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 5.0 ); // 0.25 Reserve - outpatient ESBL option
 
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 8.0); // Common BLI for community and mixed-source E. coli infections
         map.insert("drug_piperacillin_tazobactam_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 6.0); // Hospital BLI escalation for E. coli
@@ -7109,20 +7116,10 @@ lazy_static! {
 
 
 
-        // === DRUG CLASS SHARE CALIBRATION ===
-        // WHO/ECDC J01 DDD comparison shows systematic over/under-prescribing patterns.
-        // Corrections below target the largest class-level discrepancies (v534713).
-        //
-        //   Over-represented: Sulfonamides +12.57 pp, Ceph 3G +7.90 pp, Ceph 1-2G +3.93 pp,
-        //                     Tetracyclines +3.66 pp, Monobactams +4.51 pp, Anti-MRSA Ceph 5G +1.94 pp,
-        //                     Ceph 4G +1.68 pp
-        //   Under-represented: BLI combos -10.26 pp, Penicillins -5.68 pp, Macrolides -3.78 pp,
-        //                      Nitrofurans -2.73 pp, FQ -2.30 pp, Carbapenems -1.93 pp,
-        //                      Aminoglycosides -1.85 pp, Nitroimidazoles -0.84 pp, Fosfomycin -1.00 pp
+        // === DRUG CLASS SHARE CALIBRATION ===   ^^^^
 
         // --- 1. Sulfonamides: global penalty on both sulfanilamide + trim_sulf ---
-        // sim 16.57% vs target 4.0% (534713) - further tighten global penalties.
-        // E. coli restore from 1.2 -> 0.15 is the primary lever (most common pathogen).
+
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("drug_sulfanilamide_for_bacteria_{}_initiation_multiplier", bacteria), 0.02);
         }
@@ -7141,7 +7138,7 @@ lazy_static! {
         map.insert("drug_trim_sulf_for_bacteria_bordetella_pertussis_initiation_multiplier".to_string(), 0.03);        // Macrolide-allergy fallback only
 
         // --- 2. Tetracyclines: global 0.25 penalty then restore key indications ---
-        // sim 9.66% vs target 6.0% (534713) - was 0.4, still 3.66 pp over; tighten further.
+
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("drug_tetracycline_for_bacteria_{}_initiation_multiplier", bacteria), 0.25);
             map.insert(format!("drug_doxycycline_for_bacteria_{}_initiation_multiplier", bacteria), 0.25);
@@ -7170,7 +7167,7 @@ lazy_static! {
         map.insert("drug_doxycycline_for_bacteria_legionella_pneumophila_initiation_multiplier".to_string(),  2.0); // Atypical CAP backup
 
         // --- 3. Monobactams: further tighten - sim 5.01% vs 0.50% target (534713).
-        // Global 0.02 insufficient; drop to 0.003 and drastically reduce restores.
+
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("drug_aztreonam_for_bacteria_{}_initiation_multiplier", bacteria), 0.003);
             map.insert(format!("drug_aztreonam_avibactam_for_bacteria_{}_initiation_multiplier", bacteria), 0.003);
@@ -7181,14 +7178,13 @@ lazy_static! {
         map.insert("drug_aztreonam_avibactam_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 0.04);
         map.insert("drug_aztreonam_avibactam_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.005);
 
-        // --- 4. Anti-MRSA Cephalosporins (5G): sim 2.14% vs 0.20% target (534713).
-        // 10x over target despite 0.02 global - drop to 0.002; cut S. aureus restore sharply.
+        // --- 4. Anti-MRSA Cephalosporins (5G): 
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("drug_ceftaroline_for_bacteria_{}_initiation_multiplier", bacteria), 0.002);
         }
-        map.insert("drug_ceftaroline_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 0.15);     // MRSA reserve (rarely over vancomycin/daptomycin)
-        map.insert("drug_ceftaroline_for_bacteria_streptococcus_pneumoniae_initiation_multiplier".to_string(), 0.05);  // MDR-CAP last resort
-        map.insert("drug_ceftaroline_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 0.04); // Rare device CoNS salvage
+        map.insert("drug_ceftaroline_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 0.01);     // MRSA reserve (rarely over vancomycin/daptomycin)
+        map.insert("drug_ceftaroline_for_bacteria_streptococcus_pneumoniae_initiation_multiplier".to_string(), 0.03);  // MDR-CAP last resort
+        map.insert("drug_ceftaroline_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 0.01); // Rare device CoNS salvage
 
         // --- 5. BLI combos: major expansion - sim 7.74% vs 18.0% target (534713).
         // Still massively under (-10.26 pp) despite 7.0/5.0 boosts. Raise ceilings + expand organisms.
@@ -7296,10 +7292,10 @@ lazy_static! {
         map.insert("drug_clarithromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 7.0);
         map.insert("drug_erythromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 6.0);
         // STI macrolide indications
-        map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 8.0);     // First-line single-dose
-        map.insert("drug_azithromycin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 5.0);     // STI first-line (high resistance concern)
-        map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 5.0);      // FQ-resistant Campylobacter
-        map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 5.0);     // Triple therapy component
+        map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 5.0);     // First-line single-dose
+        map.insert("drug_azithromycin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 3.0);     // STI first-line (high resistance concern)
+        map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 3.0);      // FQ-resistant Campylobacter
+        map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 3.0);     // Triple therapy component
 
         // --- 8. Nitrofurantoin: sim 0.27% vs 3.0% target (534713) - aggressive UTI boost.
         // 20.0 for E. coli only moved share to 0.27%; raise further and broaden coverage.
@@ -7314,29 +7310,31 @@ lazy_static! {
 
         // --- 9. Carbapenems: sim 0.07% vs 2.0% target (534713) - near-zero despite 1.5 boosts.
         // Must dramatically raise for MDR/hospital gram-negatives and add empiric hospital use.
-        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 8.0);
-        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 8.0);
-        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.0);
-        map.insert("drug_meropenem_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 6.0);
-        map.insert("drug_meropenem_for_bacteria_enterobacter_spp._initiation_multiplier".to_string(), 5.0);
-        map.insert("drug_meropenem_for_bacteria_enterobacter_cloacae_initiation_multiplier".to_string(), 5.0);
-        map.insert("drug_meropenem_for_bacteria_citrobacter_spp._initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_meropenem_for_bacteria_serratia_spp._initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_meropenem_for_bacteria_morganella_spp._initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_meropenem_for_bacteria_proteus_spp._initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_imipenem_c_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_imipenem_c_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_imipenem_c_for_bacteria_enterobacter_spp._initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_imipenem_c_for_bacteria_enterobacter_cloacae_initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 5.0);
-        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0);
-        map.insert("drug_ertapenem_for_bacteria_enterobacter_spp._initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_ertapenem_for_bacteria_enterobacter_cloacae_initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_ertapenem_for_bacteria_citrobacter_spp._initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_ertapenem_for_bacteria_serratia_spp._initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_ertapenem_for_bacteria_proteus_spp._initiation_multiplier".to_string(), 3.0);
+        // ^^^^
+        // all multiplied by 10
+        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 80.0);  
+        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 80.0);
+        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 50.0);
+        map.insert("drug_meropenem_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 60.0);
+        map.insert("drug_meropenem_for_bacteria_enterobacter_spp._initiation_multiplier".to_string(), 50.0);
+        map.insert("drug_meropenem_for_bacteria_enterobacter_cloacae_initiation_multiplier".to_string(), 50.0);
+        map.insert("drug_meropenem_for_bacteria_citrobacter_spp._initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_meropenem_for_bacteria_serratia_spp._initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_meropenem_for_bacteria_morganella_spp._initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_meropenem_for_bacteria_proteus_spp._initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_imipenem_c_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_imipenem_c_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 40.0);
+        map.insert("drug_imipenem_c_for_bacteria_enterobacter_spp._initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_imipenem_c_for_bacteria_enterobacter_cloacae_initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 50.0);
+        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 50.0);
+        map.insert("drug_ertapenem_for_bacteria_enterobacter_spp._initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_ertapenem_for_bacteria_enterobacter_cloacae_initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_ertapenem_for_bacteria_citrobacter_spp._initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_ertapenem_for_bacteria_serratia_spp._initiation_multiplier".to_string(), 30.0);
+        map.insert("drug_ertapenem_for_bacteria_proteus_spp._initiation_multiplier".to_string(), 30.0);
 
         // --- 10. Aminoglycosides: sim 0.15% vs 2.0% target (534713) - near-zero despite 10.0 boosts.
         // Raise ceilings dramatically and broaden organism coverage to include all gram-negatives.
@@ -11371,6 +11369,9 @@ lazy_static! {
         map.insert("syndrome_9_bacteria_growth_multiplier".to_string(), 0.85);  // Bone/joint - slow progression in osteomyelitis
         map.insert("syndrome_10_bacteria_growth_multiplier".to_string(), 1.0);  // Other - baseline
 
+
+// ^^^^^
+
         // Empiric drug scoring tables (clinician-facing heuristics per syndrome ID)
         // These preserve pre-refactor prescribing patterns when organism is unknown.
         let empiric_syndrome_templates: &[(usize, &[(&str, f64)])] = &[
@@ -11379,26 +11380,26 @@ lazy_static! {
                 1,
                 &[
                     ("trim_sulf", 1.0),
-                    ("amoxicillin_clavulanate", 12.0),  // BL/BLI remains a realistic empiric fallback when plain aminopenicillins are unreliable
+                    ("amoxicillin_clavulanate", 30.0),  // 12.0 BL/BLI remains a realistic empiric fallback when plain aminopenicillins are unreliable
                     ("amoxicillin", 2.0),
-                    ("ciprofloxacin", 6.0),             // reduced from 8: stewardship concerns limit empiric quinolone use for UTI
+                    ("ciprofloxacin", 6.0),             // stewardship concerns limit empiric quinolone use for UTI
                     ("ampicillin", 1.0),
                     ("levofloxacin", 6.0),
-                    ("nitrofurantoin", 13.0),           // increased from 8: genuine first-line for uncomplicated UTI
+                    ("nitrofurantoin", 13.0),           // genuine first-line for uncomplicated UTI
                     ("fosfomycin", 10.0),
                     ("cephalexin", 8.0),
                     ("ceftriaxone", 3.0),               // reduced from 8: IV-only, triggers hospitalisation; should be rare empirically
                     ("cefazolin", 7.0),
                     ("cefuroxime", 7.0),
-                    ("piperacillin_tazobactam", 5.0),
+                    ("piperacillin_tazobactam", 30.0),   // 5.0
                     ("cefepime", 4.0),
                     ("ceftazidime", 4.0),
-                    ("meropenem", 4.0),
-                    ("imipenem_c", 4.0),
-                    ("ertapenem", 4.0),
-                    ("meropenem_vaborbactam", 3.0),
-                    ("ceftazidime_avibactam", 3.0),
-                    ("aztreonam_avibactam", 3.0),
+                    ("meropenem",  90.0),                 // 4.0 
+                    ("imipenem_c",  90.0),                // 4.0
+                    ("ertapenem",  90.0),                 // 4.0
+                    ("meropenem_vaborbactam",  60.0),   // 3.0
+                    ("ceftazidime_avibactam", 30.0),     // 3.0
+                    ("aztreonam_avibactam", 1.0),       
                     ("cefixime", 7.0),
                     ("colistin", 0.2),
                     ("vancomycin", 0.1),
@@ -11409,14 +11410,14 @@ lazy_static! {
             (
                 2,
                 &[
-                    ("flucloxacillin", 17.0),           // first-line empiric SSTI: covers Staph and Strep
-                    ("amoxicillin_clavulanate", 16.0),
-                    ("amoxicillin", 14.0),
+                    ("flucloxacillin",  5.0),           // 12.0  first-line empiric SSTI: covers Staph and Strep
+                    ("amoxicillin_clavulanate", 30.0),
+                    ("amoxicillin",  5.0),
                     ("cephalexin", 13.0),
-                    ("ampicillin", 13.0),
-                    ("penicillin_g", 13.0),             // reduced from 16: narrow-spectrum, appropriate only when strep strongly suspected
+                    ("ampicillin",  5.0),
+                    ("penicillin_g", 3.0),             // 13.0 reduced from 16: narrow-spectrum, appropriate only when strep strongly suspected
                     ("cefazolin", 12.0),
-                    ("clindamycin", 12.0),
+                    ("clindamycin",  6.0),
                     ("trim_sulf", 0.5),
                     ("doxycycline", 3.5),
                     ("minocycline", 3.0),
@@ -11427,23 +11428,23 @@ lazy_static! {
                     ("quinu_dalfo", 8.0),
                     ("rifampicin", 0.5),
                     ("ciprofloxacin", 4.0),
-                    ("piperacillin_tazobactam", 3.0),
+                    ("piperacillin_tazobactam", 30.0),   // 3.0
                 ],
             ),
             // 3 = Respiratory
             (
                 3,
                 &[
-                    ("amoxicillin_clavulanate", 24.0),
-                    ("amoxicillin", 12.0),
-                    ("penicillin_g", 6.0),
+                    ("amoxicillin_clavulanate", 35.0),      // 24.0
+                    ("amoxicillin",  3.0),                  // 12.0
+                    ("penicillin_g", 3.0),                  // 6.0
                     ("ampicillin", 2.0),
-                    ("azithromycin", 6.0),
-                    ("clarithromycin", 5.0),
+                    ("azithromycin", 4.0),
+                    ("clarithromycin", 4.0),
                     ("ceftriaxone", 9.5),
                     ("erythromycin", 4.0),
                     ("cefuroxime", 8.5),
-                    ("piperacillin_tazobactam", 8.0),
+                    ("piperacillin_tazobactam", 30.0),      // 8.0
                     ("levofloxacin", 8.0),
                     ("moxifloxacin", 8.0),
                     ("cefixime", 6.5),
@@ -11452,8 +11453,8 @@ lazy_static! {
                     ("cephalexin", 7.0),
                     ("doxycycline", 3.0),
                     ("vancomycin", 6.5),
-                    ("meropenem", 6.0),
-                    ("imipenem_c", 6.0),
+                    ("meropenem",  90.0),         // 6.0
+                    ("imipenem_c",  90.0),            // 6.0
                     ("ofloxacin", 6.0),
                     ("linezolid", 7.0),
                     ("minocycline", 2.5),
@@ -11463,17 +11464,17 @@ lazy_static! {
             (
                 4,
                 &[
-                    ("piperacillin_tazobactam", 15.0),
-                    ("meropenem", 20.0),
-                    ("imipenem_c", 17.0),
-                    ("meropenem_vaborbactam", 13.0),
-                    ("ceftazidime_avibactam", 12.5),
+                    ("piperacillin_tazobactam", 30.0),      // Keep strong empiric Gram-negative coverage, but let carbapenems compete
+                    ("meropenem", 1200.0),                  // Aggressive calibration: major empiric carbapenem escalation in bloodstream sepsis
+                    ("imipenem_c", 900.0),                  // Aggressive calibration: major empiric carbapenem escalation in bloodstream sepsis
+                    ("meropenem_vaborbactam", 700.0),       // Aggressive calibration: allow more BL/BLI carbapenem use in severe resistant bloodstream cases
+                    ("ceftazidime_avibactam", 30.0),        // 12.5
                     ("aztreonam_avibactam", 2.0),
                     ("cefepime", 12.0),
                     ("ceftazidime", 11.0),
                     ("ceftriaxone", 10.0),
-                    ("ampicillin_sulbactam", 16.0),
-                    ("amoxicillin_clavulanate", 16.0),
+                    ("ampicillin_sulbactam", 30.0),
+                    ("amoxicillin_clavulanate", 30.0),
                     ("ampicillin", 10.0),
                     ("amoxicillin", 9.5),
                     ("penicillin_g", 6.5),
@@ -11499,18 +11500,18 @@ lazy_static! {
                 5,
                 &[
                     ("metronidazole", 2.5),
-                    ("piperacillin_tazobactam", 15.0),
-                    ("ampicillin_sulbactam", 12.5),
-                    ("amoxicillin_clavulanate", 11.5),
-                    ("meropenem", 18.0),
-                    ("imipenem_c", 16.0),
-                    ("ertapenem", 13.0),
-                    ("ceftazidime", 9.0),
+                    ("piperacillin_tazobactam", 30.0),      // Strong empiric abdominal coverage, but less dominant than before
+                    ("ampicillin_sulbactam", 30.0),
+                    ("amoxicillin_clavulanate", 30.0),      // 11.5
+                    ("meropenem", 900.0),                   // Aggressive calibration: major abdominal empiric carbapenem use
+                    ("imipenem_c", 850.0),                  // Aggressive calibration: major abdominal empiric carbapenem use
+                    ("ertapenem", 700.0),                   // Aggressive calibration: boost once-daily carbapenem share for abdominal sepsis
+                    ("ceftazidime", 9.0),   
                     ("cefepime", 9.0),
                     ("ceftriaxone", 9.0),
-                    ("ceftazidime_avibactam", 10.0),
+                    ("ceftazidime_avibactam", 30.0),
                     ("aztreonam_avibactam", 2.0),
-                    ("meropenem_vaborbactam", 10.0),
+                    ("meropenem_vaborbactam", 650.0),       // Aggressive calibration: allow more resistant abdominal escalation
                     ("ciprofloxacin", 7.0),
                     ("levofloxacin", 6.5),
                     ("ampicillin", 8.0),
@@ -11533,11 +11534,11 @@ lazy_static! {
                     ("vancomycin", 13.0),
                     ("linezolid", 10.0),
                     ("cefixime", 1.0),
-                    ("meropenem", 11.0),
-                    ("imipenem_c", 10.0),
+                    ("meropenem", 40.0),
+                    ("imipenem_c", 30.0),
                     ("chloramphenicol", 2.0),
                     ("rifampicin", 1.0),
-                    ("piperacillin_tazobactam", 6.0),
+                    ("piperacillin_tazobactam", 30.0),
                 ],
             ),
             // 7 = Gastrointestinal (non-invasive)
@@ -11545,17 +11546,17 @@ lazy_static! {
                 7,
                 &[
                     ("ciprofloxacin", 8.0),
-                    ("azithromycin", 12.0),
-                    ("amoxicillin_clavulanate", 11.0),
-                    ("amoxicillin", 10.0),
-                    ("ampicillin", 10.0),
+                    ("azithromycin", 4.0),
+                    ("amoxicillin_clavulanate", 50.0),      // 11.0
+                    ("amoxicillin", 5.0),
+                    ("ampicillin", 5.0),
                     ("levofloxacin", 6.0),
-                    ("ampicillin_sulbactam", 9.0),
+                    ("ampicillin_sulbactam", 50.0),          // 9.0
                     ("trim_sulf", 0.5),
                     ("doxycycline", 4.0),
                     ("minocycline", 2.5),
                     ("cefixime", 4.5),
-                    ("penicillin_g", 5.0),
+                    ("penicillin_g", 3.0),
                     ("cephalexin", 5.0),
                     ("cefuroxime", 5.0),
                     ("furazolidone", 0.2),
@@ -11567,17 +11568,17 @@ lazy_static! {
             (
                 8,
                 &[
-                    ("penicillin_g", 14.0),
-                    ("azithromycin", 13.0),
+                    ("penicillin_g",  3.0),             // 14.0
+                    ("azithromycin", 3.0),
                     ("ceftriaxone", 13.0),
                     ("cefixime", 10.5),
                     ("doxycycline", 5.5),
-                    ("amoxicillin_clavulanate", 12.0),
-                    ("amoxicillin", 11.0),
+                    ("amoxicillin_clavulanate", 50.0),  // 12.0
+                    ("amoxicillin", 5.0),
                     ("cefuroxime", 10.0),
                     ("clindamycin", 9.0),
-                    ("ampicillin", 9.0),
-                    ("ampicillin_sulbactam", 8.0),
+                    ("ampicillin", 5.0),
+                    ("ampicillin_sulbactam", 30.0),
                     ("ciprofloxacin", 4.0),
                     ("levofloxacin", 4.0),
                     ("cephalexin", 6.0),
@@ -11590,22 +11591,22 @@ lazy_static! {
             (
                 9,
                 &[
-                    ("flucloxacillin", 16.0),           // raised: dominant empiric choice for bone/joint (Staph cover essential)
+                    ("flucloxacillin", 5.0),           // 16.0  raised: dominant empiric choice for bone/joint (Staph cover essential)
                     ("cefazolin", 13.0),
                     ("vancomycin", 12.0),
-                    ("ampicillin", 12.0),
+                    ("ampicillin",  5.0),          // 12.0
                     ("ceftriaxone", 11.0),
                     ("cephalexin", 11.0),
-                    ("penicillin_g", 11.0),             // reduced from 14: narrow-spectrum, appropriate only once strep confirmed
+                    ("penicillin_g",  3.0),             // 11.0 
                     ("linezolid", 11.0),
                     ("tedizolid", 10.0),
                     ("dalbavancin", 10.0),
-                    ("clindamycin", 10.0),
+                    ("clindamycin",  3.0),
                     ("ciprofloxacin", 9.0),
                     ("levofloxacin", 9.0),
                     ("trim_sulf", 0.5),
-                    ("meropenem", 7.0),
-                    ("piperacillin_tazobactam", 6.5),
+                    ("meropenem", 700.0),                 // 7.0
+                    ("piperacillin_tazobactam", 30.0),      // 6.5
                     ("rifampicin", 6.0),                // raised from 2.0: key add-on for biofilm penetration in hardware/PJI
                 ],
             ),
@@ -11615,14 +11616,14 @@ lazy_static! {
                 &[
                     ("vancomycin", 13.0),               // raised: CoNS/S. aureus dominate device/line infections; vanco is empiric backbone
                     ("linezolid", 10.0),               // raised: gram-positive cover priority consistent with vancomycin uplift
-                    ("piperacillin_tazobactam", 11.0),
+                    ("piperacillin_tazobactam", 30.0),  // Keep broad empiric cover, but less dominant than before
                     ("cefepime", 9.0),
                     ("ceftriaxone", 8.0),
-                    ("meropenem", 11.0),
-                    ("imipenem_c", 10.0),
+                    ("meropenem", 900.0),               // Aggressive calibration: major severe/device empiric carbapenem use
+                    ("imipenem_c", 800.0),              // Aggressive calibration: major severe/device empiric carbapenem use
                     ("aztreonam_avibactam", 2.0),
                     ("ciprofloxacin", 7.0),
-                    ("azithromycin", 6.0),
+                    ("azithromycin", 3.0),
                 ],
             ),
         ];
@@ -11735,10 +11736,10 @@ lazy_static! {
         }
 
         // Bacterial Identification Effect Parameters
-    map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 0.85); // Make broad-spectrum empiric choices noticeably less favored than narrow options
+    map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 1.15); // Aggressive calibration: favor broad empiric coverage in severe undifferentiated care so carbapenems can win more starts
         map.insert("empiric_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Heavy penalty for drugs ineffective against actual pathogens (empirical)
         map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 5.0); // Further reward narrow agents once pathogen identified
-        map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.1); // Stronger penalty for broad-spectrum drugs when bacteria identified
+        map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.45); // Aggressive calibration: still penalize broad-spectrum targeted therapy, but stop crushing carbapenems after pathogen identification
         map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Strong penalty for drugs ineffective against identified bacteria
 
         // Regional Resistance Surveillance Parameters for Drug Choice
@@ -11769,45 +11770,45 @@ lazy_static! {
 
 
         // Logistic sepsis risk parameters.
-        map.insert("sepsis_baseline_log_odds".to_string(), -14.0); // Fallback baseline for organisms without explicit intercept
+        map.insert("sepsis_baseline_log_odds".to_string(), -12.0); // -14.0 Fallback baseline for organisms without explicit intercept
 
 
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-            ("acinetobacter_baumannii", -7.7),
-            ("citrobacter_spp.", -9.2),
-            ("enterobacter_spp.", -7.7),
-            ("enterococcus_faecalis", -7.5),       // was -8.0; CFR 0.74x under-death
-            ("enterococcus_faecium", -7.0),         // was -8.0; CFR 0.40x under-death
-            ("escherichia_coli", -9.5),             // was -8.5; CFR 2.7x over-death
-            ("klebsiella_pneumoniae", -7.5),        // was -8.0; CFR 0.83x under-death
-            ("morganella_spp.", -7.8),
-            ("proteus_spp.", -7.8),
-            ("serratia_spp.", -8.0),
-            ("pseudomonas_aeruginosa", -6.5),       // was -8.0; CFR 0.38x under-death
-            ("stenotrophomonas_maltophilia", -8.0),
-            ("staphylococcus_aureus", -8.0),
-            ("staphylococcus_epidermidis", -8.0),
-            ("streptococcus_pneumoniae", -10.5),
-            ("salmonella_enterica_serovar_typhi", -8.0),
-            ("salmonella_enterica_serovar_paratyphi_a", -9.0), // was -8.0; CFR 3.4x over-death
-            ("invasive_non-typhoidal_salmonella_spp.", -9.2),  // was -8.0; CFR 1.9x over-death
-            ("shigella_spp.", -12.0),
-            ("neisseria_gonorrhoeae", -23.0),
-            ("streptococcus_pyogenes", -6.5),       // was -8.0; CFR 0.20x under-death (invasive GAS)
-            ("streptococcus_agalactiae", -7.0),     // was -8.0; CFR 0.55x under-death
-            ("haemophilus_influenzae", -9.2),
-            ("chlamydia_trachomatis", -19.0),
-            ("vibrio_cholerae", -9.0),
-            ("neisseria_meningitidis", -7.9),
-            ("listeria_monocytogenes", -8.0),
-            ("clostridioides_difficile", -11.0),
-            ("campylobacter_jejuni", -20.0),
-            ("enterobacter_cloacae", -7.8),
-            ("yersinia_enterocolitica", -9.5),     // was -8.0; CFR 6.7x over-death
-            ("moraxella_catarrhalis", -10.8),
-            ("treponema_pallidum", -11.0),
-            ("bordetella_pertussis", -11.0),
+            ("acinetobacter_baumannii", -7.1),
+            ("citrobacter_spp.", -8.6),
+            ("enterobacter_spp.", -7.1),
+            ("enterococcus_faecalis", -6.9),       // was -8.0; CFR 0.74x under-death
+            ("enterococcus_faecium", -6.4),         // was -8.0; CFR 0.40x under-death
+            ("escherichia_coli", -8.9),             // was -8.5; CFR 2.7x over-death
+            ("klebsiella_pneumoniae", -6.9),        // was -8.0; CFR 0.83x under-death
+            ("morganella_spp.", -7.2),
+            ("proteus_spp.", -7.2),
+            ("serratia_spp.", -7.4),
+            ("pseudomonas_aeruginosa", -5.9),       // was -8.0; CFR 0.38x under-death
+            ("stenotrophomonas_maltophilia", -7.4),
+            ("staphylococcus_aureus", -7.4),
+            ("staphylococcus_epidermidis", -7.4),
+            ("streptococcus_pneumoniae", -9.9),
+            ("salmonella_enterica_serovar_typhi", -7.4),
+            ("salmonella_enterica_serovar_paratyphi_a", -8.4), // was -8.0; CFR 3.4x over-death
+            ("invasive_non-typhoidal_salmonella_spp.", -8.6),  // was -8.0; CFR 1.9x over-death
+            ("shigella_spp.", -11.4),
+            ("neisseria_gonorrhoeae", -23.4),
+            ("streptococcus_pyogenes", -5.9),       // was -8.0; CFR 0.20x under-death (invasive GAS)
+            ("streptococcus_agalactiae", -6.4),     // was -8.0; CFR 0.55x under-death
+            ("haemophilus_influenzae", -8.6),
+            ("chlamydia_trachomatis", -18.4),
+            ("vibrio_cholerae", -8.4),
+            ("neisseria_meningitidis", -7.3),
+            ("listeria_monocytogenes", -7.4),
+            ("clostridioides_difficile", -10.4),
+            ("campylobacter_jejuni", -19.4),
+            ("enterobacter_cloacae", -7.2),
+            ("yersinia_enterocolitica", -8.9),     // was -8.0; CFR 6.7x over-death
+            ("moraxella_catarrhalis", -10.2),
+            ("treponema_pallidum", -10.4),
+            ("bordetella_pertussis", -10.4),
             ("helicobacter_pylori", -250.0),
             ("mdr_mycobacterium_tuberculosis", -38.0),
         ];
@@ -11966,7 +11967,7 @@ lazy_static! {
         // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
         // where log_odds = base + age_effect + region_effect + immuno_effect + level_effect + duration_effect + care_effect
         // ***sepsis_death
-        map.insert("sepsis_death_base_log_odds".to_string(), -5.0); // REVISED: Lowered from -4.5 to balance population death rates (~0.4% daily base)
+        map.insert("sepsis_death_base_log_odds".to_string(), -6.2); // -6.0 REVISED: Lowered from -4.5 to balance population death rates (~0.4% daily base)
         map.insert("sepsis_death_log_odds_age_infant".to_string(), 1.1); // Infants: +1.1 log-odds (~3x baseline)
         map.insert("sepsis_death_log_odds_age_child".to_string(), -0.7); // Children: -0.7 log-odds (~0.5x baseline)
         map.insert("sepsis_death_log_odds_age_adult".to_string(), 0.0); // Adults: reference category
@@ -12488,8 +12489,8 @@ lazy_static! {
                 "linezolid" => 0.5,
         // TODO: configure dalbavancin availability for South America
                 // Limited access to some carbapenems
-                "ertapenem" => 0.6,
-                "meropenem" | "imipenem_c" => 0.7,
+                "ertapenem" => 1.0,
+                "meropenem" | "imipenem_c" => 1.0,
                 // Moderate access to some newer cephalosporins
                 "cefepime" => 0.8,
                 // Good access to older, established drugs
@@ -12524,13 +12525,13 @@ lazy_static! {
                 // Vancomycin - very limited
                 "vancomycin" => 0.3,
                 // Newer/expensive drugs - very limited or unavailable
-                "meropenem" | "imipenem_c" => 0.2,
-                "ertapenem" => 0.1,
+                "meropenem" | "imipenem_c" => 0.6,
+                "ertapenem" => 0.5,
                 "linezolid" => 0.1,
                 "tedizolid" | "ceftaroline" | "teicoplanin" => 0.0,
                 // TODO: define dalbavancin availability for Africa once rollout planned
                 "aztreonam" => 0.1,
-                "cefepime" => 0.3,
+                "cefepime" => 0.6,
                 "moxifloxacin" => 0.2,
                 "minocycline" => 0.4,
                 "quinu_dalfo" => 0.1,
