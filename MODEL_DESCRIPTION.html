@@ -66,7 +66,7 @@ a:hover { text-decoration: underline; }
 <h2 id="1-overview">1. Overview</h2>
 <h3 id="11-framework-structure">1.1 Framework structure</h3>
 <p>We present a <strong>framework</strong> in the form of an <strong>individual-based model</strong> which simulates infection incidence, antibacterial usage, resistance emergence and risk of sepsis and death.  In the current configuration / set-up, we <strong>simulate the lives of a repreentative sample of the global population from 1930</strong>, before the use of antibiotics, to the present day in <strong>daily</strong> time steps.  The framework code is open-source and we encourage colleagues to use, and perhaps further develop, the framework to enable them to answer questions around how resistance has emerged over time (including through use of counterfactuals) and, critically, to predict the effect of various potential policies  on antibacterial drug resistance and infection related mortality.  Possible policies could relate to those aimed at minimizing drug resistance emergence and growth but also those that for which future drug resistance is a concern as a negative effect of a policy, such as those involving wider antibiotic use, and the framework should enable these negative effects to be quantified and compared with the positive effects.  </p>
-<p>As currently structured, the framework tracks 42 bacterial species, 61 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.  </p>
+<p>As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
 <p>The framework aims to capture how bacterial resistance in one individual can affect risk in others in the same region (and accounts for movement between regions).  It does not, however, dynamically model infection spread per se; infection incidence in a given region in a given age, immunodeficiency and hospitalisation status is directly specified. </p>
 <p>The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of mechanistic rules. These rules govern the events that can happen to a person on any given day and include:</p>
 <ul>
@@ -78,6 +78,7 @@ a:hover { text-decoration: underline; }
 <li>Resistance emergence via de novo mutation or horizontal gene transfer</li>
 <li>Mortality from infection, sepsis, or drug toxicity</li>
 </ul>
+<p><strong>Implementation order within a simulated day.</strong> In the live <code>apply_rules()</code> implementation, the ordering is: age/living-state checks; reset daily microbiome flags; immunodeficiency onset/recovery; hospital admission or discharge; travel; sepsis onset or clearance for currently active infections; birth-cohort vaccination; antibiotic stopping, pharmacokinetic decay, and new drug initiation/selection; toxicity and treatment-failure/restart checks; mortality and sepsis recovery; then the per-bacterium loop for new acquisition, microbiome acquisition/clearance, resistance emergence/reversion/floors, infection growth, symptoms, clearance, testing, and finally HGT. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.</p>
 <p><strong>Stochastic processes.</strong> The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a <em>probability</em> for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories.</p>
 <p><strong>Calibration.</strong> As laid out below, the framework contains thousands of parameters.  In the current configuration we have just a single value for each parameter which we argue provides a reasonable calibration to observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data.  Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to try to identify multiple sets of parameter values that produce an acceptable calibration in order to be able to express uncertainty over parameter values when comparing future policy options.    </p>
 <h3 id="12-document-structure">1.2 Document structure</h3>
@@ -310,7 +311,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>Harder to recover from sepsis</td>
-<td><code>sepsis_log_odds_immunosuppressed</code></td>
+<td><code>sepsis_recovery_log_odds_immunosuppressed</code></td>
 <td>−1.0</td>
 <td>~2.7× lower odds of daily recovery, reflecting poor immune clearance</td>
 </tr>
@@ -342,7 +343,7 @@ a:hover { text-decoration: underline; }
 <li>Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).</li>
 <li>The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.</li>
 </ul>
-<p>For example, the daily probability of starting antibiotics might be calculated as: <em>baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (+0.2) = +6.7</em>, still yielding near-certainty for a septic immunocompromised patient with symptoms because the acute clinical syndrome dominates the decision.</p>
+<p>For example, the daily probability of starting antibiotics for a hospitalised septic immunocompromised patient with symptoms would include: <em>baseline log-odds (-5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + hospitalised (+0.7) + immunodeficiency (+0.2) = +7.4</em>, yielding near-certainty because the acute clinical syndrome dominates the decision.</p>
 <h3 id="24-hospitalisation">2.4 Hospitalisation</h3>
 <p>Given the concentration of resistant organisms, broad-spectrum antibiotic use, and vulnerable patients in hospital settings (Magill SS et al., 2018), the model simulates daily admission decisions, length of stay, and the elevated risks of nosocomial infection.</p>
 <p><strong>Admission criteria.</strong> Each day, the model calculates a probability of hospital admission for every individual using a logistic model. The key factors are:</p>
@@ -516,13 +517,13 @@ a:hover { text-decoration: underline; }
 </table>
 <p>Source:  UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code> </p>
 <p>These multipliers are intended as a semi-quantitative ranking of cross-region mixing intensity, not as literal estimates of per-capita trip counts. The ordering is supported by broad regional patterns in UN Tourism's global and regional tourism dashboard and World Bank indicators for international tourism departures and air passenger volumes, which collectively show very high international mobility in Europe and North America, strong air-travel dependence in Oceania, rapid growth but substantial heterogeneity across Asia, intermediate volumes in South America, and lower outbound tourism and aviation intensity across much of Africa (UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code>).</p>
-<p>When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. </p>
+<p>When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. In the current implementation, travel can only start while the person is at home and not hospitalised. A trip lasts 30 days, then the person returns to their home region. Destinations are sampled from a fixed origin-specific matrix and the home region is excluded from the candidate destinations for that trip.</p>
 <p><strong>Age-specific travel risk.</strong> Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of <em>Salmonella enterica</em> serovar Typhi (+0.8 log-odds) and <em>Shigella</em> spp. (+0.5 log-odds), while <em>V. cholerae</em> risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens but no risk for sexually transmitted infections acquired during travel.</p>
 <hr />
 <h2 id="3-infection-acquisition">3. Infection Acquisition</h2>
 <p>This section describes how people in the model acquire bacterial infections. A person can acquire bacteria from three main sources: the community (e.g., food, water, close contacts), the hospital environment (e.g., ventilators, catheters, other patients), or their own body (bacteria they are already carrying asymptomatically can flare into active infection). The model captures all three pathways, but it does so through a deliberately compressed acquisition architecture that preserves the main epidemiological distinctions needed for long-run AMR policy analysis rather than every route-specific exposure mechanism.</p>
 <h3 id="31-community-acquisition">3.1 Community acquisition</h3>
-<p>Each day, every person who does not already have an active infection has a chance of acquiring any of the 42 bacterial species. The model calculates a separate probability for each species using a logistic model (see Section 1.2) that combines several risk factors:</p>
+<p>Each day, the model evaluates each of the 42 bacterial species separately. A person can acquire a bacterium if they are not already actively infected with that same bacterium; having another active infection does not block acquisition. Co-infections are therefore possible. The model calculates a separate probability for each species using a logistic model (see Section 1.2) that combines several risk factors:</p>
 <ul>
 <li><strong>Baseline acquisition rate</strong> for the specific bacterium — some bacteria (e.g., <em>E. coli</em>) cause infections far more frequently than others (e.g., <em>L. monocytogenes</em>)</li>
 <li><strong>Region</strong> — infection rates vary by geography due to climate, sanitation, and population density</li>
@@ -728,12 +729,11 @@ a:hover { text-decoration: underline; }
 </tbody>
 </table>
 <h3 id="34-resistance-at-acquisition">3.4 Resistance at acquisition</h3>
-<p>When a new infection is acquired from the community, the model needs to decide: is this bacterium resistant to any drugs, and if so, which ones?</p>
-<p>Rather than sampling each drug-resistance pair independently (which would produce unrealistic resistance patterns), the model uses a six-step pipeline that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:</p>
+<p>When a new infection is acquired in the community, the modelling framework determines whether (and, if so, what) resistance is present.  The framework uses a six-step process that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:</p>
 <p><strong>Step 1 — Profile reservoir and prevalence tracking</strong></p>
-<p>After every simulated day, the model refreshes a <strong>profile reservoir</strong> (<code>MechanismCache</code>) of up to 1000 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). The reservoir is built by <strong>reservoir sampling</strong> from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals (bitmask = 0). Infected individuals contribute to the pool corresponding to their <strong>current location</strong> (hospital or community) at the time of the daily cache update.</p>
-<p>The reservoir uses <strong>asymmetric retention</strong> when refreshing its contents each day. Community profiles are retained with a fraction <code>community_profile_cache_retention</code> = 0.9 (~6.6-day half-life), so the community pool tracks currently circulating strains rather than accumulating historical profiles. Hospital profiles are retained with a fraction <code>hospital_profile_cache_retention</code> = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistant genotype, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.</p>
-<p>Because the reservoir includes both resistant and susceptible profiles, the <strong>prevalence</strong> of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the model checks whether any mechanism applicable to that drug is set, and the resistant fraction across all stored profiles gives the current prevalence estimate. In the current architecture there is no separate EWMA fallback layer; the profile reservoir itself is the source of both sampling and derived prevalence. This prevalence is used downstream by antibiotic prescribing logic (Section 6) and calibration scoring.</p>
+<p>After every simulated day, the model refreshes a <strong>profile reservoir</strong> (<code>MechanismCache</code>) of up to 1000 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria.  The reservoir is built by <strong>reservoir sampling</strong> from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals. Infected individuals contribute to the pool corresponding to their <strong>current location</strong> (region, hospital or community) at the time of the daily cache update.</p>
+<p>The reservoir uses <strong>asymmetric retention</strong> when refreshing its contents each day. Community profiles are retained with a fraction <code>community_profile_cache_retention</code> = 0.9 (~6.6-day half-life), so the community pool tracks currently circulating strains rather than accumulating historical profiles. Hospital profiles are retained with a fraction <code>hospital_profile_cache_retention</code> = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistance mechanism, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool is more rapidly responsive to current circulating strains.</p>
+<p>Because the reservoir includes both resistant and susceptible profiles, the <strong>prevalence</strong> of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the framework checks whether any mechanism applicable to that drug is set, and the resistant fraction across all stored profiles gives the current prevalence estimate.  The profile reservoir is the source of both sampling and derived prevalence. This prevalence is used downstream by antibiotic prescribing logic (Section 6).</p>
 <p><strong>Hospital resistance concentration factor.</strong> Each bacterium is assigned a <strong>hospital resistance concentration factor</strong> (<code>hospital_resistance_concentration_factor</code>) that reflects the empirical observation that hospital environments concentrate resistant organisms through selective antibiotic pressure, device-associated biofilm persistence, patient-to-patient transmission via healthcare workers, and environmental contamination (Weinstein RA, 1998; Weber DJ et al., 2010). This factor is used at <strong>Step 3</strong> during profile sampling to over-sample resistant profiles when assigning resistance to hospital-acquired infections (see Step 3 for details). The concentration factor is assigned to one of four tiers based on each bacterium's ecological association with healthcare:</p>
 <table>
 <thead>
@@ -749,7 +749,7 @@ a:hover { text-decoration: underline; }
 <td>1 — Nosocomial opportunists</td>
 <td style="text-align: right;">2.25</td>
 <td><em>A. baumannii</em>, <em>P. aeruginosa</em>, <em>S. maltophilia</em>, <em>Burkholderia</em></td>
-<td>Primarily nosocomial, thrive on devices and in ICU environments</td>
+<td>Primarily nosocomial, on devices and in ICU environments</td>
 </tr>
 <tr>
 <td>2 — Hospital-enriched GNR</td>
@@ -772,7 +772,7 @@ a:hover { text-decoration: underline; }
 </tbody>
 </table>
 <p><strong>Step 2 — Community dilution</strong></p>
-<p>Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria <strong>community resistance dilution factor</strong> (<code>community_resistance_dilution_factor</code>). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).</p>
+<p>Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria <strong>community resistance dilution factor</strong> (<code>community_resistance_dilution_factor</code>). A random draw determines whether the infection originates from a human or farm animal reservoir at all; if not, the bacterium is treated as wild-type (no resistance). This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (no dilution).</p>
 <p>The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir:</p>
 <table>
 <thead>
@@ -816,11 +816,11 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>Per-bacteria values are calibrated within these ecological bands in the live configuration.</p>
+<p>Per-bacteria values are calibrated within these ecological bands.</p>
 <p><strong>Step 3 — Correlated mechanism profiles — weighted profile sampling</strong></p>
-<p>Rather than independently sampling each mechanism from a marginal prevalence estimate (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model draws a <strong>complete genotype profile</strong> from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired <em>E. coli</em>, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).</p>
-<p><strong>Community-acquired infections</strong> draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles (bitmask = 0), uniform sampling automatically reproduces the true population prevalence of resistance.</p>
-<p><strong>Hospital-acquired weighted sampling.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model does not draw a uniform profile from the hospital pool. Instead it uses <strong>weighted profile sampling</strong> (<code>sample_profile_weighted</code>): each profile in the reservoir is assigned a sampling weight of \(f^{k}\), where \(k\) is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher \(k\)) are over-sampled relative to susceptible profiles (\(k = 0\), weight \(= f^0 = 1\)), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a <strong>real observed genotype</strong> — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired <em>K. pneumoniae</em> infection with \(f = 1.3\) and 8 mechanism bits, for example, receives a weight of \(1.3^8 \approx 8.2\)× relative to a susceptible profile, substantially increasing its draw probability.</p>
+<p>Rather than independently sampling each mechanism from a marginal prevalence estimate, the framework draws a <strong>complete genotype profile</strong> from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired <em>E. coli</em>, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).</p>
+<p><strong>Community-acquired infections</strong> that pass the Step 2 dilution gate — meaning the model treats them as arising from the human or farm-animal associated circulating reservoir rather than from a wholly exogenous environmental exposure — draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible as well as resistant profiles, this uniform draw reproduces the resistance prevalence already present in the community cache after the ecological dilution step has done its work. In the very early warm-up phase, if the requested community slot is still empty, the code temporarily falls back to the other stratum rather than inventing a synthetic profile.</p>
+<p><strong>Hospital-acquired weighted sampling.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model does not draw a uniform profile from the hospital pool. Instead it uses <strong>weighted profile sampling</strong> (<code>sample_profile_weighted</code>): each profile in the reservoir is assigned a sampling weight of \(f^{k}\), where \(k\) is the number of resistance mechanisms carried in that strain's profile. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher \(k\)) are over-sampled relative to susceptible profiles (\(k = 0\), weight \(= f^0 = 1\)), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile reflects one that has already been observed in the simulated population, so linked mechanisms on the same plasmid or lineage stay linked. In practice, a hospital-acquired <em>K. pneumoniae</em> infection with \(f = 1.3\) and 8 distinct resistance mechanisms in its stored profile would receive a weight of \(1.3^8 \approx 8.2\) compared with a fully susceptible profile. In plain clinical terms, that means the model makes this highly resistant hospital strain about eight times more likely to be the one acquired than an otherwise available susceptible strain from the same pool.</p>
 <p>The same weighted sampling logic is applied to <strong>carriage acquisition</strong> (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same \(f^k\) weighting.</p>
 <p>If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.</p>
 <p><strong>Weighted profile sampling formula.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model employs <strong>weighted profile sampling</strong> rather than uniform sampling. Each profile in the hospital resistance cache is assigned a sampling weight:</p>
@@ -1048,7 +1048,7 @@ a:hover { text-decoration: underline; }
 </table>
 <p>Not all bacteria or body sites carry equal sepsis risk. The model captures this through:</p>
 <ul>
-<li><strong>Per-bacterium baseline</strong>: Ranges from very low (<em>E. coli</em> UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (<em>N. meningitidis</em>: −7.9, reflecting its aggressive clinical course). This is also where organism-specific propensity for toxin-mediated or otherwise disproportionately severe illness sits, such as invasive GAS and toxic-shock phenotypes relative to a less toxigenic organism at similar burden.</li>
+<li><strong>Per-bacterium baseline</strong>: Ranges from effectively zero for the special <em>H. pylori</em> sentinel value (−250.0) and low fallback organisms (−12.0) to high-risk invasive pathogens such as <em>P. aeruginosa</em> and <em>S. pyogenes</em> (−5.9). This is also where organism-specific propensity for toxin-mediated or otherwise disproportionately severe illness sits, such as invasive GAS and toxic-shock phenotypes relative to a less toxigenic organism at similar burden.</li>
 <li><strong>Per-syndrome modifier</strong>: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so</li>
 </ul>
 <p><strong>Regional factors</strong> also affect sepsis risk, reflecting differences in healthcare access and sanitation:
@@ -1232,6 +1232,70 @@ a:hover { text-decoration: underline; }
 </table>
 <p>These regional differences have direct consequences for AMR: in settings where testing is rare, patients are more likely to continue on ineffective empiric therapy, creating selection pressure for resistance without the feedback loop of culture results to guide narrower prescribing.</p>
 <p>As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasized by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings (Jacobs J et al., 2019; WHO GLASS, 2026).</p>
+<h3 id="54-serious-resistance-marker-drugs">5.4 Serious resistance marker drugs</h3>
+<p>The helper <code>serious_resistance_marker_drugs</code> defines one or more sentinel drug-resistance results for each organism. These markers are used when interpreting serious-resistance burden and in admission logic once a relevant resistant test result is known.</p>
+<table>
+<thead>
+<tr>
+<th>Organism group or species</th>
+<th>Marker drug</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enterobacterales and selected Gram-negative nosocomial pathogens: <em>E. coli</em>, <em>K. pneumoniae</em>, <em>Enterobacter</em>, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Proteus</em>, <em>P. stuartii</em>, <em>A. baumannii</em>, <em>P. aeruginosa</em>, <em>B. cepacia</em> complex, <em>B. fragilis</em></td>
+<td><code>meropenem</code></td>
+</tr>
+<tr>
+<td><em>S. maltophilia</em></td>
+<td><code>trim_sulf</code></td>
+</tr>
+<tr>
+<td>Staphylococci</td>
+<td><code>flucloxacillin</code></td>
+</tr>
+<tr>
+<td>Enterococci and <em>C. difficile</em></td>
+<td><code>vancomycin</code></td>
+</tr>
+<tr>
+<td><em>S. pneumoniae</em>, <em>S. agalactiae</em>, <em>T. pallidum</em></td>
+<td><code>penicillin_g</code></td>
+</tr>
+<tr>
+<td><em>S. pyogenes</em></td>
+<td><code>erythromycin</code></td>
+</tr>
+<tr>
+<td><em>H. influenzae</em></td>
+<td><code>amoxicillin_clavulanate</code></td>
+</tr>
+<tr>
+<td>Macrolide-treated respiratory, atypical, STI, and cholera organisms: <em>M. catarrhalis</em>, <em>M. pneumoniae</em>, <em>L. pneumophila</em>, <em>B. pertussis</em>, <em>V. cholerae</em>, <em>C. trachomatis</em>, <em>M. genitalium</em></td>
+<td><code>azithromycin</code></td>
+</tr>
+<tr>
+<td>Fluoroquinolone-treated enteric organisms: <em>C. jejuni</em>, <em>S. Typhi</em>, <em>S. Paratyphi A</em>, <em>Shigella</em> spp., <em>Y. enterocolitica</em></td>
+<td><code>ciprofloxacin</code></td>
+</tr>
+<tr>
+<td>iNTS, <em>N. gonorrhoeae</em>, <em>N. meningitidis</em></td>
+<td><code>ceftriaxone</code></td>
+</tr>
+<tr>
+<td><em>L. monocytogenes</em></td>
+<td><code>ampicillin</code></td>
+</tr>
+<tr>
+<td><em>H. pylori</em></td>
+<td><code>clarithromycin</code></td>
+</tr>
+<tr>
+<td>MDR <em>M. tuberculosis</em></td>
+<td><code>rifampicin</code></td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="6-antibiotic-treatment">6. Antibiotic Treatment</h2>
 <p>This section covers the entire antibiotic prescribing process as the model simulates it — from the decision to start an antibiotic, through drug selection and dosing, to stopping the course. Antibiotic use drives the selection pressure that causes resistance to emerge and spread.</p>
@@ -1268,9 +1332,9 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>Immunodeficiency</td>
-<td>−0.75</td>
-<td>modestly less likely in isolation</td>
-<td>In the current model, immunodeficiency alone is not treated as a stand-alone indication; symptoms, sepsis, and test confirmation drive most starts</td>
+<td>+0.2</td>
+<td>weak positive trigger in isolation</td>
+<td>In the current model, immunodeficiency alone is not usually a stand-alone treatment indication; symptoms, sepsis, test confirmation, and the constrained prophylaxis pool drive most starts</td>
 </tr>
 <tr>
 <td>No clinical indication</td>
@@ -1292,7 +1356,7 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>For a 65-year-old immunosuppressed inpatient with a symptomatic <em>E. coli</em> UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.0 (symptomatic) − 0.75 (immunodeficiency) = −0.25, which converts to about a 44% probability of starting antibiotics that day before any additional effects from testing, sepsis, or syndrome-specific scoring are applied.</p>
+<p>For a 65-year-old immunosuppressed inpatient with a symptomatic <em>E. coli</em> UTI and no lab results yet, the daily initiation log-odds would be roughly: -5.5 (baseline) + 6.0 (symptomatic) + 0.7 (hospitalised) + 0.2 (immunodeficiency) + ln(6.0) for the UTI syndrome multiplier = about +3.2 before regional access modifiers, which is a high probability of starting antibiotics that day. If the same patient also has sepsis, a further +6.0 is added.</p>
 <p><strong>Regional variation in antibiotic access:</strong></p>
 <p>Not everyone who needs antibiotics can get them. The model captures the large global gradients in antibiotic access documented by consumption surveys (Klein EY et al., 2018):</p>
 <table>
@@ -1400,6 +1464,7 @@ a:hover { text-decoration: underline; }
 </li>
 </ul>
 <p>These restrictions substantially reduce empiric broad-spectrum therapy by preventing niche agents from out-competing more appropriate choices in syndromes where they are never used clinically.</p>
+<p><strong>Immunodeficiency prophylaxis.</strong> A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool. The only candidate drugs are <code>trim_sulf</code> (score 0.8), <code>azithromycin</code> (3.0), <code>ciprofloxacin</code> (2.0), and <code>levofloxacin</code> (1.5). Reserve drugs are excluded, broad-spectrum drugs are penalised, lower-spectrum drugs receive a modest bonus, and fluoroquinolone prophylaxis is blocked for people younger than 18 years. This rule is why the small positive initiation effect for immunodeficiency does not translate into broad untreated prophylaxis with the full antibiotic catalogue.</p>
 <p><strong>Regional resistance surveillance:</strong> If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:</p>
 <table>
 <thead>
@@ -1475,779 +1540,118 @@ a:hover { text-decoration: underline; }
 </table>
 <p>A constant daily stop probability of 0.45% does not imply an average course of 14 days; rather, it means treatment is only rarely interrupted on any given day, so most courses extend to approximately two weeks.</p>
 <h4 id="syndrome-specific-empiric-scoring-templates">Syndrome-specific empiric scoring templates</h4>
-<p>The tables below show which drugs score highest for empiric prescribing in each syndrome. Higher scores mean the drug is more likely to be selected. These templates are calibrated to match real-world prescribing guidelines — for example, nitrofurantoin and trimethoprim-sulfamethoxazole score highest for UTI, while piperacillin-tazobactam and meropenem score highest for bloodstream infections.</p>
-<p><strong>Syndrome 1 — UTI</strong> <em>(most common bacterial infection; oral <code>sulf</code>, <code>nitrofurans</code>, and <code>phosphonic_acids</code> are preferred for lower UTI, with selected <code>pen</code>, <code>c1_2g</code>, and <code>fq</code> agents used as alternatives when susceptibility history or clinical context supports them)</em></p>
+<p>The exact empiric score templates are source-of-truth in <code>src/config.rs</code> under <code>empiric_syndrome_templates</code>. They change during calibration and are no longer duplicated here in full, because stale copied tables are more misleading than useful. The current UTI template is shown below because it is often referenced when interpreting drug-share outputs:</p>
 <table>
 <thead>
 <tr>
 <th>Drug</th>
-<th>Score</th>
+<th style="text-align: right;">Current UTI empiric score</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>trim_sulf</td>
-<td>14.0</td>
+<td>meropenem</td>
+<td style="text-align: right;">90.0</td>
+</tr>
+<tr>
+<td>imipenem_c</td>
+<td style="text-align: right;">90.0</td>
+</tr>
+<tr>
+<td>ertapenem</td>
+<td style="text-align: right;">90.0</td>
+</tr>
+<tr>
+<td>meropenem_vaborbactam</td>
+<td style="text-align: right;">60.0</td>
+</tr>
+<tr>
+<td>amoxicillin_clavulanate</td>
+<td style="text-align: right;">30.0</td>
+</tr>
+<tr>
+<td>piperacillin_tazobactam</td>
+<td style="text-align: right;">30.0</td>
+</tr>
+<tr>
+<td>ceftazidime_avibactam</td>
+<td style="text-align: right;">30.0</td>
 </tr>
 <tr>
 <td>nitrofurantoin</td>
-<td>14.0</td>
+<td style="text-align: right;">13.0</td>
 </tr>
 <tr>
-<td>amoxicillin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>6.0</td>
+<td>fosfomycin</td>
+<td style="text-align: right;">10.0</td>
 </tr>
 <tr>
 <td>cephalexin</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>8.0</td>
+<td style="text-align: right;">8.0</td>
 </tr>
 <tr>
 <td>cefazolin</td>
-<td>7.0</td>
+<td style="text-align: right;">7.0</td>
 </tr>
 <tr>
 <td>cefuroxime</td>
-<td>7.0</td>
+<td style="text-align: right;">7.0</td>
 </tr>
 <tr>
-<td>piperacillin_tazobactam</td>
-<td>5.0</td>
+<td>cefixime</td>
+<td style="text-align: right;">7.0</td>
+</tr>
+<tr>
+<td>ciprofloxacin</td>
+<td style="text-align: right;">6.0</td>
+</tr>
+<tr>
+<td>levofloxacin</td>
+<td style="text-align: right;">6.0</td>
 </tr>
 <tr>
 <td>cefepime</td>
-<td>4.0</td>
+<td style="text-align: right;">4.0</td>
 </tr>
 <tr>
 <td>ceftazidime</td>
-<td>4.0</td>
+<td style="text-align: right;">4.0</td>
 </tr>
 <tr>
-<td>meropenem</td>
-<td>4.0</td>
-</tr>
-<tr>
-<td>imipenem_c</td>
-<td>4.0</td>
-</tr>
-<tr>
-<td>ertapenem</td>
-<td>4.0</td>
-</tr>
-<tr>
-<td>meropenem_vaborbactam</td>
-<td>3.0</td>
-</tr>
-<tr>
-<td>ceftazidime_avibactam</td>
-<td>3.0</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 2 — Skin/Soft Tissue</strong> <em>(anti-staphylococcal and streptococcal coverage; <code>pen</code>, <code>c1_2g</code>, <code>glyc</code>, <code>lipoglycopeptides</code>, and <code>oxa</code> dominate, while <code>pleuromutilins</code> remain niche topical agents)</em> (Stevens DL et al., 2014)</p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>penicillin_g</td>
-<td>16.0</td>
+<td>ceftriaxone</td>
+<td style="text-align: right;">3.0</td>
 </tr>
 <tr>
 <td>amoxicillin</td>
-<td>14.0</td>
-</tr>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>14.0</td>
+<td style="text-align: right;">2.0</td>
 </tr>
 <tr>
 <td>ampicillin</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>cephalexin</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>cefazolin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>clindamycin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>vancomycin</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>linezolid</td>
-<td>10.0</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>trim_sulf</td>
-<td>9.0</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
-<td>doxycycline</td>
-<td>9.0</td>
+<td>aztreonam_avibactam</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
-<td>minocycline</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>tedizolid</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>dalbavancin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>quinu_dalfo</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>4.0</td>
-</tr>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>3.0</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 3 — Respiratory</strong> <em>(community-acquired pneumonia pattern: a <code>pen</code>/<code>bli</code> backbone plus <code>mls</code> atypical cover; amoxicillin-clavulanate and penicillins score highest)</em> (Metlay JP et al., 2019)</p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>20.0</td>
-</tr>
-<tr>
-<td>amoxicillin</td>
-<td>17.0</td>
-</tr>
-<tr>
-<td>penicillin_g</td>
-<td>16.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>15.0</td>
-</tr>
-<tr>
-<td>azithromycin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>clarithromycin</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>9.5</td>
-</tr>
-<tr>
-<td>erythromycin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>cefuroxime</td>
-<td>8.5</td>
-</tr>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>moxifloxacin</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>cefepime</td>
-<td>7.5</td>
-</tr>
-<tr>
-<td>cephalexin</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>linezolid</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>doxycycline</td>
-<td>6.5</td>
+<td>colistin</td>
+<td style="text-align: right;">0.2</td>
 </tr>
 <tr>
 <td>vancomycin</td>
-<td>6.5</td>
-</tr>
-<tr>
-<td>meropenem</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>imipenem_c</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>ofloxacin</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>minocycline</td>
-<td>5.5</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 4 — Bloodstream</strong> <em>(medical emergency; <code>bli</code>, <code>bli_anti_pseudomonal</code>, <code>bli_sulbactam</code>, <code>carb_group2</code>, and other broad IV agents with strong bactericidal activity dominate)</em> (Rhodes A et al., 2016)</p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>18.0</td>
-</tr>
-<tr>
-<td>ampicillin_sulbactam</td>
-<td>16.0</td>
-</tr>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>16.0</td>
-</tr>
-<tr>
-<td>meropenem</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>imipenem_c</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>meropenem_vaborbactam</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>ceftazidime_avibactam</td>
-<td>12.5</td>
-</tr>
-<tr>
-<td>cefepime</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>ceftazidime</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>vancomycin</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>10.0</td>
+<td style="text-align: right;">0.1</td>
 </tr>
 <tr>
 <td>linezolid</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>amoxicillin</td>
-<td>9.5</td>
-</tr>
-<tr>
-<td>tedizolid</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>quinu_dalfo</td>
-<td>8.5</td>
-</tr>
-<tr>
-<td>dalbavancin</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>penicillin_g</td>
-<td>6.5</td>
-</tr>
-<tr>
-<td>cefazolin</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>5.5</td>
-</tr>
-<tr>
-<td>cephalexin</td>
-<td>4.0</td>
-</tr>
-<tr>
-<td>gentamicin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>tobramycin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>amikacin</td>
-<td>10.0</td>
+<td style="text-align: right;">0.1</td>
 </tr>
 </tbody>
 </table>
-<p>Aminoglycosides appear as individual agents in the empiric table, but in practice they are most often prescribed as add-ons to a primary beta-lactam rather than as monotherapy. The model captures this through its combination-therapy mechanism: once a primary drug has been initiated, an increased log-odds of initiating a further drug is applied, making aminoglycosides competitive as second-line additions in serious contexts (syndromes 4, 5, 6, 10 and sepsis) without displacing broad-spectrum beta-lactams as the initial choice. Outside these serious contexts, aminoglycosides receive a strong penalty (×0.04) that makes standalone empiric prescribing negligible. Amikacin's comparative advantage over gentamicin for resistant gram-negatives is captured in the targeted (organism-identified) prescribing layer rather than the empiric table, where the two agents are approximately interchangeable empirically.</p>
-<p><strong>Syndrome 5 — Intra-abdominal</strong> <em>(must cover Gram-negatives and anaerobes; <code>bli</code>, <code>bli_anti_pseudomonal</code>, <code>bli_sulbactam</code>, <code>carb_group1</code>, and <code>carb_group2</code> are preferred)</em> (Solomkin JS et al., 2010)</p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>meropenem</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>ampicillin_sulbactam</td>
-<td>12.5</td>
-</tr>
-<tr>
-<td>imipenem_c</td>
-<td>12.5</td>
-</tr>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>11.5</td>
-</tr>
-<tr>
-<td>ertapenem</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>ceftazidime_avibactam</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>meropenem_vaborbactam</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>ceftazidime</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>cefepime</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>amoxicillin</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>6.5</td>
-</tr>
-<tr>
-<td>trim_sulf</td>
-<td>4.0</td>
-</tr>
-<tr>
-<td>metronidazole</td>
-<td>2.5</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 6 — CNS</strong> <em>(meningitis; only drugs that cross the blood-brain barrier are useful — see Section 6.4)</em> (Tunkel AR et al., 2004)</p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>ceftriaxone</td>
-<td>15.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>vancomycin</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>ceftazidime</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>cefepime</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>penicillin_g</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>meropenem</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>linezolid</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>imipenem_c</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>chloramphenicol</td>
-<td>2.0</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 7 — Gastrointestinal</strong> <em>(<code>fq</code> and <code>mls</code> dominate uncomplicated bacterial gastroenteritis scoring, with oral <code>pen</code>, <code>bli</code>, and selected <code>nitrofurans</code> also present)</em></p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>ciprofloxacin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>azithromycin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>amoxicillin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>ampicillin_sulbactam</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>trim_sulf</td>
-<td>8.5</td>
-</tr>
-<tr>
-<td>doxycycline</td>
-<td>8.5</td>
-</tr>
-<tr>
-<td>minocycline</td>
-<td>6.5</td>
-</tr>
-<tr>
-<td>penicillin_g</td>
-<td>5.0</td>
-</tr>
-<tr>
-<td>cephalexin</td>
-<td>5.0</td>
-</tr>
-<tr>
-<td>cefuroxime</td>
-<td>5.0</td>
-</tr>
-<tr>
-<td>furazolidone</td>
-<td>3.0</td>
-</tr>
-<tr>
-<td>metronidazole</td>
-<td>1.0</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 8 — Genital/Pelvic</strong> <em>(STI guidelines: ceftriaxone + azithromycin for gonorrhoea; doxycycline for chlamydia; penicillin G for syphilis)</em> (Workowski KA et al., 2021)</p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>penicillin_g</td>
-<td>14.0</td>
-</tr>
-<tr>
-<td>azithromycin</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>doxycycline</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>amoxicillin_clavulanate</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>amoxicillin</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>cefuroxime</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>clindamycin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>ampicillin_sulbactam</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>6.5</td>
-</tr>
-<tr>
-<td>cephalexin</td>
-<td>6.0</td>
-</tr>
-<tr>
-<td>trim_sulf</td>
-<td>5.0</td>
-</tr>
-<tr>
-<td>metronidazole</td>
-<td>1.0</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome 9 — Bone/Joint</strong> <em>(prolonged courses required; good bone penetration essential — <code>pen</code> including <code>flucloxacillin</code>, <code>c1_2g</code>/<code>c3g</code>, <code>fq</code>, <code>rifamycins</code>, and <code>oxa</code> feature prominently)</em></p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>penicillin_g</td>
-<td>14.0</td>
-</tr>
-<tr>
-<td>cefazolin</td>
-<td>13.0</td>
-</tr>
-<tr>
-<td>ampicillin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>vancomycin</td>
-<td>12.0</td>
-</tr>
-<tr>
-<td>cephalexin</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>linezolid</td>
-<td>11.0</td>
-</tr>
-<tr>
-<td>tedizolid</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>dalbavancin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>clindamycin</td>
-<td>10.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>levofloxacin</td>
-<td>9.0</td>
-</tr>
-<tr>
-<td>trim_sulf</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>meropenem</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>6.5</td>
-</tr>
-<tr>
-<td>rifampicin</td>
-<td>2.0</td>
-</tr>
-</tbody>
-</table>
-<p>This table is illustrative rather than exhaustive. <code>flucloxacillin</code> is part of the model's <code>pen</code> class and participates in the same prescribing logic even though it is not shown as a separate row in this abbreviated top-score summary.</p>
-<p><strong>Syndrome 10 — Other/Device-Related</strong> <em>(broad empiric cover when site is uncertain; even scoring reflects clinical uncertainty)</em></p>
-<table>
-<thead>
-<tr>
-<th>Drug</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>piperacillin_tazobactam</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>cefepime</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>ceftriaxone</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>meropenem</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>imipenem_c</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>vancomycin</td>
-<td>8.0</td>
-</tr>
-<tr>
-<td>linezolid</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>ciprofloxacin</td>
-<td>7.0</td>
-</tr>
-<tr>
-<td>azithromycin</td>
-<td>6.0</td>
-</tr>
-</tbody>
-</table>
+<p>These are scores before availability, age, syndrome restrictions, regional access, resistance surveillance, targeted-therapy modifiers, reserve-drug gates, toxicity avoidance, and the temperature-scaled weighted draw are applied.</p>
 <h4 id="species-specific-and-time-varying-prescribing-multipliers">Species-specific and time-varying prescribing multipliers</h4>
 <p>The syndrome-level empiric tables above describe population-wide prescribing tendencies; they are agnostic to which organism is causing the infection. Once an organism is identified (targeted therapy), a second layer of species-specific <strong>initiation multipliers</strong> is applied on top of the syndrome score. These encode disease-area guidelines that name a specific drug–organism combination — for example, the WHO recommendation for ceftriaxone in gonorrhoea, or triple therapy for <em>H. pylori</em> — rather than leaving the choice to the generic spectrum-and-syndrome heuristic.</p>
 <p>Multipliers greater than 1 boost a drug's score for that organism; values less than 1 suppress it. A value of 0.01 effectively blocks use (e.g., penicillin G for <em>Pseudomonas aeruginosa</em>). The default for any drug–organism pair with no explicit entry is 1.0 (no modification).</p>
@@ -2494,6 +1898,10 @@ a:hover { text-decoration: underline; }
 <p><em>C. difficile</em> also has a <code>treatment_recognition_year</code> of 1977 — before the Bartlett et al. description of antibiotic-associated colitis, no antibiotic pressure is applied to this organism regardless of multiplier values.</p>
 <p>For <em>M. genitalium</em>, the live calibration now treats macrolide resistance as primarily a 23S-rRNA mutation problem, with <code>erm_b</code> retained only as a low-probability MLS co-resistance fallback rather than a dominant pathway. This avoids forcing an implausibly strong mobile-element-style mechanism in an organism whose macrolide resistance is usually explained by chromosomal 23S substitutions.
 The tetracycline side is handled similarly: <code>tet_m</code> is retained only as a small historical non-gonococcal-urethritis / doxycycline-era signal, not as a dominant modern resistance mechanism.</p>
+<p><strong>Additional live prescribing heuristics.</strong> Targeted therapy uses organism-specific first/second-line allow-lists for common pathogens such as <em>P. aeruginosa</em>, <em>S. aureus</em>, <em>S. maltophilia</em>, pneumococcus, <em>E. coli</em>, <em>K. pneumoniae</em>, Enterococcus spp., <em>A. baumannii</em>, AmpC-risk Enterobacterales, gonorrhoea, Shigella, MDR-TB, and others. Drugs outside those lists are heavily penalised once an organism is identified. High-potency drugs receive graded boosts, organism-drug initiation multipliers add disease-specific preferences, and regional resistance surveillance penalises choices with high local failure signals unless a susceptibility result supports them.</p>
+<p>Reserve agents are gated separately. In targeted therapy, reserve drugs are strongly discouraged unless there is recent treatment failure or a severe hospitalised Gram-negative context. In empiric therapy, reserve use is stricter: recent failure or severe hospitalised Gram-negative disease must be present, and population resistance pressure can still block escalation. After this gate, the global reserve penalty is applied (<code>reserve_drug_score_penalty = 0.35</code> in the live default configuration).</p>
+<p>Drug choice also remembers recent harm. If toxicity stops a drug, that drug receives an approximately 1000-fold avoidance penalty for the configured avoidance window. When targeted therapy starts, ineffective existing drugs are stopped if they have no activity against any identified active infection. In non-severe empiric starts, a new empiric drug generally replaces existing empiric therapy rather than stacking indefinitely; septic patients can still retain combination therapy.</p>
+<p>Starting hospital-managed therapy can itself trigger admission. Always-inpatient drugs and hospital-restricted reserve drugs force admission and block discharge while active. OPAT-eligible drugs such as selected cephalosporins, ertapenem, dalbavancin, and vancomycin trigger admission probabilistically (<code>opat_admission_probability = 0.70</code>) but do not block discharge once the patient is otherwise eligible.</p>
 <h3 id="63-drug-pharmacokinetics">6.3 Drug pharmacokinetics</h3>
 <p>The model uses a simplified pharmacokinetic representation in which each drug has a <strong>half-life</strong> and a <strong>starting level</strong> at administration. Since the mutant selection window — where sub-therapeutic concentrations select for resistance rather than clearing it — is a key driver of emergence (see Section 7.3), the shape of the drug-level decay matters for downstream resistance dynamics.</p>
 <table>
@@ -2757,7 +2165,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </table>
 <p>These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if the bacterium is fully susceptible.</p>
 <h3 id="65-drug-potency-matrix">6.5 Drug potency matrix</h3>
-<p>Since intrinsic susceptibility differs by organism, the model encodes a <strong>potency matrix</strong> — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.</p>
+<p>Since intrinsic susceptibility differs by organism, the model encodes a <strong>potency matrix</strong> — a 42×62 table (42 bacteria × 62 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.</p>
 <p>Values range from 0.0 (no activity) to 1.0 (maximum activity; excellent first-line agents). No values above 1.0 are used. Prescribing preference signals previously encoded through supra-maximal potency are now represented through the <code>initiation_multiplier</code> parameter instead (e.g., fidaxomicin for <em>C. difficile</em> receives <code>initiation_multiplier = 1.05</code>). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency \(&lt; 0.15\), the <code>minimal_potency_threshold_for_drug_selection</code> parameter), the model strictly prevents any <em>acquired</em> resistance mechanisms from being assigned to that organism-drug pair — for example, <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins.</p>
 <p><strong>A key modelling principle is that intrinsic resistance must be represented exclusively through potency = 0, not through artificially inflated mechanism emergence rates.</strong> A non-zero potency for a drug-organism pair that is intrinsically resistant creates spurious drug pressure and can drive calibration artefacts. Several such miscalibrations were identified and corrected:</p>
 <table>
@@ -2856,7 +2264,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>This has major implications for AMR: in Africa, where carbapenems are rarely available, carbapenem resistance may emerge more slowly — but when it does arrive (via travel or HGT), there are no last-resort drugs available to treat it.</p>
 <p>These availability tiers should be interpreted as qualitative access strata rather than audited procurement shares. They summarize broad world patterns in which older essential antibiotics are much more widely available than newer reserve agents, and in which stewardship, financing, regulatory approval, supply-chain reliability, and laboratory support jointly determine whether a drug is realistically usable in practice (WHO GLASS, 2026; WHO, 2025).</p>
 <h4 id="drug-introduction-dates">Drug introduction dates</h4>
-<p>The 61 antibiotics in the model span 88 years of pharmaceutical development. The model converts these calendar years into <strong>simulation time steps</strong> (days since 1930) using the formula: <code>day_in_simulation = (year - 1930) × 365.25</code>. Antibiotic availability is gated by these introduction dates: before the date, no clinician can prescribe the drug; from the date forward, it becomes available (though subject to regional access constraints):</p>
+<p>The 62 antibiotics in the model span 88 years of pharmaceutical development. The model converts these calendar years into <strong>simulation time steps</strong> (days since 1930) using the formula: <code>day_in_simulation = (year - 1930) × 365.25</code>. Antibiotic availability is gated by these introduction dates: before the date, no clinician can prescribe the drug; from the date forward, it becomes available (though subject to regional access constraints):</p>
 <table>
 <thead>
 <tr>
@@ -3314,7 +2722,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>PBP2a/MecA</td>
 <td><code>pbp2a_meca</code></td>
 <td>PBP alteration (MRSA)</td>
-<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>piperacillin_tazobactam</code>, <code>ampicillin_sulbactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>cefiderocol</code>, <code>ceftazidime_avibactam</code>, <code>meropenem_vaborbactam</code>, <code>aztreonam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code></td>
+<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>piperacillin_tazobactam</code>, <code>ampicillin_sulbactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>cefiderocol</code>, <code>ceftazidime_avibactam</code>, <code>meropenem_vaborbactam</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code></td>
 <td>Staphylococci, Helicobacter</td>
 </tr>
 <tr>
@@ -3454,7 +2862,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>OmpK35/36</td>
 <td><code>ompk35_36</code></td>
 <td>Outer membrane porin loss (Klebsiella)</td>
-<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>ceftaroline</code>, <code>cefiderocol</code>, <code>aztreonam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code>, <code>ciprofloxacin</code>, <code>levofloxacin</code>, <code>moxifloxacin</code>, <code>ofloxacin</code>, <code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code></td>
+<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>ceftaroline</code>, <code>cefiderocol</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code>, <code>ciprofloxacin</code>, <code>levofloxacin</code>, <code>moxifloxacin</code>, <code>ofloxacin</code>, <code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
 </tr>
 <tr>
@@ -3468,7 +2876,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Global por.</td>
 <td><code>global_porin_loss</code></td>
 <td>Non-specific porin downregulation</td>
-<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>ceftaroline</code>, <code>cefiderocol</code>, <code>aztreonam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code>, <code>ciprofloxacin</code>, <code>levofloxacin</code>, <code>moxifloxacin</code>, <code>ofloxacin</code>, <code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code></td>
+<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>ceftaroline</code>, <code>cefiderocol</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code>, <code>ciprofloxacin</code>, <code>levofloxacin</code>, <code>moxifloxacin</code>, <code>ofloxacin</code>, <code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code></td>
 <td>All</td>
 </tr>
 <tr>
@@ -3524,7 +2932,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>PBP mosaic</td>
 <td><code>mutation_pbp_mosaic</code></td>
 <td>Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in <em>H. influenzae</em>) — reduced β-lactam affinity</td>
-<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>ceftazidime_avibactam</code>, <code>aztreonam</code></td>
+<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>ceftazidime_avibactam</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code></td>
 <td>All</td>
 </tr>
 <tr>
@@ -3551,7 +2959,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <li><strong>1.0</strong> = complete resistance (the drug is useless)</li>
 </ul>
 <p>In clinical terms, an enhancement multiplier of 0.80 for ESBL CTX-M against cephalosporins means: if a patient has an ESBL-producing <em>E. coli</em> UTI treated with ceftriaxone, the drug retains only 20% of its normal killing power — enough to provide some marginal activity but not enough to reliably cure the infection.</p>
-<p>There are 40 mechanisms × 39 drug classes = 1,560 individual values. The table below shows the <strong>current global default</strong> multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been configured):</p>
+<p>There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table below shows the <strong>current global default</strong> multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been configured):</p>
 <p>These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final realised resistance still depends on baseline potency, site penetration, and combination with other mechanisms.</p>
 <table>
 <thead>
@@ -3757,7 +3165,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p><strong>The emergence formula:</strong></p>
 <p>For de novo emergence in an active infection under antibiotic exposure, the model calculates:</p>
 <pre><code>emergence_rate = mechanism_rate
-               × infection_de_novo_multiplier
+               × run_pathway_infection_de_novo_multiplier
                × counterfactual_resistance_multiplier
                × (1 + bacteria_level_factor)
                × max_emergence_drug_factor
@@ -3778,7 +3186,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Some mutations are common (e.g., <em>gyrA</em> point mutations); others are extremely rare (e.g., acquiring NDM by conjugation)</td>
 </tr>
 <tr>
-<td><code>infection_de_novo_multiplier</code> / <code>counterfactual_resistance_multiplier</code></td>
+<td><code>run_pathway_infection_de_novo_multiplier</code> / <code>counterfactual_resistance_multiplier</code></td>
 <td>Run-level and scenario-level scaling applied on top of the organism-specific baseline</td>
 <td>Allows calibrated pathway-wide or policy-scenario changes without rebuilding the mechanism table</td>
 </tr>
@@ -3803,7 +3211,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>The current model does <strong>not</strong> use a small number of discrete incidence-band multipliers. Instead, de novo resistance emergence is parameterised directly at the <strong>bacterium-mechanism</strong> level. Each organism therefore has its own baseline emergence profile across the mechanism catalogue, with zeros retained for biologically implausible combinations (for example, <em>S. pyogenes</em> acquiring NDM-type carbapenemase remains disallowed).</p>
 <p>For active infection, the daily hazard for a given mechanism is:</p>
 <pre><code>mechanism_emergence_rate = mechanism_rate
-                          × infection_de_novo_multiplier
+                          × run_pathway_infection_de_novo_multiplier
                           × counterfactual_resistance_multiplier
                           × (1 + bacteria_level_factor)
                           × max_emergence_drug_factor
@@ -3835,16 +3243,17 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Suppression of emergence when two or more relevant drugs are active and the candidate mechanism covers only part of the regimen</td>
 </tr>
 <tr>
-<td><code>infection_de_novo_multiplier</code> / <code>counterfactual_resistance_multiplier</code></td>
+<td><code>run_pathway_infection_de_novo_multiplier</code> / <code>counterfactual_resistance_multiplier</code></td>
 <td>Run-level or scenario-level scaling applied without changing the organism-specific baseline table</td>
 </tr>
 </tbody>
 </table>
 <p>In the current architecture, population realism is distributed across three parts of the model: organism-specific infection acquisition parameters determine how often each pathogen appears, organism-specific mechanism baselines determine which resistance pathways are plausible and how readily they arise, and within-host modifiers determine whether the ecological conditions for emergence are present on a given day.</p>
-<p>The microbiome pathway is simpler. While on antibiotic exposure, microbiome emergence uses the same organism-mechanism baseline table and applies the microbiome de novo multiplier and counterfactual scaling, but it does not use the infection-burden or drug-window terms described above.</p>
+<p>The microbiome pathway is simpler. While on antibiotic exposure, microbiome emergence uses the same organism-mechanism baseline table and applies <code>run_pathway_microbiome_de_novo_multiplier</code> (multiplied by the compatibility scalar <code>microbiome_de_novo_multiplier</code>, currently 1.0) and counterfactual scaling, but it does not use the infection-burden or drug-window terms described above.</p>
 <p>These parameters should therefore be read as <strong>effective emergence hazards</strong> rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.</p>
+<p><strong>Run-level pathway multipliers.</strong> The calibrated run uses a small set of <code>run_pathway_*</code> multipliers to vary whole resistance pathways without rewriting organism-specific baselines. The live defaults are all 1.0. <code>run_pathway_infection_de_novo_multiplier</code> scales de novo emergence during active infection; <code>run_pathway_microbiome_de_novo_multiplier</code> scales de novo emergence in carriage; <code>run_pathway_hgt_multiplier</code> scales horizontal gene transfer; <code>run_pathway_reversion_rate_multiplier</code> scales mechanism loss in infection and carriage; <code>run_pathway_microbiome_acquisition_multiplier</code> gates resistance-profile inheritance when new carriage is acquired; <code>run_pathway_carrier_inheritance_multiplier</code> scales microbiome-to-infection inheritance; <code>run_pathway_community_dilution_multiplier</code> scales the community dilution term applied to acquisition; and <code>run_pathway_microbiome_disruption_multiplier</code> scales the antibiotic-driven microbiome disruption reservoir. Separately, policy branches can set <code>counterfactual_resistance_multiplier</code> to 0.0, which blocks newly acquired or newly generated resistance in the AMR-free counterfactual branch.</p>
 <h3 id="74-resistance-reversion-and-fitness-costs">7.4 Resistance reversion and fitness costs</h3>
-<p>Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI et al., 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily <strong>reversion rate</strong> — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely. All per-mechanism reversion rates are scaled by a global calibration multiplier (<code>mechanism_reversion_rate_global_multiplier</code>, default 1.0) so that the overall speed of resistance decay can be tuned without changing individual mechanism rates.</p>
+<p>Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI et al., 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily <strong>reversion rate</strong> — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely. In the live rules engine, per-mechanism reversion rates are scaled by <code>run_pathway_reversion_rate_multiplier</code> (default 1.0), with additional community-specific reversion multipliers for some bacteria.</p>
 <p>Reversion operates in <strong>both</strong> compartments, but not in exactly the same way. In the active infection, fitness-cost loss removes a mechanism from <code>mechanism_majority</code>, so it no longer contributes to majority-strain surveillance or seeding of newly acquired infections; <code>mechanism_any</code> is retained for the currently infected individual. In the microbiome compartment, reversion removes the mechanism from <code>mechanism_microbiome</code>, after which <code>microbiome_r</code> is re-derived from the updated carriage flags. In each compartment, a mechanism can only revert on a given day if no antibiotic with selective pressure for that mechanism is currently present.</p>
 <p>Key patterns:
 - <strong>Most stable:</strong> Single point mutations (e.g., <em>gyrA</em> fluoroquinolone resistance, reversion 0.0001/day) — the mutation barely affects the bacterium's fitness, so it persists for years even without ciprofloxacin pressure
@@ -4145,7 +3554,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </tr>
 </tbody>
 </table>
-<p><em>Note: The system reserves one remaining placeholder variable (<code>as_yet_unknown</code>, baseline rate <code>0.001</code>) designated for future empirical calibration. <code>mutation_pbp_mosaic</code> has been activated as </em><em>PBP mosaic mutations</em><em> (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and <code>efflux_mtr_cde</code> as </em><em>mtrCDE-type broad efflux</em><em> (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.</em></p>
+<p><em>Note: The system reserves one remaining placeholder variable (<code>as_yet_unknown</code>, baseline rate <code>0.001</code>) designated for future empirical calibration. <code>mutation_pbp_mosaic</code> has been activated as </em><em>PBP mosaic mutations</em><em> (chromosomal target modification affecting penicillins, cephalosporins, aztreonam, and aztreonam-avibactam — NOT carbapenems), and <code>efflux_mtr_cde</code> as </em><em>mtrCDE-type broad efflux</em><em> (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.</em></p>
 <h3 id="75-resistance-floors">7.5 Resistance floors</h3>
 <p>At 1,000,000-person population scale, the finite-number stochastic process can occasionally drive a genuinely circulating mechanism to zero between treatment events simply because too few resistant infections happened to be sampled. The current model therefore keeps a small <strong>universal extinction guard</strong> separate from the larger environmental and ratchet persistence mechanisms described in Sections 7.7 and 7.8.</p>
 <table>
@@ -4199,7 +3608,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p><strong>Alternative configuration — guard disabled.</strong> Setting <code>resistance_floor_all_bacteria_enabled</code> to 0.0 removes this universal extinction guard. Resistance is then generated and preserved entirely through bottom-up emergence, cache propagation, environmental floors, ratchet support, and microbiome pathways.</p>
 <p><strong>Stenotrophomonas maltophilia.</strong> Intrinsic non-susceptibility to carbapenems, unprotected penicillins, 1st/2nd-generation cephalosporins, macrolides, and most aminoglycosides is encoded directly as near-zero potency values (<code>potency_when_no_r</code> ≤ 0.05). Those drug classes never qualify for floor assignment (negligible potency → mechanism not applicable). Acquired resistance to TMP-SMX, fluoroquinolones, and tetracyclines emerges through the standard treatment-selection pathway and receives the universal 1% floor like any other organism.</p>
 <p><strong>Helicobacter pylori.</strong> Resistance is driven primarily by chromosomal mutation during treatment courses. The 1% universal floor acts as an extinction guard only: once resistance has been established via de novo selection, the floor prevents stochastic collapse between the relatively infrequent <em>H. pylori</em> infection events in a 1,000,000-person simulation.</p>
-<p>The dominant mechanism generating above-floor resistance prevalence is <strong>treatment failure without second-line rescue therapy</strong> (<code>helicobacter_pylori_treatment_failure_no_second_line_probability = 0.60</code>). When first-line clarithromycin-based triple therapy fails, approximately 60% of patients in the model do not proceed to bismuth quadruple rescue therapy — reflecting real-world loss to follow-up, access barriers, poor tolerability of the quadruple regimen, and incomplete prescriber uptake. These patients are left chronically infected with an <em>H. pylori</em> strain that has been under macrolide selection pressure; their <code>mechanism_majority</code> profile (which flips to resistant at rate 0.18/day under drug pressure) is recorded in the community mechanism cache. Over a 35-year simulation, this persistent-carrier pool builds up the circulating resistant-strain reservoir, generating realistic clarithromycin and metronidazole resistance prevalence through the standard mechanism-inheritance pathway at acquisition rather than through any floor override. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other organisms contributes additional selection pressure on top of this foundation.</p>
+<p>The dominant mechanism generating above-floor resistance prevalence is <strong>treatment failure without second-line rescue therapy</strong> (<code>helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80</code>). When first-line clarithromycin-based triple therapy fails, approximately 80% of patients in the model do not proceed to bismuth quadruple rescue therapy — reflecting real-world loss to follow-up, access barriers, poor tolerability of the quadruple regimen, and incomplete prescriber uptake. These patients are left chronically infected with an <em>H. pylori</em> strain that has been under macrolide selection pressure; their <code>mechanism_majority</code> profile (which flips to resistant at rate 0.18/day under drug pressure) is recorded in the community mechanism cache. Over a 35-year simulation, this persistent-carrier pool builds up the circulating resistant-strain reservoir, generating realistic clarithromycin and metronidazole resistance prevalence through the standard mechanism-inheritance pathway at acquisition rather than through any floor override. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other organisms contributes additional selection pressure on top of this foundation.</p>
 <p><strong>Enterococcus faecium.</strong> VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. The 1% floor prevents glycopeptide-resistance stochastic extinction between sparse hospitalisation episodes; all higher prevalence is generated by the standard selection pathway.</p>
 <h3 id="76-cross-resistance-groups">7.6 Cross-resistance groups</h3>
 <p>Since resistance to one agent in a class typically confers resistance to related agents — as when an ESBL in <em>E. coli</em> hydrolysing ceftriaxone also destroys cefazolin, cefuroxime, and unprotected penicillins through the same β-lactam ring cleavage — the model captures this by defining <strong>cross-resistance groups</strong>: bacteria-specific phenotype bundles applied at the level of the scalar resistance metric <code>any_r</code>. In practice, once one drug in a configured group has a non-zero <code>any_r</code>, the model raises the other drugs in that group to the same group-maximum <code>any_r</code> for that bacterium. This layer therefore equalises the phenotype across related agents, but it does not force the underlying mechanism flags themselves to be acquired or lost in lockstep.</p>
@@ -5038,15 +4447,15 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td>Mechanism-level reversion</td>
-<td><code>mechanism_reversion_rate_global_multiplier</code></td>
+<td><code>run_pathway_reversion_rate_multiplier</code></td>
 <td>1.0</td>
-<td>Per-mechanism reversion operates in the microbiome compartment using the same rates and global multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present.</td>
+<td>Per-mechanism reversion operates in the microbiome compartment using the same rates and pathway multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present.</td>
 </tr>
 <tr>
 <td>De-novo emergence under treatment</td>
-<td><code>microbiome_de_novo_multiplier</code></td>
+<td><code>run_pathway_microbiome_de_novo_multiplier</code></td>
 <td>1.0</td>
-<td>When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the microbiome emergence pathway (Section 7.3), scaled by this multiplier. Emergence writes directly to <code>mechanism_microbiome</code>; transfer into infection occurs through the separate bridge pathways below.</td>
+<td>When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the microbiome emergence pathway (Section 7.3), scaled by this multiplier and the compatibility scalar <code>microbiome_de_novo_multiplier</code>. Emergence writes directly to <code>mechanism_microbiome</code>; transfer into infection occurs through the separate bridge pathways below.</td>
 </tr>
 <tr>
 <td>Carrier → infection bridge</td>
@@ -5119,7 +4528,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p>These values are effective within-model hazards rather than bedside conjugation frequencies. Their purpose is to preserve the current ordering in the code: transfer is easiest within the same ecological/plasmid pool, much weaker across the small set of allowed cross-pool bridges, and structurally absent for excluded groups.</p>
 <h3 id="92-the-hgt-process">9.2 The HGT process</h3>
 <p>Each day, for every individual carrying resistant bacteria in their microbiome, the model evaluates potential gene transfer events. The model evaluates HGT dynamically per distinct resistance mechanism, allowing independent plasmids (e.g., KPC and <em>mcr-1</em>) to transmit independently rather than as a single all-or-nothing block. Furthermore, bacteria do not restrict plasmid donation to only the dominant strain; minority resistance populations can donate, but face a transfer penalty.</p>
-<p>When an HGT event fires, the transferred mechanism is written to the recipient's <code>mechanism_any</code> (infection compartment). If the recipient also carries the donor's target bacterium in the microbiome, the mechanism is simultaneously written to <code>mechanism_microbiome</code>, ensuring the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by a global calibration multiplier (<code>hgt_multiplier</code>, default 1.0).</p>
+<p>When an HGT event fires, the transferred mechanism is written to the recipient's <code>mechanism_any</code> (infection compartment). If the recipient also carries the donor's target bacterium in the microbiome, the mechanism is simultaneously written to <code>mechanism_microbiome</code>, ensuring the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by the run-level <code>run_pathway_hgt_multiplier</code> (default 1.0) and by <code>counterfactual_resistance_multiplier</code>.</p>
 <table>
 <thead>
 <tr>
@@ -5131,8 +4540,8 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </thead>
 <tbody>
 <tr>
-<td>Global HGT scaling</td>
-<td>hgt_multiplier</td>
+<td>Run-level HGT scaling</td>
+<td><code>run_pathway_hgt_multiplier</code></td>
 <td>1.0</td>
 <td>Calibration knob — scales all HGT rates up or down uniformly</td>
 </tr>
@@ -5264,82 +4673,82 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tbody>
 <tr>
 <td><em>S. aureus</em></td>
-<td>−7.3</td>
+<td>−7.4</td>
 <td>Aggressive bloodstream pathogen; 20–30% mortality in bacteraemia (Tong SYC et al., 2015)</td>
 </tr>
 <tr>
 <td><em>P. aeruginosa</em></td>
-<td>−6.5</td>
+<td>−5.9</td>
 <td>High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018)</td>
 </tr>
 <tr>
 <td><em>S. agalactiae</em></td>
-<td>−7.0</td>
+<td>−6.4</td>
 <td>Neonatal and pregnancy-associated sepsis (Seale AC et al., 2010)</td>
 </tr>
 <tr>
 <td><em>S. pyogenes</em></td>
-<td>−6.5</td>
+<td>−5.9</td>
 <td>Invasive GAS disease including necrotising fasciitis and toxic shock; STSS case-fatality 30–70% places invasive GAS among the most lethal bacterial syndromes (Carapetis JR et al., 2005)</td>
 </tr>
 <tr>
 <td><em>N. meningitidis</em></td>
-<td>−7.9</td>
-<td>Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC; sepsis baseline loosened to −7.9 to reflect frequently invasive presentations (Stephens DS et al., 2007)</td>
+<td>−7.3</td>
+<td>Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC (Stephens DS et al., 2007)</td>
 </tr>
 <tr>
 <td><em>E. faecium</em></td>
-<td>−7.0</td>
+<td>−6.4</td>
 <td>Hospital-acquired bloodstream infections, especially VRE</td>
 </tr>
 <tr>
 <td><em>K. pneumoniae</em></td>
-<td>−7.5</td>
+<td>−6.9</td>
 <td>Gram-negative sepsis; carbapenem-resistant strains carry &gt;40% mortality (Xu L et al., 2017)</td>
 </tr>
 <tr>
 <td><em>E. faecalis</em></td>
-<td>−7.5</td>
+<td>−6.9</td>
 <td>Endocarditis and line-related bacteraemia</td>
 </tr>
 <tr>
 <td><em>E. coli</em></td>
-<td>−9.5</td>
+<td>−8.9</td>
 <td>Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe (Poolman JT et al., 2016)</td>
 </tr>
 <tr>
 <td><em>S. Paratyphi A</em></td>
-<td>−9.2</td>
+<td>−8.4</td>
 <td>Enteric fever with occasional septic complications</td>
 </tr>
 <tr>
 <td><em>iNTS</em></td>
-<td>−9.0</td>
+<td>−8.6</td>
 <td>Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2017)</td>
 </tr>
 <tr>
 <td><em>Y. enterocolitica</em></td>
-<td>−10.0</td>
+<td>−8.9</td>
 <td>Rare sepsis, mainly in iron-overload or immunosuppressed patients</td>
 </tr>
 <tr>
 <td><em>C. trachomatis</em></td>
-<td>−19.0</td>
+<td>−18.4</td>
 <td>STI — essentially never causes sepsis</td>
 </tr>
 <tr>
 <td><em>N. gonorrhoeae</em></td>
-<td>−21.0</td>
+<td>−23.4</td>
 <td>Disseminated gonococcal infection is exceedingly rare</td>
 </tr>
 <tr>
 <td><em>H. pylori</em></td>
 <td>−250.0</td>
-<td>Gastric pathogen — deaths from cancer, not sepsis</td>
+<td>Gastric pathogen — deaths from cancer, not sepsis; the implementation also forces zero sepsis risk when this is the sole active infection</td>
 </tr>
 <tr>
 <td>Fallback default</td>
-<td>−14.0</td>
+<td>−12.0</td>
 <td>Used for any organism without an explicit override</td>
 </tr>
 </tbody>
@@ -5507,7 +4916,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td><em>H. pylori</em></td>
-<td>+1.0</td>
+<td>+1.7</td>
 <td>Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015)</td>
 </tr>
 <tr>
@@ -5613,7 +5022,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p><strong>Abstract drug levels</strong>: Antibiotic concentrations are modelled as dimensionless units rather than true pharmacokinetic concentrations (mg/L). This allows the model to capture the <em>relative</em> dynamics of drug accumulation and clearance, but it means model values cannot be compared directly with MIC breakpoints, therapeutic drug monitoring results, or compartment-specific pharmacokinetic measurements from clinical microbiology or pharmacology practice. In particular, the model does not implement pharmacokinetic/pharmacodynamic (PK/PD) target-attainment analysis — it does not compute AUC/MIC or T&gt;MIC indices, nor does it model the Cmax and distribution volume differences between patient subgroups (e.g., critically ill patients with altered volumes of distribution, or renal impairment affecting aminoglycoside and vancomycin clearance). Full mechanistic PK/PD frameworks can generate organism-specific probability-of-target-attainment curves and inform optimal dosing regimens (Nielsen EI &amp; Friberg LE, 2013), which is beyond the scope of this policy-comparison model. The practical consequence is that the model's drug-level dynamics can reproduce the broad direction of resistance selection associated with sub-therapeutic exposure, but cannot support dosing-optimisation analyses or precisely model regimens where PK/PD target attainment drives clinical outcome.</p>
 </li>
 <li>
-<p><strong>No explicit strain competition</strong>: Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. The model therefore cannot represent scenarios in which clonal replacement, compensatory evolution, or near-cost-free resistance leads to durable dominance of resistant strains in the absence of ongoing antibiotic selection. That said, the model does capture several distinct mechanisms by which antibiotic use promotes resistance in the microbiome: (i) a <em>microbiome disruption reservoir</em> that accumulates while drugs are active and decays with a configurable half-life (<code>antibiotic_disruption_decay_half_life_days</code>), raising future colonisation risk; (ii) <em>de novo resistance emergence</em> in the microbiome, whose rate is amplified by current drug pressure via <code>microbiome_de_novo_multiplier</code>; (iii) <em>selective maintenance</em> of existing resistance — mechanisms only revert when no selecting drug is active, so ongoing treatment blocks loss of resistance; (iv) daily bidirectional <em>infection–microbiome resistance spillover</em> governed by <code>microbiome_resistance_transfer_probability_per_day</code>; and (v) <em>horizontal gene transfer amplified by antibiotic pressure</em> through <code>hgt_antibiotic_pressure_multiplier</code>. Together these five pathways mean that antibiotic exposure promotes and sustains microbiome resistance through multiple complementary routes, even though the model does not track explicit clonal competition between resistant and susceptible lineages.</p>
+<p><strong>No explicit strain competition</strong>: Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. The model therefore cannot represent scenarios in which clonal replacement, compensatory evolution, or near-cost-free resistance leads to durable dominance of resistant strains in the absence of ongoing antibiotic selection. That said, the model does capture several distinct mechanisms by which antibiotic use promotes resistance in the microbiome: (i) a <em>microbiome disruption reservoir</em> that accumulates while drugs are active and decays with a configurable half-life (<code>antibiotic_disruption_decay_half_life_days</code>), raising future colonisation risk; (ii) <em>de novo resistance emergence</em> in the microbiome, whose rate is amplified by current drug pressure via <code>run_pathway_microbiome_de_novo_multiplier</code> multiplied by the compatibility scalar <code>microbiome_de_novo_multiplier</code>; (iii) <em>selective maintenance</em> of existing resistance — mechanisms only revert when no selecting drug is active, so ongoing treatment blocks loss of resistance; (iv) daily bidirectional <em>infection–microbiome resistance spillover</em> governed by <code>microbiome_resistance_transfer_probability_per_day</code>; and (v) <em>horizontal gene transfer amplified by antibiotic pressure</em> through <code>hgt_antibiotic_pressure_multiplier</code>. Together these five pathways mean that antibiotic exposure promotes and sustains microbiome resistance through multiple complementary routes, even though the model does not track explicit clonal competition between resistant and susceptible lineages.</p>
 </li>
 <li>
 <p><strong>No within-host spatial structure</strong>: Infections are treated as homogeneous within a body compartment. Biofilm formation, abscess walling-off, source control, and planktonic-versus-sessile distinctions are not modelled. The model therefore cannot reproduce the full treatment implications of deep-seated infection architecture, even though such structure is often decisive in real clinical microbiology and infectious diseases practice.</p>
@@ -5912,7 +5321,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 </tbody>
 </table>
-<h3 id="a2-antibiotics-61-drugs">A.2 Antibiotics (61 drugs)</h3>
+<h3 id="a2-antibiotics-62-drugs">A.2 Antibiotics (62 drugs)</h3>
 <p>The class labels in this table mirror the model's current internal <code>DrugClass</code> mapping rather than broader textbook umbrella categories.</p>
 <table>
 <thead>
@@ -6415,7 +5824,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 </tbody>
 </table>
-<h3 id="a4-resistance-mechanisms-40">A.4 Resistance Mechanisms (40)</h3>
+<h3 id="a4-resistance-mechanisms-46">A.4 Resistance Mechanisms (46)</h3>
 <p>See <a href="#71-resistance-mechanisms">Section 7.1</a> for the full table.</p>
 <h3 id="a5-enumerations">A.5 Enumerations</h3>
 <h4 id="bacteriagroup-9-groups">BacteriaGroup (9 groups)</h4>
@@ -6512,7 +5921,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p><code>None</code>, <code>Low</code>, <code>Medium</code>, <code>High</code></p>
 <hr />
 <h2 id="appendix-b-parameter-reference">Appendix B — Parameter Reference</h2>
-<p>This appendix is auto-generated from the live Rust configuration. Parameters are organized thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level sampling multipliers are applied.</p>
+<p>This appendix is a documentation snapshot derived from the Rust configuration. The Rust source remains authoritative, and values should be regenerated or checked against <code>src/config.rs</code> before publication because calibration edits can move faster than this reference table.</p>
 <h3 id="b1-global-scalar-parameters">B.1 Global Scalar Parameters</h3>
 <p>Scalar parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.</p>
 <p>See: <a href="#61-treatment-initiation-deciding-to-start-antibiotics">§6.1 Treatment initiation</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#63-drug-pharmacokinetics">§6.3 Drug pharmacokinetics</a>, <a href="#67-drug-toxicity">§6.7 Drug toxicity</a>, <a href="#24-hospitalisation">§2.4 Hospitalisation</a>, <a href="#25-travel">§2.5 Travel</a>, <a href="#43-sepsis">§4.3 Sepsis</a>, <a href="#73-resistance-emergence">§7.3 Resistance emergence</a>, <a href="#74-resistance-reversion-and-fitness-costs">§7.4 Resistance reversion</a>, <a href="#8-microbiome-and-carriage">§8 Microbiome and Carriage</a>, <a href="#9-horizontal-gene-transfer-hgt">§9 Horizontal Gene Transfer</a>, <a href="#10-mortality">§10 Mortality</a>.</p>
@@ -6543,7 +5952,11 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td>antibiotic_initiation_log_odds_immunodeficiency</td>
-<td style="text-align: right;">-0.75</td>
+<td style="text-align: right;">0.2</td>
+</tr>
+<tr>
+<td>antibiotic_initiation_log_odds_hospitalized</td>
+<td style="text-align: right;">0.7</td>
 </tr>
 <tr>
 <td>antibiotic_initiation_log_odds_sepsis</td>
@@ -6613,7 +6026,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td>reserve_drug_score_penalty</td>
-<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">0.35</td>
 </tr>
 </tbody>
 </table>
@@ -6653,7 +6066,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tbody>
 </table>
 <p>For organisms where rescue therapy following first-line failure is incomplete in practice, a per-bacteria <code>{bacteria}_treatment_failure_no_second_line_probability</code> parameter (default 0.0) controls the fraction of treatment failures that do not receive any alternative drug. When this probability fires, the current (failed) drugs are stopped but no second-line agent is started, leaving the patient with a persistent resistant infection. Because the community mechanism cache records <code>mechanism_majority</code> profiles from active infections, these chronic carriers continuously seed the pool of circulating resistant strains at acquisition, generating long-run resistance prevalence without a microbiome carriage reservoir and without floor overrides.</p>
-<p><em>H. pylori</em> is the only organism currently configured with a non-zero value (<code>helicobacter_pylori_treatment_failure_no_second_line_probability = 0.60</code>). This reflects the substantial real-world gap between the proportion of clarithromycin-triple failures that are confirmed and the proportion that actually complete bismuth quadruple rescue therapy, driven by side-effect burden (nausea, metallic taste, darkening stools), cost, and loss to follow-up.</p>
+<p><em>H. pylori</em> is the only organism currently configured with a non-zero value (<code>helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80</code>). This reflects the substantial real-world gap between the proportion of clarithromycin-triple failures that are confirmed and the proportion that actually complete bismuth quadruple rescue therapy, driven by side-effect burden (nausea, metallic taste, darkening stools), cost, and loss to follow-up.</p>
 <h4 id="hospitalization">Hospitalization</h4>
 <table>
 <thead>
@@ -6747,6 +6160,10 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">per-bacteria (1.0–2.25; see Section 3.4)</td>
 </tr>
 <tr>
+<td>run_pathway_reversion_rate_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
 <td>mechanism_reversion_rate_global_multiplier</td>
 <td style="text-align: right;">1</td>
 </tr>
@@ -6825,16 +6242,44 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </thead>
 <tbody>
 <tr>
-<td>infection_de_novo_multiplier</td>
+<td>run_pathway_infection_de_novo_multiplier</td>
 <td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_microbiome_de_novo_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_hgt_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_reversion_rate_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_microbiome_acquisition_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_carrier_inheritance_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_community_dilution_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>run_pathway_microbiome_disruption_multiplier</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>counterfactual_resistance_multiplier</td>
+<td style="text-align: right;">1 by default; AMR-free branches set 0</td>
 </tr>
 <tr>
 <td>microbiome_de_novo_multiplier</td>
-<td style="text-align: right;">1</td>
-</tr>
-<tr>
-<td>hgt_multiplier</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">1 compatibility scalar multiplied into the microbiome de novo pathway</td>
 </tr>
 </tbody>
 </table>
@@ -6884,7 +6329,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tbody>
 <tr>
 <td>travel_probability_per_day</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">0.0002</td>
 </tr>
 </tbody>
 </table>
@@ -6980,35 +6425,35 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </thead>
 <tbody>
 <tr>
-<td>sepsis_base_log_odds_of_recovery_per_day</td>
+<td>sepsis_recovery_base_log_odds_per_day</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_bacteria_level</td>
+<td>sepsis_recovery_log_odds_bacteria_level</td>
 <td style="text-align: right;">-0.3</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_in_hospital</td>
+<td>sepsis_recovery_log_odds_in_hospital</td>
 <td style="text-align: right;">0.8</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_age_infant</td>
+<td>sepsis_recovery_log_odds_age_infant</td>
 <td style="text-align: right;">-0.5</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_age_child</td>
+<td>sepsis_recovery_log_odds_age_child</td>
 <td style="text-align: right;">0.4</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_age_adult</td>
+<td>sepsis_recovery_log_odds_age_adult</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_age_elderly</td>
+<td>sepsis_recovery_log_odds_age_elderly</td>
 <td style="text-align: right;">-0.7</td>
 </tr>
 <tr>
-<td>sepsis_log_odds_immunosuppressed</td>
+<td>sepsis_recovery_log_odds_immunosuppressed</td>
 <td style="text-align: right;">-1</td>
 </tr>
 </tbody>
@@ -8095,7 +7540,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.7</td>
+<td style="text-align: right;">-7.1</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8109,7 +7554,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9.2</td>
+<td style="text-align: right;">-8.6</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8123,7 +7568,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.7</td>
+<td style="text-align: right;">-7.1</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8137,7 +7582,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.5</td>
+<td style="text-align: right;">-6.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8151,7 +7596,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7</td>
+<td style="text-align: right;">-6.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8165,7 +7610,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.025</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9.5</td>
+<td style="text-align: right;">-8.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8179,7 +7624,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.5</td>
+<td style="text-align: right;">-6.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8193,7 +7638,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.8</td>
+<td style="text-align: right;">-7.2</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8207,7 +7652,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.8</td>
+<td style="text-align: right;">-7.2</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8221,7 +7666,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-8</td>
+<td style="text-align: right;">-7.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8235,7 +7680,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.75</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-14</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8249,7 +7694,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.8</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-6.5</td>
+<td style="text-align: right;">-5.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8263,7 +7708,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.9</td>
 <td style="text-align: right;">2.5</td>
-<td style="text-align: right;">-8</td>
+<td style="text-align: right;">-7.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8277,7 +7722,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.3</td>
+<td style="text-align: right;">-7.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8291,7 +7736,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">3</td>
-<td style="text-align: right;">-8</td>
+<td style="text-align: right;">-7.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8305,7 +7750,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-10.5</td>
+<td style="text-align: right;">-9.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8319,7 +7764,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-8</td>
+<td style="text-align: right;">-7.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8333,7 +7778,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9</td>
+<td style="text-align: right;">-8.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8347,7 +7792,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9.2</td>
+<td style="text-align: right;">-8.6</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8361,7 +7806,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-12</td>
+<td style="text-align: right;">-11.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8375,7 +7820,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-23</td>
+<td style="text-align: right;">-23.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8389,7 +7834,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-6.5</td>
+<td style="text-align: right;">-5.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8403,7 +7848,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7</td>
+<td style="text-align: right;">-6.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8417,7 +7862,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9.2</td>
+<td style="text-align: right;">-8.6</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8431,7 +7876,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.007</td>
 <td style="text-align: right;">0.8</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-19</td>
+<td style="text-align: right;">-18.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8445,7 +7890,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.9</td>
 <td style="text-align: right;">5</td>
-<td style="text-align: right;">-14</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8459,7 +7904,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.025</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9</td>
+<td style="text-align: right;">-8.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8473,7 +7918,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.9</td>
+<td style="text-align: right;">-7.3</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8487,7 +7932,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-8</td>
+<td style="text-align: right;">-7.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8501,7 +7946,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-11</td>
+<td style="text-align: right;">-10.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8515,7 +7960,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">1.2</td>
 <td style="text-align: right;">2</td>
-<td style="text-align: right;">-14</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8529,7 +7974,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-20</td>
+<td style="text-align: right;">-19.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8543,7 +7988,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-7.8</td>
+<td style="text-align: right;">-7.2</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8557,7 +8002,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-9.5</td>
+<td style="text-align: right;">-8.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8571,7 +8016,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-10.8</td>
+<td style="text-align: right;">-10.2</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8585,7 +8030,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.6</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-11</td>
+<td style="text-align: right;">-10.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8599,7 +8044,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-11</td>
+<td style="text-align: right;">-10.4</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8641,7 +8086,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-14</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8655,7 +8100,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0085</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-14</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
@@ -8669,7 +8114,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-14</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 </tbody>
@@ -25572,958 +25017,148 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p>Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.</p>
 <p>See: <a href="#41-syndrome-assignment">§4.1 Syndrome assignment</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#64-drug-penetration-by-syndrome">§6.4 Drug penetration by syndrome</a>.</p>
 <h4 id="syndrome-empiric-drug-scores">Syndrome Empiric Drug Scores</h4>
+<p>The full empiric syndrome-score templates are source-of-truth in <code>src/config.rs</code> under <code>empiric_syndrome_templates</code>. They are intentionally not duplicated here in full, because these weights are calibration inputs and stale copied tables are misleading. The current UTI template is included as a compact reference for the commonly inspected urinary-treatment outputs.</p>
 <table>
 <thead>
 <tr>
 <th>Syndrome</th>
-<th style="text-align: right;">Drug</th>
-<th style="text-align: right;">Empiric score</th>
+<th>Drug</th>
+<th style="text-align: right;">Current empiric score</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">10</td>
+<td>meropenem</td>
+<td style="text-align: right;">90.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">12</td>
+<td>imipenem_c</td>
+<td style="text-align: right;">90.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">8</td>
+<td>ertapenem</td>
+<td style="text-align: right;">90.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">cefazolin</td>
-<td style="text-align: right;">7</td>
+<td>meropenem_vaborbactam</td>
+<td style="text-align: right;">60.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">cefuroxime</td>
-<td style="text-align: right;">7</td>
+<td>amoxicillin_clavulanate</td>
+<td style="text-align: right;">30.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">8</td>
+<td>piperacillin_tazobactam</td>
+<td style="text-align: right;">30.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">ceftazidime</td>
-<td style="text-align: right;">4</td>
+<td>ceftazidime_avibactam</td>
+<td style="text-align: right;">30.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">cefepime</td>
-<td style="text-align: right;">4</td>
+<td>nitrofurantoin</td>
+<td style="text-align: right;">13.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">4</td>
+<td>fosfomycin</td>
+<td style="text-align: right;">10.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">imipenem_c</td>
-<td style="text-align: right;">4</td>
+<td>cephalexin</td>
+<td style="text-align: right;">8.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">ertapenem</td>
-<td style="text-align: right;">4</td>
+<td>cefazolin</td>
+<td style="text-align: right;">7.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">8</td>
+<td>cefuroxime</td>
+<td style="text-align: right;">7.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">6</td>
+<td>cefixime</td>
+<td style="text-align: right;">7.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">0.1</td>
+<td>ciprofloxacin</td>
+<td style="text-align: right;">6.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">0.1</td>
+<td>levofloxacin</td>
+<td style="text-align: right;">6.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">11</td>
+<td>cefepime</td>
+<td style="text-align: right;">4.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">nitrofurantoin</td>
-<td style="text-align: right;">5</td>
+<td>ceftazidime</td>
+<td style="text-align: right;">4.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">14</td>
+<td>ceftriaxone</td>
+<td style="text-align: right;">3.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">5</td>
+<td>amoxicillin</td>
+<td style="text-align: right;">2.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">ceftazidime_avibactam</td>
-<td style="text-align: right;">3</td>
+<td>ampicillin</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">meropenem_vaborbactam</td>
-<td style="text-align: right;">3</td>
+<td>trim_sulf</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">colistin</td>
+<td>aztreonam_avibactam</td>
+<td style="text-align: right;">1.0</td>
+</tr>
+<tr>
+<td>uti</td>
+<td>colistin</td>
 <td style="text-align: right;">0.2</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">aztreonam_avibactam</td>
-<td style="text-align: right;">3</td>
+<td>vancomycin</td>
+<td style="text-align: right;">0.1</td>
 </tr>
 <tr>
 <td>uti</td>
-<td style="text-align: right;">cefixime</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">16</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">14</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">cefazolin</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">clindamycin</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">4</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">doxycycline</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">minocycline</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">dalbavancin</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">tedizolid</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">quinu_dalfo</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">0.5</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">14</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">3</td>
-</tr>
-<tr>
-<td>skin_soft_tissue</td>
-<td style="text-align: right;">flucloxacillin</td>
-<td style="text-align: right;">15</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">16</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">15</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">17</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">cefuroxime</td>
-<td style="text-align: right;">8.5</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">9.5</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">cefepime</td>
-<td style="text-align: right;">7.5</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">imipenem_c</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">erythromycin</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">azithromycin</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">clarithromycin</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">moxifloxacin</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">ofloxacin</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">doxycycline</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">minocycline</td>
-<td style="text-align: right;">5.5</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">20</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">aztreonam_avibactam</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>respiratory</td>
-<td style="text-align: right;">cefixime</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">9.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">4</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">cefazolin</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">ceftazidime</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">cefepime</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">imipenem_c</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">gentamicin</td>
-<td style="text-align: right;">1</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">tobramycin</td>
-<td style="text-align: right;">1</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">amikacin</td>
-<td style="text-align: right;">1</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">5.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">dalbavancin</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">tedizolid</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">quinu_dalfo</td>
-<td style="text-align: right;">8.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">0.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">16</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">18</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">ampicillin_sulbactam</td>
-<td style="text-align: right;">16</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">ceftazidime_avibactam</td>
-<td style="text-align: right;">12.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">meropenem_vaborbactam</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">colistin</td>
+<td>linezolid</td>
 <td style="text-align: right;">0.1</td>
 </tr>
 <tr>
-<td>bloodstream</td>
-<td style="text-align: right;">flucloxacillin</td>
-<td style="text-align: right;">7.5</td>
-</tr>
-<tr>
-<td>bloodstream</td>
-<td style="text-align: right;">aztreonam_avibactam</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ceftazidime</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">cefepime</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">imipenem_c</td>
-<td style="text-align: right;">12.5</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ertapenem</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">4</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">metronidazole</td>
-<td style="text-align: right;">2.5</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">11.5</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ampicillin_sulbactam</td>
-<td style="text-align: right;">12.5</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">ceftazidime_avibactam</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">meropenem_vaborbactam</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">colistin</td>
-<td style="text-align: right;">0.1</td>
-</tr>
-<tr>
-<td>intra_abdominal</td>
-<td style="text-align: right;">aztreonam_avibactam</td>
-<td style="text-align: right;">9.5</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">15</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">ceftazidime</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">cefepime</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">imipenem_c</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">chloramphenicol</td>
-<td style="text-align: right;">2</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">1</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>cns_meningitis</td>
-<td style="text-align: right;">cefixime</td>
-<td style="text-align: right;">1</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">cefuroxime</td>
-<td style="text-align: right;">5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">azithromycin</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">doxycycline</td>
-<td style="text-align: right;">8.5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">minocycline</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">8.5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">metronidazole</td>
-<td style="text-align: right;">0.2</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">furazolidone</td>
-<td style="text-align: right;">0.2</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">0.5</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">ampicillin_sulbactam</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>gastrointestinal</td>
-<td style="text-align: right;">cefixime</td>
-<td style="text-align: right;">4.5</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">14</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">amoxicillin</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">cefuroxime</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">azithromycin</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">clindamycin</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">4</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">4</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">doxycycline</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">5</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">metronidazole</td>
-<td style="text-align: right;">0.25</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">0.5</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">amoxicillin_clavulanate</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">ampicillin_sulbactam</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>genital_sti</td>
-<td style="text-align: right;">cefixime</td>
-<td style="text-align: right;">10.5</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">penicillin_g</td>
-<td style="text-align: right;">14</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">ampicillin</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">cephalexin</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">cefazolin</td>
-<td style="text-align: right;">13</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">clindamycin</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">9</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">12</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">dalbavancin</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">11</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">tedizolid</td>
-<td style="text-align: right;">10</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">2</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">6.5</td>
-</tr>
-<tr>
-<td>bone_joint</td>
-<td style="text-align: right;">flucloxacillin</td>
-<td style="text-align: right;">14</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">ceftriaxone</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">cefepime</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">meropenem</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">imipenem_c</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">azithromycin</td>
-<td style="text-align: right;">6</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">vancomycin</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">7</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">piperacillin_tazobactam</td>
-<td style="text-align: right;">8</td>
-</tr>
-<tr>
-<td>other</td>
-<td style="text-align: right;">aztreonam_avibactam</td>
-<td style="text-align: right;">7.5</td>
+<td>#### Syndrome Drug Penetration</td>
+<td></td>
+<td style="text-align: right;"></td>
 </tr>
 </tbody>
 </table>
-<h4 id="syndrome-drug-penetration">Syndrome Drug Penetration</h4>
 <table>
 <thead>
 <tr>
@@ -45234,7 +43869,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 </tbody>
 </table>
-<h4 id="per-drug-columns-58-each">Per-drug columns (~58 each)</h4>
+<h4 id="per-drug-columns-62-each">Per-drug columns (~62 each)</h4>
 <table>
 <thead>
 <tr>
@@ -45253,7 +43888,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 </tbody>
 </table>
-<h4 id="per-bacteria-per-drug-columns-2436-each">Per-bacteria × per-drug columns (~2,436 each)</h4>
+<h4 id="per-bacteria-per-drug-columns">Per-bacteria × per-drug columns</h4>
 <table>
 <thead>
 <tr>
@@ -45263,12 +43898,20 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </thead>
 <tbody>
 <tr>
-<td><code>{bacteria}_{drug}_activity_r</code></td>
-<td>Mean resistance (activity_r, derived from mechanism flags)</td>
+<td><code>{bacteria}_{drug}_activity_r</code> and related summaries</td>
+<td>Mean resistance/activity summaries derived from mechanism flags</td>
 </tr>
 <tr>
-<td><code>{bacteria}_{drug}_majority_r</code></td>
-<td>Population-level resistance prevalence (derived from stored mechanism profiles)</td>
+<td><code>{bacteria}_{drug}_infected_and_standardized_mic_lt2</code> and related summaries</td>
+<td>Treatment-relevant susceptible-infection summaries</td>
+</tr>
+<tr>
+<td><code>{bacteria}_{drug}_currently_on_drug</code> and related summaries</td>
+<td>Drug exposure by organism-drug pair</td>
+</tr>
+<tr>
+<td><code>{bacteria}_{drug}_any_r</code>, <code>microbiome_r_positive</code>, and split hospital/community variants</td>
+<td>Mechanism-derived resistance summaries. The summary CSV no longer exports <code>{bacteria}_{drug}_majority_r</code>; mechanism-majority state is used internally and exposed through mechanism-derived summaries rather than the old majority-r column family.</td>
 </tr>
 </tbody>
 </table>
@@ -45296,14 +43939,14 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tbody>
 </table>
 <h3 id="c4-total-column-count">C.4 Total Column Count</h3>
-<p>With 42 bacteria, 61 drugs, and 6 regions, the CSV contains approximately:</p>
+<p>With 42 bacteria, 62 drugs, 46 resistance mechanisms, and 6 regions, the CSV contains thousands of columns. The exact schema is generated by <code>Simulation::export_summary_to_csv</code> and guarded by <code>tests/csv_invariants.rs</code>; it can change when output families are added or retired.</p>
+<p>Approximate families:</p>
 <ul>
-<li>~16 scalar columns</li>
-<li>~336 per-bacteria columns (42 × 8)</li>
-<li>~122 per-drug columns (61 × 2)</li>
-<li>~5,124 per-bacteria-per-drug columns (42 × 61 × 2)</li>
-<li>~18 per-region columns (6 × 3)</li>
-<li><strong>Total: ~5,616 columns</strong></li>
+<li>scalar columns for population state, mortality, treatment, policy branch, and calendar time</li>
+<li>per-bacteria columns for infection, carriage, acquisition route, deaths, and sepsis</li>
+<li>per-drug columns for starts and active treatment</li>
+<li>per-bacteria-per-drug columns for activity, MIC, treatment exposure, susceptible-infection counts, and mechanism-derived resistance summaries</li>
+<li>per-region columns for infection, hospitalization, and death summaries</li>
 </ul>
 <h3 id="c5-infection-journey-logs">C.5 Infection Journey Logs</h3>
 <p>When enabled, individual infection journeys are logged to the <code>infection_journeys/</code> directory as CSV files, capturing:</p>
