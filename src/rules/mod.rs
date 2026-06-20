@@ -2740,7 +2740,7 @@ pub(crate) fn apply_rules(
                         // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
                         // ^^^^
                         "trim_sulf" => 0.8,
-                        "azithromycin" => 3.0,     // 4.5
+                        "azithromycin" => 3.5,     // 4.5
                         "ciprofloxacin" => 2.0,
                         "levofloxacin" => 1.5,
                         _ => 0.0,
@@ -4753,42 +4753,42 @@ pub(crate) fn apply_rules(
                 // Only allow recovery after minimum duration
                 if sepsis_duration >= minimum_duration {
                     // Logistic regression model for sepsis recovery
-                    let base_log_odds = store.globals.sepsis_base_log_odds_of_recovery_per_day;
+                    let base_log_odds = store.globals.sepsis_recovery_base_log_odds_per_day;
 
                     let mut total_log_odds = base_log_odds;
 
                     // (1) Bacteria level effect - higher bacteria level decreases recovery probability
-                    let bacteria_level_coefficient = store.globals.sepsis_log_odds_bacteria_level;
+                    let bacteria_level_coefficient = store.globals.sepsis_recovery_log_odds_bacteria_level;
                     total_log_odds += individual.level[b_idx] * bacteria_level_coefficient;
 
                     // (2) Hospital status effect - being in hospital increases recovery probability
                     if individual.hospital_status.is_hospitalized() {
-                        let hospital_coefficient = store.globals.sepsis_log_odds_in_hospital;
+                        let hospital_coefficient = store.globals.sepsis_recovery_log_odds_in_hospital;
                         total_log_odds += hospital_coefficient;
                     }
 
                     // (3) Age effects with categories
                     let age_years = individual.age as f64 / 365.0;
                     let age_coefficient = if age_years < 1.0 {
-                        store.globals.sepsis_log_odds_age_infant
+                        store.globals.sepsis_recovery_log_odds_age_infant
                     } else if age_years < 18.0 {
-                        store.globals.sepsis_log_odds_age_child
+                        store.globals.sepsis_recovery_log_odds_age_child
                     } else if age_years < 65.0 {
-                        store.globals.sepsis_log_odds_age_adult
+                        store.globals.sepsis_recovery_log_odds_age_adult
                     } else {
-                        store.globals.sepsis_log_odds_age_elderly
+                        store.globals.sepsis_recovery_log_odds_age_elderly
                     };
                     total_log_odds += age_coefficient;
 
                     // (4) Severe immunosuppression effect
                     if individual.immunodeficiency_type.is_some() {
                         let immunosuppressed_coefficient =
-                            store.globals.sepsis_log_odds_immunosuppressed;
+                            store.globals.sepsis_recovery_log_odds_immunosuppressed;
                         total_log_odds += immunosuppressed_coefficient;
                     }
 
                     // (5) Region-specific effect (healthcare quality and ICU availability)
-                    total_log_odds += store.region.sepsis_log_odds(individual.region_living);
+                    total_log_odds += store.region.sepsis_recovery_log_odds(individual.region_living);
 
                     // Convert log odds to probability using logistic function
                     let recovery_probability = 1.0 / (1.0 + (-total_log_odds).fast_exp());

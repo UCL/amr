@@ -41,7 +41,7 @@
 
 We present a **framework** in the form of an **individual-based model** which simulates infection incidence, antibacterial usage, resistance emergence and risk of sepsis and death.  In the current configuration / set-up, we **simulate the lives of a repreentative sample of the global population from 1930**, before the use of antibiotics, to the present day in **daily** time steps.  The framework code is open-source and we encourage colleagues to use, and perhaps further develop, the framework to enable them to answer questions around how resistance has emerged over time (including through use of counterfactuals) and, critically, to predict the effect of various potential policies  on antibacterial drug resistance and infection related mortality.  Possible policies could relate to those aimed at minimizing drug resistance emergence and growth but also those that for which future drug resistance is a concern as a negative effect of a policy, such as those involving wider antibiotic use, and the framework should enable these negative effects to be quantified and compared with the positive effects.  
 
-As currently structured, the framework tracks 42 bacterial species, 61 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.  
+As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
 The framework aims to capture how bacterial resistance in one individual can affect risk in others in the same region (and accounts for movement between regions).  It does not, however, dynamically model infection spread per se; infection incidence in a given region in a given age, immunodeficiency and hospitalisation status is directly specified. 
 
@@ -54,6 +54,8 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 - Antibiotic initiation, continuation, and cessation
 - Resistance emergence via de novo mutation or horizontal gene transfer
 - Mortality from infection, sepsis, or drug toxicity
+
+**Implementation order within a simulated day.** In the live `apply_rules()` implementation, the ordering is: age/living-state checks; reset daily microbiome flags; immunodeficiency onset/recovery; hospital admission or discharge; travel; sepsis onset or clearance for currently active infections; birth-cohort vaccination; antibiotic stopping, pharmacokinetic decay, and new drug initiation/selection; toxicity and treatment-failure/restart checks; mortality and sepsis recovery; then the per-bacterium loop for new acquisition, microbiome acquisition/clearance, resistance emergence/reversion/floors, infection growth, symptoms, clearance, testing, and finally HGT. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.
 
 **Stochastic processes.** The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a *probability* for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories.
 
@@ -174,7 +176,7 @@ The table below summarises all the ways immunosuppression changes a person's tra
 | Weaker direct empiric-start trigger in the absence of symptoms | `antibiotic_initiation_log_odds_immunodeficiency` | +0.2 | Immunodeficiency alone does not usually trigger treatment in the current model; symptoms, sepsis, and test results drive most starts |
 | More diagnostic testing | `testing_immunosuppressed_multiplier` | ×2.5 | Clinicians investigate more aggressively in immunocompromised hosts |
 | Higher sepsis risk | `log_odds_sepsis_onset_immunosuppressed` | +0.7 | ~2× higher daily risk of developing sepsis for a given bacteria level |
-| Harder to recover from sepsis | `sepsis_log_odds_immunosuppressed` | −1.0 | ~2.7× lower odds of daily recovery, reflecting poor immune clearance |
+| Harder to recover from sepsis | `sepsis_recovery_log_odds_immunosuppressed` | −1.0 | ~2.7× lower odds of daily recovery, reflecting poor immune clearance |
 | Higher mortality from sepsis | sepsis death log-odds | +1.5 | ~4.5× higher risk of dying during sepsis |
 | Higher mortality from drug toxicity | toxicity death log-odds | +0.9 | ~2.5× higher risk — reflects drug interactions and organ dysfunction |
 | Higher background mortality | `log_odds_mortality_immunosuppressed` | +0.916 | ~2.5× overall mortality uplift |
@@ -189,7 +191,7 @@ Clinically, severely immunocompromised patients often also receive broader empir
 - Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).
 - The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.
 
-For example, the daily probability of starting antibiotics might be calculated as: *baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (+0.2) = +6.7*, still yielding near-certainty for a septic immunocompromised patient with symptoms because the acute clinical syndrome dominates the decision.
+For example, the daily probability of starting antibiotics for a hospitalised septic immunocompromised patient with symptoms would include: *baseline log-odds (-5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + hospitalised (+0.7) + immunodeficiency (+0.2) = +7.4*, yielding near-certainty because the acute clinical syndrome dominates the decision.
 
 ### 2.4 Hospitalisation
 
@@ -269,7 +271,7 @@ Source:  UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR`
 
 These multipliers are intended as a semi-quantitative ranking of cross-region mixing intensity, not as literal estimates of per-capita trip counts. The ordering is supported by broad regional patterns in UN Tourism's global and regional tourism dashboard and World Bank indicators for international tourism departures and air passenger volumes, which collectively show very high international mobility in Europe and North America, strong air-travel dependence in Oceania, rapid growth but substantial heterogeneity across Asia, intermediate volumes in South America, and lower outbound tourism and aviation intensity across much of Africa (UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR`).
 
-When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. 
+When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. In the current implementation, travel can only start while the person is at home and not hospitalised. A trip lasts 30 days, then the person returns to their home region. Destinations are sampled from a fixed origin-specific matrix and the home region is excluded from the candidate destinations for that trip.
 
 **Age-specific travel risk.** Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of *Salmonella enterica* serovar Typhi (+0.8 log-odds) and *Shigella* spp. (+0.5 log-odds), while *V. cholerae* risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens but no risk for sexually transmitted infections acquired during travel.
 
@@ -284,7 +286,7 @@ This section describes how people in the model acquire bacterial infections. A p
 
 ### 3.1 Community acquisition
 
-Each day, every person who does not already have an active infection has a chance of acquiring any of the 42 bacterial species. The model calculates a separate probability for each species using a logistic model (see Section 1.2) that combines several risk factors:
+Each day, the model evaluates each of the 42 bacterial species separately. A person can acquire a bacterium if they are not already actively infected with that same bacterium; having another active infection does not block acquisition. Co-infections are therefore possible. The model calculates a separate probability for each species using a logistic model (see Section 1.2) that combines several risk factors:
 
 - **Baseline acquisition rate** for the specific bacterium — some bacteria (e.g., *E. coli*) cause infections far more frequently than others (e.g., *L. monocytogenes*)
 - **Region** — infection rates vary by geography due to climate, sanitation, and population density
@@ -371,15 +373,15 @@ This pathway is governed by two parameters:
 
 ### 3.4 Resistance at acquisition
 
-When a new infection is acquired in the community, the modelling framework needs to decide on whether and what resistance is present.  The framework uses a six-step pipeline that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:
+When a new infection is acquired in the community, the modelling framework determines whether (and, if so, what) resistance is present.  The framework uses a six-step process that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:
 
 **Step 1 — Profile reservoir and prevalence tracking**
 
-After every simulated day, the model refreshes a **profile reservoir** (`MechanismCache`) of up to 1000 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). The reservoir is built by **reservoir sampling** from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals (bitmask = 0). Infected individuals contribute to the pool corresponding to their **current location** (region, hospital or community) at the time of the daily cache update.
+After every simulated day, the model refreshes a **profile reservoir** (`MechanismCache`) of up to 1000 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria.  The reservoir is built by **reservoir sampling** from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals. Infected individuals contribute to the pool corresponding to their **current location** (region, hospital or community) at the time of the daily cache update.
 
-The reservoir uses **asymmetric retention** when refreshing its contents each day. Community profiles are retained with a fraction `community_profile_cache_retention` = 0.9 (~6.6-day half-life), so the community pool tracks currently circulating strains rather than accumulating historical profiles. Hospital profiles are retained with a fraction `hospital_profile_cache_retention` = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistance mechanism, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.
+The reservoir uses **asymmetric retention** when refreshing its contents each day. Community profiles are retained with a fraction `community_profile_cache_retention` = 0.9 (~6.6-day half-life), so the community pool tracks currently circulating strains rather than accumulating historical profiles. Hospital profiles are retained with a fraction `hospital_profile_cache_retention` = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistance mechanism, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool is more rapidly responsive to current circulating strains.
 
-Because the reservoir includes both resistant and susceptible profiles, the **prevalence** of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the framework checks whether any mechanism applicable to that drug is set, and the resistant fraction across all stored profiles gives the current prevalence estimate.  The profile reservoir is the source of both sampling and derived prevalence. This prevalence is used downstream by antibiotic prescribing logic (Section 6) and calibration scoring.
+Because the reservoir includes both resistant and susceptible profiles, the **prevalence** of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the framework checks whether any mechanism applicable to that drug is set, and the resistant fraction across all stored profiles gives the current prevalence estimate.  The profile reservoir is the source of both sampling and derived prevalence. This prevalence is used downstream by antibiotic prescribing logic (Section 6).
 
 **Hospital resistance concentration factor.** Each bacterium is assigned a **hospital resistance concentration factor** (`hospital_resistance_concentration_factor`) that reflects the empirical observation that hospital environments concentrate resistant organisms through selective antibiotic pressure, device-associated biofilm persistence, patient-to-patient transmission via healthcare workers, and environmental contamination (Weinstein RA, 1998; Weber DJ et al., 2010). This factor is used at **Step 3** during profile sampling to over-sample resistant profiles when assigning resistance to hospital-acquired infections (see Step 3 for details). The concentration factor is assigned to one of four tiers based on each bacterium's ecological association with healthcare:
 
@@ -392,7 +394,7 @@ Because the reservoir includes both resistant and susceptible profiles, the **pr
 
 **Step 2 — Community dilution**
 
-Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria **community resistance dilution factor** (`community_resistance_dilution_factor`). A random draw determines whether the infection originates from a human or farm animal reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (no dilution).
+Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria **community resistance dilution factor** (`community_resistance_dilution_factor`). A random draw determines whether the infection originates from a human or farm animal reservoir at all; if not, the bacterium is treated as wild-type (no resistance). This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (no dilution).
 
 The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir:
 
@@ -404,13 +406,13 @@ The dilution factor is assigned by ecological category, reflecting the strength 
 | Endogenous flora / commensal | 0.60–0.80 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology and carriage |
 | Obligate human pathogen / STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission means the community pool is the human circulating pool |
 
-Per-bacteria values are calibrated within these ecological bands in the live configuration.
+Per-bacteria values are calibrated within these ecological bands.
 
 **Step 3 — Correlated mechanism profiles — weighted profile sampling**
 
-Rather than independently sampling each mechanism from a marginal prevalence estimate (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model draws a **complete genotype profile** from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
+Rather than independently sampling each mechanism from a marginal prevalence estimate, the framework draws a **complete genotype profile** from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
 
-**Community-acquired infections** (that come from human or farm animal) draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles (bitmask = 0), uniform sampling automatically reproduces the true population prevalence of resistance.
+**Community-acquired infections** (that come from human or farm animal) draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles, uniform sampling automatically reproduces the true population prevalence of resistance (check_against_code).
 
 **Hospital-acquired weighted sampling.** For hospital-acquired infections where the bacterium's `hospital_resistance_concentration_factor` $f > 1$, the model does not draw a uniform profile from the hospital pool. Instead it uses **weighted profile sampling** (`sample_profile_weighted`): each profile in the reservoir is assigned a sampling weight of $f^{k}$, where $k$ is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher $k$) are over-sampled relative to susceptible profiles ($k = 0$, weight $= f^0 = 1$), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a **real observed genotype** — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired *K. pneumoniae* infection with $f = 1.3$ and 8 mechanism bits, for example, receives a weight of $1.3^8 \approx 8.2$× relative to a susceptible profile, substantially increasing its draw probability.
 
@@ -551,7 +553,7 @@ Each day, the model calculates the probability of a person's infection progressi
 
 Not all bacteria or body sites carry equal sepsis risk. The model captures this through:
 
-- **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −7.9, reflecting its aggressive clinical course). This is also where organism-specific propensity for toxin-mediated or otherwise disproportionately severe illness sits, such as invasive GAS and toxic-shock phenotypes relative to a less toxigenic organism at similar burden.
+- **Per-bacterium baseline**: Ranges from effectively zero for the special *H. pylori* sentinel value (−250.0) and low fallback organisms (−12.0) to high-risk invasive pathogens such as *P. aeruginosa* and *S. pyogenes* (−5.9). This is also where organism-specific propensity for toxin-mediated or otherwise disproportionately severe illness sits, such as invasive GAS and toxic-shock phenotypes relative to a less toxigenic organism at similar burden.
 - **Per-syndrome modifier**: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so
 
 **Regional factors** also affect sepsis risk, reflecting differences in healthcare access and sanitation:
@@ -648,6 +650,27 @@ These regional differences have direct consequences for AMR: in settings where t
 
 As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasized by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings (Jacobs J et al., 2019; WHO GLASS, 2026).
 
+
+### 5.4 Serious resistance marker drugs
+
+The helper `serious_resistance_marker_drugs` defines one or more sentinel drug-resistance results for each organism. These markers are used when interpreting serious-resistance burden and in admission logic once a relevant resistant test result is known.
+
+| Organism group or species | Marker drug |
+|---------------------------|-------------|
+| Enterobacterales and selected Gram-negative nosocomial pathogens: *E. coli*, *K. pneumoniae*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *A. baumannii*, *P. aeruginosa*, *B. cepacia* complex, *B. fragilis* | `meropenem` |
+| *S. maltophilia* | `trim_sulf` |
+| Staphylococci | `flucloxacillin` |
+| Enterococci and *C. difficile* | `vancomycin` |
+| *S. pneumoniae*, *S. agalactiae*, *T. pallidum* | `penicillin_g` |
+| *S. pyogenes* | `erythromycin` |
+| *H. influenzae* | `amoxicillin_clavulanate` |
+| Macrolide-treated respiratory, atypical, STI, and cholera organisms: *M. catarrhalis*, *M. pneumoniae*, *L. pneumophila*, *B. pertussis*, *V. cholerae*, *C. trachomatis*, *M. genitalium* | `azithromycin` |
+| Fluoroquinolone-treated enteric organisms: *C. jejuni*, *S. Typhi*, *S. Paratyphi A*, *Shigella* spp., *Y. enterocolitica* | `ciprofloxacin` |
+| iNTS, *N. gonorrhoeae*, *N. meningitidis* | `ceftriaxone` |
+| *L. monocytogenes* | `ampicillin` |
+| *H. pylori* | `clarithromycin` |
+| MDR *M. tuberculosis* | `rifampicin` |
+
 ---
 
 
@@ -668,14 +691,14 @@ Each day, the model decides whether to start a new antibiotic course for each pe
 | Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016) |
 | Symptomatic infection | +6.0 | Jumps to ~62% | Once a patient has obvious symptoms (fever, pain, etc.), prescribing becomes likely |
 | Sepsis | +6.0 | Near-certain | Sepsis is a medical emergency requiring immediate antibiotics |
-| Immunodeficiency | −0.75 | modestly less likely in isolation | In the current model, immunodeficiency alone is not treated as a stand-alone indication; symptoms, sepsis, and test confirmation drive most starts |
+| Immunodeficiency | +0.2 | weak positive trigger in isolation | In the current model, immunodeficiency alone is not usually a stand-alone treatment indication; symptoms, sepsis, test confirmation, and the constrained prophylaxis pool drive most starts |
 | No clinical indication | −1.05 | ~3× less likely | A protective factor: if investigation shows no active infection, prescribing is dampened |
 | Lab-confirmed infection | +0.92 | ~2.5× more likely | Positive culture results prompt targeted therapy |
 | Already on an antibiotic | +0.18 | ~1.2× more likely | Patients in the "pharmacy loop" may accumulate additional agents (combination therapy) |
 
 
 
-For a 65-year-old immunosuppressed inpatient with a symptomatic *E. coli* UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.0 (symptomatic) − 0.75 (immunodeficiency) = −0.25, which converts to about a 44% probability of starting antibiotics that day before any additional effects from testing, sepsis, or syndrome-specific scoring are applied.
+For a 65-year-old immunosuppressed inpatient with a symptomatic *E. coli* UTI and no lab results yet, the daily initiation log-odds would be roughly: -5.5 (baseline) + 6.0 (symptomatic) + 0.7 (hospitalised) + 0.2 (immunodeficiency) + ln(6.0) for the UTI syndrome multiplier = about +3.2 before regional access modifiers, which is a high probability of starting antibiotics that day. If the same patient also has sepsis, a further +6.0 is added.
 
 **Regional variation in antibiotic access:**
 
@@ -730,6 +753,8 @@ For each candidate drug, the model calculates a score based on several factors. 
 
 These restrictions substantially reduce empiric broad-spectrum therapy by preventing niche agents from out-competing more appropriate choices in syndromes where they are never used clinically.
 
+**Immunodeficiency prophylaxis.** A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool. The only candidate drugs are `trim_sulf` (score 0.8), `azithromycin` (3.0), `ciprofloxacin` (2.0), and `levofloxacin` (1.5). Reserve drugs are excluded, broad-spectrum drugs are penalised, lower-spectrum drugs receive a modest bonus, and fluoroquinolone prophylaxis is blocked for people younger than 18 years. This rule is why the small positive initiation effect for immunodeficiency does not translate into broad untreated prophylaxis with the full antibiotic catalogue.
+
 **Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:
 
 | Local resistance rate | Empiric score penalty | Clinical parallel |
@@ -763,244 +788,37 @@ A constant daily stop probability of 0.45% does not imply an average course of 1
 
 #### Syndrome-specific empiric scoring templates
 
-The tables below show which drugs score highest for empiric prescribing in each syndrome. Higher scores mean the drug is more likely to be selected. These templates are calibrated to match real-world prescribing guidelines — for example, nitrofurantoin and trimethoprim-sulfamethoxazole score highest for UTI, while piperacillin-tazobactam and meropenem score highest for bloodstream infections.
+The exact empiric score templates are source-of-truth in `src/config.rs` under `empiric_syndrome_templates`. They change during calibration and are no longer duplicated here in full, because stale copied tables are more misleading than useful. The current UTI template is shown below because it is often referenced when interpreting drug-share outputs:
 
-**Syndrome 1 — UTI** *(most common bacterial infection; oral `sulf`, `nitrofurans`, and `phosphonic_acids` are preferred for lower UTI, with selected `pen`, `c1_2g`, and `fq` agents used as alternatives when susceptibility history or clinical context supports them)*
-
-| Drug | Score |
-|------|-------|
-| trim_sulf | 14.0 |
-| nitrofurantoin | 14.0 |
-| amoxicillin | 12.0 |
-| ciprofloxacin | 12.0 |
-| ampicillin | 10.0 |
-| levofloxacin | 10.0 |
-| amoxicillin_clavulanate | 6.0 |
+| Drug | Current UTI empiric score |
+|------|--------------------------:|
+| meropenem | 90.0 |
+| imipenem_c | 90.0 |
+| ertapenem | 90.0 |
+| meropenem_vaborbactam | 60.0 |
+| amoxicillin_clavulanate | 30.0 |
+| piperacillin_tazobactam | 30.0 |
+| ceftazidime_avibactam | 30.0 |
+| nitrofurantoin | 13.0 |
+| fosfomycin | 10.0 |
 | cephalexin | 8.0 |
-| ceftriaxone | 8.0 |
 | cefazolin | 7.0 |
 | cefuroxime | 7.0 |
-| piperacillin_tazobactam | 5.0 |
+| cefixime | 7.0 |
+| ciprofloxacin | 6.0 |
+| levofloxacin | 6.0 |
 | cefepime | 4.0 |
 | ceftazidime | 4.0 |
-| meropenem | 4.0 |
-| imipenem_c | 4.0 |
-| ertapenem | 4.0 |
-| meropenem_vaborbactam | 3.0 |
-| ceftazidime_avibactam | 3.0 |
+| ceftriaxone | 3.0 |
+| amoxicillin | 2.0 |
+| ampicillin | 1.0 |
+| trim_sulf | 1.0 |
+| aztreonam_avibactam | 1.0 |
+| colistin | 0.2 |
+| vancomycin | 0.1 |
+| linezolid | 0.1 |
 
-
-
-**Syndrome 2 — Skin/Soft Tissue** *(anti-staphylococcal and streptococcal coverage; `pen`, `c1_2g`, `glyc`, `lipoglycopeptides`, and `oxa` dominate, while `pleuromutilins` remain niche topical agents)* (Stevens DL et al., 2014)
-
-| Drug | Score |
-|------|-------|
-| penicillin_g | 16.0 |
-| amoxicillin | 14.0 |
-| amoxicillin_clavulanate | 14.0 |
-| ampicillin | 13.0 |
-| cephalexin | 13.0 |
-| cefazolin | 12.0 |
-| clindamycin | 12.0 |
-| vancomycin | 11.0 |
-| linezolid | 10.0 |
-| trim_sulf | 9.0 |
-| doxycycline | 9.0 |
-| minocycline | 9.0 |
-| tedizolid | 9.0 |
-| dalbavancin | 9.0 |
-| quinu_dalfo | 8.0 |
-| ciprofloxacin | 4.0 |
-| piperacillin_tazobactam | 3.0 |
-
-
-
-**Syndrome 3 — Respiratory** *(community-acquired pneumonia pattern: a `pen`/`bli` backbone plus `mls` atypical cover; amoxicillin-clavulanate and penicillins score highest)* (Metlay JP et al., 2019)
-
-| Drug | Score |
-|------|-------|
-| amoxicillin_clavulanate | 20.0 |
-| amoxicillin | 17.0 |
-| penicillin_g | 16.0 |
-| ampicillin | 15.0 |
-| azithromycin | 12.0 |
-| clarithromycin | 11.0 |
-| ceftriaxone | 9.5 |
-| erythromycin | 9.0 |
-| cefuroxime | 8.5 |
-| piperacillin_tazobactam | 8.0 |
-| levofloxacin | 8.0 |
-| moxifloxacin | 8.0 |
-| cefepime | 7.5 |
-| cephalexin | 7.0 |
-| linezolid | 7.0 |
-| doxycycline | 6.5 |
-| vancomycin | 6.5 |
-| meropenem | 6.0 |
-| imipenem_c | 6.0 |
-| ofloxacin | 6.0 |
-| minocycline | 5.5 |
-
-
-
-**Syndrome 4 — Bloodstream** *(medical emergency; `bli`, `bli_anti_pseudomonal`, `bli_sulbactam`, `carb_group2`, and other broad IV agents with strong bactericidal activity dominate)* (Rhodes A et al., 2016)
-
-| Drug | Score |
-|------|-------|
-| piperacillin_tazobactam | 18.0 |
-| ampicillin_sulbactam | 16.0 |
-| amoxicillin_clavulanate | 16.0 |
-| meropenem | 13.0 |
-| imipenem_c | 13.0 |
-| meropenem_vaborbactam | 13.0 |
-| ceftazidime_avibactam | 12.5 |
-| cefepime | 12.0 |
-| ceftazidime | 11.0 |
-| vancomycin | 11.0 |
-| ceftriaxone | 10.0 |
-| ampicillin | 10.0 |
-| linezolid | 10.0 |
-| amoxicillin | 9.5 |
-| tedizolid | 9.0 |
-| quinu_dalfo | 8.5 |
-| dalbavancin | 8.0 |
-| penicillin_g | 6.5 |
-| cefazolin | 6.0 |
-| ciprofloxacin | 6.0 |
-| levofloxacin | 5.5 |
-| cephalexin | 4.0 |
-| gentamicin | 10.0 |
-| tobramycin | 9.0 |
-| amikacin | 10.0 |
-
-Aminoglycosides appear as individual agents in the empiric table, but in practice they are most often prescribed as add-ons to a primary beta-lactam rather than as monotherapy. The model captures this through its combination-therapy mechanism: once a primary drug has been initiated, an increased log-odds of initiating a further drug is applied, making aminoglycosides competitive as second-line additions in serious contexts (syndromes 4, 5, 6, 10 and sepsis) without displacing broad-spectrum beta-lactams as the initial choice. Outside these serious contexts, aminoglycosides receive a strong penalty (×0.04) that makes standalone empiric prescribing negligible. Amikacin's comparative advantage over gentamicin for resistant gram-negatives is captured in the targeted (organism-identified) prescribing layer rather than the empiric table, where the two agents are approximately interchangeable empirically.
-
-**Syndrome 5 — Intra-abdominal** *(must cover Gram-negatives and anaerobes; `bli`, `bli_anti_pseudomonal`, `bli_sulbactam`, `carb_group1`, and `carb_group2` are preferred)* (Solomkin JS et al., 2010)
-
-| Drug | Score |
-|------|-------|
-| piperacillin_tazobactam | 13.0 |
-| meropenem | 13.0 |
-| ampicillin_sulbactam | 12.5 |
-| imipenem_c | 12.5 |
-| amoxicillin_clavulanate | 11.5 |
-| ertapenem | 11.0 |
-| ceftazidime_avibactam | 10.0 |
-| meropenem_vaborbactam | 10.0 |
-| ceftazidime | 9.0 |
-| cefepime | 9.0 |
-| ceftriaxone | 9.0 |
-| ampicillin | 8.0 |
-| ciprofloxacin | 7.0 |
-| amoxicillin | 7.0 |
-| levofloxacin | 6.5 |
-| trim_sulf | 4.0 |
-| metronidazole | 2.5 |
-
-
-
-**Syndrome 6 — CNS** *(meningitis; only drugs that cross the blood-brain barrier are useful — see Section 6.4)* (Tunkel AR et al., 2004)
-
-| Drug | Score |
-|------|-------|
-| ceftriaxone | 15.0 |
-| ampicillin | 13.0 |
-| vancomycin | 13.0 |
-| ceftazidime | 12.0 |
-| cefepime | 12.0 |
-| penicillin_g | 11.0 |
-| meropenem | 11.0 |
-| linezolid | 10.0 |
-| imipenem_c | 10.0 |
-| piperacillin_tazobactam | 6.0 |
-| chloramphenicol | 2.0 |
-
-
-
-**Syndrome 7 — Gastrointestinal** *(`fq` and `mls` dominate uncomplicated bacterial gastroenteritis scoring, with oral `pen`, `bli`, and selected `nitrofurans` also present)*
-
-| Drug | Score |
-|------|-------|
-| ciprofloxacin | 12.0 |
-| azithromycin | 12.0 |
-| amoxicillin_clavulanate | 11.0 |
-| amoxicillin | 10.0 |
-| ampicillin | 10.0 |
-| levofloxacin | 10.0 |
-| ampicillin_sulbactam | 9.0 |
-| trim_sulf | 8.5 |
-| doxycycline | 8.5 |
-| minocycline | 6.5 |
-| penicillin_g | 5.0 |
-| cephalexin | 5.0 |
-| cefuroxime | 5.0 |
-| furazolidone | 3.0 |
-| metronidazole | 1.0 |
-
-
-
-**Syndrome 8 — Genital/Pelvic** *(STI guidelines: ceftriaxone + azithromycin for gonorrhoea; doxycycline for chlamydia; penicillin G for syphilis)* (Workowski KA et al., 2021)
-
-| Drug | Score |
-|------|-------|
-| penicillin_g | 14.0 |
-| azithromycin | 13.0 |
-| ceftriaxone | 13.0 |
-| doxycycline | 12.0 |
-| amoxicillin_clavulanate | 12.0 |
-| amoxicillin | 11.0 |
-| cefuroxime | 10.0 |
-| clindamycin | 9.0 |
-| ampicillin | 9.0 |
-| ampicillin_sulbactam | 8.0 |
-| ciprofloxacin | 7.0 |
-| levofloxacin | 6.5 |
-| cephalexin | 6.0 |
-| trim_sulf | 5.0 |
-| metronidazole | 1.0 |
-
-
-
-**Syndrome 9 — Bone/Joint** *(prolonged courses required; good bone penetration essential — `pen` including `flucloxacillin`, `c1_2g`/`c3g`, `fq`, `rifamycins`, and `oxa` feature prominently)*
-
-| Drug | Score |
-|------|-------|
-| penicillin_g | 14.0 |
-| cefazolin | 13.0 |
-| ampicillin | 12.0 |
-| vancomycin | 12.0 |
-| cephalexin | 11.0 |
-| ceftriaxone | 11.0 |
-| linezolid | 11.0 |
-| tedizolid | 10.0 |
-| dalbavancin | 10.0 |
-| clindamycin | 10.0 |
-| ciprofloxacin | 9.0 |
-| levofloxacin | 9.0 |
-| trim_sulf | 8.0 |
-| meropenem | 7.0 |
-| piperacillin_tazobactam | 6.5 |
-| rifampicin | 2.0 |
-
-This table is illustrative rather than exhaustive. `flucloxacillin` is part of the model's `pen` class and participates in the same prescribing logic even though it is not shown as a separate row in this abbreviated top-score summary.
-
-
-
-**Syndrome 10 — Other/Device-Related** *(broad empiric cover when site is uncertain; even scoring reflects clinical uncertainty)*
-
-| Drug | Score |
-|------|-------|
-| piperacillin_tazobactam | 8.0 |
-| cefepime | 8.0 |
-| ceftriaxone | 8.0 |
-| meropenem | 8.0 |
-| imipenem_c | 8.0 |
-| vancomycin | 8.0 |
-| linezolid | 7.0 |
-| ciprofloxacin | 7.0 |
-| azithromycin | 6.0 |
-
-
+These are scores before availability, age, syndrome restrictions, regional access, resistance surveillance, targeted-therapy modifiers, reserve-drug gates, toxicity avoidance, and the temperature-scaled weighted draw are applied.
 
 #### Species-specific and time-varying prescribing multipliers
 
@@ -1047,6 +865,14 @@ The species-guideline shifts currently encoded are:
 
 For *M. genitalium*, the live calibration now treats macrolide resistance as primarily a 23S-rRNA mutation problem, with `erm_b` retained only as a low-probability MLS co-resistance fallback rather than a dominant pathway. This avoids forcing an implausibly strong mobile-element-style mechanism in an organism whose macrolide resistance is usually explained by chromosomal 23S substitutions.
 The tetracycline side is handled similarly: `tet_m` is retained only as a small historical non-gonococcal-urethritis / doxycycline-era signal, not as a dominant modern resistance mechanism.
+
+**Additional live prescribing heuristics.** Targeted therapy uses organism-specific first/second-line allow-lists for common pathogens such as *P. aeruginosa*, *S. aureus*, *S. maltophilia*, pneumococcus, *E. coli*, *K. pneumoniae*, Enterococcus spp., *A. baumannii*, AmpC-risk Enterobacterales, gonorrhoea, Shigella, MDR-TB, and others. Drugs outside those lists are heavily penalised once an organism is identified. High-potency drugs receive graded boosts, organism-drug initiation multipliers add disease-specific preferences, and regional resistance surveillance penalises choices with high local failure signals unless a susceptibility result supports them.
+
+Reserve agents are gated separately. In targeted therapy, reserve drugs are strongly discouraged unless there is recent treatment failure or a severe hospitalised Gram-negative context. In empiric therapy, reserve use is stricter: recent failure or severe hospitalised Gram-negative disease must be present, and population resistance pressure can still block escalation. After this gate, the global reserve penalty is applied (`reserve_drug_score_penalty = 0.35` in the live default configuration).
+
+Drug choice also remembers recent harm. If toxicity stops a drug, that drug receives an approximately 1000-fold avoidance penalty for the configured avoidance window. When targeted therapy starts, ineffective existing drugs are stopped if they have no activity against any identified active infection. In non-severe empiric starts, a new empiric drug generally replaces existing empiric therapy rather than stacking indefinitely; septic patients can still retain combination therapy.
+
+Starting hospital-managed therapy can itself trigger admission. Always-inpatient drugs and hospital-restricted reserve drugs force admission and block discharge while active. OPAT-eligible drugs such as selected cephalosporins, ertapenem, dalbavancin, and vancomycin trigger admission probabilistically (`opat_admission_probability = 0.70`) but do not block discharge once the patient is otherwise eligible.
 
 ### 6.3 Drug pharmacokinetics
 
@@ -1142,7 +968,7 @@ These penetration values directly affect treatment outcomes in the model: a drug
 
 ### 6.5 Drug potency matrix
 
-Since intrinsic susceptibility differs by organism, the model encodes a **potency matrix** — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.
+Since intrinsic susceptibility differs by organism, the model encodes a **potency matrix** — a 42×62 table (42 bacteria × 62 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.
 
 Values range from 0.0 (no activity) to 1.0 (maximum activity; excellent first-line agents). No values above 1.0 are used. Prescribing preference signals previously encoded through supra-maximal potency are now represented through the `initiation_multiplier` parameter instead (e.g., fidaxomicin for *C. difficile* receives `initiation_multiplier = 1.05`). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $< 0.15$, the `minimal_potency_threshold_for_drug_selection` parameter), the model strictly prevents any *acquired* resistance mechanisms from being assigned to that organism-drug pair — for example, *Mycoplasma*, which lacks a cell wall, cannot acquire PBP mutations against penicillins.
 
@@ -1197,7 +1023,7 @@ These availability tiers should be interpreted as qualitative access strata rath
 
 #### Drug introduction dates
 
-The 61 antibiotics in the model span 88 years of pharmaceutical development. The model converts these calendar years into **simulation time steps** (days since 1930) using the formula: `day_in_simulation = (year - 1930) × 365.25`. Antibiotic availability is gated by these introduction dates: before the date, no clinician can prescribe the drug; from the date forward, it becomes available (though subject to regional access constraints):
+The 62 antibiotics in the model span 88 years of pharmaceutical development. The model converts these calendar years into **simulation time steps** (days since 1930) using the formula: `day_in_simulation = (year - 1930) × 365.25`. Antibiotic availability is gated by these introduction dates: before the date, no clinician can prescribe the drug; from the date forward, it becomes available (though subject to regional access constraints):
 
 | Drug | Year | Day step | Drug | Year | Day step |
 |------|------|----------|------|------|----------|
@@ -1312,7 +1138,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
    | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
   | blaZ | `blaz` | Staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin` | Staphylococci |
-  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Staphylococci, Helicobacter |
+  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Staphylococci, Helicobacter |
   | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci, Helicobacter |
   | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci, Helicobacter |
   | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `ciprofloxacin`, `ofloxacin` | All |
@@ -1332,9 +1158,9 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | Global eff. | `global_efflux` | Non-specific efflux upregulation | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | All |
   | TetA/B/C | `tet_abc` | Gram-negative tetracycline efflux | `tetracycline`, `doxycycline` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious |
   | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All |
-  | OmpK35/36 | `ompk35_36` | Outer membrane porin loss (Klebsiella) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+  | OmpK35/36 | `ompk35_36` | Outer membrane porin loss (Klebsiella) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | Global por. | `global_porin_loss` | Non-specific porin downregulation | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | All |
+  | Global por. | `global_porin_loss` | Non-specific porin downregulation | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | All |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
   | FosA/FosB | `fosa` | Fosfomycin-modifying enzyme (FosA: Gram-negative; FosB: Gram-positive) | `fosfomycin` | Staphylococci, Streptococci, Enterobacterales, Nonfermenters, Enteric Pathogens |
@@ -1342,7 +1168,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | LiaFSR/Cls | `mutation_liafsr_cls` | Enterococcal daptomycin resistance via *liaFSR/cls* cell-envelope remodeling — chromosomal, non-transferable | `daptomycin` | Streptococci |
   | RpoB | `rpob` | RNA polymerase mutation | `fidaxomicin` | All |
   | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Staphylococci |
-  | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam` | All |
+  | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam`, `aztreonam_avibactam` | All |
   | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
    | Unknown | `as_yet_unknown` | Placeholder mechanism (dormant) | Evaluates `true` dynamically for all applied overrides | All (Calibration Placeholder) |
 
@@ -1358,7 +1184,7 @@ When a bacterium possesses a resistance mechanism, it does not simply become imm
 
 In clinical terms, an enhancement multiplier of 0.80 for ESBL CTX-M against cephalosporins means: if a patient has an ESBL-producing *E. coli* UTI treated with ceftriaxone, the drug retains only 20% of its normal killing power — enough to provide some marginal activity but not enough to reliably cure the infection.
 
-There are 40 mechanisms × 39 drug classes = 1,560 individual values. The table below shows the **current global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been configured):
+There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table below shows the **current global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been configured):
 
 These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final realised resistance still depends on baseline potency, site penetration, and combination with other mechanisms.
 
@@ -1423,7 +1249,7 @@ For de novo emergence in an active infection under antibiotic exposure, the mode
 
 ```
 emergence_rate = mechanism_rate
-               × infection_de_novo_multiplier
+               × run_pathway_infection_de_novo_multiplier
                × counterfactual_resistance_multiplier
                × (1 + bacteria_level_factor)
                × max_emergence_drug_factor
@@ -1433,7 +1259,7 @@ emergence_rate = mechanism_rate
 | Factor | What it represents | Clinical analogy |
 |--------|-------------------|------------------|
 | `mechanism_rate` | How biologically likely this bacterium is to acquire this specific mechanism | Some mutations are common (e.g., *gyrA* point mutations); others are extremely rare (e.g., acquiring NDM by conjugation) |
-| `infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level and scenario-level scaling applied on top of the organism-specific baseline | Allows calibrated pathway-wide or policy-scenario changes without rebuilding the mechanism table |
+| `run_pathway_infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level and scenario-level scaling applied on top of the organism-specific baseline | Allows calibrated pathway-wide or policy-scenario changes without rebuilding the mechanism table |
 | `bacteria_level_factor` | Logarithmic scaling by bacterial load | A bloodstream infection with 10⁸ bacteria generates more mutants per day than a colonisation with 10⁴ |
 | `max_emergence_drug_factor` | Drug-exposure term based on the highest relevant site-level exposure window across active drugs | Resistance emergence is maximal in the intermediate exposure window rather than at either absent or fully suppressive concentrations |
 | `multi_drug_penalty_factor` | Suppression when multiple relevant drugs are used together | Combination therapy (e.g., meropenem + amikacin) makes it much harder for a single mechanism to confer survival |
@@ -1448,7 +1274,7 @@ For active infection, the daily hazard for a given mechanism is:
 
 ```
 mechanism_emergence_rate = mechanism_rate
-                          × infection_de_novo_multiplier
+                          × run_pathway_infection_de_novo_multiplier
                           × counterfactual_resistance_multiplier
                           × (1 + bacteria_level_factor)
                           × max_emergence_drug_factor
@@ -1463,20 +1289,22 @@ The additional terms do distinct jobs:
 | `bacteria_level_factor` | Log-scaled increase with within-host bacterial burden, bounded by the configured organism maximum |
 | `max_emergence_drug_factor` | Drug-exposure effect, highest at intermediate site concentrations and low at both minimal and fully suppressive exposure |
 | `multi_drug_penalty_factor` | Suppression of emergence when two or more relevant drugs are active and the candidate mechanism covers only part of the regimen |
-| `infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level or scenario-level scaling applied without changing the organism-specific baseline table |
+| `run_pathway_infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level or scenario-level scaling applied without changing the organism-specific baseline table |
 
 In the current architecture, population realism is distributed across three parts of the model: organism-specific infection acquisition parameters determine how often each pathogen appears, organism-specific mechanism baselines determine which resistance pathways are plausible and how readily they arise, and within-host modifiers determine whether the ecological conditions for emergence are present on a given day.
 
-The microbiome pathway is simpler. While on antibiotic exposure, microbiome emergence uses the same organism-mechanism baseline table and applies the microbiome de novo multiplier and counterfactual scaling, but it does not use the infection-burden or drug-window terms described above.
+The microbiome pathway is simpler. While on antibiotic exposure, microbiome emergence uses the same organism-mechanism baseline table and applies `run_pathway_microbiome_de_novo_multiplier` (multiplied by the compatibility scalar `microbiome_de_novo_multiplier`, currently 1.0) and counterfactual scaling, but it does not use the infection-burden or drug-window terms described above.
 
 These parameters should therefore be read as **effective emergence hazards** rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.
+
+**Run-level pathway multipliers.** The calibrated run uses a small set of `run_pathway_*` multipliers to vary whole resistance pathways without rewriting organism-specific baselines. The live defaults are all 1.0. `run_pathway_infection_de_novo_multiplier` scales de novo emergence during active infection; `run_pathway_microbiome_de_novo_multiplier` scales de novo emergence in carriage; `run_pathway_hgt_multiplier` scales horizontal gene transfer; `run_pathway_reversion_rate_multiplier` scales mechanism loss in infection and carriage; `run_pathway_microbiome_acquisition_multiplier` gates resistance-profile inheritance when new carriage is acquired; `run_pathway_carrier_inheritance_multiplier` scales microbiome-to-infection inheritance; `run_pathway_community_dilution_multiplier` scales the community dilution term applied to acquisition; and `run_pathway_microbiome_disruption_multiplier` scales the antibiotic-driven microbiome disruption reservoir. Separately, policy branches can set `counterfactual_resistance_multiplier` to 0.0, which blocks newly acquired or newly generated resistance in the AMR-free counterfactual branch.
 
 
 
 
 ### 7.4 Resistance reversion and fitness costs
 
-Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI et al., 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily **reversion rate** — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely. All per-mechanism reversion rates are scaled by a global calibration multiplier (`mechanism_reversion_rate_global_multiplier`, default 1.0) so that the overall speed of resistance decay can be tuned without changing individual mechanism rates.
+Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI et al., 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily **reversion rate** — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely. In the live rules engine, per-mechanism reversion rates are scaled by `run_pathway_reversion_rate_multiplier` (default 1.0), with additional community-specific reversion multipliers for some bacteria.
 
 Reversion operates in **both** compartments, but not in exactly the same way. In the active infection, fitness-cost loss removes a mechanism from `mechanism_majority`, so it no longer contributes to majority-strain surveillance or seeding of newly acquired infections; `mechanism_any` is retained for the currently infected individual. In the microbiome compartment, reversion removes the mechanism from `mechanism_microbiome`, after which `microbiome_r` is re-derived from the updated carriage flags. In each compartment, a mechanism can only revert on a given day if no antibiotic with selective pressure for that mechanism is currently present.
 
@@ -1578,7 +1406,7 @@ The multiplier can also be set **below 1.0** to slow community reversion for org
 
 
 
-*Note: The system reserves one remaining placeholder variable (`as_yet_unknown`, baseline rate `0.001`) designated for future empirical calibration. `mutation_pbp_mosaic` has been activated as **PBP mosaic mutations** (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and `efflux_mtr_cde` as **mtrCDE-type broad efflux** (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.*
+*Note: The system reserves one remaining placeholder variable (`as_yet_unknown`, baseline rate `0.001`) designated for future empirical calibration. `mutation_pbp_mosaic` has been activated as **PBP mosaic mutations** (chromosomal target modification affecting penicillins, cephalosporins, aztreonam, and aztreonam-avibactam — NOT carbapenems), and `efflux_mtr_cde` as **mtrCDE-type broad efflux** (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.*
 
 ### 7.5 Resistance floors
 
@@ -1611,7 +1439,7 @@ At 1,000,000-person population scale, the finite-number stochastic process can o
 
 **Helicobacter pylori.** Resistance is driven primarily by chromosomal mutation during treatment courses. The 1% universal floor acts as an extinction guard only: once resistance has been established via de novo selection, the floor prevents stochastic collapse between the relatively infrequent *H. pylori* infection events in a 1,000,000-person simulation.
 
-The dominant mechanism generating above-floor resistance prevalence is **treatment failure without second-line rescue therapy** (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.60`). When first-line clarithromycin-based triple therapy fails, approximately 60% of patients in the model do not proceed to bismuth quadruple rescue therapy — reflecting real-world loss to follow-up, access barriers, poor tolerability of the quadruple regimen, and incomplete prescriber uptake. These patients are left chronically infected with an *H. pylori* strain that has been under macrolide selection pressure; their `mechanism_majority` profile (which flips to resistant at rate 0.18/day under drug pressure) is recorded in the community mechanism cache. Over a 35-year simulation, this persistent-carrier pool builds up the circulating resistant-strain reservoir, generating realistic clarithromycin and metronidazole resistance prevalence through the standard mechanism-inheritance pathway at acquisition rather than through any floor override. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other organisms contributes additional selection pressure on top of this foundation.
+The dominant mechanism generating above-floor resistance prevalence is **treatment failure without second-line rescue therapy** (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80`). When first-line clarithromycin-based triple therapy fails, approximately 80% of patients in the model do not proceed to bismuth quadruple rescue therapy — reflecting real-world loss to follow-up, access barriers, poor tolerability of the quadruple regimen, and incomplete prescriber uptake. These patients are left chronically infected with an *H. pylori* strain that has been under macrolide selection pressure; their `mechanism_majority` profile (which flips to resistant at rate 0.18/day under drug pressure) is recorded in the community mechanism cache. Over a 35-year simulation, this persistent-carrier pool builds up the circulating resistant-strain reservoir, generating realistic clarithromycin and metronidazole resistance prevalence through the standard mechanism-inheritance pathway at acquisition rather than through any floor override. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other organisms contributes additional selection pressure on top of this foundation.
 
 **Enterococcus faecium.** VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. The 1% floor prevents glycopeptide-resistance stochastic extinction between sparse hospitalisation episodes; all higher prevalence is generated by the standard selection pathway.
 
@@ -1877,8 +1705,8 @@ Key dynamics:
 |---------|-----------|-------|---------------|
 | Resistance seeding on acquisition | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | When a person acquires a new carriage episode, there is a 50% probability that the colonising strain inherits the circulating resistance profile (sampled from the mechanism profile cache, just as for infection acquisition — see Section 3.4). If the draw fails, the strain arrives susceptible. The 0.50 value reflects the **colonisation bottleneck**: when a resistant strain from the community pool colonises a new host, only a fraction of transmission events successfully establish a resistant lineage, because susceptible strains in the incoming inoculum can outcompete resistant ones when antibiotic pressure is absent, and because small founding populations are subject to stochastic loss. Carriage acquisition studies consistently show that post-travel or post-admission ESBL carriage rates reach only 20–50% of the prevalence suggested by source-population data, supporting a sub-unity transfer probability (Arcilla MS et al., 2017; Buelow E et al., 2017). The parameter is therefore best interpreted as a colonisation-efficiency discount applied to the profile-cache sampling step. |
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
-| Mechanism-level reversion | `mechanism_reversion_rate_global_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates and global multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present. |
-| De-novo emergence under treatment | `microbiome_de_novo_multiplier` | 1.0 | When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the microbiome emergence pathway (Section 7.3), scaled by this multiplier. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
+| Mechanism-level reversion | `run_pathway_reversion_rate_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates and pathway multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present. |
+| De-novo emergence under treatment | `run_pathway_microbiome_de_novo_multiplier` | 1.0 | When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the microbiome emergence pathway (Section 7.3), scaled by this multiplier and the compatibility scalar `microbiome_de_novo_multiplier`. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
 | Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a carrier develops an endogenous infection, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3) |
 | Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | When both compartments are present and their mechanism sets differ, a daily Bernoulli draw can trigger bidirectional union (mechanisms are copied into both `mechanism_any` and `mechanism_microbiome`), after which resistance scalars are re-derived. |
 | HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event fires and the recipient carries the donor's bacterium in the microbiome, the transferred mechanism is written to `mechanism_microbiome` as well as `mechanism_any` |
@@ -1922,11 +1750,11 @@ These values are effective within-model hazards rather than bedside conjugation 
 
 Each day, for every individual carrying resistant bacteria in their microbiome, the model evaluates potential gene transfer events. The model evaluates HGT dynamically per distinct resistance mechanism, allowing independent plasmids (e.g., KPC and *mcr-1*) to transmit independently rather than as a single all-or-nothing block. Furthermore, bacteria do not restrict plasmid donation to only the dominant strain; minority resistance populations can donate, but face a transfer penalty.
 
-When an HGT event fires, the transferred mechanism is written to the recipient's `mechanism_any` (infection compartment). If the recipient also carries the donor's target bacterium in the microbiome, the mechanism is simultaneously written to `mechanism_microbiome`, ensuring the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by a global calibration multiplier (`hgt_multiplier`, default 1.0).
+When an HGT event fires, the transferred mechanism is written to the recipient's `mechanism_any` (infection compartment). If the recipient also carries the donor's target bacterium in the microbiome, the mechanism is simultaneously written to `mechanism_microbiome`, ensuring the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by the run-level `run_pathway_hgt_multiplier` (default 1.0) and by `counterfactual_resistance_multiplier`.
 
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
-| Global HGT scaling | hgt_multiplier | 1.0 | Calibration knob — scales all HGT rates up or down uniformly |
+| Run-level HGT scaling | `run_pathway_hgt_multiplier` | 1.0 | Calibration knob — scales all HGT rates up or down uniformly |
 | Base pairwise transfer rate | `hgt_prob_{donor}_to_{recipient}` matrix (defaults from Section 9.1) | `0.0` to `1e-5` | Baseline compatibility hazard determined by plasmid-pool ecology and donor-recipient pairing before context multipliers are applied |
 | Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% (Beaber JW et al., 2004) — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
 | Hospitalization boost | hgt_hospital_multiplier | 4.0 (×4.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
@@ -1977,22 +1805,22 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 
 | Bacterium | Sepsis baseline | Clinical rationale |
 |-----------|----------------|-------------------|
-| *S. aureus* | −7.3 | Aggressive bloodstream pathogen; 20–30% mortality in bacteraemia (Tong SYC et al., 2015) |
-| *P. aeruginosa* | −6.5 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
-| *S. agalactiae* | −7.0 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2010) |
-| *S. pyogenes* | −6.5 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS case-fatality 30–70% places invasive GAS among the most lethal bacterial syndromes (Carapetis JR et al., 2005) |
-| *N. meningitidis* | −7.9 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC; sepsis baseline loosened to −7.9 to reflect frequently invasive presentations (Stephens DS et al., 2007) |
-| *E. faecium* | −7.0 | Hospital-acquired bloodstream infections, especially VRE |
-| *K. pneumoniae* | −7.5 | Gram-negative sepsis; carbapenem-resistant strains carry >40% mortality (Xu L et al., 2017) |
-| *E. faecalis* | −7.5 | Endocarditis and line-related bacteraemia |
-| *E. coli* | −9.5 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe (Poolman JT et al., 2016) |
-| *S. Paratyphi A* | −9.2 | Enteric fever with occasional septic complications |
-| *iNTS* | −9.0 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2017) |
-| *Y. enterocolitica* | −10.0 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
-| *C. trachomatis* | −19.0 | STI — essentially never causes sepsis |
-| *N. gonorrhoeae* | −21.0 | Disseminated gonococcal infection is exceedingly rare |
-| *H. pylori* | −250.0 | Gastric pathogen — deaths from cancer, not sepsis |
-| Fallback default | −14.0 | Used for any organism without an explicit override |
+| *S. aureus* | −7.4 | Aggressive bloodstream pathogen; 20–30% mortality in bacteraemia (Tong SYC et al., 2015) |
+| *P. aeruginosa* | −5.9 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
+| *S. agalactiae* | −6.4 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2010) |
+| *S. pyogenes* | −5.9 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS case-fatality 30–70% places invasive GAS among the most lethal bacterial syndromes (Carapetis JR et al., 2005) |
+| *N. meningitidis* | −7.3 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC (Stephens DS et al., 2007) |
+| *E. faecium* | −6.4 | Hospital-acquired bloodstream infections, especially VRE |
+| *K. pneumoniae* | −6.9 | Gram-negative sepsis; carbapenem-resistant strains carry >40% mortality (Xu L et al., 2017) |
+| *E. faecalis* | −6.9 | Endocarditis and line-related bacteraemia |
+| *E. coli* | −8.9 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe (Poolman JT et al., 2016) |
+| *S. Paratyphi A* | −8.4 | Enteric fever with occasional septic complications |
+| *iNTS* | −8.6 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2017) |
+| *Y. enterocolitica* | −8.9 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
+| *C. trachomatis* | −18.4 | STI — essentially never causes sepsis |
+| *N. gonorrhoeae* | −23.4 | Disseminated gonococcal infection is exceedingly rare |
+| *H. pylori* | −250.0 | Gastric pathogen — deaths from cancer, not sepsis; the implementation also forces zero sepsis risk when this is the sole active infection |
+| Fallback default | −12.0 | Used for any organism without an explicit override |
 
 
 
@@ -2053,7 +1881,7 @@ The per-bacterium adjustments are the primary calibration lever. **Negative valu
 | *C. difficile* | +2.0 | Colitis and toxic megacolon deaths (Guh AY et al., 2020) |
 | *S. pyogenes* | +3.0 | STSS and superantigen (SPE-A/C/SMEZ)-mediated rapid death independent of bacterial burden, plus rheumatic heart disease and post-streptococcal complications (Carapetis JR et al., 2005; Watkins DA et al., 2017) |
 | *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
-| *H. pylori* | +1.0 | Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015) |
+| *H. pylori* | +1.7 | Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015) |
 | *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2018) |
 
 
@@ -2125,7 +1953,7 @@ Several of the appendices that follow list exact configuration values and enum d
 
 1. **Abstract drug levels**: Antibiotic concentrations are modelled as dimensionless units rather than true pharmacokinetic concentrations (mg/L). This allows the model to capture the *relative* dynamics of drug accumulation and clearance, but it means model values cannot be compared directly with MIC breakpoints, therapeutic drug monitoring results, or compartment-specific pharmacokinetic measurements from clinical microbiology or pharmacology practice. In particular, the model does not implement pharmacokinetic/pharmacodynamic (PK/PD) target-attainment analysis — it does not compute AUC/MIC or T>MIC indices, nor does it model the Cmax and distribution volume differences between patient subgroups (e.g., critically ill patients with altered volumes of distribution, or renal impairment affecting aminoglycoside and vancomycin clearance). Full mechanistic PK/PD frameworks can generate organism-specific probability-of-target-attainment curves and inform optimal dosing regimens (Nielsen EI & Friberg LE, 2013), which is beyond the scope of this policy-comparison model. The practical consequence is that the model's drug-level dynamics can reproduce the broad direction of resistance selection associated with sub-therapeutic exposure, but cannot support dosing-optimisation analyses or precisely model regimens where PK/PD target attainment drives clinical outcome.
 
-2. **No explicit strain competition**: Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. The model therefore cannot represent scenarios in which clonal replacement, compensatory evolution, or near-cost-free resistance leads to durable dominance of resistant strains in the absence of ongoing antibiotic selection. That said, the model does capture several distinct mechanisms by which antibiotic use promotes resistance in the microbiome: (i) a *microbiome disruption reservoir* that accumulates while drugs are active and decays with a configurable half-life (`antibiotic_disruption_decay_half_life_days`), raising future colonisation risk; (ii) *de novo resistance emergence* in the microbiome, whose rate is amplified by current drug pressure via `microbiome_de_novo_multiplier`; (iii) *selective maintenance* of existing resistance — mechanisms only revert when no selecting drug is active, so ongoing treatment blocks loss of resistance; (iv) daily bidirectional *infection–microbiome resistance spillover* governed by `microbiome_resistance_transfer_probability_per_day`; and (v) *horizontal gene transfer amplified by antibiotic pressure* through `hgt_antibiotic_pressure_multiplier`. Together these five pathways mean that antibiotic exposure promotes and sustains microbiome resistance through multiple complementary routes, even though the model does not track explicit clonal competition between resistant and susceptible lineages.
+2. **No explicit strain competition**: Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. The model therefore cannot represent scenarios in which clonal replacement, compensatory evolution, or near-cost-free resistance leads to durable dominance of resistant strains in the absence of ongoing antibiotic selection. That said, the model does capture several distinct mechanisms by which antibiotic use promotes resistance in the microbiome: (i) a *microbiome disruption reservoir* that accumulates while drugs are active and decays with a configurable half-life (`antibiotic_disruption_decay_half_life_days`), raising future colonisation risk; (ii) *de novo resistance emergence* in the microbiome, whose rate is amplified by current drug pressure via `run_pathway_microbiome_de_novo_multiplier` multiplied by the compatibility scalar `microbiome_de_novo_multiplier`; (iii) *selective maintenance* of existing resistance — mechanisms only revert when no selecting drug is active, so ongoing treatment blocks loss of resistance; (iv) daily bidirectional *infection–microbiome resistance spillover* governed by `microbiome_resistance_transfer_probability_per_day`; and (v) *horizontal gene transfer amplified by antibiotic pressure* through `hgt_antibiotic_pressure_multiplier`. Together these five pathways mean that antibiotic exposure promotes and sustains microbiome resistance through multiple complementary routes, even though the model does not track explicit clonal competition between resistant and susceptible lineages.
 
 3. **No within-host spatial structure**: Infections are treated as homogeneous within a body compartment. Biofilm formation, abscess walling-off, source control, and planktonic-versus-sessile distinctions are not modelled. The model therefore cannot reproduce the full treatment implications of deep-seated infection architecture, even though such structure is often decisive in real clinical microbiology and infectious diseases practice.
 
@@ -2206,7 +2034,7 @@ The appendix is implementation-facing. Names, groupings, and enum labels are the
 
 
 
-### A.2 Antibiotics (61 drugs)
+### A.2 Antibiotics (62 drugs)
 
 The class labels in this table mirror the model's current internal `DrugClass` mapping rather than broader textbook umbrella categories.
 
@@ -2322,7 +2150,7 @@ The class labels in this table mirror the model's current internal `DrugClass` m
 
 
 
-### A.4 Resistance Mechanisms (40)
+### A.4 Resistance Mechanisms (46)
 
 See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
@@ -2406,7 +2234,7 @@ See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
 ## Appendix B — Parameter Reference
 
-This appendix is auto-generated from the live Rust configuration. Parameters are organized thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level sampling multipliers are applied.
+This appendix is a documentation snapshot derived from the Rust configuration. The Rust source remains authoritative, and values should be regenerated or checked against `src/config.rs` before publication because calibration edits can move faster than this reference table.
 
 ### B.1 Global Scalar Parameters
 
@@ -2422,7 +2250,8 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | antibiotic_initiation_log_odds_symptomatic_infection | 6 |
 | antibiotic_initiation_log_odds_test_identified | 0.92 |
 | antibiotic_initiation_log_odds_already_on_drug | 0.18 |
-| antibiotic_initiation_log_odds_immunodeficiency | -0.75 |
+| antibiotic_initiation_log_odds_immunodeficiency | 0.2 |
+| antibiotic_initiation_log_odds_hospitalized | 0.7 |
 | antibiotic_initiation_log_odds_sepsis | 6 |
 | antibiotic_initiation_log_odds_no_indication | -1.05 |
 
@@ -2444,7 +2273,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | --- | ---: |
 | minimal_potency_threshold_for_drug_selection | 0.15 |
 | drug_selection_temperature | 0.55 |
-| reserve_drug_score_penalty | 0.005 |
+| reserve_drug_score_penalty | 0.35 |
 
 #### Treatment Failure and Restart
 
@@ -2459,7 +2288,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 
 For organisms where rescue therapy following first-line failure is incomplete in practice, a per-bacteria `{bacteria}_treatment_failure_no_second_line_probability` parameter (default 0.0) controls the fraction of treatment failures that do not receive any alternative drug. When this probability fires, the current (failed) drugs are stopped but no second-line agent is started, leaving the patient with a persistent resistant infection. Because the community mechanism cache records `mechanism_majority` profiles from active infections, these chronic carriers continuously seed the pool of circulating resistant strains at acquisition, generating long-run resistance prevalence without a microbiome carriage reservoir and without floor overrides.
 
-*H. pylori* is the only organism currently configured with a non-zero value (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.60`). This reflects the substantial real-world gap between the proportion of clarithromycin-triple failures that are confirmed and the proportion that actually complete bismuth quadruple rescue therapy, driven by side-effect burden (nausea, metallic taste, darkening stools), cost, and loss to follow-up.
+*H. pylori* is the only organism currently configured with a non-zero value (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80`). This reflects the substantial real-world gap between the proportion of clarithromycin-triple failures that are confirmed and the proportion that actually complete bismuth quadruple rescue therapy, driven by side-effect burden (nausea, metallic taste, darkening stools), cost, and loss to follow-up.
 
 #### Hospitalization
 
@@ -2488,6 +2317,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | community_profile_cache_retention | 0.999 |
 | hospital_profile_cache_retention | 0.999 |
 | hospital_resistance_concentration_factor | per-bacteria (1.0–2.25; see Section 3.4) |
+| run_pathway_reversion_rate_multiplier | 1 |
 | mechanism_reversion_rate_global_multiplier | 1 |
 | majority_r_memory_retention_per_day | 0.93 |
 
@@ -2512,9 +2342,16 @@ For organisms where rescue therapy following first-line failure is incomplete in
 
 | Parameter | Value |
 | --- | ---: |
-| infection_de_novo_multiplier | 1 |
-| microbiome_de_novo_multiplier | 1 |
-| hgt_multiplier | 1 |
+| run_pathway_infection_de_novo_multiplier | 1 |
+| run_pathway_microbiome_de_novo_multiplier | 1 |
+| run_pathway_hgt_multiplier | 1 |
+| run_pathway_reversion_rate_multiplier | 1 |
+| run_pathway_microbiome_acquisition_multiplier | 1 |
+| run_pathway_carrier_inheritance_multiplier | 1 |
+| run_pathway_community_dilution_multiplier | 1 |
+| run_pathway_microbiome_disruption_multiplier | 1 |
+| counterfactual_resistance_multiplier | 1 by default; AMR-free branches set 0 |
+| microbiome_de_novo_multiplier | 1 compatibility scalar multiplied into the microbiome de novo pathway |
 
 #### Horizontal Gene Transfer Modifiers
 
@@ -2531,7 +2368,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 
 | Parameter | Value |
 | --- | ---: |
-| travel_probability_per_day | 5e-5 |
+| travel_probability_per_day | 0.0002 |
 
 #### Bacteria Growth Age Multipliers
 
@@ -2562,14 +2399,14 @@ For organisms where rescue therapy following first-line failure is incomplete in
 
 | Parameter | Value |
 | --- | ---: |
-| sepsis_base_log_odds_of_recovery_per_day | 0 |
-| sepsis_log_odds_bacteria_level | -0.3 |
-| sepsis_log_odds_in_hospital | 0.8 |
-| sepsis_log_odds_age_infant | -0.5 |
-| sepsis_log_odds_age_child | 0.4 |
-| sepsis_log_odds_age_adult | 0 |
-| sepsis_log_odds_age_elderly | -0.7 |
-| sepsis_log_odds_immunosuppressed | -1 |
+| sepsis_recovery_base_log_odds_per_day | 0 |
+| sepsis_recovery_log_odds_bacteria_level | -0.3 |
+| sepsis_recovery_log_odds_in_hospital | 0.8 |
+| sepsis_recovery_log_odds_age_infant | -0.5 |
+| sepsis_recovery_log_odds_age_child | 0.4 |
+| sepsis_recovery_log_odds_age_adult | 0 |
+| sepsis_recovery_log_odds_age_elderly | -0.7 |
+| sepsis_recovery_log_odds_immunosuppressed | -1 |
 
 #### Sepsis Death
 
@@ -2737,48 +2574,48 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 
 | Bacteria | Acq log-odds | Init level | Delta level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| acinetobacter_baumannii | -18.7 | 0.01 | 0.55 | 5 | 0.1 | 8 | 0.0075 | 0.5 | 1 | -7.7 | 4e-4 |
-| citrobacter_spp. | -16.3 | 0.01 | 0.5 | 5 | 0.08 | 11.3 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 |
-| enterobacter_spp. | -16.8 | 0.01 | 0.5 | 5 | 0.07 | 11.5 | 0.0045 | 0.5 | 1 | -7.7 | 4e-4 |
-| enterococcus_faecalis | -17.1 | 0.01 | 0.48 | 5 | 0.008 | 11.5 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 |
-| enterococcus_faecium | -17.6 | 0.01 | 0.48 | 5 | 0.06 | 13 | 0.0075 | 0.5 | 1 | -7 | 4e-4 |
-| escherichia_coli | -11.6 | 0.01 | 0.5 | 5 | 0.005 | 6 | 0.025 | 0.5 | 1 | -9.5 | 4e-4 |
-| klebsiella_pneumoniae | -14.7 | 0.01 | 0.52 | 5 | 0.03 | 9.2 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 |
-| morganella_spp. | -17.2 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| proteus_spp. | -16.1 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| serratia_spp. | -17.3 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| p_stuartii | -17.5 | 0.01 | 0.5 | 5 | 0.09 | 8.7 | 0.0045 | 0.75 | 1 | -14 | 4e-4 |
-| pseudomonas_aeruginosa | -16 | 0.01 | 0.55 | 5 | 0.12 | 9 | 0.0075 | 0.8 | 1 | -6.5 | 4e-4 |
-| stenotrophomonas_maltophilia | -19 | 0.01 | 0.45 | 5 | 0.06 | 7 | 0.0045 | 0.9 | 2.5 | -8 | 4e-4 |
-| staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 7.5 | 0.015 | 0.5 | 1 | -7.3 | 4e-4 |
-| staphylococcus_epidermidis | -16 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | 0.0045 | 1 | 3 | -8 | 4e-4 |
-| streptococcus_pneumoniae | -12.6 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -10.5 | 4e-4 |
-| salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -7 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| salmonella_enterica_serovar_paratyphi_a | -16.8 | 0.01 | 0.45 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -9 | 4e-4 |
-| invasive_non-typhoidal_salmonella_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 |
-| shigella_spp. | -12.6 | 0.01 | 0.55 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -12 | 4e-4 |
-| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 3 | 0.0045 | 0.5 | 1 | -23 | 4e-4 |
-| streptococcus_pyogenes | -14.4 | 0.01 | 0.7 | 5 | 0.08 | 8 | 0.015 | 0.5 | 1 | -6.5 | 4e-4 |
-| streptococcus_agalactiae | -15.9 | 0.01 | 0.52 | 5 | 0.06 | 11 | 0.015 | 0.5 | 1 | -7 | 4e-4 |
-| haemophilus_influenzae | -17.4 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | 0.015 | 0.5 | 1 | -9.2 | 4e-4 |
-| chlamydia_trachomatis | -12.8 | 0.01 | 0.25 | 5 | 0.2 | 4.5 | 0.007 | 0.8 | 1 | -19 | 4e-4 |
-| mycoplasma_genitalium | -12.1 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | 0.0045 | 0.9 | 5 | -14 | 4e-4 |
-| vibrio_cholerae | -18.65 | 0.01 | 0.7 | 5 | 0.15 | 1 | 0.025 | 0.5 | 1 | -9 | 4e-4 |
-| neisseria_meningitidis | -18.5 | 0.01 | 0.65 | 5 | 0.05 | 10.5 | 0.01 | 3 | 1 | -7.9 | 4e-4 |
-| listeria_monocytogenes | -19 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| clostridioides_difficile | -15.15 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -11 | 4e-4 |
-| bacteroides_fragilis | -15.1 | 0.01 | 0.42 | 5 | 0.004 | 11 | 0.0045 | 1.2 | 2 | -14 | 4e-4 |
-| campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -20 | 4e-4 |
-| enterobacter_cloacae | -16.8 | 0.01 | 0.5 | 5 | 0.04 | 13 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| yersinia_enterocolitica | -16.6 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | 0.0045 | 0.5 | 1 | -9.5 | 4e-4 |
-| moraxella_catarrhalis | -14.6 | 0.01 | 0.55 | 5 | 0.05 | 11 | 0.0045 | 2 | 1 | -10.8 | 4e-4 |
-| treponema_pallidum | -12.7 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | 0.0045 | 0.6 | 1 | -11 | 4e-4 |
-| bordetella_pertussis | -12.85 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -11 | 4e-4 |
+| acinetobacter_baumannii | -18.7 | 0.01 | 0.55 | 5 | 0.1 | 8 | 0.0075 | 0.5 | 1 | -7.1 | 4e-4 |
+| citrobacter_spp. | -16.3 | 0.01 | 0.5 | 5 | 0.08 | 11.3 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 |
+| enterobacter_spp. | -16.8 | 0.01 | 0.5 | 5 | 0.07 | 11.5 | 0.0045 | 0.5 | 1 | -7.1 | 4e-4 |
+| enterococcus_faecalis | -17.1 | 0.01 | 0.48 | 5 | 0.008 | 11.5 | 0.0075 | 0.5 | 1 | -6.9 | 4e-4 |
+| enterococcus_faecium | -17.6 | 0.01 | 0.48 | 5 | 0.06 | 13 | 0.0075 | 0.5 | 1 | -6.4 | 4e-4 |
+| escherichia_coli | -11.6 | 0.01 | 0.5 | 5 | 0.005 | 6 | 0.025 | 0.5 | 1 | -8.9 | 4e-4 |
+| klebsiella_pneumoniae | -14.7 | 0.01 | 0.52 | 5 | 0.03 | 9.2 | 0.0075 | 0.5 | 1 | -6.9 | 4e-4 |
+| morganella_spp. | -17.2 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.2 | 4e-4 |
+| proteus_spp. | -16.1 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | 0.0045 | 0.5 | 1 | -7.2 | 4e-4 |
+| serratia_spp. | -17.3 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
+| p_stuartii | -17.5 | 0.01 | 0.5 | 5 | 0.09 | 8.7 | 0.0045 | 0.75 | 1 | -12 | 4e-4 |
+| pseudomonas_aeruginosa | -16 | 0.01 | 0.55 | 5 | 0.12 | 9 | 0.0075 | 0.8 | 1 | -5.9 | 4e-4 |
+| stenotrophomonas_maltophilia | -19 | 0.01 | 0.45 | 5 | 0.06 | 7 | 0.0045 | 0.9 | 2.5 | -7.4 | 4e-4 |
+| staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 7.5 | 0.015 | 0.5 | 1 | -7.4 | 4e-4 |
+| staphylococcus_epidermidis | -16 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | 0.0045 | 1 | 3 | -7.4 | 4e-4 |
+| streptococcus_pneumoniae | -12.6 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -9.9 | 4e-4 |
+| salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -7 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
+| salmonella_enterica_serovar_paratyphi_a | -16.8 | 0.01 | 0.45 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -8.4 | 4e-4 |
+| invasive_non-typhoidal_salmonella_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 |
+| shigella_spp. | -12.6 | 0.01 | 0.55 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -11.4 | 4e-4 |
+| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 3 | 0.0045 | 0.5 | 1 | -23.4 | 4e-4 |
+| streptococcus_pyogenes | -14.4 | 0.01 | 0.7 | 5 | 0.08 | 8 | 0.015 | 0.5 | 1 | -5.9 | 4e-4 |
+| streptococcus_agalactiae | -15.9 | 0.01 | 0.52 | 5 | 0.06 | 11 | 0.015 | 0.5 | 1 | -6.4 | 4e-4 |
+| haemophilus_influenzae | -17.4 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | 0.015 | 0.5 | 1 | -8.6 | 4e-4 |
+| chlamydia_trachomatis | -12.8 | 0.01 | 0.25 | 5 | 0.2 | 4.5 | 0.007 | 0.8 | 1 | -18.4 | 4e-4 |
+| mycoplasma_genitalium | -12.1 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | 0.0045 | 0.9 | 5 | -12 | 4e-4 |
+| vibrio_cholerae | -18.65 | 0.01 | 0.7 | 5 | 0.15 | 1 | 0.025 | 0.5 | 1 | -8.4 | 4e-4 |
+| neisseria_meningitidis | -18.5 | 0.01 | 0.65 | 5 | 0.05 | 10.5 | 0.01 | 3 | 1 | -7.3 | 4e-4 |
+| listeria_monocytogenes | -19 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
+| clostridioides_difficile | -15.15 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -10.4 | 4e-4 |
+| bacteroides_fragilis | -15.1 | 0.01 | 0.42 | 5 | 0.004 | 11 | 0.0045 | 1.2 | 2 | -12 | 4e-4 |
+| campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -19.4 | 4e-4 |
+| enterobacter_cloacae | -16.8 | 0.01 | 0.5 | 5 | 0.04 | 13 | 0.0045 | 0.5 | 1 | -7.2 | 4e-4 |
+| yersinia_enterocolitica | -16.6 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | 0.0045 | 0.5 | 1 | -8.9 | 4e-4 |
+| moraxella_catarrhalis | -14.6 | 0.01 | 0.55 | 5 | 0.05 | 11 | 0.0045 | 2 | 1 | -10.2 | 4e-4 |
+| treponema_pallidum | -12.7 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | 0.0045 | 0.6 | 1 | -10.4 | 4e-4 |
+| bordetella_pertussis | -12.85 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -10.4 | 4e-4 |
 | helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -250 | 4e-4 |
 | mdr_mycobacterium_tuberculosis | -16.9 | 0.01 | 0.15 | 5 | 0.0015 | -1 | 6e-4 | 2 | 1 | -38 | 4e-4 |
-| mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 0.5 | 0.015 | 0.5 | 1 | -14 | 4e-4 |
-| legionella_pneumophila | -15.5 | 0.01 | 0.55 | 5 | 0.01 | -2 | 0.0085 | 0.5 | 1 | -14 | 4e-4 |
-| burkholderia_cepacia_complex | -20 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | 0.0075 | 0.5 | 1 | -14 | 4e-4 |
+| mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 0.5 | 0.015 | 0.5 | 1 | -12 | 4e-4 |
+| legionella_pneumophila | -15.5 | 0.01 | 0.55 | 5 | 0.01 | -2 | 0.0085 | 0.5 | 1 | -12 | 4e-4 |
+| burkholderia_cepacia_complex | -20 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | 0.0075 | 0.5 | 1 | -12 | 4e-4 |
 
 ### B.4 Drug–Bacteria Potency Matrix
 
@@ -5696,197 +5533,35 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 
 #### Syndrome Empiric Drug Scores
 
-| Syndrome | Drug | Empiric score |
-| --- | ---: | ---: |
-| uti | ampicillin | 10 |
-| uti | amoxicillin | 12 |
-| uti | cephalexin | 8 |
-| uti | cefazolin | 7 |
-| uti | cefuroxime | 7 |
-| uti | ceftriaxone | 8 |
-| uti | ceftazidime | 4 |
-| uti | cefepime | 4 |
-| uti | meropenem | 4 |
-| uti | imipenem_c | 4 |
-| uti | ertapenem | 4 |
-| uti | ciprofloxacin | 8 |
-| uti | levofloxacin | 6 |
+The full empiric syndrome-score templates are source-of-truth in `src/config.rs` under `empiric_syndrome_templates`. They are intentionally not duplicated here in full, because these weights are calibration inputs and stale copied tables are misleading. The current UTI template is included as a compact reference for the commonly inspected urinary-treatment outputs.
+
+| Syndrome | Drug | Current empiric score |
+| --- | --- | ---: |
+| uti | meropenem | 90.0 |
+| uti | imipenem_c | 90.0 |
+| uti | ertapenem | 90.0 |
+| uti | meropenem_vaborbactam | 60.0 |
+| uti | amoxicillin_clavulanate | 30.0 |
+| uti | piperacillin_tazobactam | 30.0 |
+| uti | ceftazidime_avibactam | 30.0 |
+| uti | nitrofurantoin | 13.0 |
+| uti | fosfomycin | 10.0 |
+| uti | cephalexin | 8.0 |
+| uti | cefazolin | 7.0 |
+| uti | cefuroxime | 7.0 |
+| uti | cefixime | 7.0 |
+| uti | ciprofloxacin | 6.0 |
+| uti | levofloxacin | 6.0 |
+| uti | cefepime | 4.0 |
+| uti | ceftazidime | 4.0 |
+| uti | ceftriaxone | 3.0 |
+| uti | amoxicillin | 2.0 |
+| uti | ampicillin | 1.0 |
+| uti | trim_sulf | 1.0 |
+| uti | aztreonam_avibactam | 1.0 |
+| uti | colistin | 0.2 |
 | uti | vancomycin | 0.1 |
 | uti | linezolid | 0.1 |
-| uti | trim_sulf | 11 |
-| uti | nitrofurantoin | 5 |
-| uti | amoxicillin_clavulanate | 14 |
-| uti | piperacillin_tazobactam | 5 |
-| uti | ceftazidime_avibactam | 3 |
-| uti | meropenem_vaborbactam | 3 |
-| uti | colistin | 0.2 |
-| uti | aztreonam_avibactam | 3 |
-| uti | cefixime | 7 |
-| skin_soft_tissue | penicillin_g | 16 |
-| skin_soft_tissue | ampicillin | 13 |
-| skin_soft_tissue | amoxicillin | 14 |
-| skin_soft_tissue | cephalexin | 13 |
-| skin_soft_tissue | cefazolin | 12 |
-| skin_soft_tissue | clindamycin | 12 |
-| skin_soft_tissue | ciprofloxacin | 4 |
-| skin_soft_tissue | doxycycline | 9 |
-| skin_soft_tissue | minocycline | 9 |
-| skin_soft_tissue | vancomycin | 11 |
-| skin_soft_tissue | dalbavancin | 9 |
-| skin_soft_tissue | linezolid | 10 |
-| skin_soft_tissue | tedizolid | 9 |
-| skin_soft_tissue | quinu_dalfo | 8 |
-| skin_soft_tissue | trim_sulf | 9 |
-| skin_soft_tissue | rifampicin | 0.5 |
-| skin_soft_tissue | amoxicillin_clavulanate | 14 |
-| skin_soft_tissue | piperacillin_tazobactam | 3 |
-| skin_soft_tissue | flucloxacillin | 15 |
-| respiratory | penicillin_g | 16 |
-| respiratory | ampicillin | 15 |
-| respiratory | amoxicillin | 17 |
-| respiratory | cephalexin | 7 |
-| respiratory | cefuroxime | 8.5 |
-| respiratory | ceftriaxone | 9.5 |
-| respiratory | cefepime | 7.5 |
-| respiratory | meropenem | 6 |
-| respiratory | imipenem_c | 6 |
-| respiratory | erythromycin | 9 |
-| respiratory | azithromycin | 12 |
-| respiratory | clarithromycin | 11 |
-| respiratory | levofloxacin | 8 |
-| respiratory | moxifloxacin | 8 |
-| respiratory | ofloxacin | 6 |
-| respiratory | doxycycline | 6.5 |
-| respiratory | minocycline | 5.5 |
-| respiratory | vancomycin | 6.5 |
-| respiratory | linezolid | 7 |
-| respiratory | amoxicillin_clavulanate | 20 |
-| respiratory | piperacillin_tazobactam | 8 |
-| respiratory | aztreonam_avibactam | 6 |
-| respiratory | cefixime | 6.5 |
-| bloodstream | penicillin_g | 6.5 |
-| bloodstream | ampicillin | 10 |
-| bloodstream | amoxicillin | 9.5 |
-| bloodstream | cephalexin | 4 |
-| bloodstream | cefazolin | 6 |
-| bloodstream | ceftriaxone | 10 |
-| bloodstream | ceftazidime | 11 |
-| bloodstream | cefepime | 12 |
-| bloodstream | meropenem | 13 |
-| bloodstream | imipenem_c | 13 |
-| bloodstream | gentamicin | 1 |
-| bloodstream | tobramycin | 1 |
-| bloodstream | amikacin | 1 |
-| bloodstream | ciprofloxacin | 6 |
-| bloodstream | levofloxacin | 5.5 |
-| bloodstream | vancomycin | 11 |
-| bloodstream | dalbavancin | 8 |
-| bloodstream | linezolid | 10 |
-| bloodstream | tedizolid | 9 |
-| bloodstream | quinu_dalfo | 8.5 |
-| bloodstream | rifampicin | 0.5 |
-| bloodstream | amoxicillin_clavulanate | 16 |
-| bloodstream | piperacillin_tazobactam | 18 |
-| bloodstream | ampicillin_sulbactam | 16 |
-| bloodstream | ceftazidime_avibactam | 12.5 |
-| bloodstream | meropenem_vaborbactam | 13 |
-| bloodstream | colistin | 0.1 |
-| bloodstream | flucloxacillin | 7.5 |
-| bloodstream | aztreonam_avibactam | 12 |
-| intra_abdominal | ampicillin | 8 |
-| intra_abdominal | amoxicillin | 7 |
-| intra_abdominal | ceftriaxone | 9 |
-| intra_abdominal | ceftazidime | 9 |
-| intra_abdominal | cefepime | 9 |
-| intra_abdominal | meropenem | 13 |
-| intra_abdominal | imipenem_c | 12.5 |
-| intra_abdominal | ertapenem | 11 |
-| intra_abdominal | ciprofloxacin | 7 |
-| intra_abdominal | levofloxacin | 6.5 |
-| intra_abdominal | trim_sulf | 4 |
-| intra_abdominal | metronidazole | 2.5 |
-| intra_abdominal | amoxicillin_clavulanate | 11.5 |
-| intra_abdominal | piperacillin_tazobactam | 13 |
-| intra_abdominal | ampicillin_sulbactam | 12.5 |
-| intra_abdominal | ceftazidime_avibactam | 10 |
-| intra_abdominal | meropenem_vaborbactam | 10 |
-| intra_abdominal | colistin | 0.1 |
-| intra_abdominal | aztreonam_avibactam | 9.5 |
-| cns_meningitis | penicillin_g | 11 |
-| cns_meningitis | ampicillin | 13 |
-| cns_meningitis | ceftriaxone | 15 |
-| cns_meningitis | ceftazidime | 12 |
-| cns_meningitis | cefepime | 12 |
-| cns_meningitis | meropenem | 11 |
-| cns_meningitis | imipenem_c | 10 |
-| cns_meningitis | vancomycin | 13 |
-| cns_meningitis | linezolid | 10 |
-| cns_meningitis | chloramphenicol | 2 |
-| cns_meningitis | rifampicin | 1 |
-| cns_meningitis | piperacillin_tazobactam | 6 |
-| cns_meningitis | cefixime | 1 |
-| gastrointestinal | penicillin_g | 5 |
-| gastrointestinal | ampicillin | 10 |
-| gastrointestinal | amoxicillin | 10 |
-| gastrointestinal | cephalexin | 5 |
-| gastrointestinal | cefuroxime | 5 |
-| gastrointestinal | azithromycin | 12 |
-| gastrointestinal | ciprofloxacin | 8 |
-| gastrointestinal | levofloxacin | 6 |
-| gastrointestinal | doxycycline | 8.5 |
-| gastrointestinal | minocycline | 6.5 |
-| gastrointestinal | trim_sulf | 8.5 |
-| gastrointestinal | metronidazole | 0.2 |
-| gastrointestinal | furazolidone | 0.2 |
-| gastrointestinal | rifampicin | 0.5 |
-| gastrointestinal | amoxicillin_clavulanate | 11 |
-| gastrointestinal | ampicillin_sulbactam | 9 |
-| gastrointestinal | cefixime | 4.5 |
-| genital_sti | penicillin_g | 14 |
-| genital_sti | ampicillin | 9 |
-| genital_sti | amoxicillin | 11 |
-| genital_sti | cephalexin | 6 |
-| genital_sti | cefuroxime | 10 |
-| genital_sti | ceftriaxone | 13 |
-| genital_sti | azithromycin | 13 |
-| genital_sti | clindamycin | 9 |
-| genital_sti | ciprofloxacin | 4 |
-| genital_sti | levofloxacin | 4 |
-| genital_sti | doxycycline | 12 |
-| genital_sti | trim_sulf | 5 |
-| genital_sti | metronidazole | 0.25 |
-| genital_sti | rifampicin | 0.5 |
-| genital_sti | amoxicillin_clavulanate | 12 |
-| genital_sti | ampicillin_sulbactam | 8 |
-| genital_sti | cefixime | 10.5 |
-| bone_joint | penicillin_g | 14 |
-| bone_joint | ampicillin | 12 |
-| bone_joint | cephalexin | 11 |
-| bone_joint | cefazolin | 13 |
-| bone_joint | ceftriaxone | 11 |
-| bone_joint | meropenem | 7 |
-| bone_joint | clindamycin | 10 |
-| bone_joint | ciprofloxacin | 9 |
-| bone_joint | levofloxacin | 9 |
-| bone_joint | vancomycin | 12 |
-| bone_joint | dalbavancin | 10 |
-| bone_joint | linezolid | 11 |
-| bone_joint | tedizolid | 10 |
-| bone_joint | trim_sulf | 8 |
-| bone_joint | rifampicin | 2 |
-| bone_joint | piperacillin_tazobactam | 6.5 |
-| bone_joint | flucloxacillin | 14 |
-| other | ceftriaxone | 8 |
-| other | cefepime | 8 |
-| other | meropenem | 8 |
-| other | imipenem_c | 8 |
-| other | azithromycin | 6 |
-| other | ciprofloxacin | 7 |
-| other | vancomycin | 8 |
-| other | linezolid | 7 |
-| other | piperacillin_tazobactam | 8 |
-| other | aztreonam_avibactam | 7.5 |
-
 #### Syndrome Drug Penetration
 
 | Syndrome | Drug | Penetration factor |
@@ -9731,7 +9406,7 @@ Each row represents one simulated day. The number of rows equals the total numbe
 
 
 
-#### Per-drug columns (~58 each)
+#### Per-drug columns (~62 each)
 
 | Pattern | Description |
 |---------|-------------|
@@ -9740,12 +9415,14 @@ Each row represents one simulated day. The number of rows equals the total numbe
 
 
 
-#### Per-bacteria × per-drug columns (~2,436 each)
+#### Per-bacteria × per-drug columns
 
 | Pattern | Description |
 |---------|-------------|
-| `{bacteria}_{drug}_activity_r` | Mean resistance (activity_r, derived from mechanism flags) |
-| `{bacteria}_{drug}_majority_r` | Population-level resistance prevalence (derived from stored mechanism profiles) |
+| `{bacteria}_{drug}_activity_r` and related summaries | Mean resistance/activity summaries derived from mechanism flags |
+| `{bacteria}_{drug}_infected_and_standardized_mic_lt2` and related summaries | Treatment-relevant susceptible-infection summaries |
+| `{bacteria}_{drug}_currently_on_drug` and related summaries | Drug exposure by organism-drug pair |
+| `{bacteria}_{drug}_any_r`, `microbiome_r_positive`, and split hospital/community variants | Mechanism-derived resistance summaries. The summary CSV no longer exports `{bacteria}_{drug}_majority_r`; mechanism-majority state is used internally and exposed through mechanism-derived summaries rather than the old majority-r column family. |
 
 
 
@@ -9761,14 +9438,15 @@ Each row represents one simulated day. The number of rows equals the total numbe
 
 ### C.4 Total Column Count
 
-With 42 bacteria, 61 drugs, and 6 regions, the CSV contains approximately:
+With 42 bacteria, 62 drugs, 46 resistance mechanisms, and 6 regions, the CSV contains thousands of columns. The exact schema is generated by `Simulation::export_summary_to_csv` and guarded by `tests/csv_invariants.rs`; it can change when output families are added or retired.
 
-- ~16 scalar columns
-- ~336 per-bacteria columns (42 × 8)
-- ~122 per-drug columns (61 × 2)
-- ~5,124 per-bacteria-per-drug columns (42 × 61 × 2)
-- ~18 per-region columns (6 × 3)
-- **Total: ~5,616 columns**
+Approximate families:
+
+- scalar columns for population state, mortality, treatment, policy branch, and calendar time
+- per-bacteria columns for infection, carriage, acquisition route, deaths, and sepsis
+- per-drug columns for starts and active treatment
+- per-bacteria-per-drug columns for activity, MIC, treatment exposure, susceptible-infection counts, and mechanism-derived resistance summaries
+- per-region columns for infection, hospitalization, and death summaries
 
 
 

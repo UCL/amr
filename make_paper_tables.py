@@ -1087,6 +1087,44 @@ _F1_SIM_EPOCH_YEAR: int = 1930
 _F1_TREND_COLOUR_MEAN   = "#1565C0"   # dark blue — mean line
 _F1_TREND_COLOUR_CLOUD  = "#90CAF9"   # light blue — 90% CI band
 
+def _discover_f1_simulation_csvs(input_paths: list[Union[str, Path]]) -> list[Path]:
+    """
+    Return simulation_summary CSVs matching the supplied calibration files.
+
+    Calibration summary names are not always exactly calibration_summary_{seed}.txt;
+    some accepted-run files carry prefixes such as calibration_summary_abc574337.txt.
+    For F1 we need the numeric run id, so extract the trailing six digits and look
+    for simulation_summary_{run_id}.csv in the standard output directory.
+    """
+    csv_dir = Path("amr_simulation_output_analysis_outputs")
+    csv_paths: list[Path] = []
+    seen: set[Path] = set()
+
+    for input_path in input_paths:
+        path = Path(input_path)
+
+        candidates: list[Path] = []
+        if path.name.startswith("simulation_summary_") and path.suffix.lower() == ".csv":
+            candidates.append(path)
+
+        seed_token = path.stem.split("_")[-1]
+        candidates.append(csv_dir / f"simulation_summary_{seed_token}.csv")
+
+        run_id_match = re.search(r"(\d{6})$", path.stem)
+        if run_id_match:
+            run_id = run_id_match.group(1)
+            candidates.append(csv_dir / f"simulation_summary_{run_id}.csv")
+
+        for candidate in candidates:
+            if candidate.exists():
+                resolved = candidate.resolve()
+                if resolved not in seen:
+                    seen.add(resolved)
+                    csv_paths.append(candidate)
+                break
+
+    return csv_paths
+
 
 def _load_resistance_series(csv_path: Path) -> pd.DataFrame | None:
     """
@@ -2687,16 +2725,7 @@ def main(input_args: list[str]) -> None:
     print(f"  -> {n} run(s) parsed and aggregated.")
 
     # Auto-discover matching simulation_summary CSVs for F1 trend figure.
-    # Calibration files are named calibration_summary_{seed}.txt;
-    # matching CSVs are simulation_summary_{seed}.csv in the output analysis folder.
-    _csv_dir = Path("amr_simulation_output_analysis_outputs")
-    csv_paths: list[Path] = []
-    for cal_path in paths:
-        stem = Path(cal_path).stem                 # e.g. "calibration_summary_958282"
-        seed = stem.split("_")[-1]                 # e.g. "958282"
-        candidate = _csv_dir / f"simulation_summary_{seed}.csv"
-        if candidate.exists():
-            csv_paths.append(candidate)
+    csv_paths = _discover_f1_simulation_csvs(paths)
     if csv_paths:
         print(f"  Found {len(csv_paths)} simulation CSV(s) for F1 trend figure.")
     else:
