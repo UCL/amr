@@ -883,7 +883,10 @@ _SERIOUS_R_DRUGS: Dict[str, List[str]] = {
     "treponema pallidum":                         ["penicillin_g"],
     # ── Other ──
     "helicobacter pylori":                        ["clarithromycin"],
-    "mdr mycobacterium tuberculosis":             ["rifampicin"],
+    # MDR-TB is intentionally omitted: rifampicin resistance is definitional and
+    # guaranteed in the model, so rifampicin would make serious-R tautological.
+    # Additional TB resistance markers (e.g. FQ/linezolid) should be a separate
+    # pre-XDR/XDR-style metric rather than part of this generic serious-R table.
 }
 
 
@@ -3835,24 +3838,30 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 )
                 s_mean_hosp = s_valid[s_hosp_col].mean()
                 s_mean_comm = s_valid[s_comm_col].mean()
-                s_hc_valid = []
-                for _, row in serious_locus_df.iterrows():
-                    sr, tr, ni = row.get(s_sim_col), row.get(s_tgt_col), row.get(s_inf_col, 0.0)
-                    if (sr is not None and tr is not None
-                            and np.isfinite(sr) and np.isfinite(tr)
-                            and sr > 0 and tr > 0 and ni > 0):
-                        s_hc_valid.append((abs(np.log(sr / tr)), float(ni)))
-                s_weighted_log = (
-                    sum(d * w for d, w in s_hc_valid) / sum(w for _, w in s_hc_valid)
-                    if s_hc_valid else np.nan
-                )
-                handle.write("Serious Resistance Locus Summary (hospital vs community)\n")
+            s_hc_valid = []
+            for _, row in serious_locus_df.iterrows():
+                sr, tr, ni = row.get(s_sim_col), row.get(s_tgt_col), row.get(s_inf_col, 0.0)
+                if (sr is not None and tr is not None
+                        and np.isfinite(sr) and np.isfinite(tr)
+                        and sr > 0 and tr > 0 and ni > 0):
+                    s_hc_valid.append((abs(np.log(sr / tr)), float(ni)))
+            s_weighted_log = (
+                sum(d * w for d, w in s_hc_valid) / sum(w for _, w in s_hc_valid)
+                if s_hc_valid else np.nan
+            )
+            handle.write("Serious Resistance Locus Summary (hospital vs community)\n")
+            if not s_valid.empty:
                 if np.isfinite(s_mean_overall):
                     handle.write(f"- Mean overall serious-R: {s_mean_overall:.2f}%\n")
                 handle.write(f"- Mean hospital serious-R: {s_mean_hosp:.2f}%\n")
                 handle.write(f"- Mean community serious-R: {s_mean_comm:.2f}%\n")
                 if np.isfinite(s_weighted_log):
                     handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {s_weighted_log:.2f}\n")
+            handle.write(
+                "- Note: MDR-TB is excluded from serious-R summaries because rifampicin "
+                "resistance is definitional/guaranteed in the MDR-TB model; additional "
+                "TB resistance beyond MDR would need a separate marker metric.\n"
+            )
             handle.write("\n")
             handle.write("Serious Resistance Locus (marker-drug hospital vs community resistance gap)\n")
             handle.write(serious_locus_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
