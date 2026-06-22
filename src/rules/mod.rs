@@ -91,9 +91,9 @@ use crate::config::{
     RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY, RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
-    self, load_float, store_float, CarriageCompartment, HospitalStatus, ImmunodeficiencyType,
-    Individual, InfectionResolutionType, Region, ResistanceMechanism, BACTERIA_LIST,
-    DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    self, CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual,
+    InfectionResolutionType, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
 
@@ -311,7 +311,7 @@ fn has_serious_resistance_test_positive(individual: &Individual) -> bool {
 
         for &drug_name in serious_resistance_marker_drugs(bacteria_name) {
             if let Some(&drug_idx) = DRUG_INDEX_BY_NAME.get(drug_name) {
-                if load_float(individual.resistances[b_idx][drug_idx].test_r) > INFECTION_EPS {
+                if individual.resistances[b_idx][drug_idx].test_r > INFECTION_EPS {
                     return true;
                 }
             }
@@ -443,12 +443,12 @@ fn propagate_mechanism_resistance(
         if raise_only {
             // Acquisition mode only raises resistance: a cache-sampled resistant profile
             // should not be weakened by a partial set of currently visible mechanisms.
-            if new_any_r > load_float(resistance_data.any_r) {
-                resistance_data.any_r = store_float(new_any_r);
+            if new_any_r > resistance_data.any_r {
+                resistance_data.any_r = new_any_r;
             }
         } else {
             // Reset mode (reversion) — set any_r to exact mechanism-derived level
-            resistance_data.any_r = store_float(new_any_r);
+            resistance_data.any_r = new_any_r;
         }
 
         // Derive microbiome_r from mechanism_microbiome state
@@ -457,11 +457,11 @@ fn propagate_mechanism_resistance(
                 .min(max_resistance_level)
                 .max(0.0);
             if raise_only {
-                if new_microbiome_r > load_float(resistance_data.microbiome_r) {
-                    resistance_data.microbiome_r = store_float(new_microbiome_r);
+                if new_microbiome_r > resistance_data.microbiome_r {
+                    resistance_data.microbiome_r = new_microbiome_r;
                 }
             } else {
-                resistance_data.microbiome_r = store_float(new_microbiome_r);
+                resistance_data.microbiome_r = new_microbiome_r;
             }
         }
     }
@@ -2740,7 +2740,7 @@ pub(crate) fn apply_rules(
                         // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
                         // ^^^^
                         "trim_sulf" => 0.8,
-                        "azithromycin" => 3.5, // 4.5
+                        "azithromycin" => 3.5,     // 4.5
                         "ciprofloxacin" => 2.0,
                         "levofloxacin" => 1.5,
                         _ => 0.0,
@@ -2764,7 +2764,7 @@ pub(crate) fn apply_rules(
                     if (time_step as i32) < initiated_day + resistance_test_result_delay_days {
                         continue;
                     }
-                    if load_float(individual.resistances[b_idx][drug_idx].test_r) <= 0.0 {
+                    if individual.resistances[b_idx][drug_idx].test_r <= 0.0 {
                         continue;
                     }
                     resistance_detected = true;
@@ -3670,7 +3670,7 @@ pub(crate) fn apply_rules(
                 // if we don't have a specific sensitivity test result confirming susceptibility.
                 let sensitivity_result_available = identified_bacteria
                     .iter()
-                    .any(|&b_idx| load_float(individual.resistances[b_idx][drug_idx].test_r) > 0.0);
+                    .any(|&b_idx| individual.resistances[b_idx][drug_idx].test_r > 0.0);
 
                 if !sensitivity_result_available {
                     let mut regional_resistance_penalty = 1.0_f64;
@@ -4758,14 +4758,12 @@ pub(crate) fn apply_rules(
                     let mut total_log_odds = base_log_odds;
 
                     // (1) Bacteria level effect - higher bacteria level decreases recovery probability
-                    let bacteria_level_coefficient =
-                        store.globals.sepsis_recovery_log_odds_bacteria_level;
+                    let bacteria_level_coefficient = store.globals.sepsis_recovery_log_odds_bacteria_level;
                     total_log_odds += individual.level[b_idx] * bacteria_level_coefficient;
 
                     // (2) Hospital status effect - being in hospital increases recovery probability
                     if individual.hospital_status.is_hospitalized() {
-                        let hospital_coefficient =
-                            store.globals.sepsis_recovery_log_odds_in_hospital;
+                        let hospital_coefficient = store.globals.sepsis_recovery_log_odds_in_hospital;
                         total_log_odds += hospital_coefficient;
                     }
 
@@ -4790,9 +4788,7 @@ pub(crate) fn apply_rules(
                     }
 
                     // (5) Region-specific effect (healthcare quality and ICU availability)
-                    total_log_odds += store
-                        .region
-                        .sepsis_recovery_log_odds(individual.region_living);
+                    total_log_odds += store.region.sepsis_recovery_log_odds(individual.region_living);
 
                     // Convert log odds to probability using logistic function
                     let recovery_probability = 1.0 / (1.0 + (-total_log_odds).fast_exp());
@@ -5089,7 +5085,7 @@ pub(crate) fn apply_rules(
                 individual.microbiome_acquired_on_drug_today[b_idx] = false;
                 individual.microbiome_cleared_today[b_idx] = false;
                 for resistance_data in individual.resistances[b_idx].iter_mut() {
-                    resistance_data.microbiome_r = store_float(0.0);
+                    resistance_data.microbiome_r = 0.0;
                 }
                 individual.clear_microbiome_mechanisms(b_idx);
             }
@@ -5149,8 +5145,7 @@ pub(crate) fn apply_rules(
                         let normalized_micro_r = if max_resistance_level <= f64::EPSILON {
                             1.0
                         } else {
-                            (load_float(resistance_data.microbiome_r) / max_resistance_level)
-                                .clamp(0.0, 1.0)
+                            (resistance_data.microbiome_r / max_resistance_level).clamp(0.0, 1.0)
                         };
                         let base_potency = param_cache.potency(b_idx, d_idx);
                         let effective_activity =
@@ -5335,7 +5330,7 @@ pub(crate) fn apply_rules(
             } else if !individual.presence_microbiome[b_idx] {
                 // No microbiome presence — ensure microbiome_r is zero
                 for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                    individual.resistances[b_idx][d_idx].microbiome_r = store_float(0.0);
+                    individual.resistances[b_idx][d_idx].microbiome_r = 0.0;
                 }
             }
 
@@ -5356,8 +5351,7 @@ pub(crate) fn apply_rules(
                         let base_potency = param_cache.potency(b_idx, drug_idx);
                         let drug_current_level = individual.cur_level_drug[drug_idx];
                         let max_resistance_level = store.globals.max_resistance_level;
-                        let resistance_level =
-                            load_float(individual.resistances[b_idx][drug_idx].any_r);
+                        let resistance_level = individual.resistances[b_idx][drug_idx].any_r;
                         let normalized_any_r = resistance_level / max_resistance_level;
                         let effective_activity =
                             base_potency * drug_current_level * (1.0 - normalized_any_r);
@@ -5729,7 +5723,7 @@ pub(crate) fn apply_rules(
                                 // Provenance bookkeeping disabled for memory-saving runs.
                                 if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
                                     for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                        if load_float(individual.resistances[b_idx][d_idx].any_r) > 0.0
+                                        if individual.resistances[b_idx][d_idx].any_r > 0.0
                                             && individual.how_resistance_acquired[b_idx][d_idx].is_none()
                                         {
                                             individual.how_resistance_acquired[b_idx][d_idx] = Some(
@@ -5947,11 +5941,8 @@ pub(crate) fn apply_rules(
                         &mut individual.resistances[bacteria_full_idx][drug_index];
 
                     // Clamp any_r to valid range
-                    resistance_data.any_r = store_float(
-                        load_float(resistance_data.any_r)
-                            .min(max_resistance_level)
-                            .max(0.0),
-                    );
+                    resistance_data.any_r =
+                        resistance_data.any_r.min(max_resistance_level).max(0.0);
 
                     if drug_current_level > 0.0 {
                         // Fetch potency from cached lookup
@@ -5959,8 +5950,7 @@ pub(crate) fn apply_rules(
 
                         // any_r is updated when mechanism state changes; this loop only
                         // translates the current resistance state into per-drug activity.
-                        let normalized_any_r =
-                            load_float(resistance_data.any_r) / max_resistance_level;
+                        let normalized_any_r = resistance_data.any_r / max_resistance_level;
 
                         // Apply syndrome-specific drug penetration factor
                         // This accounts for pharmacokinetic differences at different infection sites
@@ -5974,11 +5964,10 @@ pub(crate) fn apply_rules(
                         // Effective drug level at infection site
                         let effective_drug_level = drug_current_level * penetration_factor;
 
-                        resistance_data.activity_r = store_float(
-                            base_potency * effective_drug_level * (1.0 - normalized_any_r),
-                        );
+                        resistance_data.activity_r =
+                            base_potency * effective_drug_level * (1.0 - normalized_any_r);
                     } else {
-                        resistance_data.activity_r = store_float(0.0);
+                        resistance_data.activity_r = 0.0;
                     }
                 }
             }
@@ -6058,14 +6047,13 @@ pub(crate) fn apply_rules(
             if test_initiated_day != -1
                 && (time_step as i32) >= (test_initiated_day + resistance_test_result_delay_days)
             {
-                let test_r_already_set = individual.resistances[b_idx]
-                    .iter()
-                    .any(|r| load_float(r.test_r) > 0.0);
+                let test_r_already_set =
+                    individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
                 if !test_r_already_set {
                     for d_idx in 0..DRUG_SHORT_NAMES.len() {
                         // Use any_r to model standard clinical microbiologic phenotypic testing.
                         // (majority_r removed — any_r is the primary resistance measure)
-                        let major_r = load_float(individual.resistances[b_idx][d_idx].any_r);
+                        let major_r = individual.resistances[b_idx][d_idx].any_r;
                         let error = rng.gen_bool(test_r_error_prob);
                         let test_r = if error {
                             if major_r < INFECTION_EPS {
@@ -6076,14 +6064,14 @@ pub(crate) fn apply_rules(
                         } else {
                             major_r
                         };
-                        individual.resistances[b_idx][d_idx].test_r = store_float(test_r);
+                        individual.resistances[b_idx][d_idx].test_r = test_r;
                     }
                 }
             }
         } else {
             // Reset resistance test results if bacterial identification test is negative
             for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                individual.resistances[b_idx][d_idx].test_r = store_float(0.0);
+                individual.resistances[b_idx][d_idx].test_r = 0.0;
             }
         }
 
@@ -6222,8 +6210,7 @@ pub(crate) fn apply_rules(
                         || individual.microbiome_mechanism_mask(b_idx) != 0;
                     if !has_active_mechanism
                         && individual.resistances[b_idx].iter().any(|resistance| {
-                            load_float(resistance.any_r) > 0.0
-                                || load_float(resistance.microbiome_r) > 0.0
+                            resistance.any_r > 0.0 || resistance.microbiome_r > 0.0
                         })
                     {
                         let reversion_rate = store
@@ -6236,10 +6223,10 @@ pub(crate) fn apply_rules(
                             for drug_index in 0..DRUG_SHORT_NAMES.len() {
                                 let resistance_data =
                                     &mut individual.resistances[b_idx][drug_index];
-                                resistance_data.microbiome_r = store_float(0.0);
-                                resistance_data.test_r = store_float(0.0);
-                                resistance_data.activity_r = store_float(0.0);
-                                resistance_data.any_r = store_float(0.0);
+                                resistance_data.microbiome_r = 0.0;
+                                resistance_data.test_r = 0.0;
+                                resistance_data.activity_r = 0.0;
+                                resistance_data.any_r = 0.0;
                                 // Provenance bookkeeping disabled for memory-saving runs.
                                 if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
                                     individual.how_resistance_acquired[b_idx][drug_index] = None;
@@ -6253,7 +6240,7 @@ pub(crate) fn apply_rules(
             for (drug_idx, _drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                 if individual.cur_level_drug[drug_idx] > 0.0 {
                     let resistance_data = &individual.resistances[b_idx][drug_idx];
-                    total_reduction_due_to_antibiotic += load_float(resistance_data.activity_r);
+                    total_reduction_due_to_antibiotic += resistance_data.activity_r;
                 }
             }
 
@@ -6339,7 +6326,7 @@ pub(crate) fn apply_rules(
                 ) {
                     let activity_values: Vec<f64> = individual.resistances[b_idx]
                         .iter()
-                        .map(|resistance| load_float(resistance.activity_r))
+                        .map(|resistance| resistance.activity_r)
                         .collect();
                     crate::simulation::journey_logger::cache_pre_clearance_activity(
                         individual.id,
@@ -6377,7 +6364,7 @@ pub(crate) fn apply_rules(
 
                     if individual.resistances[b_idx]
                         .iter()
-                        .any(|resistance| load_float(resistance.any_r) > 0.0)
+                        .any(|resistance| resistance.any_r > 0.0)
                     {
                         let category = individual
                             .microbiome_resistance_level(b_idx, MICROBIOME_MAJORITY_THRESHOLD);
@@ -6403,8 +6390,8 @@ pub(crate) fn apply_rules(
                 // Clear infection data after tracking resolution
                 for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
                     let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
-                    resistance_data.any_r = store_float(0.0);
-                    resistance_data.activity_r = store_float(0.0);
+                    resistance_data.any_r = 0.0;
+                    resistance_data.activity_r = 0.0;
                     // Provenance bookkeeping disabled for memory-saving runs.
                     if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
                         individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
@@ -6518,9 +6505,8 @@ pub(crate) fn apply_rules(
                 compartment_masks[b_idx] = mask;
                 infection_presence[b_idx] = has_infection;
 
-                let has_any_resistance = individual.resistances[b_idx]
-                    .iter()
-                    .any(|r| load_float(r.any_r) > 0.0);
+                let has_any_resistance =
+                    individual.resistances[b_idx].iter().any(|r| r.any_r > 0.0);
 
                 if has_any_resistance {
                     potential_donors.push(b_idx);
@@ -6652,8 +6638,7 @@ pub(crate) fn apply_rules(
                         // Provenance bookkeeping disabled for memory-saving runs.
                         if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
                             for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-                                if load_float(individual.resistances[recipient_idx][drug_idx].any_r)
-                                    > 0.0
+                                if individual.resistances[recipient_idx][drug_idx].any_r > 0.0
                                     && individual.how_resistance_acquired[recipient_idx][drug_idx]
                                         .is_none()
                                 {
@@ -6720,9 +6705,8 @@ fn apply_cross_resistance(
                 if let Some(resistance_data) =
                     individual.resistances.get(b_idx).and_then(|r| r.get(d_idx))
                 {
-                    let any_r = load_float(resistance_data.any_r);
-                    if any_r > max_any_r {
-                        max_any_r = any_r;
+                    if resistance_data.any_r > max_any_r {
+                        max_any_r = resistance_data.any_r;
                     }
                 }
             }
@@ -6735,7 +6719,7 @@ fn apply_cross_resistance(
                         .get_mut(b_idx)
                         .and_then(|r| r.get_mut(d_idx))
                     {
-                        resistance_data.any_r = store_float(max_any_r);
+                        resistance_data.any_r = max_any_r;
                     }
                 }
             }

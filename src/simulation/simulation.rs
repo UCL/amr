@@ -16,8 +16,8 @@ use crate::observability;
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    load_float, store_float, MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism,
-    BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism, BACTERIA_LIST,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
     MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use crate::simulation::rng::{
@@ -1286,10 +1286,10 @@ impl IndividualLogger {
             let mut any_r = Vec::new();
             for bact in &ind.resistances {
                 for res in bact {
-                    microbiome_r.push(load_float(res.microbiome_r));
-                    test_r.push(load_float(res.test_r));
-                    activity_r.push(load_float(res.activity_r));
-                    any_r.push(load_float(res.any_r));
+                    microbiome_r.push(res.microbiome_r);
+                    test_r.push(res.test_r);
+                    activity_r.push(res.activity_r);
+                    any_r.push(res.any_r);
                 }
             }
 
@@ -1317,7 +1317,7 @@ impl IndividualLogger {
                     if ind.level[b_idx] > 0.0 && ind.cur_use_drug.iter().any(|&on_drug| on_drug) {
                         for d_idx in 0..DRUG_SHORT_NAMES.len() {
                             if ind.cur_use_drug[d_idx] {
-                                result = load_float(ind.resistances[b_idx][d_idx].activity_r);
+                                result = ind.resistances[b_idx][d_idx].activity_r;
                                 break;
                             }
                         }
@@ -3359,22 +3359,22 @@ impl Simulation {
                                     }
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        let any_r = load_float(resistance_data.any_r);
                                         if need_full_summary {
                                             let threshold = mic_lt2_thresholds[base + d_idx];
-                                            if any_r < threshold {
+                                            if resistance_data.any_r < threshold {
                                                 lt.mic_lt2_counts[base + d_idx] += 1;
                                             }
-                                            lt.any_r_sum_by_bacteria_drug[base + d_idx] += any_r;
+                                            lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
                                             let potency = potency_matrix[base + d_idx];
                                             let mic = if potency <= 1e-9 {
                                                 1e12
                                             } else {
-                                                let susceptible_fraction = (1.0 - any_r).clamp(1e-6, 1.0);
+                                                let susceptible_fraction =
+                                                    (1.0 - resistance_data.any_r).clamp(1e-6, 1.0);
                                                 1.0 / (susceptible_fraction * potency)
                                             };
                                             lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
-                                            if any_r > 0.0 {
+                                            if resistance_data.any_r > 0.0 {
                                                 lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
                                                 if !lt.infected_with_any_r_positive_hospital_by_bacteria_drug.is_empty() {
                                                     if individual.hospital_status.is_hospitalized() {
@@ -3385,11 +3385,11 @@ impl Simulation {
                                                 }
                                             }
                                             if individual.infection_hospital_acquired[b_idx] {
-                                                lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += any_r;
+                                                lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
                                             }
                                         }
                                         if let Some(region_idx) = effective_region_idx_for_any_r {
-                                            lt.any_r_sum_by_region[region_idx] += any_r;
+                                            lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
                                         }
                                     }
 
@@ -3429,7 +3429,7 @@ impl Simulation {
                                 if has_any_microbiome && need_full_summary {
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        if load_float(resistance_data.microbiome_r) > 0.0 {
+                                        if resistance_data.microbiome_r > 0.0 {
                                             let idx = b_idx * num_drugs + d_idx;
                                             lt.microbiome_r_positive_by_bacteria_drug[idx] += 1;
                                         }
@@ -3743,7 +3743,7 @@ impl Simulation {
                                     }
                                     let has_resistant_microbiome = individual.resistances[b_idx]
                                         .iter()
-                                        .any(|resistance| load_float(resistance.microbiome_r) > 0.0);
+                                        .any(|resistance| resistance.microbiome_r > 0.0);
                                     if has_resistant_microbiome {
                                         lt.presence_microbiome_resistant_by_bacteria[b_idx] += 1;
                                     }
@@ -3930,9 +3930,7 @@ impl Simulation {
                                             lt.newly_infected_hospital_by_bacteria_region[b_idx * 6 + cur_region_idx] += 1;
                                         }
                                         // Resistance-at-infection tracking
-                                        let has_any_r = individual.resistances[b_idx]
-                                            .iter()
-                                            .any(|rd| load_float(rd.any_r) > 0.0);
+                                        let has_any_r = individual.resistances[b_idx].iter().any(|rd| rd.any_r > 0.0);
                                         if has_any_r && !lt.newly_infected_any_r_hospital_by_bacteria.is_empty() {
                                             if individual.infection_hospital_acquired[b_idx] {
                                                 lt.newly_infected_any_r_hospital_by_bacteria[b_idx] += 1;
@@ -3946,26 +3944,25 @@ impl Simulation {
                                     // Full iteration for stats that need all drugs.
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        let any_r = load_float(resistance_data.any_r);
                                         // Only sum activity_r if individual is currently on this drug
                                         if individual.cur_use_drug[d_idx] {
-                                            activity_r_sum += load_float(resistance_data.activity_r);
+                                            activity_r_sum += resistance_data.activity_r;
                                             let base_potency = self.param_cache.potency(b_idx, d_idx);
                                             let syndrome_id = individual.infectious_syndrome[b_idx] as usize;
                                             let penetration_factor =
                                                 config::parameter_store().syndrome.drug_penetration(syndrome_id, d_idx);
                                             let effective_drug_level = individual.cur_level_drug[d_idx] * penetration_factor;
-                                            let normalized_any_r =
-                                                any_r / config::parameter_store().globals.max_resistance_level;
+                                            let normalized_any_r = resistance_data.any_r
+                                                / config::parameter_store().globals.max_resistance_level;
                                             max_possible_activity_r_sum += base_potency * effective_drug_level;
                                             lt.activity_r_pure_sum_by_bacteria[b_idx] +=
                                                 base_potency * (1.0 - normalized_any_r);
                                             lt.max_possible_activity_r_pure_sum_by_bacteria[b_idx] += base_potency;
                                         }
-                                        if need_full_summary && any_r > 0.0 {
+                                        if need_full_summary && resistance_data.any_r > 0.0 {
                                             lt.resistance_by_bacteria_drug[base + d_idx] += 1;
                                         }
-                                        if any_r > 0.0 {
+                                        if resistance_data.any_r > 0.0 {
                                             infection_any_r_positive = true;
                                             individual_has_any_r_positive = true;
 
@@ -4848,10 +4845,10 @@ impl Simulation {
             for b_idx in 0..num_bacteria {
                 for d_idx in 0..num_drugs {
                     let resistance = &mut individual.resistances[b_idx][d_idx];
-                    resistance.any_r = store_float(0.0);
-                    resistance.activity_r = store_float(0.0);
-                    resistance.microbiome_r = store_float(0.0);
-                    resistance.test_r = store_float(0.0);
+                    resistance.any_r = 0.0;
+                    resistance.activity_r = 0.0;
+                    resistance.microbiome_r = 0.0;
+                    resistance.test_r = 0.0;
                     // Provenance bookkeeping is disabled for memory-saving calibration
                     // runs, so there may be no dense provenance matrix to clear here.
                     if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {

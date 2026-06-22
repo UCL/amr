@@ -6,7 +6,7 @@
 // resistance, and clearance trajectories for a single journey.
 
 use crate::simulation::population::{
-    load_float, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
+    Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
     MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::rngs::SmallRng;
@@ -652,8 +652,7 @@ impl JourneyLogger {
             .iter()
             .enumerate()
             .filter(|(idx, _)| {
-                let resistance_value =
-                    load_float(individual.resistances[primary_bacteria_idx][*idx].any_r);
+                let resistance_value = individual.resistances[primary_bacteria_idx][*idx].any_r;
                 let drug_active = individual.cur_use_drug[*idx]
                     || individual.cur_level_drug[*idx] > INFECTION_EPS;
                 resistance_value > 0.0 || drug_active
@@ -661,7 +660,7 @@ impl JourneyLogger {
             .map(|(idx, &drug_name)| {
                 (
                     drug_name.to_string(),
-                    load_float(individual.resistances[primary_bacteria_idx][idx].any_r),
+                    individual.resistances[primary_bacteria_idx][idx].any_r,
                 )
             })
             .collect();
@@ -685,7 +684,7 @@ impl JourneyLogger {
             .map(|(idx, &drug_name)| {
                 (
                     drug_name.to_string(),
-                    load_float(individual.resistances[primary_bacteria_idx][idx].activity_r),
+                    individual.resistances[primary_bacteria_idx][idx].activity_r,
                 )
             })
             .collect();
@@ -723,8 +722,7 @@ impl JourneyLogger {
 
         let mut resistances_microbiome_r: Vec<(String, f64)> = Vec::new();
         for (idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-            let microbiome_value =
-                load_float(individual.resistances[primary_bacteria_idx][idx].microbiome_r);
+            let microbiome_value = individual.resistances[primary_bacteria_idx][idx].microbiome_r;
             if primary_microbiome_present || microbiome_value > 0.0 {
                 resistances_microbiome_r.push((drug_name.to_string(), microbiome_value));
             }
@@ -743,7 +741,7 @@ impl JourneyLogger {
                 let mut majority_max = 0.0;
 
                 for resistance in resistances {
-                    let value = load_float(resistance.microbiome_r);
+                    let value = resistance.microbiome_r;
                     if value >= MICROBIOME_MAJORITY_THRESHOLD {
                         if value > majority_max {
                             majority_max = value;
@@ -1228,8 +1226,7 @@ impl JourneyLogger {
                     .find(|(name, _)| name == drug_name)
                     .map(|(_, value)| *value)
                     .unwrap_or(0.0);
-                let current_any =
-                    load_float(individual.resistances[primary_bacteria_idx][drug_idx].any_r);
+                let current_any = individual.resistances[primary_bacteria_idx][drug_idx].any_r;
 
                 let any_increased = current_any > prev_any + RESISTANCE_EPSILON;
 
