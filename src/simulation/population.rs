@@ -65,6 +65,74 @@ use std::fmt;
 // Minimum infection/drug level threshold; values below this are treated as cleared to avoid floating-point noise.
 pub const INFECTION_EPS: f64 = 0.001;
 
+pub trait StoredFloatRepr: Copy {
+    fn store(value: f64) -> Self;
+    fn load(self) -> f64;
+}
+
+impl StoredFloatRepr for f64 {
+    #[inline]
+    fn store(value: f64) -> Self {
+        value
+    }
+
+    #[inline]
+    fn load(self) -> f64 {
+        self
+    }
+}
+
+impl StoredFloatRepr for half::f16 {
+    #[inline]
+    fn store(value: f64) -> Self {
+        half::f16::from_f64(value)
+    }
+
+    #[inline]
+    fn load(self) -> f64 {
+        self.to_f64()
+    }
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct BoundedResistanceU16(u16);
+
+impl StoredFloatRepr for BoundedResistanceU16 {
+    #[inline]
+    fn store(value: f64) -> Self {
+        let bounded = if value.is_finite() {
+            value.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        BoundedResistanceU16((bounded * u16::MAX as f64).round() as u16)
+    }
+
+    #[inline]
+    fn load(self) -> f64 {
+        self.0 as f64 / u16::MAX as f64
+    }
+}
+
+impl fmt::Display for BoundedResistanceU16 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.load().fmt(f)
+    }
+}
+
+pub type StoredBoundedResistanceFloat = BoundedResistanceU16;
+pub type StoredActivityResistanceFloat = half::f16;
+
+#[inline]
+pub fn store_float<T: StoredFloatRepr>(value: f64) -> T {
+    T::store(value)
+}
+
+#[inline]
+pub fn load_float<T: StoredFloatRepr>(value: T) -> f64 {
+    value.load()
+}
+
 /// Specific resistance mechanisms that can be present in bacteria
 /// These mechanism bitmasks are the source of infection, majority-strain, and
 /// microbiome resistance projections.
@@ -1254,20 +1322,20 @@ impl Region {
 pub struct Resistance {
     /// Resistance level in colonizing (carriage) bacteria. Range: 0.0-1.0.
     /// Derived from mechanism_microbiome via the multiplicative product formula.
-    pub microbiome_r: f64,
+    pub microbiome_r: StoredBoundedResistanceFloat,
 
     /// Resistance as would be detected by laboratory testing. Range: 0.0-1.0.
     /// May differ from actual resistance due to test sensitivity/specificity.
-    pub test_r: f64,
+    pub test_r: StoredBoundedResistanceFloat,
 
     /// Effective resistance for drug activity calculations. Range: 0.0-1.0.
     /// Takes into account mechanism-specific effects on drug binding/activity.
-    pub activity_r: f64,
+    pub activity_r: StoredActivityResistanceFloat,
 
     /// Primary resistance level - resistance present in ANY infected bacteria. Range: 0.0-1.0.
     /// Derived from mechanism_any via the multiplicative product formula:
     ///   any_r = 1 - product(1 - enhancement_multiplier) over all present mechanisms.
-    pub any_r: f64,
+    pub any_r: StoredBoundedResistanceFloat,
 }
 
 pub const MICROBIOME_RESISTANCE_LEVEL_COUNT: usize = 4;
@@ -1787,10 +1855,10 @@ impl Individual {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
                 drug_resistances.push(Resistance {
-                    microbiome_r: 0.0,
-                    test_r: 0.0,
-                    activity_r: 0.0,
-                    any_r: 0.0,
+                    microbiome_r: store_float(0.0),
+                    test_r: store_float(0.0),
+                    activity_r: store_float(0.0),
+                    any_r: store_float(0.0),
                 });
             }
             resistances.push(drug_resistances);
@@ -1935,9 +2003,10 @@ impl Individual {
 
         if let Some(resistances) = self.resistances.get(bacteria_idx) {
             for resistance in resistances {
-                if resistance.microbiome_r > 0.0 {
+                let microbiome_r = load_float(resistance.microbiome_r);
+                if microbiome_r > 0.0 {
                     has_resistance = true;
-                    if resistance.microbiome_r >= threshold {
+                    if microbiome_r >= threshold {
                         has_majority = true;
                         break;
                     }

@@ -1,5 +1,5 @@
 use amr_project::simulation::journey_logger::JourneyLogger;
-use amr_project::simulation::population::Individual;
+use amr_project::simulation::population::{store_float, Individual};
 use amr_project::simulation::simulation::{CalibrationMode, Simulation};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -99,9 +99,9 @@ fn journey_csv_rows_match_header_width_for_forced_infection() {
     individual.cur_level_drug[drug_idx] = 5.0;
     individual.date_drug_initiated[drug_idx] = 1;
     individual.days_on_current_treatment[bacteria_idx] = 1;
-    individual.resistances[bacteria_idx][drug_idx].any_r = 0.25;
-    individual.resistances[bacteria_idx][drug_idx].activity_r = 0.75;
-    individual.resistances[bacteria_idx][drug_idx].microbiome_r = 0.50;
+    individual.resistances[bacteria_idx][drug_idx].any_r = store_float(0.25);
+    individual.resistances[bacteria_idx][drug_idx].activity_r = store_float(0.75);
+    individual.resistances[bacteria_idx][drug_idx].microbiome_r = store_float(0.50);
 
     let mut logger = JourneyLogger::new(Some(123_456_789));
     logger
