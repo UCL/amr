@@ -16,9 +16,9 @@ use crate::observability;
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    load_float, store_float, MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism,
-    BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
-    MICROBIOME_RESISTANCE_LEVEL_COUNT,
+    load_float, store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel,
+    Population, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
+    MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use crate::simulation::rng::{
     model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
@@ -54,6 +54,40 @@ const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const DAYS_PER_YEAR: f64 = 365.0;
 const DETERMINISTIC_POPULATION_CHUNK_SIZE: usize = 8_192;
+
+fn current_antibiotic_context_priority(individual: &Individual) -> AntibioticUseContext {
+    let mut saw_empiric = false;
+    let mut saw_prophylaxis = false;
+    let mut saw_other_or_unknown = false;
+
+    for (drug_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
+        if !is_using {
+            continue;
+        }
+        match individual
+            .drug_use_context
+            .get(drug_idx)
+            .copied()
+            .unwrap_or(AntibioticUseContext::None)
+        {
+            AntibioticUseContext::Targeted => return AntibioticUseContext::Targeted,
+            AntibioticUseContext::Empiric => saw_empiric = true,
+            AntibioticUseContext::Prophylaxis => saw_prophylaxis = true,
+            // Legacy/unknown active courses are counted as Other so they are not dropped.
+            AntibioticUseContext::Other | AntibioticUseContext::None => saw_other_or_unknown = true,
+        }
+    }
+
+    if saw_empiric {
+        AntibioticUseContext::Empiric
+    } else if saw_prophylaxis {
+        AntibioticUseContext::Prophylaxis
+    } else if saw_other_or_unknown {
+        AntibioticUseContext::Other
+    } else {
+        AntibioticUseContext::None
+    }
+}
 
 /// Controls how much output the simulation writes to `summary_log`.
 ///
@@ -1432,6 +1466,10 @@ pub struct TimeStepSummary {
     pub total_with_resistance: usize,
     pub total_currently_infected: usize, // Number of living people currently infected with bacteria (excl. H. pylori)
     pub currently_taking_drug_count: usize,
+    pub currently_taking_drug_count_empiric: usize,
+    pub currently_taking_drug_count_targeted: usize,
+    pub currently_taking_drug_count_prophylaxis: usize,
+    pub currently_taking_drug_count_other: usize,
     pub infected_10_days_count: usize, // People infected >10 days with bacteria (excl. H. pylori)
     pub infected_21_days_count: usize, // People infected >21 days with bacteria (excl. H. pylori)
     pub taking_two_drugs_count: usize,
@@ -2125,6 +2163,10 @@ impl Simulation {
                 deaths_drug_toxicity: usize,
                 drug_stops_due_to_toxicity: usize,
                 currently_taking_drug_count: usize,
+                currently_taking_drug_count_empiric: usize,
+                currently_taking_drug_count_targeted: usize,
+                currently_taking_drug_count_prophylaxis: usize,
+                currently_taking_drug_count_other: usize,
                 infected_10_days_count: usize,
                 infected_21_days_count: usize,
                 taking_two_drugs_count: usize,
@@ -2332,6 +2374,10 @@ impl Simulation {
                         deaths_drug_toxicity: 0,
                         drug_stops_due_to_toxicity: 0,
                         currently_taking_drug_count: 0,
+                        currently_taking_drug_count_empiric: 0,
+                        currently_taking_drug_count_targeted: 0,
+                        currently_taking_drug_count_prophylaxis: 0,
+                        currently_taking_drug_count_other: 0,
                         infected_10_days_count: 0,
                         infected_21_days_count: 0,
                         taking_two_drugs_count: 0,
@@ -2807,6 +2853,14 @@ impl Simulation {
                     self.deaths_drug_toxicity += other.deaths_drug_toxicity;
                     self.drug_stops_due_to_toxicity += other.drug_stops_due_to_toxicity;
                     self.currently_taking_drug_count += other.currently_taking_drug_count;
+                    self.currently_taking_drug_count_empiric +=
+                        other.currently_taking_drug_count_empiric;
+                    self.currently_taking_drug_count_targeted +=
+                        other.currently_taking_drug_count_targeted;
+                    self.currently_taking_drug_count_prophylaxis +=
+                        other.currently_taking_drug_count_prophylaxis;
+                    self.currently_taking_drug_count_other +=
+                        other.currently_taking_drug_count_other;
                     self.infected_10_days_count += other.infected_10_days_count;
                     self.infected_21_days_count += other.infected_21_days_count;
                     self.taking_two_drugs_count += other.taking_two_drugs_count;
@@ -3670,6 +3724,20 @@ impl Simulation {
                         // Drug usage post-rules
                         if on_any_drug_current {
                             lt.currently_taking_drug_count += 1;
+                            match current_antibiotic_context_priority(individual) {
+                                AntibioticUseContext::Targeted => {
+                                    lt.currently_taking_drug_count_targeted += 1;
+                                }
+                                AntibioticUseContext::Empiric => {
+                                    lt.currently_taking_drug_count_empiric += 1;
+                                }
+                                AntibioticUseContext::Prophylaxis => {
+                                    lt.currently_taking_drug_count_prophylaxis += 1;
+                                }
+                                AntibioticUseContext::Other | AntibioticUseContext::None => {
+                                    lt.currently_taking_drug_count_other += 1;
+                                }
+                            }
                             for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
                                 if is_using {
                                     lt.currently_on_drug_by_drug[d_idx] += 1;
@@ -4229,6 +4297,10 @@ impl Simulation {
                 deaths_drug_toxicity,
                 drug_stops_due_to_toxicity,
                 currently_taking_drug_count,
+                currently_taking_drug_count_empiric,
+                currently_taking_drug_count_targeted,
+                currently_taking_drug_count_prophylaxis,
+                currently_taking_drug_count_other,
                 infected_10_days_count,
                 infected_21_days_count,
                 taking_two_drugs_count,
@@ -4462,6 +4534,10 @@ impl Simulation {
                 infected_10_days_count: infected_10_count,
                 infected_21_days_count: infected_21_count,
                 currently_taking_drug_count,
+                currently_taking_drug_count_empiric,
+                currently_taking_drug_count_targeted,
+                currently_taking_drug_count_prophylaxis,
+                currently_taking_drug_count_other,
                 taking_two_drugs_count,
                 infections_by_bacteria: infections_by_bacteria_vec,
                 infections_by_bacteria_under_5,
@@ -4980,7 +5056,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -5676,6 +5752,22 @@ impl Simulation {
             append_scalar(format_args!("{}", summary.infected_21_days_count))?;
             append_scalar(format_args!("{}", summary.total_with_resistance))?;
             append_scalar(format_args!("{}", summary.currently_taking_drug_count))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.currently_taking_drug_count_empiric
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.currently_taking_drug_count_targeted
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.currently_taking_drug_count_prophylaxis
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.currently_taking_drug_count_other
+            ))?;
             append_scalar(format_args!(
                 "{}",
                 summary.currently_infected_and_on_drug_count

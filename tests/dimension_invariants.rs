@@ -220,6 +220,7 @@ fn assert_individual_dimensions(individual: &Individual) {
     );
 
     assert_len("cur_use_drug", individual.cur_use_drug.len(), drugs);
+    assert_len("drug_use_context", individual.drug_use_context.len(), drugs);
     assert_len("cur_level_drug", individual.cur_level_drug.len(), drugs);
     assert_len(
         "date_drug_initiated",

@@ -1376,6 +1376,7 @@ impl MicrobiomeResistanceLevel {
 //   Vec<bool> indexed by bacteria: sepsis, symptoms, presence_microbiome
 //   Vec<Vec<Resistance>>: resistances[bacteria][drug] - 2D resistance matrix
 //   Vec<bool> indexed by drugs: cur_use_drug, ever_taken_drug
+//   Vec<AntibioticUseContext> indexed by drugs: drug_use_context
 //   Vec<f64> indexed by drugs: cur_level_drug, drug_toxicity_reservoir
 //
 // VARIABLE UPDATE TIMING:
@@ -1391,6 +1392,24 @@ impl MicrobiomeResistanceLevel {
 //   9. Microbiome dynamics (colonization, HGT)
 //   10. Mortality check
 // =====================================================================================
+
+/// Context in which an antibiotic course was started.
+///
+/// This is assigned at course start and retained until that drug is stopped.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AntibioticUseContext {
+    None,
+    Empiric,
+    Targeted,
+    Prophylaxis,
+    Other,
+}
+
+impl Default for AntibioticUseContext {
+    fn default() -> Self {
+        AntibioticUseContext::None
+    }
+}
 
 /// Represents a single individual in the simulation, with all per-person and per-bacteria/drug state variables.
 ///
@@ -1422,6 +1441,7 @@ impl MicrobiomeResistanceLevel {
 ///
 /// ## Drug Treatment (per-drug arrays)
 /// - `cur_use_drug[d]`: Currently taking this drug?
+/// - `drug_use_context[d]`: Course-start context for the current drug course
 /// - `cur_level_drug[d]`: Current drug level (pharmacokinetics)
 /// - `drug_toxicity_reservoir[d]`: Accumulated toxicity
 ///
@@ -1582,6 +1602,10 @@ pub struct Individual {
     // -------------------------------------------------------------------------
     /// True if currently taking this drug.
     pub cur_use_drug: Vec<bool>,
+
+    /// Course-start context for each current drug; reset to None when the drug stops.
+    #[serde(default)]
+    pub drug_use_context: Vec<AntibioticUseContext>,
 
     /// Current drug concentration level in blood (pharmacokinetic level).
     /// Standard level = 10.0 on a day when standard dose is taken.
@@ -1943,6 +1967,7 @@ impl Individual {
             cleared_any_r_microbiome_categories,
             vaccination_status,
             cur_use_drug: vec![false; num_drugs],
+            drug_use_context: vec![AntibioticUseContext::None; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],
             date_drug_initiated: vec![i32::MIN; num_drugs],
             date_drug_initiated_keep: vec![i32::MIN; num_drugs],

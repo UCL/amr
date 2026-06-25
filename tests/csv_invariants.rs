@@ -43,6 +43,47 @@ fn assert_csv_rows_match_header_width(path: &Path) {
     }
 }
 
+fn assert_antibiotic_context_counts_sum(path: &Path) {
+    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
+    let header = reader
+        .headers()
+        .expect("CSV should include headers")
+        .clone();
+    let index = |name: &str| {
+        header
+            .iter()
+            .position(|column| column == name)
+            .unwrap_or_else(|| panic!("summary CSV should include {name}"))
+    };
+    let total_idx = index("currently_taking_drug_count");
+    let empiric_idx = index("currently_taking_drug_count_empiric");
+    let targeted_idx = index("currently_taking_drug_count_targeted");
+    let prophylaxis_idx = index("currently_taking_drug_count_prophylaxis");
+    let other_idx = index("currently_taking_drug_count_other");
+
+    for (row_idx, record) in reader.records().enumerate() {
+        let record = record.expect("CSV data row should parse");
+        let parse_usize = |idx: usize| {
+            record
+                .get(idx)
+                .expect("field should exist")
+                .parse::<usize>()
+                .expect("count field should parse as usize")
+        };
+        let total = parse_usize(total_idx);
+        let context_sum = parse_usize(empiric_idx)
+            + parse_usize(targeted_idx)
+            + parse_usize(prophylaxis_idx)
+            + parse_usize(other_idx);
+        assert_eq!(
+            context_sum,
+            total,
+            "antibiotic context counts should sum to total on-drug count in CSV row {}",
+            row_idx + 2
+        );
+    }
+}
+
 fn csv_header(path: &Path) -> csv::StringRecord {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -73,6 +114,7 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
         .expect("summary export should succeed");
 
     assert_csv_rows_match_header_width(&path);
+    assert_antibiotic_context_counts_sum(&path);
 }
 
 #[test]

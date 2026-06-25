@@ -73,7 +73,7 @@ class PlotConfig:
     
     # --- LIGHTWEIGHT PLOTS (safe to enable multiple) ---
     drug_failure_rate_by_bacteria_region: bool = False
-    incidence_of_infection: bool = False
+    incidence_of_infection: bool = True 
     death_rate_by_bacteria_region: bool = False  # ~234 columns
     population_mortality_by_bacteria_region: bool = False
     death_rate_by_region: bool = True 
@@ -256,7 +256,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_612015.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_165375.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity 

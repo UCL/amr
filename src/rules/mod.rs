@@ -91,9 +91,10 @@ use crate::config::{
     RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY, RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
-    self, load_float, store_float, CarriageCompartment, HospitalStatus, ImmunodeficiencyType,
-    Individual, InfectionResolutionType, Region, ResistanceMechanism, BACTERIA_LIST,
-    DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    self, load_float, store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus,
+    ImmunodeficiencyType, Individual, InfectionResolutionType, Region, ResistanceMechanism,
+    BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
+    MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
 
@@ -1116,8 +1117,7 @@ fn assess_treatment_failure(
         store.bacteria.treatment_failure_no_second_line_probability[bacteria_idx];
     if no_second_line_prob > 0.0 && rng.gen_bool(no_second_line_prob.clamp(0.0, 1.0)) {
         for &current_drug_idx in &current_drugs {
-            individual.cur_use_drug[current_drug_idx] = false;
-            individual.date_drug_initiated[current_drug_idx] = i32::MIN;
+            stop_drug_course(individual, current_drug_idx);
         }
         return false; // Persistent-carrier pathway: no drug switch
     }
@@ -1199,15 +1199,12 @@ fn assess_treatment_failure(
 
             // Stop current drugs
             for &current_drug_idx in &current_drugs {
-                individual.cur_use_drug[current_drug_idx] = false;
-                individual.date_drug_initiated[current_drug_idx] = i32::MIN;
+                stop_drug_course(individual, current_drug_idx);
             }
 
             // Start new drug
-            individual.cur_use_drug[new_drug_idx] = true;
-            individual.date_drug_initiated[new_drug_idx] = time_step as i32;
-            individual.date_drug_initiated_keep[new_drug_idx] = time_step as i32;
-            individual.ever_taken_drug[new_drug_idx] = true;
+            let course_context = active_infection_course_context(individual, bacteria_idx);
+            start_drug_course(individual, new_drug_idx, time_step, course_context);
 
             // Update drug counter
             update_drug_counter(individual);
@@ -1262,6 +1259,59 @@ fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
         globals.drug_activity_slow_clearance_multiplier
     } else {
         globals.drug_activity_to_bacteria_level_multiplier
+    }
+}
+
+#[inline]
+fn set_drug_context(individual: &mut Individual, drug_idx: usize, context: AntibioticUseContext) {
+    if individual.drug_use_context.len() < DRUG_SHORT_NAMES.len() {
+        individual
+            .drug_use_context
+            .resize(DRUG_SHORT_NAMES.len(), AntibioticUseContext::None);
+    }
+    individual.drug_use_context[drug_idx] = context;
+}
+
+#[inline]
+fn start_drug_course(
+    individual: &mut Individual,
+    drug_idx: usize,
+    time_step: usize,
+    context: AntibioticUseContext,
+) {
+    let is_new_course =
+        !individual.cur_use_drug[drug_idx] || individual.date_drug_initiated[drug_idx] == i32::MIN;
+    individual.cur_use_drug[drug_idx] = true;
+    individual.date_drug_initiated[drug_idx] = time_step as i32;
+    individual.date_drug_initiated_keep[drug_idx] = time_step as i32;
+    individual.ever_taken_drug[drug_idx] = true;
+    if is_new_course {
+        set_drug_context(individual, drug_idx, context);
+    }
+}
+
+#[inline]
+fn stop_drug_course(individual: &mut Individual, drug_idx: usize) {
+    individual.cur_use_drug[drug_idx] = false;
+    individual.date_drug_initiated[drug_idx] = i32::MIN;
+    set_drug_context(individual, drug_idx, AntibioticUseContext::None);
+}
+
+#[inline]
+fn active_infection_course_context(
+    individual: &Individual,
+    bacteria_idx: usize,
+) -> AntibioticUseContext {
+    if individual.level[bacteria_idx] <= INFECTION_EPS {
+        AntibioticUseContext::Other
+    } else if individual.test_identified_infection[bacteria_idx]
+        && individual.infection_has_caused_symptoms[bacteria_idx]
+    {
+        AntibioticUseContext::Targeted
+    } else if individual.infection_has_caused_symptoms[bacteria_idx] {
+        AntibioticUseContext::Empiric
+    } else {
+        AntibioticUseContext::Other
     }
 }
 
@@ -1421,10 +1471,8 @@ fn start_restart_treatment(
                 .potency(bacteria_idx_for_cache, prev_drug_idx);
             if potency >= minimal_potency_threshold {
                 // Restart the previously effective drug!
-                individual.cur_use_drug[prev_drug_idx] = true;
-                individual.date_drug_initiated[prev_drug_idx] = time_step as i32;
-                individual.date_drug_initiated_keep[prev_drug_idx] = time_step as i32;
-                individual.ever_taken_drug[prev_drug_idx] = true;
+                let course_context = active_infection_course_context(individual, bacteria_idx);
+                start_drug_course(individual, prev_drug_idx, time_step, course_context);
 
                 // Update drug counter
                 update_drug_counter(individual);
@@ -1512,10 +1560,8 @@ fn start_restart_treatment(
             let new_drug_idx = drug_scores[chosen_idx].0;
 
             // Start restart treatment
-            individual.cur_use_drug[new_drug_idx] = true;
-            individual.date_drug_initiated[new_drug_idx] = time_step as i32;
-            individual.date_drug_initiated_keep[new_drug_idx] = time_step as i32;
-            individual.ever_taken_drug[new_drug_idx] = true;
+            let course_context = active_infection_course_context(individual, bacteria_idx);
+            start_drug_course(individual, new_drug_idx, time_step, course_context);
 
             // Update drug counter
             update_drug_counter(individual);
@@ -2495,8 +2541,7 @@ pub(crate) fn apply_rules(
                 stop_drug = false;
             }
             if stop_drug {
-                individual.cur_use_drug[drug_idx] = false;
-                individual.date_drug_initiated[drug_idx] = i32::MIN;
+                stop_drug_course(individual, drug_idx);
 
                 // Update drug counter
                 update_drug_counter(individual);
@@ -2739,8 +2784,8 @@ pub(crate) fn apply_rules(
                         // toward 4% target (was ~21% due to prophylaxis domination).
                         // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
                         // ^^^^
-                        "trim_sulf" => 0.8,
-                        "azithromycin" => 3.5, // 4.5
+                        "trim_sulf" => 1.2,
+                        "azithromycin" => 3.5,
                         "ciprofloxacin" => 2.0,
                         "levofloxacin" => 1.5,
                         _ => 0.0,
@@ -4136,10 +4181,16 @@ pub(crate) fn apply_rules(
                         }
                     }
 
-                    individual.cur_use_drug[chosen_drug_idx] = true;
-                    individual.date_drug_initiated[chosen_drug_idx] = time_step as i32;
-                    individual.date_drug_initiated_keep[chosen_drug_idx] = time_step as i32; // Persistent record
-                    individual.ever_taken_drug[chosen_drug_idx] = true;
+                    let course_context = if !identified_bacteria.is_empty() {
+                        AntibioticUseContext::Targeted
+                    } else if prophylaxis_candidate {
+                        AntibioticUseContext::Prophylaxis
+                    } else if symptomatic_infection_present {
+                        AntibioticUseContext::Empiric
+                    } else {
+                        AntibioticUseContext::Other
+                    };
+                    start_drug_course(individual, chosen_drug_idx, time_step, course_context);
 
                     // SMART SWITCHING: If this is targeted therapy (infection identified),
                     // stop existing drugs that are ineffective against the identified pathogen.
@@ -4171,10 +4222,9 @@ pub(crate) fn apply_rules(
 
                             // If existing drug is ineffective against all identified targets, stop it
                             if !has_efficacy {
-                                individual.cur_use_drug[existing_drug_idx] = false;
-                                individual.date_drug_initiated[existing_drug_idx] = i32::MIN; // Reset initiation date
-                                                                                              // Note: We don't record this as "failure" or "toxicity stop", just a clinical switch.
-                                                                                              // We reset heuristics to avoid "Restart Window" logic thinking we stopped prematurely
+                                stop_drug_course(individual, existing_drug_idx);
+                                // Note: We don't record this as "failure" or "toxicity stop", just a clinical switch.
+                                // We reset heuristics to avoid "Restart Window" logic thinking we stopped prematurely
                                 for b_idx in 0..BACTERIA_LIST.len() {
                                     if individual.drug_stopped_with_infection_day[b_idx].is_some()
                                         && individual.stopped_drug_index[b_idx]
@@ -4205,8 +4255,7 @@ pub(crate) fn apply_rules(
                                 }
 
                                 // Stop the existing drug to swap to the new one
-                                individual.cur_use_drug[existing_drug_idx] = false;
-                                individual.date_drug_initiated[existing_drug_idx] = i32::MIN;
+                                stop_drug_course(individual, existing_drug_idx);
 
                                 // Reset heuristics to prevent "Restart Window" from re-triggering the old drug
                                 for b_idx in 0..BACTERIA_LIST.len() {
@@ -4375,8 +4424,7 @@ pub(crate) fn apply_rules(
 
         if let Some(drug_idx) = worst_drug_idx {
             // Stop this drug (same pattern as regular cessation)
-            individual.cur_use_drug[drug_idx] = false;
-            individual.date_drug_initiated[drug_idx] = i32::MIN;
+            stop_drug_course(individual, drug_idx);
             update_drug_counter(individual);
 
             // Record this as a toxicity stop for the avoidance window

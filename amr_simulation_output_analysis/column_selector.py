@@ -223,9 +223,43 @@ DETAIL_PLOT_PATTERNS = {
     # mean_activity_r_by_bacteria (uses activity_r_sum, already loaded)
     'mean_activity_r_by_bacteria': [],
     # microbiome plots (uses microbiome columns, already loaded for calibration)
-    'proportion_of_population_with_microbiome_presence_bacteria': [],
-    'microbiome_acquisition_on_off_drug': [],
-    'microbiome_clearance_on_off_drug': [],
+    'proportion_of_population_with_microbiome_presence_bacteria': [
+        r'.*_presence_microbiome$',
+    ],
+    'microbiome_acquisition_on_off_drug': [
+        r'.*_microbiome_acquisitions_on_drug$',
+        r'.*_microbiome_acquisitions_off_drug$',
+    ],
+    'microbiome_clearance_on_off_drug': [
+        r'.*_microbiome_clearances_on_drug$',
+        r'.*_microbiome_clearances_off_drug$',
+    ],
+    'proportion_of_microbiome_presence_with_resistance_by_drug': [
+        r'.*_presence_microbiome$',
+        r'.*_presence_microbiome_resistant$',
+        r'.*_microbiome_r_positive_.*',
+    ],
+    'microbiome_resistance_microbiome_vs_infection': [
+        r'.*_presence_microbiome$',
+        r'.*_presence_microbiome_resistant$',
+        r'.*_infected_carrier_count$',
+        r'.*_infected_non_carrier_count$',
+        r'.*_resistant_infected_carrier_count$',
+        r'.*_resistant_infected_non_carrier_count$',
+    ],
+    'carrier_infection_share': [
+        r'.*_currently_infected$',
+        r'.*_infected_carrier_count$',
+        r'.*_infected_non_carrier_count$',
+    ],
+    'carrier_vs_non_carrier_incidence': [
+        r'.*_presence_microbiome$',
+        r'.*_newly_infected_carrier$',
+        r'.*_newly_infected_non_carrier$',
+    ],
+    'carriage_duration_distribution': [
+        r'.*_carriage_duration_days_.*',
+    ],
     
     # === HEAVY PLOTS (1000+ columns, bacteria×drug matrix) ===
     # mean_mic_by_drug_for_each_bacteria (~3640 columns - MIC distributions)

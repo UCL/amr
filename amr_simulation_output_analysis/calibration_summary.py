@@ -719,6 +719,17 @@ BACTERIA_DISPLAY_NAME_OVERRIDES: Dict[str, str] = {
     "providencia_stuartii": "Providencia stuartii",
 }
 
+INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS: Set[str] = {
+    "helicobacter_pylori",
+    "mdr_mycobacterium_tuberculosis",
+}
+
+
+def _is_infection_death_excluded_bacteria(name: object) -> bool:
+    clean_name = re.sub(r"\s+\*$", "", str(name or "").strip())
+    return _slugify_bacteria_value(clean_name) in INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS
+
+
 # Per-organism hospital-acquisition % targets (central literature estimates).
 # Keys match the canonicalized slug form (lower-case, spaces, no underscores).
 _HA_PCT_TARGETS: Dict[str, float] = {
@@ -1025,7 +1036,16 @@ def _build_headline_table(
     inf_deaths_total = _annualize_sum(
         float(year_df.get("deaths_infection_non_sepsis", pd.Series(dtype=float)).sum())
     )
-    total_infection_deaths = sepsis_deaths_total + inf_deaths_total
+    excluded_bacteria_deaths_total = _annualize_sum(
+        sum(
+            float(year_df.get(f"{slug}_deaths", pd.Series(dtype=float)).sum())
+            for slug in INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS
+        )
+    )
+    total_infection_deaths = max(
+        0.0,
+        sepsis_deaths_total + inf_deaths_total - excluded_bacteria_deaths_total,
+    )
 
     scaled_infection_deaths = total_infection_deaths * scale_factor
     aggregations["infection_deaths_millions"] = (
@@ -3765,9 +3785,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             )
             handle.write("\n* infection rate >2× or <0.5× target\n\n")
 
+            mortality_display_df = flagged_df[
+                ~flagged_df["Bacteria"].apply(_is_infection_death_excluded_bacteria)
+            ].copy()
             handle.write("Bacteria Burden Benchmarks — Mortality (7)\n")
             handle.write(
-                flagged_df[mortality_cols].to_string(
+                mortality_display_df[mortality_cols].to_string(
                     index=False,
                     float_format=lambda x: f"{x:,.4f}",
                     na_rep="-",
@@ -3776,7 +3799,9 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write(
                 "\nNote: deaths per bacterium are counted per pathogen involved in each death,"
                 " so polymicrobial cases appear multiple times and the sum exceeds the"
-                " headline infection-death total."
+                " headline infection-death total. H. pylori and MDR-TB are excluded from"
+                " the displayed per-bacterium mortality table and from the headline"
+                " infection-death total."
             )
             handle.write("\n\n")
         else:
