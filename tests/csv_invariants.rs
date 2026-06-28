@@ -60,6 +60,11 @@ fn assert_antibiotic_context_counts_sum(path: &Path) {
     let targeted_idx = index("currently_taking_drug_count_targeted");
     let prophylaxis_idx = index("currently_taking_drug_count_prophylaxis");
     let other_idx = index("currently_taking_drug_count_other");
+    let other_no_active_idx =
+        index("currently_taking_drug_count_other_no_active_modelled_infection");
+    let other_active_asymptomatic_idx =
+        index("currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection");
+    let other_unknown_idx = index("currently_taking_drug_count_other_unknown_or_legacy");
 
     for (row_idx, record) in reader.records().enumerate() {
         let record = record.expect("CSV data row should parse");
@@ -71,10 +76,21 @@ fn assert_antibiotic_context_counts_sum(path: &Path) {
                 .expect("count field should parse as usize")
         };
         let total = parse_usize(total_idx);
+        let other = parse_usize(other_idx);
+        let detailed_other_sum = parse_usize(other_no_active_idx)
+            + parse_usize(other_active_asymptomatic_idx)
+            + parse_usize(other_unknown_idx);
+        assert_eq!(
+            detailed_other_sum,
+            other,
+            "detailed antibiotic Other counts should sum to aggregate Other count in CSV row {}",
+            row_idx + 2
+        );
+
         let context_sum = parse_usize(empiric_idx)
             + parse_usize(targeted_idx)
             + parse_usize(prophylaxis_idx)
-            + parse_usize(other_idx);
+            + other;
         assert_eq!(
             context_sum,
             total,

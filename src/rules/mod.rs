@@ -1303,7 +1303,7 @@ fn active_infection_course_context(
     bacteria_idx: usize,
 ) -> AntibioticUseContext {
     if individual.level[bacteria_idx] <= INFECTION_EPS {
-        AntibioticUseContext::Other
+        AntibioticUseContext::OtherNoActiveModelledInfection
     } else if individual.test_identified_infection[bacteria_idx]
         && individual.infection_has_caused_symptoms[bacteria_idx]
     {
@@ -1311,7 +1311,7 @@ fn active_infection_course_context(
     } else if individual.infection_has_caused_symptoms[bacteria_idx] {
         AntibioticUseContext::Empiric
     } else {
-        AntibioticUseContext::Other
+        AntibioticUseContext::OtherActiveAsymptomaticModelledBacterialInfection
     }
 }
 
@@ -2429,6 +2429,8 @@ pub(crate) fn apply_rules(
         .iter()
         .enumerate()
         .any(|(b_idx, &level)| level > 0.0 && individual.infection_has_caused_symptoms[b_idx]);
+    let active_modelled_bacterial_infection_present =
+        individual.level.iter().any(|&level| level > INFECTION_EPS);
     let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
     // Only count identified infections that also have symptoms (can't identify asymptomatic infections clinically)
     let has_any_identified_infection = individual
@@ -4187,8 +4189,10 @@ pub(crate) fn apply_rules(
                         AntibioticUseContext::Prophylaxis
                     } else if symptomatic_infection_present {
                         AntibioticUseContext::Empiric
+                    } else if active_modelled_bacterial_infection_present {
+                        AntibioticUseContext::OtherActiveAsymptomaticModelledBacterialInfection
                     } else {
-                        AntibioticUseContext::Other
+                        AntibioticUseContext::OtherNoActiveModelledInfection
                     };
                     start_drug_course(individual, chosen_drug_idx, time_step, course_context);
 

@@ -2778,11 +2778,26 @@ def make_figure_7_infection_death_rate_by_region(csv_paths: list[Path], out_dir:
     )
 
 
-_F8_CONTEXT_COLUMNS: list[tuple[str, str]] = [
+_F8_OLD_CONTEXT_COLUMNS: list[tuple[str, str]] = [
     ("Empiric", "currently_taking_drug_count_empiric"),
     ("Targeted", "currently_taking_drug_count_targeted"),
     ("Prophylaxis", "currently_taking_drug_count_prophylaxis"),
     ("Other", "currently_taking_drug_count_other"),
+]
+
+_F8_DETAILED_CONTEXT_COLUMNS: list[tuple[str, str]] = [
+    ("Empiric", "currently_taking_drug_count_empiric"),
+    ("Targeted", "currently_taking_drug_count_targeted"),
+    ("Prophylaxis", "currently_taking_drug_count_prophylaxis"),
+    (
+        "Other: active asymptomatic infection",
+        "currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection",
+    ),
+    (
+        "Other: no active infection",
+        "currently_taking_drug_count_other_no_active_modelled_infection",
+    ),
+    ("Unknown / legacy", "currently_taking_drug_count_other_unknown_or_legacy"),
 ]
 
 _F8_CONTEXT_COLOURS: dict[str, str] = {
@@ -2790,6 +2805,9 @@ _F8_CONTEXT_COLOURS: dict[str, str] = {
     "Targeted": "#59A14F",
     "Prophylaxis": "#F28E2B",
     "Other": "#9C755F",
+    "Other: active asymptomatic infection": "#B07AA1",
+    "Other: no active infection": "#9C755F",
+    "Unknown / legacy": "#BAB0AC",
 }
 
 
@@ -2827,21 +2845,30 @@ def _simulation_year_series(df: pd.DataFrame) -> pd.Series:
 def _figure_8_rows_from_simulation_csv(
     csv_path: Path,
     scale_factor: float | None,
-) -> tuple[list[dict[str, object]], str | None]:
-    required = [column for _, column in _F8_CONTEXT_COLUMNS]
+) -> tuple[list[dict[str, object]], str | None, str]:
+    old_required = [column for _, column in _F8_OLD_CONTEXT_COLUMNS]
+    detailed_required = [column for _, column in _F8_DETAILED_CONTEXT_COLUMNS]
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
-    wanted = set(required + optional)
+    wanted = set(old_required + detailed_required + optional)
     try:
         df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
     except (FileNotFoundError, ValueError, OSError) as exc:
-        return [], f"{csv_path.name}: could not read simulation CSV ({exc})."
+        return [], f"{csv_path.name}: could not read simulation CSV ({exc}).", "missing"
 
-    missing = [column for column in required if column not in df.columns]
-    if missing:
-        return [], f"{csv_path.name}: missing columns {', '.join(missing)}."
+    has_detailed = all(column in df.columns for column in detailed_required)
+    has_old = all(column in df.columns for column in old_required)
+    if has_detailed:
+        context_columns = _F8_DETAILED_CONTEXT_COLUMNS
+        mode = "detailed"
+    elif has_old:
+        context_columns = _F8_OLD_CONTEXT_COLUMNS
+        mode = "old"
+    else:
+        missing = [column for column in old_required if column not in df.columns]
+        return [], f"{csv_path.name}: missing columns {', '.join(missing)}.", "missing"
 
     if scale_factor is None or not np.isfinite(scale_factor) or scale_factor <= 0.0:
-        return [], f"{csv_path.name}: missing population scale factor from calibration summary."
+        return [], f"{csv_path.name}: missing population scale factor from calibration summary.", mode
 
     if "policy_option" in df.columns:
         policy = pd.to_numeric(df["policy_option"], errors="coerce")
@@ -2850,9 +2877,9 @@ def _figure_8_rows_from_simulation_csv(
     df["simulation_year_for_f8"] = _simulation_year_series(df)
     df = df[(df["simulation_year_for_f8"] >= 2025.0) & (df["simulation_year_for_f8"] < 2026.0)].copy()
     if df.empty:
-        return [], f"{csv_path.name}: no baseline 2025 rows available."
+        return [], f"{csv_path.name}: no baseline 2025 rows available.", mode
 
-    for _, column in _F8_CONTEXT_COLUMNS:
+    for _, column in context_columns:
         df[column] = pd.to_numeric(df[column], errors="coerce")
 
     grouped = df.groupby("run_id", dropna=False) if "run_id" in df.columns else [(csv_path.stem, df)]
@@ -2860,7 +2887,7 @@ def _figure_8_rows_from_simulation_csv(
     for run_key, run_df in grouped:
         row: dict[str, object] = {"source": csv_path.name, "run": str(run_key)}
         has_value = False
-        for label, column in _F8_CONTEXT_COLUMNS:
+        for label, column in context_columns:
             mean_count = float(run_df[column].mean(skipna=True))
             if np.isfinite(mean_count):
                 row[label] = mean_count * scale_factor / 1_000_000.0
@@ -2870,8 +2897,8 @@ def _figure_8_rows_from_simulation_csv(
         if has_value:
             rows.append(row)
     if not rows:
-        return [], f"{csv_path.name}: context columns were present but contained no usable 2025 values."
-    return rows, None
+        return [], f"{csv_path.name}: context columns were present but contained no usable 2025 values.", mode
+    return rows, None, mode
 
 
 def make_figure_8_antibiotic_use_by_context(
@@ -2897,15 +2924,39 @@ def make_figure_8_antibiotic_use_by_context(
         return
 
     rows: list[dict[str, object]] = []
+    detailed_rows: list[dict[str, object]] = []
+    old_rows: list[dict[str, object]] = []
     problems: list[str] = []
     saw_missing_required_columns = False
     for csv_path, scale_factor in csv_runs:
-        run_rows, problem = _figure_8_rows_from_simulation_csv(csv_path, scale_factor)
-        rows.extend(run_rows)
+        run_rows, problem, mode = _figure_8_rows_from_simulation_csv(csv_path, scale_factor)
+        if mode == "detailed":
+            detailed_rows.extend(run_rows)
+        elif mode == "old":
+            old_rows.extend(run_rows)
         if problem:
             problems.append(problem)
             if "missing columns" in problem:
                 saw_missing_required_columns = True
+
+    mode_note = ""
+    context_columns = _F8_DETAILED_CONTEXT_COLUMNS
+    if detailed_rows:
+        rows = detailed_rows
+        context_columns = _F8_DETAILED_CONTEXT_COLUMNS
+        if old_rows:
+            mode_note = (
+                "Some supplied simulation CSVs predate the detailed Other split and were not "
+                "included in the detailed Figure 8 summary."
+            )
+    elif old_rows:
+        rows = old_rows
+        context_columns = _F8_OLD_CONTEXT_COLUMNS
+        mode_note = (
+            "This run predates the detailed Other split; rerun the Rust simulation to split "
+            "Other into no-active-infection, active-asymptomatic-infection, and unknown/legacy "
+            "components."
+        )
 
     if not rows:
         if saw_missing_required_columns:
@@ -2916,7 +2967,7 @@ def make_figure_8_antibiotic_use_by_context(
         return
 
     df = pd.DataFrame(rows)
-    labels = [label for label, _ in _F8_CONTEXT_COLUMNS]
+    labels = [label for label, _ in context_columns]
     medians = [float(df[label].median(skipna=True)) for label in labels]
     p5s = [float(np.nanpercentile(df[label], 5)) for label in labels]
     p95s = [float(np.nanpercentile(df[label], 95)) for label in labels]
@@ -2927,6 +2978,8 @@ def make_figure_8_antibiotic_use_by_context(
     left = 0.0
     for label, value in zip(labels, medians):
         safe_value = 0.0 if not np.isfinite(value) else value
+        if label == "Unknown / legacy" and safe_value <= 0.0:
+            continue
         ax.barh(
             [0],
             [safe_value],
@@ -2958,6 +3011,16 @@ def make_figure_8_antibiotic_use_by_context(
     fig.suptitle(title, fontsize=10.5, fontweight="bold")
     fig.tight_layout(rect=[0, 0.05, 1, 1])
 
+    table_rows = []
+    for label, value in zip(labels, medians):
+        safe_value = 0.0 if not np.isfinite(value) else value
+        table_rows.append({
+            "Context": label,
+            "People on antibiotics (millions)": f"{safe_value:.3f}",
+            "% of total": f"{(100.0 * safe_value / total_median):.1f}%" if total_median > 0.0 else "0.0%",
+        })
+    summary_table_html = "<h2>Figure 8 Summary</h2>\n" + _html_table(pd.DataFrame(table_rows))
+
     interval_note = ""
     if n_runs > 1:
         intervals = [
@@ -2967,6 +3030,16 @@ def make_figure_8_antibiotic_use_by_context(
         ]
         interval_note = " Per-context 5th-95th percentile ranges: " + "; ".join(intervals) + "."
 
+    footnotes = [
+        "Values are mean daily people on antibiotics during baseline-policy rows in calendar "
+        "year 2025, scaled to millions using the population scale factor from the matching "
+        "calibration_summary file.",
+        f"Stacked segments show medians across {n_runs} simulation run"
+        f"{'s' if n_runs > 1 else ''}.{interval_note}",
+    ]
+    if mode_note:
+        footnotes.append(mode_note)
+
     _save_figure(
         fig,
         out_dir,
@@ -2974,17 +3047,14 @@ def make_figure_8_antibiotic_use_by_context(
         title,
         "Context is assigned when each antibiotic course starts and is retained until that "
         "course stops. People taking multiple antibiotics are assigned to one category using "
-        "priority: targeted, empiric, prophylaxis, then other. 'Other' includes courses "
-        "started without symptomatic modelled bacterial infection and without prophylaxis "
-        "indication.",
-        [
-            "Values are mean daily people on antibiotics during baseline-policy rows in calendar "
-            "year 2025, scaled to millions using the population scale factor from the matching "
-            "calibration_summary file.",
-            f"Stacked segments show medians across {n_runs} simulation run"
-            f"{'s' if n_runs > 1 else ''}.{interval_note}",
-        ],
+        "priority: targeted, empiric, prophylaxis, other active asymptomatic modelled bacterial "
+        "infection, other no active modelled infection, then unknown/legacy. 'Other: no active "
+        "modelled infection' is a proxy for non-bacterial, non-modelled, or background prescribing, "
+        "not a direct viral diagnosis. 'Unknown/legacy' indicates missing or legacy context labels "
+        "and should be near zero in new runs.",
+        footnotes,
         agg=agg,
+        extra_html=summary_table_html,
     )
 
 

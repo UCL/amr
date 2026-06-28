@@ -749,6 +749,8 @@ Once it is decided that a person is being started on an antibiotic it must choos
 
 For each candidate drug, the model calculates a score based on several factors. The final candidate scores are converted into weighted probabilities rather than choosing the single highest-scoring drug every time. The config parameter `drug_selection_temperature` is best read as a **prescribing-variability setting**. With the baseline value of **0.55**, the model usually selects one of the highest-scoring drugs, but it can still choose another clinically plausible option. Smaller values reduce this variability; larger values make prescribing more dispersed across available options.
 
+For antibiotic starts with no active modelled bacterial infection and no prophylaxis indication, the model uses syndrome 0 as a background prescribing template. These per-drug scores are relative weights for community/background use, including diagnostic uncertainty, viral-like illness, non-modelled infections, dental or procedural use, self-medication, and pharmacy supply without prescription. They are not probabilities, and they do not bypass era, availability, contraindication, reserve-drug, or compartment-specific eligibility restrictions.
+
 | Scoring factor | Empiric phase | Targeted phase | What it captures |
 |---------------|---------------|----------------|-----------------|
 | Syndrome-specific template score | Primary driver; scores >1.0 count as positive empiric signals | Not used directly | How well this drug matches usual empiric prescribing for the infection site |

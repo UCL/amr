@@ -1402,7 +1402,10 @@ pub enum AntibioticUseContext {
     Empiric,
     Targeted,
     Prophylaxis,
+    /// Legacy fallback retained for saved state / old outputs; new starts should use a specific Other variant.
     Other,
+    OtherNoActiveModelledInfection,
+    OtherActiveAsymptomaticModelledBacterialInfection,
 }
 
 impl Default for AntibioticUseContext {
