@@ -737,7 +737,7 @@ These access barriers produce a well-recognised tension: in settings where antib
 
 ### 6.2 Drug selection — choosing which antibiotic to use
 
-Once it is decided that a person is being started on an antibiotic it must choose *which* antibiotic. The choice depends on the information available at the time of prescribing.
+Once it is decided that a person is being started on an antibiotic it must choose *which* antibiotic. The choice depends on the information available at the time of prescribing and on the reason the start was triggered.
 
 **Two modes of prescribing:**
 
@@ -749,7 +749,15 @@ Once it is decided that a person is being started on an antibiotic it must choos
 
 For each candidate drug, the model calculates a score based on several factors. The final candidate scores are converted into weighted probabilities rather than choosing the single highest-scoring drug every time. The config parameter `drug_selection_temperature` is best read as a **prescribing-variability setting**. With the baseline value of **0.55**, the model usually selects one of the highest-scoring drugs, but it can still choose another clinically plausible option. Smaller values reduce this variability; larger values make prescribing more dispersed across available options.
 
-For antibiotic starts with no active modelled bacterial infection and no prophylaxis indication, the model uses syndrome 0 as a background prescribing template. These per-drug scores are relative weights for community/background use, including diagnostic uncertainty, viral-like illness, non-modelled infections, dental or procedural use, self-medication, and pharmacy supply without prescription. They are not probabilities, and they do not bypass era, availability, contraindication, reserve-drug, or compartment-specific eligibility restrictions.
+The live implementation also records the **context** in which a course starts. This is important for interpreting drug-use outputs:
+
+- A symptomatic infection without organism identification is recorded as `Empiric` and uses the active syndrome templates.
+- A symptomatic, identified infection is recorded as `Targeted` and uses potency, susceptibility, and organism-specific prescribing preferences.
+- An immunodeficient person without symptomatic infection enters a small `Prophylaxis` pool rather than the general empiric pool.
+- A person with an active modelled bacterial infection that has not caused symptoms can still start treatment through empiric-style scoring using the active syndrome information, but the course is recorded as `OtherActiveAsymptomaticModelledBacterialInfection`.
+- A start with **no active modelled bacterial infection** and no prophylaxis indication is recorded as `OtherNoActiveModelledInfection` and uses syndrome 0 as a background prescribing template.
+
+Syndrome 0 is therefore not an eleventh clinical infection syndrome. It is a background / off-model prescribing distribution for situations such as diagnostic uncertainty, viral-like illness, non-modelled infections, dental or procedural use, self-medication, and pharmacy supply without prescription. Its per-drug scores are relative weights, not probabilities. They shape drug choice only after the model has already sampled a start-any-antibiotic event, and they still pass through the usual era, regional availability, allergy, age contraindication, reserve-drug, and compartment/niche-drug restrictions. The current syndrome 0 template strongly favours common community oral agents and assigns trace scores to hospital-only, reserve, and novel agents so these do not compete meaningfully in no-active-infection starts.
 
 | Scoring factor | Empiric phase | Targeted phase | What it captures |
 |---------------|---------------|----------------|-----------------|
@@ -776,7 +784,7 @@ For antibiotic starts with no active modelled bacterial infection and no prophyl
 
 These restrictions substantially reduce empiric broad-spectrum therapy by preventing niche agents from out-competing more appropriate choices in syndromes where they are never used clinically.
 
-**Immunodeficiency prophylaxis.** A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool. The only candidate drugs are `trim_sulf` (score 0.8), `azithromycin` (3.0), `ciprofloxacin` (2.0), and `levofloxacin` (1.5). Reserve drugs are excluded, broad-spectrum drugs are penalised, lower-spectrum drugs receive a modest bonus, and fluoroquinolone prophylaxis is blocked for people younger than 18 years.
+**Immunodeficiency prophylaxis.** A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool and it does not use syndrome 0. The only candidate drugs are `trim_sulf` (score 1.2), `azithromycin` (3.5), `ciprofloxacin` (2.0), and `levofloxacin` (1.5). Reserve drugs are excluded, broad-spectrum drugs are penalised, lower-spectrum drugs receive a modest bonus, and fluoroquinolone prophylaxis is blocked for people younger than 18 years.
 
 **Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:
 

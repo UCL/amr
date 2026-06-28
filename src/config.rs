@@ -3339,7 +3339,8 @@ lazy_static! {
         map.insert("antibiotic_initiation_log_odds_test_identified".to_string(), 0.92); // log(2.5) - lab confirmation boost
         map.insert("antibiotic_initiation_log_odds_already_on_drug".to_string(), 0.18); // log(1.2) - modest boost for layered therapy
         map.insert("antibiotic_initiation_log_odds_immunodeficiency".to_string(), 0.2); // Immunodeficiency alone is only a weak trigger absent symptoms or a defined prophylaxis indication
-        map.insert("antibiotic_initiation_log_odds_no_indication".to_string(), -2.0); // -1.05  log(0.35) - penalty when no infection/immunodeficiency
+        //  ^^^^
+        map.insert("antibiotic_initiation_log_odds_no_indication".to_string(), -1.2); // -1.05  log(0.35) - penalty when no infection/immunodeficiency
 
         // Drug activity parameters (still used for bacteria level effects)
         // a non-bacteria-specific parameter that determines how rapidly drugs of a given potency eliminate bacteria level
@@ -9392,7 +9393,7 @@ lazy_static! {
         map.insert("bacteria_neisseria_meningitidis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1   ); // classes: none (currently zeroed)
         map.insert("bacteria_neisseria_meningitidis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_003  ); // classes: poly
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — N. meningitidis is susceptible to polymyxins; chromosomal regulatory mutations not clinically significant; use modification_mcr_1 for plasmid-mediated resistance
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001     ); // classes: sulf
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_05     ); // classes: sulf
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_003   ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_fos_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
@@ -11376,34 +11377,35 @@ lazy_static! {
 
 // ^^^^^
 
-        // Empiric drug scoring tables (clinician-facing heuristics per syndrome ID)
-        // These preserve pre-refactor prescribing patterns when organism is unknown.
+        // Empiric drug scoring tables (clinician-facing heuristics per syndrome ID).
+        // Second-pass calibration adjustment: retain class representation while reducing
+        // overshoot in small-run drug-share calibration.
         let empiric_syndrome_templates: &[(usize, &[(&str, f64)])] = &[
             // 1 = UTI / Genitourinary
             (
                 1,
                 &[
                     ("trim_sulf", 1.0),
-                    ("amoxicillin_clavulanate", 30.0),  // 12.0 BL/BLI remains a realistic empiric fallback when plain aminopenicillins are unreliable
-                    ("amoxicillin", 2.0),
-                    ("ciprofloxacin", 2.0),             // stewardship concerns limit empiric quinolone use for UTI
-                    ("ampicillin", 1.0),
-                    ("levofloxacin", 2.0),
-                    ("nitrofurantoin", 13.0),           // genuine first-line for uncomplicated UTI
-                    ("fosfomycin", 10.0),
-                    ("cephalexin", 9.0),
-                    ("ceftriaxone", 3.0),               // reduced from 8: IV-only, triggers hospitalisation; should be rare empirically
-                    ("cefazolin", 8.0),
-                    ("cefuroxime", 8.0),
-                    ("piperacillin_tazobactam", 30.0),   // 5.0
+                    ("amoxicillin_clavulanate", 12.0),
+                    ("amoxicillin", 3.0),
+                    ("ciprofloxacin", 1.5), // stewardship concerns limit empiric quinolone use for UTI
+                    ("ampicillin", 1.5),
+                    ("levofloxacin", 1.5),
+                    ("nitrofurantoin", 17.0), // genuine first-line for uncomplicated UTI
+                    ("fosfomycin", 16.0),
+                    ("cephalexin", 12.0),
+                    ("ceftriaxone", 2.5), // IV-only; should be uncommon empirically
+                    ("cefazolin", 9.0),
+                    ("cefuroxime", 10.0),
+                    ("piperacillin_tazobactam", 10.0),
                     ("cefepime", 4.0),
                     ("ceftazidime", 4.0),
-                    ("meropenem",  90.0),                 // 4.0 
-                    ("imipenem_c",  90.0),                // 4.0
-                    ("ertapenem",  90.0),                 // 4.0
-                    ("meropenem_vaborbactam",  60.0),   // 3.0
-                    ("ceftazidime_avibactam", 30.0),     // 3.0
-                    ("aztreonam_avibactam", 1.0),       
+                    ("meropenem", 25.0),
+                    ("imipenem_c", 25.0),
+                    ("ertapenem", 25.0),
+                    ("meropenem_vaborbactam", 18.0),
+                    ("ceftazidime_avibactam", 12.0),
+                    ("aztreonam_avibactam", 1.0),
                     ("cefixime", 7.0),
                     ("colistin", 0.4),
                     ("vancomycin", 0.3),
@@ -11414,14 +11416,14 @@ lazy_static! {
             (
                 2,
                 &[
-                    ("flucloxacillin",  4.0),           // 12.0  first-line empiric SSTI: covers Staph and Strep
-                    ("amoxicillin_clavulanate", 30.0),
-                    ("amoxicillin",  4.0),
-                    ("cephalexin", 14.0),
-                    ("ampicillin",  4.0),
-                    ("penicillin_g", 2.0),             // 13.0 reduced from 16: narrow-spectrum, appropriate only when strep strongly suspected
-                    ("cefazolin", 14.0),
-                    ("clindamycin",  5.0),
+                    ("flucloxacillin", 12.0), // first-line empiric SSTI: covers Staph and Strep
+                    ("amoxicillin_clavulanate", 9.0),
+                    ("amoxicillin", 6.0),
+                    ("cephalexin", 16.0),
+                    ("ampicillin", 5.0),
+                    ("penicillin_g", 5.0),
+                    ("cefazolin", 16.0),
+                    ("clindamycin", 5.0),
                     ("trim_sulf", 0.5),
                     ("doxycycline", 3.5),
                     ("minocycline", 3.0),
@@ -11431,71 +11433,71 @@ lazy_static! {
                     ("vancomycin", 13.0),
                     ("quinu_dalfo", 8.0),
                     ("rifampicin", 0.5),
-                    ("ciprofloxacin", 2.0),
-                    ("piperacillin_tazobactam", 30.0),   // 3.0
+                    ("ciprofloxacin", 1.5),
+                    ("piperacillin_tazobactam", 9.0),
                 ],
             ),
             // 3 = Respiratory
             (
                 3,
                 &[
-                    ("amoxicillin_clavulanate", 35.0),      // 24.0
-                    ("amoxicillin",  2.0),                  // 12.0
-                    ("penicillin_g", 2.0),                  // 6.0
-                    ("ampicillin", 2.0),
-                    ("azithromycin", 3.0),
-                    ("clarithromycin", 3.0),
-                    ("ceftriaxone", 9.5),
-                    ("erythromycin", 4.0),
-                    ("cefuroxime", 8.5),
-                    ("piperacillin_tazobactam", 30.0),      // 8.0
-                    ("levofloxacin", 3.0),
-                    ("moxifloxacin", 3.0),
+                    ("amoxicillin_clavulanate", 14.0),
+                    ("amoxicillin", 8.0),
+                    ("penicillin_g", 4.0),
+                    ("ampicillin", 4.0),
+                    ("azithromycin", 2.0),
+                    ("clarithromycin", 2.0),
+                    ("ceftriaxone", 9.0),
+                    ("erythromycin", 2.3),
+                    ("cefuroxime", 10.0),
+                    ("piperacillin_tazobactam", 12.0),
+                    ("levofloxacin", 2.0),
+                    ("moxifloxacin", 2.0),
                     ("cefixime", 6.5),
                     ("aztreonam_avibactam", 0.01),
                     ("cefepime", 7.5),
                     ("cephalexin", 8.0),
-                    ("doxycycline", 3.0),
+                    ("doxycycline", 5.0),
                     ("vancomycin", 8.0),
-                    ("meropenem",  90.0),         // 6.0
-                    ("imipenem_c",  90.0),            // 6.0
-                    ("ofloxacin", 3.0),
+                    ("meropenem", 28.0),
+                    ("imipenem_c", 28.0),
+                    ("ofloxacin", 2.0),
                     ("linezolid", 7.0),
-                    ("minocycline", 2.5),
+                    ("minocycline", 3.5),
                 ],
             ),
             // 4 = Bloodstream / bacteremia
             (
                 4,
                 &[
-                    ("piperacillin_tazobactam", 30.0),      // Keep strong empiric Gram-negative coverage, but let carbapenems compete
-                    ("meropenem", 1200.0),                  // Aggressive calibration: major empiric carbapenem escalation in bloodstream sepsis
-                    ("imipenem_c", 900.0),                  // Aggressive calibration: major empiric carbapenem escalation in bloodstream sepsis
-                    ("meropenem_vaborbactam", 700.0),       // Aggressive calibration: allow more BL/BLI carbapenem use in severe resistant bloodstream cases
-                    ("ceftazidime_avibactam", 30.0),        // 12.5
+                    ("piperacillin_tazobactam", 24.0), // Keep strong empiric Gram-negative coverage, but let carbapenems compete.
+                    ("meropenem", 240.0),
+                    ("imipenem_c", 180.0),
+                    ("meropenem_vaborbactam", 130.0),
+                    ("ceftazidime_avibactam", 22.0),
                     ("aztreonam_avibactam", 2.0),
-                    ("cefepime", 12.0),
-                    ("ceftazidime", 11.0),
+                    ("cefepime", 16.0),
+                    ("ceftazidime", 12.0),
                     ("ceftriaxone", 10.0),
-                    ("ampicillin_sulbactam", 30.0),
-                    ("amoxicillin_clavulanate", 30.0),
-                    ("ampicillin",  7.0),
-                    ("amoxicillin", 6.0),
-                    ("penicillin_g", 3.0),
-                    ("flucloxacillin", 5.0),
-                    ("vancomycin", 13.0),
+                    ("ampicillin_sulbactam", 16.0),
+                    ("amoxicillin_clavulanate", 14.0),
+                    ("ampicillin", 8.0),
+                    ("amoxicillin", 8.0),
+                    ("penicillin_g", 4.0),
+                    ("flucloxacillin", 8.0),
+                    ("vancomycin", 14.0),
                     ("linezolid", 10.0),
                     ("tedizolid", 9.0),
                     ("dalbavancin", 8.0),
                     ("quinu_dalfo", 8.5),
-                    ("gentamicin", 10.0),
-                    ("tobramycin", 9.0),
-                    ("amikacin", 10.0),
+                    ("gentamicin", 18.0),
+                    ("tobramycin", 16.0),
+                    ("amikacin", 18.0),
                     ("colistin", 0.3),
-                    ("cefazolin", 6.0),
-                    ("ciprofloxacin", 3.0),
-                    ("levofloxacin", 3.0),
-                    ("cephalexin", 4.0),
+                    ("cefazolin", 7.0),
+                    ("ciprofloxacin", 2.0),
+                    ("levofloxacin", 2.0),
+                    ("cephalexin", 3.0),
                     ("rifampicin", 0.5),
                 ],
             ),
@@ -11503,26 +11505,26 @@ lazy_static! {
             (
                 5,
                 &[
-                    ("metronidazole", 6.0),
-                    ("piperacillin_tazobactam", 30.0),      // Strong empiric abdominal coverage, but less dominant than before
-                    ("ampicillin_sulbactam", 30.0),
-                    ("amoxicillin_clavulanate", 30.0),      // 11.5
-                    ("meropenem", 900.0),                   // Aggressive calibration: major abdominal empiric carbapenem use
-                    ("imipenem_c", 850.0),                  // Aggressive calibration: major abdominal empiric carbapenem use
-                    ("ertapenem", 700.0),                   // Aggressive calibration: boost once-daily carbapenem share for abdominal sepsis
-                    ("ceftazidime", 9.0),   
-                    ("cefepime", 9.0),
+                    ("metronidazole", 8.0),
+                    ("piperacillin_tazobactam", 24.0), // Strong empiric abdominal coverage, but less dominant than before.
+                    ("ampicillin_sulbactam", 14.0),
+                    ("amoxicillin_clavulanate", 14.0),
+                    ("meropenem", 160.0),
+                    ("imipenem_c", 140.0),
+                    ("ertapenem", 110.0),
+                    ("ceftazidime", 9.0),
+                    ("cefepime", 10.0),
                     ("ceftriaxone", 9.0),
-                    ("ceftazidime_avibactam", 30.0),
+                    ("ceftazidime_avibactam", 18.0),
                     ("aztreonam_avibactam", 2.0),
-                    ("meropenem_vaborbactam", 650.0),       // Aggressive calibration: allow more resistant abdominal escalation
-                    ("ciprofloxacin", 2.0),
-                    ("levofloxacin", 2.0),
+                    ("meropenem_vaborbactam", 100.0),
+                    ("ciprofloxacin", 1.5),
+                    ("levofloxacin", 1.5),
                     ("ampicillin", 5.0),
                     ("amoxicillin", 5.0),
                     ("trim_sulf", 0.1),
-                    ("gentamicin", 7.0),
-                    ("amikacin", 7.0),
+                    ("gentamicin", 12.0),
+                    ("amikacin", 12.0),
                     ("colistin", 0.5),
                 ],
             ),
@@ -11538,33 +11540,33 @@ lazy_static! {
                     ("vancomycin", 13.0),
                     ("linezolid", 10.0),
                     ("cefixime", 1.0),
-                    ("meropenem", 40.0),
-                    ("imipenem_c", 30.0),
+                    ("meropenem", 45.0),
+                    ("imipenem_c", 35.0),
                     ("chloramphenicol", 2.0),
                     ("rifampicin", 1.0),
-                    ("piperacillin_tazobactam", 30.0),
+                    ("piperacillin_tazobactam", 3.0),
                 ],
             ),
             // 7 = Gastrointestinal (non-invasive)
             (
                 7,
                 &[
-                    ("ciprofloxacin", 3.0),
-                    ("azithromycin", 4.0),
-                    ("amoxicillin_clavulanate", 50.0),      // 11.0
+                    ("ciprofloxacin", 1.5),
+                    ("azithromycin", 2.3),
+                    ("amoxicillin_clavulanate", 7.0),
                     ("amoxicillin", 4.0),
                     ("ampicillin", 4.0),
-                    ("levofloxacin", 4.0),
-                    ("ampicillin_sulbactam", 50.0),          // 9.0
+                    ("levofloxacin", 1.5),
+                    ("ampicillin_sulbactam", 5.0),
                     ("trim_sulf", 0.5),
-                    ("doxycycline", 4.0),
+                    ("doxycycline", 3.5),
                     ("minocycline", 2.5),
-                    ("cefixime", 4.5),
-                    ("penicillin_g", 3.0),
-                    ("cephalexin", 5.0),
-                    ("cefuroxime", 5.0),
+                    ("cefixime", 4.0),
+                    ("penicillin_g", 2.0),
+                    ("cephalexin", 4.0),
+                    ("cefuroxime", 4.0),
                     ("furazolidone", 0.2),
-                    ("metronidazole", 0.5),
+                    ("metronidazole", 2.0),
                     ("rifampicin", 0.5),
                 ],
             ),
@@ -11572,22 +11574,22 @@ lazy_static! {
             (
                 8,
                 &[
-                    ("penicillin_g",  3.0),             // 14.0
-                    ("azithromycin", 3.0),
+                    ("penicillin_g", 4.0),
+                    ("azithromycin", 2.0),
                     ("ceftriaxone", 13.0),
                     ("cefixime", 10.5),
-                    ("doxycycline", 5.5),
-                    ("amoxicillin_clavulanate", 50.0),  // 12.0
+                    ("doxycycline", 6.5),
+                    ("amoxicillin_clavulanate", 7.0),
                     ("amoxicillin", 4.0),
-                    ("cefuroxime", 10.0),
-                    ("clindamycin", 5.0),
+                    ("cefuroxime", 8.0),
+                    ("clindamycin", 4.0),
                     ("ampicillin", 5.0),
-                    ("ampicillin_sulbactam", 30.0),
-                    ("ciprofloxacin", 2.0),
-                    ("levofloxacin", 3.0),
-                    ("cephalexin", 7.0),
-                    ("trim_sulf", 0.4),
-                    ("metronidazole", 0.5 ),
+                    ("ampicillin_sulbactam", 5.0),
+                    ("ciprofloxacin", 1.0),
+                    ("levofloxacin", 1.5),
+                    ("cephalexin", 5.0),
+                    ("trim_sulf", 0.3),
+                    ("metronidazole", 4.0),
                     ("rifampicin", 0.5),
                 ],
             ),
@@ -11595,39 +11597,39 @@ lazy_static! {
             (
                 9,
                 &[
-                    ("flucloxacillin", 4.0),           // 16.0  raised: dominant empiric choice for bone/joint (Staph cover essential)
+                    ("flucloxacillin", 12.0), // dominant empiric choice for bone/joint (Staph cover essential)
                     ("cefazolin", 15.0),
                     ("vancomycin", 14.0),
-                    ("ampicillin",  4.0),          // 12.0
+                    ("ampicillin", 8.0),
                     ("ceftriaxone", 11.0),
-                    ("cephalexin", 15.0),
-                    ("penicillin_g",  2.0),             // 11.0 
+                    ("cephalexin", 12.0),
+                    ("penicillin_g", 6.0),
                     ("linezolid", 11.0),
                     ("tedizolid", 10.0),
                     ("dalbavancin", 10.0),
-                    ("clindamycin",  2.0),
-                    ("ciprofloxacin", 4.0),
-                    ("levofloxacin", 4.0),
+                    ("clindamycin", 3.5),
+                    ("ciprofloxacin", 2.5),
+                    ("levofloxacin", 2.5),
                     ("trim_sulf", 0.5),
-                    ("meropenem", 700.0),                 // 7.0
-                    ("piperacillin_tazobactam", 30.0),      // 6.5
-                    ("rifampicin", 6.0),                // raised from 2.0: key add-on for biofilm penetration in hardware/PJI
+                    ("meropenem", 110.0),
+                    ("piperacillin_tazobactam", 15.0),
+                    ("rifampicin", 6.0), // key add-on for biofilm penetration in hardware/PJI
                 ],
             ),
             // 10 = Other severe / device-related catch-all
             (
                 10,
                 &[
-                    ("vancomycin", 13.0),               // raised: CoNS/S. aureus dominate device/line infections; vanco is empiric backbone
-                    ("linezolid", 10.0),               // raised: gram-positive cover priority consistent with vancomycin uplift
-                    ("piperacillin_tazobactam", 30.0),  // Keep broad empiric cover, but less dominant than before
-                    ("cefepime", 9.0),
-                    ("ceftriaxone", 8.0),
-                    ("meropenem", 900.0),               // Aggressive calibration: major severe/device empiric carbapenem use
-                    ("imipenem_c", 800.0),              // Aggressive calibration: major severe/device empiric carbapenem use
+                    ("vancomycin", 14.0), // CoNS/S. aureus dominate device/line infections; vanco is empiric backbone
+                    ("linezolid", 10.0), // gram-positive cover priority consistent with vancomycin uplift
+                    ("piperacillin_tazobactam", 24.0), // Keep broad empiric cover, but less dominant than before.
+                    ("cefepime", 12.0),
+                    ("ceftriaxone", 7.0),
+                    ("meropenem", 160.0),
+                    ("imipenem_c", 130.0),
                     ("aztreonam_avibactam", 2.0),
-                    ("ciprofloxacin", 4.0),
-                    ("azithromycin", 3.0),
+                    ("ciprofloxacin", 2.5),
+                    ("azithromycin", 2.0),
                 ],
             ),
         ];
@@ -11644,20 +11646,18 @@ lazy_static! {
         }
 
         // Syndrome 0: background / no-active-modelled-bacterial-infection prescribing.
-        // These existing per-drug scores are relative weights, not probabilities. They
-        // represent common outpatient, community, non-prescription, dental/procedural,
-        // diagnostic-uncertainty, and non-modelled infection starts, while keeping
-        // hospital-only, reserve, and novel agents from competing in this background pool.
+        // Second-pass calibration adjustment: retain class representation while reducing
+        // overshoot in small-run drug-share calibration.
         let syndrome_0_background_drug_scores = [
             ("sulfanilamide", 0.001),
             ("penicillin_g", 0.001),
             ("ampicillin", 0.15),
-            ("amoxicillin", 0.75),
+            ("amoxicillin", 0.65),
             ("piperacillin", 0.001),
             ("ticarcillin", 0.001),
-            ("cephalexin", 0.30),
+            ("cephalexin", 0.45),
             ("cefazolin", 0.001),
-            ("cefuroxime", 0.18),
+            ("cefuroxime", 0.25),
             ("ceftriaxone", 0.03),
             ("ceftazidime", 0.001),
             ("cefepime", 0.001),
@@ -11669,9 +11669,9 @@ lazy_static! {
             ("ertapenem", 0.001),
             ("aztreonam", 0.001),
             ("erythromycin", 0.08),
-            ("azithromycin", 0.55),
+            ("azithromycin", 0.40),
             ("clarithromycin", 0.08),
-            ("clindamycin", 0.05),
+            ("clindamycin", 0.08),
             ("gentamicin", 0.001),
             ("tobramycin", 0.001),
             ("amikacin", 0.001),
@@ -11690,17 +11690,17 @@ lazy_static! {
             ("tedizolid", 0.001),
             ("daptomycin", 0.001),
             ("quinu_dalfo", 0.001),
-            ("trim_sulf", 0.45),
+            ("trim_sulf", 0.10),
             ("chloramphenicol", 0.04),
-            ("nitrofurantoin", 0.25),
-            ("fosfomycin", 0.12),
+            ("nitrofurantoin", 0.40),
+            ("fosfomycin", 0.25),
             ("retapamulin", 0.001),
             ("fusidic_a", 0.001),
-            ("metronidazole", 0.40),
+            ("metronidazole", 0.25),
             ("fidaxomicin", 0.001),
             ("furazolidone", 0.02),
             ("rifampicin", 0.001),
-            ("amoxicillin_clavulanate", 1.00),
+            ("amoxicillin_clavulanate", 0.45),
             ("piperacillin_tazobactam", 0.001),
             ("ampicillin_sulbactam", 0.001),
             ("ticarcillin_clavulanate", 0.001),
