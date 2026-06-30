@@ -4,7 +4,10 @@ use amr_project::simulation::population::{
     BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, MICROBIOME_RESISTANCE_LEVEL_COUNT,
     TRACK_RESISTANCE_ACQUISITION_PROVENANCE,
 };
-use amr_project::simulation::simulation::{CalibrationMode, Simulation};
+use amr_project::simulation::simulation::{
+    CalibrationMode, Simulation, DIAGNOSTIC_CASCADE_SETTING_COUNT, DIAGNOSTIC_CASCADE_STAGE_COUNT,
+    RESISTANCE_MECHANISM_FAMILY_COUNT,
+};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use std::collections::HashSet;
@@ -119,6 +122,49 @@ fn assert_individual_dimensions(individual: &Individual) {
     assert_len(
         "sepsis_episode_age_group_at_onset",
         individual.sepsis_episode_age_group_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_open",
+        individual.diagnostic_cascade_open.len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_entry_time_step",
+        individual.diagnostic_cascade_entry_time_step.len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_entry_hospitalized",
+        individual.diagnostic_cascade_entry_hospitalized.len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_bacterial_identification_recorded",
+        individual
+            .diagnostic_cascade_bacterial_identification_recorded
+            .len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_resistance_testing_recorded",
+        individual
+            .diagnostic_cascade_resistance_testing_recorded
+            .len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_targeted_treatment_recorded",
+        individual
+            .diagnostic_cascade_targeted_treatment_recorded
+            .len(),
+        bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_effective_targeted_treatment_recorded",
+        individual
+            .diagnostic_cascade_effective_targeted_treatment_recorded
+            .len(),
         bacteria,
     );
     assert_len(
@@ -498,9 +544,91 @@ fn full_summary_rows_preserve_expected_vector_dimensions() {
         bacteria,
     );
     assert_len(
+        "new_active_infections_by_bacteria",
+        summary.new_active_infections_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "active_infection_days_by_bacteria",
+        summary.active_infection_days_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "treated_infection_days_by_bacteria",
+        summary.treated_infection_days_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "effective_treated_infection_days_by_bacteria",
+        summary.effective_treated_infection_days_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "infection_resolution_count_by_bacteria",
+        summary.infection_resolution_count_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_onset_count_by_bacteria",
+        summary.sepsis_onset_count_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "infection_death_count_by_bacteria",
+        summary.infection_death_count_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "drug_failure_count_by_bacteria",
+        summary.drug_failure_count_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "carrier_at_risk_person_days_by_bacteria",
+        summary.carrier_at_risk_person_days_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "non_carrier_at_risk_person_days_by_bacteria",
+        summary.non_carrier_at_risk_person_days_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "new_infections_in_carriers_by_bacteria",
+        summary.new_infections_in_carriers_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "new_infections_in_non_carriers_by_bacteria",
+        summary.new_infections_in_non_carriers_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "new_any_r_infections_in_carriers_by_bacteria",
+        summary.new_any_r_infections_in_carriers_by_bacteria.len(),
+        bacteria,
+    );
+    assert_len(
+        "new_any_r_infections_in_non_carriers_by_bacteria",
+        summary
+            .new_any_r_infections_in_non_carriers_by_bacteria
+            .len(),
+        bacteria,
+    );
+    assert_len(
         "presence_microbiome_by_bacteria",
         summary.presence_microbiome_by_bacteria.len(),
         bacteria,
+    );
+    assert_len(
+        "diagnostic_cascade_stage_counts",
+        summary.diagnostic_cascade_stage_counts.len(),
+        DIAGNOSTIC_CASCADE_STAGE_COUNT,
+    );
+    assert_len(
+        "diagnostic_cascade_stage_counts_by_setting",
+        summary.diagnostic_cascade_stage_counts_by_setting.len(),
+        DIAGNOSTIC_CASCADE_STAGE_COUNT * DIAGNOSTIC_CASCADE_SETTING_COUNT,
     );
     assert_len(
         "infected_with_test_identified_by_bacteria",
@@ -574,6 +702,20 @@ fn full_summary_rows_preserve_expected_vector_dimensions() {
         "infected_with_bacteria_and_mechanism",
         summary.infected_with_bacteria_and_mechanism.len(),
         bacteria * mechanisms,
+    );
+    assert_len(
+        "infection_days_with_any_resistance_mechanism_by_bacteria",
+        summary
+            .infection_days_with_any_resistance_mechanism_by_bacteria
+            .len(),
+        bacteria,
+    );
+    assert_len(
+        "infection_days_with_resistance_mechanism_family_by_bacteria",
+        summary
+            .infection_days_with_resistance_mechanism_family_by_bacteria
+            .len(),
+        bacteria * RESISTANCE_MECHANISM_FAMILY_COUNT,
     );
 
     assert_len(

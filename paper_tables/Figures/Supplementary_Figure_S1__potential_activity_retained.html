@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Figure 1. Calibration: 2025 headline health and antibiotic-use metrics</title><style>
+<head><meta charset="UTF-8"><title>Supplementary Figure S1. Potential antibiotic activity retained across available drugs</title><style>
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5; max-width: 1500px; margin: 0 auto;
@@ -33,8 +33,8 @@ a { color: #2980b9; }
 </style></head>
 <body>
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
-<img src='Figure_1__calibration_headline_metrics.png' alt='Figure_1__calibration_headline_metrics' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
-<p class='note'>Download: <a href='Figure_1__calibration_headline_metrics.png'>PNG</a> | <a href='Figure_1__calibration_headline_metrics.svg'>SVG</a></p>
+<img src='Supplementary_Figure_S1__potential_activity_retained.png' alt='Supplementary_Figure_S1__potential_activity_retained' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
+<p class='note'>Download: <a href='Supplementary_Figure_S1__potential_activity_retained.png'>PNG</a> | <a href='Supplementary_Figure_S1__potential_activity_retained.svg'>SVG</a></p>
 <ol class='footnotes'>
-<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,750,181; population scale factor: 4,685.2305; runs: 1 accepted calibration run.</li><li>Simulation compared with target/observed estimates. Error bars show 5th–95th percentile range across 1 accepted run.</li><li>Infection-death target: Murray CJ et al. (2022). Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. <em>Lancet</em> 399:629-655.</li><li>Antibiotic-use target: Klein EY et al. (2018). Global increase and geographic convergence in antibiotic consumption between 2000 and 2015. <em>PNAS</em> 115:E3463-E3470. The model uses a person-prevalence proxy for daily users, rather than DDD-equivalent consumption.</li><li>Bacterial-infection incidence target: Vos T et al. (2020). Global burden of 369 diseases and injuries in 204 countries and territories, 1990-2019. <em>Lancet</em> 396:1204-1222.</li><li>Sepsis target: Rudd KE et al. (2020). Global, regional, and national sepsis incidence and mortality, 1990-2017. <em>Lancet</em> 395:200-211. The model target is a bacterial-subset anchor rather than the full all-cause sepsis estimate.</li>
+<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,750,181; population scale factor: 4,685.2305; runs: 1 accepted calibration run.</li><li>Supplementary Figure S1 requires simulation_summary columns `potential_activity_existing_drugs_sum_by_bacteria` and `max_possible_potential_activity_existing_drugs_sum_by_bacteria`. Re-run the Rust simulation after adding these aggregate outputs.</li>
 </ol></body></html>

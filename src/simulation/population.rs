@@ -1578,6 +1578,28 @@ pub struct Individual {
     #[serde(default)]
     pub sepsis_episode_age_group_at_onset: Vec<i32>,
 
+    /// Output-only tracker for open diagnostic-cascade infection episodes by bacterium.
+    #[serde(default)]
+    pub diagnostic_cascade_open: Vec<bool>,
+
+    /// Output-only timestep when the diagnostic-cascade episode became eligible.
+    #[serde(default)]
+    pub diagnostic_cascade_entry_time_step: Vec<i32>,
+
+    /// Output-only hospitalization status captured at diagnostic-cascade entry.
+    #[serde(default)]
+    pub diagnostic_cascade_entry_hospitalized: Vec<bool>,
+
+    /// Output-only guards to avoid double-counting diagnostic-cascade stages.
+    #[serde(default)]
+    pub diagnostic_cascade_bacterial_identification_recorded: Vec<bool>,
+    #[serde(default)]
+    pub diagnostic_cascade_resistance_testing_recorded: Vec<bool>,
+    #[serde(default)]
+    pub diagnostic_cascade_targeted_treatment_recorded: Vec<bool>,
+    #[serde(default)]
+    pub diagnostic_cascade_effective_targeted_treatment_recorded: Vec<bool>,
+
     /// True if infection was prevented by existing therapy for each bacteria this timestep.
     /// Reset to false at start of each timestep, set to true if prevention occurs.
     pub infection_prevented_by_drug: Vec<bool>,
@@ -1906,6 +1928,13 @@ impl Individual {
         let sepsis_episode_region_at_onset = vec![-1; num_bacteria];
         let sepsis_episode_hospitalized_at_onset = vec![false; num_bacteria];
         let sepsis_episode_age_group_at_onset = vec![-1; num_bacteria];
+        let diagnostic_cascade_open = vec![false; num_bacteria];
+        let diagnostic_cascade_entry_time_step = vec![-1; num_bacteria];
+        let diagnostic_cascade_entry_hospitalized = vec![false; num_bacteria];
+        let diagnostic_cascade_bacterial_identification_recorded = vec![false; num_bacteria];
+        let diagnostic_cascade_resistance_testing_recorded = vec![false; num_bacteria];
+        let diagnostic_cascade_targeted_treatment_recorded = vec![false; num_bacteria];
+        let diagnostic_cascade_effective_targeted_treatment_recorded = vec![false; num_bacteria];
 
         let presence_microbiome = vec![false; num_bacteria];
         let microbiome_disruption_level = 0.0;
@@ -2014,6 +2043,13 @@ impl Individual {
             sepsis_episode_region_at_onset,
             sepsis_episode_hospitalized_at_onset,
             sepsis_episode_age_group_at_onset,
+            diagnostic_cascade_open,
+            diagnostic_cascade_entry_time_step,
+            diagnostic_cascade_entry_hospitalized,
+            diagnostic_cascade_bacterial_identification_recorded,
+            diagnostic_cascade_resistance_testing_recorded,
+            diagnostic_cascade_targeted_treatment_recorded,
+            diagnostic_cascade_effective_targeted_treatment_recorded,
             infection_prevented_by_drug: vec![false; num_bacteria],
             presence_microbiome,
             microbiome_disruption_level,

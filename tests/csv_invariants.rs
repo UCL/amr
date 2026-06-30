@@ -182,6 +182,10 @@ fn assert_summary_has_figure_11_columns(path: &Path) {
         "sepsis_effective_therapy_2_3_days_count",
         "sepsis_effective_therapy_4plus_days_count",
         "sepsis_no_effective_therapy_before_resolution_death_or_censoring_count",
+        "sepsis_no_effective_therapy_before_recovery_count",
+        "sepsis_no_effective_therapy_before_death_count",
+        "sepsis_no_effective_therapy_before_censoring_count",
+        "sepsis_no_effective_therapy_unknown_count",
         "sepsis_effective_therapy_unknown_or_censored_count",
     ];
 
@@ -189,6 +193,119 @@ fn assert_summary_has_figure_11_columns(path: &Path) {
         assert!(
             header.iter().any(|column| column == expected_name),
             "summary CSV should include Figure 11 column {expected_name}"
+        );
+    }
+}
+
+fn assert_summary_has_supplementary_figure_s1_columns(path: &Path) {
+    let header = csv_header(path);
+    let expected = [
+        "potential_activity_existing_drugs_sum_by_bacteria",
+        "max_possible_potential_activity_existing_drugs_sum_by_bacteria",
+    ];
+
+    for expected_name in expected {
+        assert!(
+            header.iter().any(|column| column == expected_name),
+            "summary CSV should include Supplementary Figure S1 column {expected_name}"
+        );
+    }
+}
+
+fn assert_summary_has_supplementary_table_s1_columns(path: &Path) {
+    let header = csv_header(path);
+    let expected = [
+        "new_active_infections_by_bacteria",
+        "active_infection_days_by_bacteria",
+        "treated_infection_days_by_bacteria",
+        "effective_treated_infection_days_by_bacteria",
+        "infection_resolution_count_by_bacteria",
+        "sepsis_onset_count_by_bacteria",
+        "infection_death_count_by_bacteria",
+        "drug_failure_count_by_bacteria",
+    ];
+
+    for expected_name in expected {
+        assert!(
+            header.iter().any(|column| column == expected_name),
+            "summary CSV should include Supplementary Table S1 column {expected_name}"
+        );
+    }
+}
+
+fn assert_summary_has_supplementary_figure_s3_columns(path: &Path) {
+    let header = csv_header(path);
+    let expected = [
+        "carrier_at_risk_person_days_by_bacteria",
+        "non_carrier_at_risk_person_days_by_bacteria",
+        "new_infections_in_carriers_by_bacteria",
+        "new_infections_in_non_carriers_by_bacteria",
+        "new_any_r_infections_in_carriers_by_bacteria",
+        "new_any_r_infections_in_non_carriers_by_bacteria",
+    ];
+
+    for expected_name in expected {
+        assert!(
+            header.iter().any(|column| column == expected_name),
+            "summary CSV should include Supplementary Figure S3 column {expected_name}"
+        );
+    }
+}
+
+fn assert_summary_has_supplementary_figure_s4_columns(path: &Path) {
+    let header = csv_header(path);
+    let expected = [
+        "infection_days_with_any_resistance_mechanism_by_bacteria",
+        "infection_days_with_mechanism_family_beta_lactamase_esbl_or_broad_by_bacteria",
+        "infection_days_with_mechanism_family_ampc_by_bacteria",
+        "infection_days_with_mechanism_family_carbapenemase_by_bacteria",
+        "infection_days_with_mechanism_family_porin_loss_by_bacteria",
+        "infection_days_with_mechanism_family_efflux_by_bacteria",
+        "infection_days_with_mechanism_family_fluoroquinolone_target_or_qnr_by_bacteria",
+        "infection_days_with_mechanism_family_macrolide_lincosamide_ribosomal_by_bacteria",
+        "infection_days_with_mechanism_family_aminoglycoside_ribosomal_or_enzyme_by_bacteria",
+        "infection_days_with_mechanism_family_phenicol_oxazolidinone_by_bacteria",
+        "infection_days_with_mechanism_family_tetracycline_by_bacteria",
+        "infection_days_with_mechanism_family_folate_pathway_by_bacteria",
+        "infection_days_with_mechanism_family_colistin_by_bacteria",
+        "infection_days_with_mechanism_family_rifampicin_by_bacteria",
+        "infection_days_with_mechanism_family_fosfomycin_nitrofuran_by_bacteria",
+        "infection_days_with_mechanism_family_daptomycin_fusidic_by_bacteria",
+        "infection_days_with_mechanism_family_other_unknown_by_bacteria",
+    ];
+
+    for expected_name in expected {
+        assert!(
+            header.iter().any(|column| column == expected_name),
+            "summary CSV should include Supplementary Figure S4 column {expected_name}"
+        );
+    }
+}
+
+fn assert_summary_has_supplementary_figure_s5_columns(path: &Path) {
+    let header = csv_header(path);
+    let expected = [
+        "diagnostic_cascade_eligible_symptomatic_infections",
+        "diagnostic_cascade_bacterial_identification_done",
+        "diagnostic_cascade_resistance_testing_done",
+        "diagnostic_cascade_targeted_treatment_started",
+        "diagnostic_cascade_effective_targeted_treatment_started",
+        "diagnostic_cascade_eligible_symptomatic_infections_community",
+        "diagnostic_cascade_bacterial_identification_done_community",
+        "diagnostic_cascade_resistance_testing_done_community",
+        "diagnostic_cascade_targeted_treatment_started_community",
+        "diagnostic_cascade_effective_targeted_treatment_started_community",
+        "diagnostic_cascade_eligible_symptomatic_infections_hospital",
+        "diagnostic_cascade_bacterial_identification_done_hospital",
+        "diagnostic_cascade_resistance_testing_done_hospital",
+        "diagnostic_cascade_targeted_treatment_started_hospital",
+        "diagnostic_cascade_effective_targeted_treatment_started_hospital",
+    ];
+
+    for expected_name in expected {
+        assert!(
+            header.iter().any(|column| column == expected_name),
+            "summary CSV should include Supplementary Figure S5 column {expected_name}"
         );
     }
 }
@@ -214,6 +331,11 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     assert_antibiotic_context_counts_sum(&path);
     assert_new_infection_resistance_counts_bounded(&path);
     assert_summary_has_figure_11_columns(&path);
+    assert_summary_has_supplementary_figure_s1_columns(&path);
+    assert_summary_has_supplementary_table_s1_columns(&path);
+    assert_summary_has_supplementary_figure_s3_columns(&path);
+    assert_summary_has_supplementary_figure_s4_columns(&path);
+    assert_summary_has_supplementary_figure_s5_columns(&path);
 }
 
 #[test]

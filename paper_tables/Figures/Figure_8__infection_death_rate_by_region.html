@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Figure 6. Resistance Trends</title><style>
+<head><meta charset="UTF-8"><title>Figure 8. Infection death rate by region, 2022-2025</title><style>
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5; max-width: 1500px; margin: 0 auto;
@@ -33,8 +33,8 @@ a { color: #2980b9; }
 </style></head>
 <body>
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
-<img src='Figure_6__resistance_trend.png' alt='Figure 6' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
-<p class='note'>Download: <a href='Figure_6__resistance_trend.png'>PNG</a> | <a href='Figure_6__resistance_trend.svg'>SVG</a></p>
+<img src='Figure_8__infection_death_rate_by_region.png' alt='Figure_8__infection_death_rate_by_region' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
+<p class='note'>Download: <a href='Figure_8__infection_death_rate_by_region.png'>PNG</a> | <a href='Figure_8__infection_death_rate_by_region.svg'>SVG</a></p>
 <ol class='footnotes'>
-<li>Resistance among new active bacterial infections, plotted annually from 2022 to 2025. Solid lines: means across accepted simulation run. Shaded bands: 5th-95th percentile (90% interval) across runs.</li><li>Serious-R trend requires simulation_summary column newly_infected_with_serious_resistance_count. Re-run the Rust simulation after adding this field to show the serious-R line.</li><li>Any resistance is the percentage of new active bacterial infections whose infection-level any-R value is positive for at least one drug. Serious-R marker resistance is the percentage whose bacterium-specific serious-R marker drug has infection-level any-R above the infection threshold at infection establishment. Both metrics use the same denominator: all new active bacterial infections.</li><li>Values are averaged within each calendar year across all daily time steps.</li><li>Full 1930-2025 data require a simulation run spanning the complete historical period, not just the 2022-2025 calibration window.</li>
+<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,750,181; population scale factor: 4,685.2305; runs: 1 accepted calibration run.</li><li>Deaths include sepsis and infection_non_sepsis deaths. Rates are all-age rates for the 2022-2025 calibration window. n = 1 simulation run.</li><li>Source: matched simulation_summary_*.csv files discovered from the supplied calibration_summary_*.txt paths.</li><li>Calculation: 100,000 x regional infection deaths divided by regional person-years alive. Person-years are summed from regional alive population counts across daily/timestep simulation rows.</li>
 </ol></body></html>

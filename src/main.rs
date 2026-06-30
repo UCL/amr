@@ -222,7 +222,7 @@ fn main() {
 
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
-    let population_size = 300_000;
+    let population_size = 3_000_000;
     // CalibrationMode::FullMinimal — sparse 2022-2025 CSV with drug-share plus bacteria×drug resistance.
     // CalibrationMode::Full        — sparse 2022-2025 CSV with all fields needed for calibration_summary.txt.
     // CalibrationMode::Partial     — all 1930-2025 rows kept; time-series plots still work.

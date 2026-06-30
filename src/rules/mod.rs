@@ -2782,14 +2782,13 @@ pub(crate) fn apply_rules(
                     match drug_name {
                         // Keep generic immunodeficiency prophylaxis tightly constrained to a small
                         // outpatient-oriented set rather than the full empiric pool.
-                        // Next-pass calibration after 1m run reduces macrolide and
-                        // fluoroquinolone prophylaxis pressure while restoring TMP-SMX.
+                        // Focused calibration pass reduces TMP-SMX overshoot while modestly
+                        // restoring macrolide and fluoroquinolone prophylaxis pressure.
                         // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
-                        // ^^^^
-                        "trim_sulf" => 1.0,
-                        "azithromycin" => 0.8,
-                        "ciprofloxacin" => 1.0,
-                        "levofloxacin" => 0.7,
+                        "trim_sulf" => 0.35,
+                        "azithromycin" => 1.0,
+                        "ciprofloxacin" => 1.2,
+                        "levofloxacin" => 0.9,
                         _ => 0.0,
                     }
                 } else {

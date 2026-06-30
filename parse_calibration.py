@@ -210,6 +210,10 @@ _BENCH_COLS = [
 
 
 def _parse_resistance_benchmarks(section_lines: list[str]) -> pd.DataFrame:
+    dynamic = _table_from_section(section_lines)
+    if not dynamic.empty:
+        return dynamic
+
     rows: list[list[str]] = []
     for line in section_lines[1:]:
         s = line.strip()

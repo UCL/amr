@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Supplementary Table S1. Infection outcomes by bacterium, 2022–2025</title><style>
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5; max-width: 1500px; margin: 0 auto;
+  padding: 24px; color: #222; font-size: 13px;
+}
+h1  { font-size: 1.25em; border-bottom: 2px solid #2c3e50;
+      padding-bottom: 8px; color: #2c3e50; margin-bottom: 4px; }
+h2  { font-size: 1.05em; margin-top: 26px; color: #2c3e50;
+      border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.subtitle { color: #555; font-size: 0.9em; margin-bottom: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px 0;
+        font-size: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+th, td { border: 1px solid #ccc; padding: 5px 9px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 160px; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; }
+th { background: #eef1f5; font-weight: 600; color: #2c3e50; }
+tr:nth-child(even) td { background: #fafbfc; }
+tr:hover td { background: #eef4fb; }
+.total-row td { font-weight: 600; background: #e2e8f0 !important; }
+.note  { font-style: italic; color: #666; font-size: 0.87em; margin: 4px 0; }
+.meta-box {
+  background: #f4f7fb; border-left: 4px solid #3498db;
+  padding: 9px 14px; margin-bottom: 14px;
+  border-radius: 0 4px 4px 0; font-size: 0.88em; color: #333;
+}
+ol.footnotes { font-size: 0.87em; color: #444; padding-left: 22px; margin-top: 20px; }
+ol.footnotes li { margin-bottom: 7px; line-height: 1.5; }
+.back-link { font-size: 0.83em; margin-bottom: 12px; }
+a { color: #2980b9; }
+</style></head>
+<body>
+<p class='back-link'><a href='../index.html'>← Back to index</a></p>
+<h1>Supplementary Table S1. Infection outcomes by bacterium, 2022–2025</h1>
+<div class='meta-box'><strong>Target year:</strong> 2025 &nbsp;|&nbsp; <strong>Window:</strong> 4.00 simulated years (totals annualized to yearly equivalents) &nbsp;|&nbsp; <strong>Simulated population (mean):</strong> 1,750,181 &nbsp;|&nbsp; <strong>Population scale factor:</strong> 4,685.2305 &nbsp;|&nbsp; <strong>Runs:</strong> 1 accepted calibration run</div>
+<p class='note'>Supplementary Table S1 requires aggregate per-bacterium vector columns in simulation_summary_run#.csv: new_active_infections_by_bacteria, active_infection_days_by_bacteria, treated_infection_days_by_bacteria, effective_treated_infection_days_by_bacteria, infection_resolution_count_by_bacteria, sepsis_onset_count_by_bacteria, infection_death_count_by_bacteria, drug_failure_count_by_bacteria. Re-run the Rust simulation after adding these observability fields to generate the real table.</p>
+<h2>Required simulation_summary columns</h2>
+<ul>
+<li><code>new_active_infections_by_bacteria</code></li>
+<li><code>active_infection_days_by_bacteria</code></li>
+<li><code>treated_infection_days_by_bacteria</code></li>
+<li><code>effective_treated_infection_days_by_bacteria</code></li>
+<li><code>infection_resolution_count_by_bacteria</code></li>
+<li><code>sepsis_onset_count_by_bacteria</code></li>
+<li><code>infection_death_count_by_bacteria</code></li>
+<li><code>drug_failure_count_by_bacteria</code></li>
+</ul>
+<h2>Parser notes</h2>
+<ul>
+<li>simulation_summary_392475.csv: missing columns new_active_infections_by_bacteria, active_infection_days_by_bacteria, treated_infection_days_by_bacteria, effective_treated_infection_days_by_bacteria, infection_resolution_count_by_bacteria, sepsis_onset_count_by_bacteria, infection_death_count_by_bacteria, drug_failure_count_by_bacteria.</li>
+</ul>
+<ol class='footnotes'>
+<li>Old simulation_summary files remain readable: when the required aggregate columns are absent, this placeholder is generated rather than failing the paper-output build.</li><li>No supplementary-table-specific CSV or event-level output is required.</li>
+</ol></body></html>
