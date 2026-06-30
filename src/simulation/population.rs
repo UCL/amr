@@ -1542,6 +1542,42 @@ pub struct Individual {
     /// Day (time_step) when sepsis started for each bacteria. -1 = never had sepsis.
     pub sepsis_onset_day: Vec<i32>,
 
+    /// Output-only tracker for open incident sepsis episodes by bacterium.
+    #[serde(default)]
+    pub sepsis_episode_open: Vec<bool>,
+
+    /// Output-only onset antibiotic context category for each open sepsis episode.
+    #[serde(default)]
+    pub sepsis_episode_context_at_onset: Vec<i32>,
+
+    /// Output-only best current-drug activity_r observed immediately before sepsis onset.
+    #[serde(default)]
+    pub sepsis_episode_best_activity_at_onset: Vec<f64>,
+
+    /// Output-only flag for whether activity_r met the effective-therapy threshold at onset.
+    #[serde(default)]
+    pub sepsis_episode_effective_at_onset: Vec<bool>,
+
+    /// Output-only first day when therapy reached the effective-therapy threshold.
+    #[serde(default)]
+    pub sepsis_episode_first_effective_day: Vec<i32>,
+
+    /// Output-only guard to avoid double-counting the Figure 11 delay bucket.
+    #[serde(default)]
+    pub sepsis_episode_delay_bucket_recorded: Vec<bool>,
+
+    /// Output-only region index captured at sepsis onset.
+    #[serde(default)]
+    pub sepsis_episode_region_at_onset: Vec<i32>,
+
+    /// Output-only hospitalization status captured at sepsis onset.
+    #[serde(default)]
+    pub sepsis_episode_hospitalized_at_onset: Vec<bool>,
+
+    /// Output-only age-group index captured at sepsis onset.
+    #[serde(default)]
+    pub sepsis_episode_age_group_at_onset: Vec<i32>,
+
     /// True if infection was prevented by existing therapy for each bacteria this timestep.
     /// Reset to false at start of each timestep, set to true if prevention occurs.
     pub infection_prevented_by_drug: Vec<bool>,
@@ -1861,6 +1897,15 @@ impl Individual {
         let clearance_ready_day = vec![-1; num_bacteria];
         let sepsis = vec![false; num_bacteria];
         let sepsis_onset_day = vec![-1; num_bacteria]; // -1 indicates never had sepsis
+        let sepsis_episode_open = vec![false; num_bacteria];
+        let sepsis_episode_context_at_onset = vec![0; num_bacteria];
+        let sepsis_episode_best_activity_at_onset = vec![0.0; num_bacteria];
+        let sepsis_episode_effective_at_onset = vec![false; num_bacteria];
+        let sepsis_episode_first_effective_day = vec![-1; num_bacteria];
+        let sepsis_episode_delay_bucket_recorded = vec![false; num_bacteria];
+        let sepsis_episode_region_at_onset = vec![-1; num_bacteria];
+        let sepsis_episode_hospitalized_at_onset = vec![false; num_bacteria];
+        let sepsis_episode_age_group_at_onset = vec![-1; num_bacteria];
 
         let presence_microbiome = vec![false; num_bacteria];
         let microbiome_disruption_level = 0.0;
@@ -1960,6 +2005,15 @@ impl Individual {
             clearance_ready_day,
             sepsis,
             sepsis_onset_day,
+            sepsis_episode_open,
+            sepsis_episode_context_at_onset,
+            sepsis_episode_best_activity_at_onset,
+            sepsis_episode_effective_at_onset,
+            sepsis_episode_first_effective_day,
+            sepsis_episode_delay_bucket_recorded,
+            sepsis_episode_region_at_onset,
+            sepsis_episode_hospitalized_at_onset,
+            sepsis_episode_age_group_at_onset,
             infection_prevented_by_drug: vec![false; num_bacteria],
             presence_microbiome,
             microbiome_disruption_level,

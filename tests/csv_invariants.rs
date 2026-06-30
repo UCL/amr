@@ -100,6 +100,60 @@ fn assert_antibiotic_context_counts_sum(path: &Path) {
     }
 }
 
+fn assert_new_infection_resistance_counts_bounded(path: &Path) {
+    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
+    let header = reader
+        .headers()
+        .expect("CSV should include headers")
+        .clone();
+    let index = |name: &str| {
+        header
+            .iter()
+            .position(|column| column == name)
+            .unwrap_or_else(|| panic!("summary CSV should include {name}"))
+    };
+    let newly_infected_idx = index("newly_infected_count");
+    let any_resistance_idx = index("newly_infected_with_resistance_count");
+    let serious_resistance_idx = index("newly_infected_with_serious_resistance_count");
+    let marker_eligible_idx = index("newly_infected_serious_resistance_marker_eligible_count");
+
+    for (row_idx, record) in reader.records().enumerate() {
+        let record = record.expect("CSV data row should parse");
+        let parse_usize = |idx: usize| {
+            record
+                .get(idx)
+                .expect("field should exist")
+                .parse::<usize>()
+                .expect("count field should parse as usize")
+        };
+        let newly_infected = parse_usize(newly_infected_idx);
+        let any_resistance = parse_usize(any_resistance_idx);
+        let serious_resistance = parse_usize(serious_resistance_idx);
+        let marker_eligible = parse_usize(marker_eligible_idx);
+
+        assert!(
+            any_resistance <= newly_infected,
+            "newly infected any-resistance count should be bounded by newly infected count in CSV row {}",
+            row_idx + 2
+        );
+        assert!(
+            serious_resistance <= newly_infected,
+            "newly infected serious-R count should be bounded by newly infected count in CSV row {}",
+            row_idx + 2
+        );
+        assert!(
+            marker_eligible <= newly_infected,
+            "newly infected serious-R marker-eligible count should be bounded by newly infected count in CSV row {}",
+            row_idx + 2
+        );
+        assert!(
+            serious_resistance <= any_resistance,
+            "newly infected serious-R count should be bounded by newly infected any-resistance count in CSV row {}",
+            row_idx + 2
+        );
+    }
+}
+
 fn csv_header(path: &Path) -> csv::StringRecord {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -110,6 +164,33 @@ fn csv_header(path: &Path) -> csv::StringRecord {
         .next()
         .expect("CSV should include a header row")
         .expect("header row should parse")
+}
+
+fn assert_summary_has_figure_11_columns(path: &Path) {
+    let header = csv_header(path);
+    let expected = [
+        "sepsis_onset_no_antibiotic_count",
+        "sepsis_onset_other_or_prophylaxis_only_count",
+        "sepsis_onset_empiric_not_effective_count",
+        "sepsis_onset_empiric_effective_count",
+        "sepsis_onset_targeted_not_effective_count",
+        "sepsis_onset_targeted_effective_count",
+        "sepsis_onset_unknown_legacy_count",
+        "sepsis_effective_therapy_on_or_before_onset_count",
+        "sepsis_effective_therapy_later_same_day_count",
+        "sepsis_effective_therapy_1_day_count",
+        "sepsis_effective_therapy_2_3_days_count",
+        "sepsis_effective_therapy_4plus_days_count",
+        "sepsis_no_effective_therapy_before_resolution_death_or_censoring_count",
+        "sepsis_effective_therapy_unknown_or_censored_count",
+    ];
+
+    for expected_name in expected {
+        assert!(
+            header.iter().any(|column| column == expected_name),
+            "summary CSV should include Figure 11 column {expected_name}"
+        );
+    }
 }
 
 fn journey_output_path() -> PathBuf {
@@ -131,6 +212,8 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
 
     assert_csv_rows_match_header_width(&path);
     assert_antibiotic_context_counts_sum(&path);
+    assert_new_infection_resistance_counts_bounded(&path);
+    assert_summary_has_figure_11_columns(&path);
 }
 
 #[test]

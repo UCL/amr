@@ -256,7 +256,7 @@ fn requires_hospital_management(drug_name: &str) -> bool {
 }
 
 #[inline]
-fn serious_resistance_marker_drugs(bacteria_name: &str) -> &'static [&'static str] {
+pub(crate) fn serious_resistance_marker_drugs(bacteria_name: &str) -> &'static [&'static str] {
     match bacteria_name {
         "escherichia_coli"
         | "klebsiella_pneumoniae"
@@ -2782,14 +2782,14 @@ pub(crate) fn apply_rules(
                     match drug_name {
                         // Keep generic immunodeficiency prophylaxis tightly constrained to a small
                         // outpatient-oriented set rather than the full empiric pool.
-                        // trim_sulf reduced from 6.0 → 0.8 to bring sulfonamide class share
-                        // toward 4% target (was ~21% due to prophylaxis domination).
+                        // Next-pass calibration after 1m run reduces macrolide and
+                        // fluoroquinolone prophylaxis pressure while restoring TMP-SMX.
                         // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
                         // ^^^^
-                        "trim_sulf" => 1.2,
-                        "azithromycin" => 3.5,
-                        "ciprofloxacin" => 2.0,
-                        "levofloxacin" => 1.5,
+                        "trim_sulf" => 1.0,
+                        "azithromycin" => 0.8,
+                        "ciprofloxacin" => 1.0,
+                        "levofloxacin" => 0.7,
                         _ => 0.0,
                     }
                 } else {

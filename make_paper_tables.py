@@ -2,7 +2,8 @@
 make_paper_tables.py
 
 Generate the paper-facing HTML outputs from one or more calibration_summary_*.txt
-files: Table 1 plus Figures 1-8.
+files: Table 1 plus Figures 1-8, placeholder Figure 10, Figure 11,
+Figure 15, Figure 19, and Figure 20.
 
 Usage
 -----
@@ -27,6 +28,11 @@ paper_tables/
         Figure_6__resistance_trend.html/.png/.svg
         Figure_7__infection_death_rate_by_region.html/.png/.svg
         Figure_8__antibiotic_use_by_treatment_context.html/.png/.svg
+        Figure_10__resistance_pathway_counterfactuals.html/.png/.svg
+        Figure_11__sepsis_context_effective_therapy.html/.png/.svg
+        Figure_15__mean_activity_r_by_bacteria.html/.png/.svg
+        Figure_19__distribution_drug_use_by_bacteria.html/.png/.svg
+        Figure_20__serious_r_by_hospital_community.html/.png/.svg
 """
 
 from __future__ import annotations
@@ -1287,32 +1293,80 @@ def _discover_simulation_csvs_with_scale(
     return rows
 
 
-def _load_resistance_series(csv_path: Path) -> pd.DataFrame | None:
-    """
-    Load a simulation_summary CSV and return a DataFrame with columns:
-      year          — calendar year (float, 1930-based)
-      pct_resistant — % of newly infected individuals carrying any resistance
+_F6_SERIOUS_RESISTANCE_COLUMN = "newly_infected_with_serious_resistance_count"
+_F6_MARKER_ELIGIBLE_COLUMN = "newly_infected_serious_resistance_marker_eligible_count"
+_F6_SERIOUS_R_MISSING_NOTE = (
+    "Serious-R trend requires simulation_summary column "
+    "newly_infected_with_serious_resistance_count. Re-run the Rust simulation after "
+    "adding this field to show the serious-R line."
+)
 
-    Returns None if the required columns are absent.
+
+def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, bool]:
+    """
+    Load a simulation_summary CSV and return annual-resistance inputs.
+
+    The serious-R and marker-eligible columns are optional so older CSVs still
+    generate the original any-resistance trend.
     """
     needed = ["time_in_years", "newly_infected_count", "newly_infected_with_resistance_count"]
     try:
-        df = pd.read_csv(csv_path, usecols=needed)
+        header = pd.read_csv(csv_path, nrows=0)
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        return None, False, False
+
+    available_columns = set(header.columns)
+    has_serious_column = _F6_SERIOUS_RESISTANCE_COLUMN in available_columns
+    has_marker_eligible_column = _F6_MARKER_ELIGIBLE_COLUMN in available_columns
+    if any(column not in available_columns for column in needed):
+        return None, has_serious_column, has_marker_eligible_column
+
+    usecols = list(needed)
+    if has_serious_column:
+        usecols.append(_F6_SERIOUS_RESISTANCE_COLUMN)
+    try:
+        df = pd.read_csv(csv_path, usecols=usecols)
     except (FileNotFoundError, ValueError):
-        return None
+        return None, has_serious_column, has_marker_eligible_column
+
     df = df.dropna(subset=needed)
     df = df[df["newly_infected_count"] > 0].copy()
+    if df.empty:
+        return None, has_serious_column, has_marker_eligible_column
     df["year"] = _F1_SIM_EPOCH_YEAR + df["time_in_years"]
     df["pct_resistant"] = (
         df["newly_infected_with_resistance_count"] / df["newly_infected_count"] * 100.0
     )
-    return df[["year", "pct_resistant"]]
+    columns = ["year", "pct_resistant"]
+    if has_serious_column:
+        df["pct_serious_resistant"] = (
+            df[_F6_SERIOUS_RESISTANCE_COLUMN] / df["newly_infected_count"] * 100.0
+        )
+        columns.append("pct_serious_resistant")
+    return df[columns], has_serious_column, has_marker_eligible_column
+
+
+def _combine_annual_resistance_series(
+    series_list: list[pd.DataFrame],
+    value_column: str,
+) -> pd.DataFrame:
+    annual_frames: list[pd.Series] = []
+    for series in series_list:
+        if value_column not in series.columns:
+            continue
+        one_run = series.dropna(subset=[value_column]).copy()
+        if one_run.empty:
+            continue
+        one_run["year_int"] = one_run["year"].apply(int)
+        annual_frames.append(one_run.groupby("year_int")[value_column].mean())
+    if not annual_frames:
+        return pd.DataFrame()
+    return pd.concat(annual_frames, axis=1)
 
 
 def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None:
     """
-    Figure 6: time trend of the proportion of new bacterial infections in which
-    resistance to any antibiotic was present at infection, 1930–2025.
+    Figure 6: time trend of resistance among new active bacterial infections.
 
     Each run in *csv_paths* contributes one time series.  The figure shows:
       - solid mean line across all runs
@@ -1332,12 +1386,22 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     # Load all run series                                                   #
     # ------------------------------------------------------------------ #
     series_list: list[pd.DataFrame] = []
+    serious_series_list: list[pd.DataFrame] = []
+    marker_eligible_column_available = False
     for p in csv_paths:
-        s = _load_resistance_series(p)
+        s, has_serious_column, has_marker_eligible_column = _load_resistance_series(p)
+        marker_eligible_column_available = (
+            marker_eligible_column_available or has_marker_eligible_column
+        )
         if s is not None and not s.empty:
             series_list.append(s)
+            if has_serious_column and "pct_serious_resistant" in s.columns:
+                serious_series_list.append(s)
 
     n_runs = len(series_list)
+    n_serious_runs = len(serious_series_list)
+    serious_available = n_serious_runs > 0
+    serious_column_missing = n_serious_runs < n_runs
     data_available = n_runs > 0
 
     # Determine calendar year range covered by the data
@@ -1354,25 +1418,51 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     fig, ax = plt.subplots(figsize=(10, 5))
 
     if data_available:
-        # Resample every run to annual means, then stack
-        annual_frames: list[pd.Series] = []
-        for s in series_list:
-            s = s.copy()
-            s["year_int"] = s["year"].apply(int)
-            annual = s.groupby("year_int")["pct_resistant"].mean()
-            annual_frames.append(annual)
-
-        combined = pd.concat(annual_frames, axis=1)   # rows=years, cols=runs
-        years     = combined.index.values
+        combined = _combine_annual_resistance_series(series_list, "pct_resistant")
+        years = combined.index.values
         mean_vals = combined.mean(axis=1).values
-        p5_vals   = combined.quantile(0.05, axis=1).values
-        p95_vals  = combined.quantile(0.95, axis=1).values
+        p5_vals = combined.quantile(0.05, axis=1).values
+        p95_vals = combined.quantile(0.95, axis=1).values
 
-        ax.fill_between(years, p5_vals, p95_vals,
-                        color=_F1_TREND_COLOUR_CLOUD, alpha=0.55,
-                        label="90% interval across runs")
-        ax.plot(years, mean_vals,
-                color=_F1_TREND_COLOUR_MEAN, linewidth=1.8, label="Mean")
+        ax.fill_between(
+            years,
+            p5_vals,
+            p95_vals,
+            color=_F1_TREND_COLOUR_CLOUD,
+            alpha=0.45,
+        )
+        ax.plot(
+            years,
+            mean_vals,
+            color=_F1_TREND_COLOUR_MEAN,
+            linewidth=1.8,
+            label="Any resistance",
+        )
+
+        if serious_available:
+            serious_combined = _combine_annual_resistance_series(
+                serious_series_list,
+                "pct_serious_resistant",
+            )
+            if not serious_combined.empty:
+                serious_years = serious_combined.index.values
+                serious_mean = serious_combined.mean(axis=1).values
+                serious_p5 = serious_combined.quantile(0.05, axis=1).values
+                serious_p95 = serious_combined.quantile(0.95, axis=1).values
+                ax.fill_between(
+                    serious_years,
+                    serious_p5,
+                    serious_p95,
+                    color="#F4A261",
+                    alpha=0.28,
+                )
+                ax.plot(
+                    serious_years,
+                    serious_mean,
+                    color="#C65D00",
+                    linewidth=1.8,
+                    label="Serious-R marker resistance",
+                )
 
         # Annotate if data are sparse (calibration window only)
         if year_min_data > _F1_SIM_EPOCH_YEAR + 80:
@@ -1388,10 +1478,10 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     else:
         # Placeholder panel
         ax.text(0.5, 0.5,
-                "Figure 6. Resistance trend\n\n"
+                "Figure 6. Resistance trends\n\n"
                 "Data not yet available.\n"
                 "Re-run with full-period simulation output\n"
-                "(simulation_summary_*.csv covering 1930–2025)\n"
+                "(simulation_summary_*.csv covering 1930-2025)\n"
                 "to generate this figure.",
                 ha="center", va="center", transform=ax.transAxes,
                 fontsize=11, color="#555",
@@ -1402,13 +1492,16 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
         ax.set_xlim(_F1_SIM_EPOCH_YEAR, _F1_SIM_EPOCH_YEAR + 96)
         ax.set_ylim(0, 100)
         ax.set_xlabel("Year", fontsize=11)
-        ax.set_ylabel("New infections with any resistance (%)", fontsize=11)
+        ax.set_ylabel("New infections with resistance (%)", fontsize=11)
         ax.spines[["top", "right"]].set_visible(False)
         ax.grid(axis="y", linewidth=0.4, alpha=0.5)
-        n_label = f"n\u2009=\u2009{n_runs} run{'s' if n_runs > 1 else ''}"
+        if serious_available and n_serious_runs != n_runs:
+            n_label = f"Any n = {n_runs}; Serious-R n = {n_serious_runs}"
+        else:
+            n_label = f"n = {n_runs} run{'s' if n_runs > 1 else ''}"
         ax.legend(fontsize=9, frameon=False, title=n_label, title_fontsize=8)
 
-    fig.suptitle("Figure 6. Resistance trend", fontsize=11, fontweight="bold")
+    fig.suptitle("Figure 6. Resistance trends", fontsize=11, fontweight="bold")
     fig.tight_layout()
 
     fig.savefig(png_path, dpi=150, bbox_inches="tight")
@@ -1420,36 +1513,49 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     # HTML wrapper
     html_rel_img = f"{stem}.png"
     html_rel_svg = f"{stem}.svg"
-    body  = _html_head("Figure 6. Resistance Trend")
+    body  = _html_head("Figure 6. Resistance Trends")
     body += _back_link()
     if data_available:
         figure_note = (
-            f"Proportion of newly infected individuals carrying any antibiotic-"
-            f"resistant strain, plotted annually from {int(year_min_data)} to "
-            f"{int(year_max_data)}. "
-            f"Solid line: mean across {n_runs} accepted simulation run"
+            f"Resistance among new active bacterial infections, plotted annually "
+            f"from {int(year_min_data)} to {int(year_max_data)}. "
+            f"Solid lines: means across accepted simulation run"
             f"{'s' if n_runs > 1 else ''}. "
-            f"Shaded band: 5th\u201395th percentile (90% interval) across runs."
+            f"Shaded bands: 5th-95th percentile (90% interval) across runs."
         )
+        footnotes = [
+            figure_note,
+            "Any resistance is the percentage of new active bacterial infections whose "
+            "infection-level any-R value is positive for at least one drug. Serious-R marker "
+            "resistance is the percentage whose bacterium-specific serious-R marker drug has "
+            "infection-level any-R above the infection threshold at infection establishment. "
+            "Both metrics use the same denominator: all new active bacterial infections.",
+            "Values are averaged within each calendar year across all daily time steps.",
+            "Full 1930-2025 data require a simulation run spanning the complete historical period, "
+            "not just the 2022-2025 calibration window.",
+        ]
+        if serious_column_missing:
+            footnotes.insert(1, _F6_SERIOUS_R_MISSING_NOTE)
+        if marker_eligible_column_available:
+            footnotes.append(
+                "The simulation summary also includes "
+                "newly_infected_serious_resistance_marker_eligible_count as a QC field for "
+                "new infections whose bacterium has a serious-R marker; the plotted denominator "
+                "remains all new active bacterial infections."
+            )
     else:
         figure_note = (
-            "Placeholder \u2014 full-period simulation data (1930\u20132025) not yet available. "
+            "Placeholder - full-period simulation data (1930-2025) not yet available. "
             "Run the simulation in non-calibration mode and supply the resulting "
             "<code>simulation_summary_*.csv</code> files to generate this figure."
         )
+        footnotes = [figure_note]
     body += (
         f"<img src='{html_rel_img}' alt='Figure 6' "
         f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
     )
     body += f"<p class='note'>Download: <a href='{html_rel_img}'>PNG</a> | <a href='{html_rel_svg}'>SVG</a></p>\n"
-    body += _html_footnotes([
-        figure_note,
-        "Resistance presence is defined as the individual carrying at least one bacterial strain "
-        "with any resistance at the time of infection acquisition.",
-        "Values are averaged within each calendar year across all daily time steps.",
-        "Full 1930\u20132025 data require a simulation run spanning the complete historical period, "
-        "not just the 2022\u20132025 calibration window.",
-    ])
+    body += _html_footnotes(footnotes)
     body += "</body></html>"
     _save(html_path, body)
 
@@ -3058,6 +3164,1916 @@ def make_figure_8_antibiotic_use_by_context(
     )
 
 
+_F10_TITLE = "Figure 10. Counterfactual resistance-acquisition pathway comparisons"
+_F10_STEM = "Figure_10__resistance_pathway_counterfactuals"
+_F10_NOTE = (
+    "Figure 10 is intentionally shown as a placeholder. The planned analysis requires a set "
+    "of counterfactual model runs in which resistance-acquisition or resistance-spread pathways "
+    "are individually disabled or modified. The current baseline simulation_summary and "
+    "calibration_summary files do not contain the required scenario comparisons."
+)
+
+
+def make_figure_10_resistance_pathway_counterfactuals(
+    out_dir: Path,
+    agg: dict | None = None,
+) -> None:
+    placeholder_text = (
+        "Figure 10 placeholder\n\n"
+        "This figure will compare resistance and health outcomes across counterfactual\n"
+        "model runs in which individual resistance-acquisition or resistance-spread\n"
+        "pathways are disabled or modified.\n\n"
+        "Required future inputs:\n"
+        "- baseline run with all pathways active\n"
+        "- pathway-ablation runs\n"
+        "- consistent run settings and calibration window\n"
+        "- agreed outcome metrics, such as any-R, serious-R,\n"
+        "  resistance-adjusted activity, antibiotic use, sepsis, and infection deaths\n\n"
+        "This figure will be completed after the counterfactual run set is defined\n"
+        "and generated."
+    )
+
+    fig, ax = plt.subplots(figsize=(10.5, 5.2))
+    ax.text(
+        0.5,
+        0.5,
+        placeholder_text,
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=11,
+        color="#333",
+        linespacing=1.35,
+        bbox=dict(boxstyle="round,pad=0.7", fc="#f7f8fa", ec="#b7c0cc"),
+    )
+    ax.set_axis_off()
+    fig.suptitle(_F10_TITLE, fontsize=11.5, fontweight="bold")
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.88, bottom=0.08)
+
+    planned_scenarios = pd.DataFrame([
+        {
+            "Planned scenario": "All pathways active",
+            "Resistance pathway affected": "Reference scenario",
+            "Status": "Not yet generated for this figure",
+        },
+        {
+            "Planned scenario": "No infection de novo resistance",
+            "Resistance pathway affected": "Within-infection emergence",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No microbiome de novo resistance",
+            "Resistance pathway affected": "Carriage/bystander selection",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No HGT",
+            "Resistance pathway affected": "Horizontal gene transfer",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No carrier-to-infection inheritance",
+            "Resistance pathway affected": "Carriage-to-infection transfer",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No hospital enrichment",
+            "Resistance pathway affected": "Hospital resistance-profile sampling",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No environmental/static floors",
+            "Resistance pathway affected": "Background reseeding",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No persistence/ratchet floors",
+            "Resistance pathway affected": "Long-term persistence",
+            "Status": "Pending",
+        },
+        {
+            "Planned scenario": "No late de novo resistance after drug maturity window",
+            "Resistance pathway affected": "Post-introduction emergence",
+            "Status": "Pending",
+        },
+    ])
+    extra_html = "<h2>Planned Scenarios</h2>\n" + _html_table(planned_scenarios)
+    footnotes = [
+        "The final Figure 10 is intended to compare resistance and health outcomes across "
+        "dedicated counterfactual model runs with matched random seeds and run settings.",
+        "No counterfactual results are displayed here, and no pathway-ablation settings are "
+        "inferred from current calibration summaries or baseline simulation summaries.",
+    ]
+    _save_figure(
+        fig,
+        out_dir,
+        _F10_STEM,
+        _F10_TITLE,
+        _F10_NOTE,
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+    print("  Figure 10: placeholder for future resistance-pathway counterfactual runs.")
+
+
+_F11_TITLE = "Figure 11. Sepsis onset context and time to effective therapy, 2022\u20132025"
+_F11_STEM = "Figure_11__sepsis_context_effective_therapy"
+_F11_REQUIRED_MESSAGE = (
+    "Figure 11 requires simulation_summary columns for sepsis-onset context counts and "
+    "effective-therapy delay buckets. Re-run the Rust simulation after adding these aggregate "
+    "columns to generate this figure."
+)
+_F11_CONTEXT_COLUMNS = [
+    ("Targeted, effective", "sepsis_onset_targeted_effective_count"),
+    ("Targeted, not effective", "sepsis_onset_targeted_not_effective_count"),
+    ("Empiric, effective", "sepsis_onset_empiric_effective_count"),
+    ("Empiric, not effective", "sepsis_onset_empiric_not_effective_count"),
+    ("Other / prophylaxis only", "sepsis_onset_other_or_prophylaxis_only_count"),
+    ("No antibiotic active", "sepsis_onset_no_antibiotic_count"),
+    ("Unknown / legacy", "sepsis_onset_unknown_legacy_count"),
+]
+_F11_DELAY_COLUMNS = [
+    (
+        "Effective on or before sepsis onset",
+        "sepsis_effective_therapy_on_or_before_onset_count",
+    ),
+    (
+        "Effective later the same day",
+        "sepsis_effective_therapy_later_same_day_count",
+    ),
+    ("1 day after onset", "sepsis_effective_therapy_1_day_count"),
+    ("2-3 days after onset", "sepsis_effective_therapy_2_3_days_count"),
+    ("4+ days after onset", "sepsis_effective_therapy_4plus_days_count"),
+    (
+        "No effective therapy before resolution, death, or censoring",
+        "sepsis_no_effective_therapy_before_resolution_death_or_censoring_count",
+    ),
+    ("Unknown / censored", "sepsis_effective_therapy_unknown_or_censored_count"),
+]
+_F11_REQUIRED_COLUMNS = (
+    ["time_in_years", "policy_option"]
+    + [column for _, column in _F11_CONTEXT_COLUMNS]
+    + [column for _, column in _F11_DELAY_COLUMNS]
+)
+_F11_OPTIONAL_COLUMNS = ["run_id", "time_step"]
+_F11_CONTEXT_COLOURS = {
+    "Targeted, effective": "#2A9D8F",
+    "Targeted, not effective": "#D1495B",
+    "Empiric, effective": "#4C78A8",
+    "Empiric, not effective": "#F28E2B",
+    "Other / prophylaxis only": "#8D99AE",
+    "No antibiotic active": "#5C677D",
+    "Unknown / legacy": "#6D597A",
+}
+_F11_DELAY_COLOURS = {
+    "Effective on or before sepsis onset": "#2A9D8F",
+    "Effective later the same day": "#3A86FF",
+    "1 day after onset": "#59A14F",
+    "2-3 days after onset": "#EDC948",
+    "4+ days after onset": "#F28E2B",
+    "No effective therapy before resolution, death, or censoring": "#D1495B",
+    "Unknown / censored": "#8D99AE",
+}
+
+
+def _figure_11_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
+    fig, ax = plt.subplots(figsize=(9.5, 3.4))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_F11_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.5,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.92, bottom=0.08)
+    _save_figure(fig, out_dir, _F11_STEM, _F11_TITLE, message, [], agg=agg)
+
+
+def _figure_11_load_summary(csv_path: Path) -> tuple[pd.DataFrame | None, str | None]:
+    try:
+        header = pd.read_csv(csv_path, nrows=0)
+    except (FileNotFoundError, pd.errors.EmptyDataError, OSError) as exc:
+        return None, f"{csv_path.name}: unable to read simulation summary CSV ({exc})."
+
+    available = set(header.columns)
+    missing = [column for column in _F11_REQUIRED_COLUMNS if column not in available]
+    if missing:
+        return None, f"{csv_path.name}: missing columns {', '.join(missing)}."
+
+    usecols = [
+        column
+        for column in _F11_REQUIRED_COLUMNS + _F11_OPTIONAL_COLUMNS
+        if column in header.columns
+    ]
+    try:
+        df = pd.read_csv(csv_path, usecols=usecols)
+    except (ValueError, OSError) as exc:
+        return None, f"{csv_path.name}: unable to load summary rows ({exc})."
+
+    df["source_file"] = csv_path.name
+    return df, None
+
+
+def _figure_11_counts_from_columns(
+    df: pd.DataFrame,
+    column_specs: list[tuple[str, str]],
+) -> list[tuple[str, int]]:
+    counts: list[tuple[str, int]] = []
+    for label, column in column_specs:
+        values = pd.to_numeric(df[column], errors="coerce").fillna(0)
+        counts.append((label, int(values.sum())))
+    return counts
+
+
+def _figure_11_stacked_bar(
+    ax,
+    counts: list[tuple[str, int]],
+    total: int,
+    colours: dict[str, str],
+    title: str,
+) -> None:
+    left = 0.0
+    handles = []
+    for label, count in counts:
+        pct = 100.0 * count / total if total else 0.0
+        if pct <= 0.0:
+            continue
+        color = colours.get(label, "#777777")
+        ax.barh([0], [pct], left=left, height=0.48, color=color, edgecolor="white", linewidth=0.8)
+        if pct >= 7.0:
+            ax.text(
+                left + pct / 2.0,
+                0,
+                f"{pct:.0f}%",
+                ha="center",
+                va="center",
+                fontsize=8,
+                color="white",
+                fontweight="bold",
+            )
+        handles.append(mpatches.Patch(color=color, label=f"{label} ({pct:.1f}%)"))
+        left += pct
+
+    ax.set_xlim(0, 100)
+    ax.set_yticks([])
+    ax.set_xlabel("Incident sepsis episodes (%)", fontsize=9.5)
+    ax.set_title(title, loc="left", fontsize=10, fontweight="bold")
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.35, alpha=0.45)
+    if handles:
+        ax.legend(
+            handles=handles,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            frameon=False,
+            fontsize=8,
+        )
+
+
+def make_figure_11_sepsis_context_effective_therapy(
+    csv_paths: list[Path],
+    out_dir: Path,
+    agg: dict | None = None,
+) -> None:
+    if not csv_paths:
+        _figure_11_placeholder(out_dir, agg, _F11_REQUIRED_MESSAGE)
+        print("  Figure 11: placeholder (no simulation summary CSVs found).")
+        return
+
+    frames: list[pd.DataFrame] = []
+    problems: list[str] = []
+    for csv_path in csv_paths:
+        frame, problem = _figure_11_load_summary(csv_path)
+        if problem:
+            problems.append(problem)
+        if frame is not None and not frame.empty:
+            frames.append(frame)
+
+    if not frames:
+        _figure_11_placeholder(out_dir, agg, _F11_REQUIRED_MESSAGE)
+        if problems:
+            print("  Figure 11: placeholder; " + " ".join(problems[:3]))
+        else:
+            print("  Figure 11: placeholder (simulation summary CSVs contained no rows).")
+        return
+
+    df = pd.concat(frames, ignore_index=True)
+    df["policy_option"] = pd.to_numeric(df["policy_option"], errors="coerce")
+    df["sepsis_onset_year"] = _F1_SIM_EPOCH_YEAR + pd.to_numeric(
+        df["time_in_years"],
+        errors="coerce",
+    )
+    df = df[
+        (df["policy_option"] == 0)
+        & (df["sepsis_onset_year"] >= 2022.0)
+        & (df["sepsis_onset_year"] < 2026.0)
+    ].copy()
+    if df.empty:
+        _figure_11_placeholder(
+            out_dir,
+            agg,
+            "No baseline-policy incident sepsis episodes with onset years 2022-2025 were found.",
+        )
+        print("  Figure 11: placeholder (no baseline 2022-2025 sepsis episode rows).")
+        return
+
+    context_counts_all = _figure_11_counts_from_columns(df, _F11_CONTEXT_COLUMNS)
+    delay_counts_all = _figure_11_counts_from_columns(df, _F11_DELAY_COLUMNS)
+    context_total = sum(count for _, count in context_counts_all)
+    delay_total = sum(count for _, count in delay_counts_all)
+
+    if context_total == 0 or delay_total == 0:
+        _figure_11_placeholder(
+            out_dir,
+            agg,
+            "No baseline-policy sepsis-onset aggregate counts were found for onset years 2022-2025.",
+        )
+        print("  Figure 11: placeholder (no baseline 2022-2025 aggregate sepsis counts).")
+        return
+
+    context_counts = [(label, count) for label, count in context_counts_all if count]
+    delay_counts = [(label, count) for label, count in delay_counts_all if count]
+    threshold_note = "Effective therapy threshold: activity_r >= 0.500."
+
+    fig, axes = plt.subplots(2, 1, figsize=(11.0, 4.9), sharex=True)
+    _figure_11_stacked_bar(
+        axes[0],
+        context_counts,
+        context_total,
+        _F11_CONTEXT_COLOURS,
+        "A. Antibiotic context at sepsis onset",
+    )
+    _figure_11_stacked_bar(
+        axes[1],
+        delay_counts,
+        delay_total,
+        _F11_DELAY_COLOURS,
+        "B. Time to first effective therapy",
+    )
+    fig.suptitle(_F11_TITLE, fontsize=11, fontweight="bold")
+    fig.tight_layout(rect=[0, 0.02, 0.78, 0.96])
+
+    detail_rows: list[dict[str, object]] = []
+    for panel, counts, denominator in [
+        ("A. Antibiotic context at onset", context_counts_all, context_total),
+        ("B. Time to first effective therapy", delay_counts_all, delay_total),
+    ]:
+        for label, count in counts:
+            pct = 100.0 * count / denominator if denominator else 0.0
+            note = threshold_note if panel.startswith("B.") or "effective" in label.lower() else ""
+            detail_rows.append({
+                "Panel": panel,
+                "Category": label,
+                "Count": f"{count:,}",
+                "Percent of panel denominator": f"{pct:.1f}%",
+                "Notes": note,
+            })
+
+    details = pd.DataFrame(detail_rows)
+    n_runs = int(df["run_id"].nunique()) if "run_id" in df.columns else len(csv_paths)
+    summary_html = (
+        "<div class='meta-box'>"
+        f"Panel A denominator: <strong>{context_total:,}</strong> incident sepsis onsets. "
+        f"Panel B denominator: <strong>{delay_total:,}</strong> sepsis episodes with an assigned delay bucket. "
+        f"Runs: <strong>{n_runs}</strong>. "
+        f"{threshold_note}"
+        "</div>\n"
+        "<h2>Figure 11 Details</h2>\n"
+        + _html_table(details)
+    )
+
+    footnotes = [
+        "Figure 11 reads only aggregate columns in simulation_summary_run#.csv; no event-level "
+        "sepsis CSV is required or produced.",
+        "Panel A uses course-start context labels in priority order: targeted, empiric, "
+        "other/prophylaxis, no active antibiotic, then unknown/legacy. Effective categories "
+        "mean at least one currently active antibiotic met the activity threshold for that bacterium.",
+        "Panel A counts are incremented on the timestep when a new sepsis episode begins. "
+        "The denominator is incident sepsis onsets in baseline-policy rows with onset years 2022-2025.",
+        "Panel B internally tracks each open sepsis episode until first effective therapy, resolution, "
+        "death, or censoring, then assigns the aggregate delay bucket back to that episode's sepsis-onset "
+        "timestep. The 2022-2025 filter is therefore also based on onset year.",
+        "Activity uses the model's existing resistance-adjusted activity_r stored for each "
+        "bacterium-drug pair. The Figure 11 threshold is output-only and does not change "
+        "treatment selection or infection dynamics.",
+        "Panel B separates antibiotics already effective at the pre-onset snapshot from therapy "
+        "that first becomes effective later in the same daily rule step.",
+    ]
+    if problems:
+        footnotes.append("Some simulation summary CSVs were skipped: " + " ".join(problems[:3]))
+
+    _save_figure(
+        fig,
+        out_dir,
+        _F11_STEM,
+        _F11_TITLE,
+        "Baseline-policy sepsis-onset aggregate counts with onset years 2022-2025.",
+        footnotes,
+        agg=agg,
+        extra_html=summary_html,
+    )
+    print(
+        "  Figure 11: "
+        f"{context_total:,} context count{'s' if context_total != 1 else ''} and "
+        f"{delay_total:,} delay count{'s' if delay_total != 1 else ''} "
+        f"from {len(csv_paths)} simulation CSV{'s' if len(csv_paths) != 1 else ''}."
+    )
+
+
+_F15_TITLE = "Figure 15. Resistance-adjusted antibiotic activity retained by bacterium, 2022–2025"
+_F15_STEM = "Figure_15__mean_activity_r_by_bacteria"
+_F15_REQUIRED_MESSAGE = (
+    "Figure 15 requires simulation_summary CSV columns for activity_r_sum_by_bacteria "
+    "and max_possible_activity_r_sum_by_bacteria."
+)
+
+_F15_KNOWN_BACTERIA_SLUGS = [
+    "acinetobacter_baumannii",
+    "citrobacter_spp.",
+    "enterobacter_spp.",
+    "enterococcus_faecalis",
+    "enterococcus_faecium",
+    "escherichia_coli",
+    "klebsiella_pneumoniae",
+    "morganella_spp.",
+    "proteus_spp.",
+    "serratia_spp.",
+    "p_stuartii",
+    "pseudomonas_aeruginosa",
+    "stenotrophomonas_maltophilia",
+    "staphylococcus_aureus",
+    "staphylococcus_epidermidis",
+    "streptococcus_pneumoniae",
+    "salmonella_enterica_serovar_typhi",
+    "salmonella_enterica_serovar_paratyphi_a",
+    "invasive_non-typhoidal_salmonella_spp.",
+    "shigella_spp.",
+    "neisseria_gonorrhoeae",
+    "streptococcus_pyogenes",
+    "streptococcus_agalactiae",
+    "haemophilus_influenzae",
+    "chlamydia_trachomatis",
+    "mycoplasma_genitalium",
+    "vibrio_cholerae",
+    "neisseria_meningitidis",
+    "listeria_monocytogenes",
+    "clostridioides_difficile",
+    "bacteroides_fragilis",
+    "campylobacter_jejuni",
+    "enterobacter_cloacae",
+    "yersinia_enterocolitica",
+    "moraxella_catarrhalis",
+    "treponema_pallidum",
+    "bordetella_pertussis",
+    "helicobacter_pylori",
+    "mdr_mycobacterium_tuberculosis",
+    "mycoplasma_pneumoniae",
+    "legionella_pneumophila",
+    "burkholderia_cepacia_complex",
+]
+
+
+def _figure_15_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
+    fig, ax = plt.subplots(figsize=(9, 3.6))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_F15_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.5,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.92, bottom=0.08)
+    _save_figure(fig, out_dir, _F15_STEM, _F15_TITLE, message, [], agg=agg)
+
+
+def _figure_15_bacterium_label(slug: str) -> str:
+    label = str(slug or "").strip().replace("_", " ")
+    special = {
+        "p stuartii": "P. stuartii",
+        "mdr mycobacterium tuberculosis": "MDR Mycobacterium tuberculosis",
+        "invasive non-typhoidal salmonella spp.": "Invasive non-typhoidal Salmonella spp.",
+        "salmonella enterica serovar typhi": "Salmonella enterica serovar Typhi",
+        "salmonella enterica serovar paratyphi a": "Salmonella enterica serovar Paratyphi A",
+    }
+    lowered = label.lower()
+    if lowered in special:
+        return special[lowered]
+    words = lowered.split()
+    if not words:
+        return str(slug)
+    formatted = [words[0].capitalize()]
+    for word in words[1:]:
+        formatted.append("spp." if word == "spp." else word)
+    return " ".join(formatted)
+
+
+def _figure_15_parse_vector_cell(value: object) -> list[float]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "null"}:
+        return []
+    text = text.strip("[]()")
+    if not text:
+        return []
+    parts = [part.strip() for part in re.split(r"[;,]", text) if part.strip()]
+    if len(parts) == 1 and " " in parts[0]:
+        parts = [part.strip() for part in re.split(r"\s+", parts[0]) if part.strip()]
+    values: list[float] = []
+    for part in parts:
+        try:
+            values.append(float(part))
+        except ValueError:
+            values.append(float("nan"))
+    return values
+
+
+def _figure_15_extend_array(values: np.ndarray, target_len: int) -> np.ndarray:
+    if len(values) >= target_len:
+        return values
+    extended = np.zeros(target_len, dtype=float)
+    if len(values):
+        extended[: len(values)] = values
+    return extended
+
+
+def _figure_15_detect_activity_columns(
+    columns: list[str],
+) -> tuple[dict[str, tuple[str, str]], tuple[str, str] | None, list[str], bool, str]:
+    column_set = set(columns)
+    wide_pairs: dict[str, tuple[str, str]] = {}
+    missing_denominator: list[str] = []
+
+    for col in columns:
+        if (
+            col.endswith("_activity_r_sum")
+            and not col.endswith("_activity_r_pure_sum")
+            and not col.endswith("_max_possible_activity_r_sum")
+            and not col.startswith("max_possible_")
+        ):
+            slug = col[: -len("_activity_r_sum")]
+            denom_col = f"{slug}_max_possible_activity_r_sum"
+            if denom_col in column_set:
+                wide_pairs[slug] = (col, denom_col)
+            else:
+                missing_denominator.append(slug)
+
+    prefix_patterns = [
+        ("activity_r_sum_by_bacteria__", "max_possible_activity_r_sum_by_bacteria__"),
+        ("activity_r_sum_by_bacteria_", "max_possible_activity_r_sum_by_bacteria_"),
+    ]
+    for num_prefix, denom_prefix in prefix_patterns:
+        for col in columns:
+            if num_prefix.endswith("_") and not num_prefix.endswith("__") and col.startswith(
+                "activity_r_sum_by_bacteria__"
+            ):
+                continue
+            if not col.startswith(num_prefix):
+                continue
+            slug = col[len(num_prefix):]
+            denom_col = f"{denom_prefix}{slug}"
+            if denom_col in column_set:
+                wide_pairs[slug] = (col, denom_col)
+            else:
+                missing_denominator.append(slug)
+
+    vector_pair = None
+    if (
+        "activity_r_sum_by_bacteria" in column_set
+        and "max_possible_activity_r_sum_by_bacteria" in column_set
+    ):
+        vector_pair = ("activity_r_sum_by_bacteria", "max_possible_activity_r_sum_by_bacteria")
+
+    pure_present = any(
+        col.endswith("_activity_r_pure_sum")
+        or col.endswith("_max_possible_activity_r_pure_sum")
+        or col in {
+            "activity_r_pure_sum_by_bacteria",
+            "max_possible_activity_r_pure_sum_by_bacteria",
+        }
+        for col in columns
+    )
+    detection = "wide per-bacterium suffix columns" if wide_pairs else "vector by-bacteria columns"
+    return wide_pairs, vector_pair, missing_denominator, pure_present, detection
+
+
+def _figure_15_rows_from_simulation_csv(
+    csv_path: Path,
+) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
+    try:
+        columns = list(pd.read_csv(csv_path, nrows=0).columns)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [], f"{csv_path.name}: could not read simulation CSV ({exc}).", set(), False, None
+
+    wide_pairs, vector_pair, missing_denominator, pure_present, detection = (
+        _figure_15_detect_activity_columns(columns)
+    )
+    if not wide_pairs and vector_pair is None:
+        return [], f"{csv_path.name}: missing activity_r_sum/max_possible activity columns.", set(), pure_present, None
+
+    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    wanted = set(optional)
+    if wide_pairs:
+        for num_col, denom_col in wide_pairs.values():
+            wanted.add(num_col)
+            wanted.add(denom_col)
+    elif vector_pair is not None:
+        wanted.update(vector_pair)
+
+    try:
+        df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [], f"{csv_path.name}: could not load Figure 15 columns ({exc}).", set(), pure_present, detection
+
+    if "policy_option" in df.columns:
+        policy = pd.to_numeric(df["policy_option"], errors="coerce")
+        df = df[policy == 0].copy()
+
+    df["simulation_year_for_f15"] = _simulation_year_series(df)
+    df = df[(df["simulation_year_for_f15"] >= 2022.0) & (df["simulation_year_for_f15"] < 2026.0)].copy()
+    if df.empty:
+        return [], f"{csv_path.name}: no baseline-policy rows in 2022-2025.", set(missing_denominator), pure_present, detection
+
+    grouped = df.groupby("run_id", dropna=False) if "run_id" in df.columns else [(csv_path.stem, df)]
+    rows: list[dict[str, object]] = []
+    no_denominator = set(missing_denominator)
+
+    if wide_pairs:
+        for num_col, denom_col in wide_pairs.values():
+            df[num_col] = pd.to_numeric(df[num_col], errors="coerce")
+            df[denom_col] = pd.to_numeric(df[denom_col], errors="coerce")
+        for run_key, run_df in grouped:
+            for slug, (num_col, denom_col) in wide_pairs.items():
+                numerator = float(run_df[num_col].sum(skipna=True))
+                denominator = float(run_df[denom_col].sum(skipna=True))
+                if not np.isfinite(denominator) or denominator <= 0.0:
+                    no_denominator.add(slug)
+                    continue
+                rows.append({
+                    "source": csv_path.name,
+                    "run": str(run_key),
+                    "bacterium_slug": slug,
+                    "bacterium": _figure_15_bacterium_label(slug),
+                    "mean_activity_r_percent": 100.0 * numerator / denominator,
+                    "numerator_sum": numerator,
+                    "denominator_sum": denominator,
+                    "detection": detection,
+                })
+    elif vector_pair is not None:
+        num_col, denom_col = vector_pair
+        for run_key, run_df in grouped:
+            numerator_sums = np.zeros(0, dtype=float)
+            denominator_sums = np.zeros(0, dtype=float)
+            for num_value, denom_value in zip(run_df[num_col], run_df[denom_col]):
+                numerator_values = np.array(_figure_15_parse_vector_cell(num_value), dtype=float)
+                denominator_values = np.array(_figure_15_parse_vector_cell(denom_value), dtype=float)
+                target_len = max(len(numerator_sums), len(numerator_values), len(denominator_values))
+                numerator_sums = _figure_15_extend_array(numerator_sums, target_len)
+                denominator_sums = _figure_15_extend_array(denominator_sums, target_len)
+                numerator_values = _figure_15_extend_array(numerator_values, target_len)
+                denominator_values = _figure_15_extend_array(denominator_values, target_len)
+                numerator_sums += np.nan_to_num(numerator_values, nan=0.0)
+                denominator_sums += np.nan_to_num(denominator_values, nan=0.0)
+
+            for idx, denominator in enumerate(denominator_sums):
+                slug = (
+                    _F15_KNOWN_BACTERIA_SLUGS[idx]
+                    if idx < len(_F15_KNOWN_BACTERIA_SLUGS)
+                    else f"bacterium_{idx + 1}"
+                )
+                if not np.isfinite(denominator) or denominator <= 0.0:
+                    no_denominator.add(slug)
+                    continue
+                numerator = float(numerator_sums[idx])
+                rows.append({
+                    "source": csv_path.name,
+                    "run": str(run_key),
+                    "bacterium_slug": slug,
+                    "bacterium": _figure_15_bacterium_label(slug),
+                    "mean_activity_r_percent": 100.0 * numerator / float(denominator),
+                    "numerator_sum": numerator,
+                    "denominator_sum": float(denominator),
+                    "detection": detection,
+                })
+
+    return rows, None, no_denominator, pure_present, detection
+
+
+def make_figure_15_mean_activity_by_bacteria(
+    csv_paths: list[Path],
+    out_dir: Path,
+    agg: dict | None = None,
+) -> None:
+    if not csv_paths:
+        _figure_15_placeholder(out_dir, agg, _F15_REQUIRED_MESSAGE)
+        return
+
+    rows: list[dict[str, object]] = []
+    problems: list[str] = []
+    denominatorless: set[str] = set()
+    pure_present = False
+    detections: set[str] = set()
+
+    for csv_path in csv_paths:
+        run_rows, problem, no_denominator, saw_pure, detection = _figure_15_rows_from_simulation_csv(csv_path)
+        rows.extend(run_rows)
+        denominatorless.update(no_denominator)
+        pure_present = pure_present or saw_pure
+        if detection:
+            detections.add(detection)
+        if problem:
+            problems.append(problem)
+
+    if not rows:
+        detail = _F15_REQUIRED_MESSAGE
+        if problems and not any("missing activity" in p for p in problems):
+            detail = " ".join(problems)
+        _figure_15_placeholder(out_dir, agg, detail)
+        return
+
+    df = pd.DataFrame(rows)
+    included_slugs = set(df["bacterium_slug"].dropna().astype(str))
+    excluded_denominatorless = sorted(denominatorless - included_slugs)
+    summary = (
+        df.groupby(["bacterium_slug", "bacterium"], as_index=False)
+        .agg(
+            activity_median=("mean_activity_r_percent", "median"),
+            activity_p5=("mean_activity_r_percent", lambda s: float(np.nanpercentile(s, 5))),
+            activity_p95=("mean_activity_r_percent", lambda s: float(np.nanpercentile(s, 95))),
+            numerator_median=("numerator_sum", "median"),
+            denominator_median=("denominator_sum", "median"),
+            n=("mean_activity_r_percent", "count"),
+        )
+        .sort_values("activity_median", ascending=True)
+        .reset_index(drop=True)
+    )
+    n_runs = int(df[["source", "run"]].drop_duplicates().shape[0])
+
+    fig, ax = plt.subplots(figsize=(9, max(5.0, 0.34 * len(summary))))
+    y = np.arange(len(summary))
+    medians = summary["activity_median"].to_numpy(float)
+    err_lo = np.clip(medians - summary["activity_p5"].to_numpy(float), 0, None)
+    err_hi = np.clip(summary["activity_p95"].to_numpy(float) - medians, 0, None)
+    ax.barh(
+        y,
+        medians,
+        0.58,
+        color="#3F7F93",
+        alpha=0.9,
+        xerr=[err_lo, err_hi] if n_runs > 1 else None,
+        error_kw={"elinewidth": 0.9, "ecolor": "#263238", "capthick": 0.9, "capsize": 2.5},
+    )
+    ax.set_yticks(y)
+    ax.set_yticklabels(summary["bacterium"].values, fontsize=7.5, fontstyle="italic")
+    ax.invert_yaxis()
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Resistance-adjusted activity retained (% of no-resistance activity)", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.5)
+    fig.suptitle(_F15_TITLE, fontsize=10.5, fontweight="bold")
+    fig.tight_layout()
+
+    denominator_total = float(summary["denominator_median"].sum())
+
+    def _fmt_activity(value: object) -> str:
+        return f"{float(value):.1f}" if pd.notna(value) and np.isfinite(float(value)) else "—"
+
+    def _fmt_share(value: object) -> str:
+        return f"{float(value):.2f}" if pd.notna(value) and np.isfinite(float(value)) else "—"
+
+    def _fmt_compact(value: object) -> str:
+        if value is None or pd.isna(value):
+            return "—"
+        value_f = float(value)
+        if not np.isfinite(value_f):
+            return "—"
+        return f"{value_f:.3g}"
+
+    denominator_table = summary.copy()
+    denominator_table["denominator_share_percent"] = (
+        100.0 * denominator_table["denominator_median"] / denominator_total
+        if denominator_total > 0.0
+        else np.nan
+    )
+    denominator_table["denominator_flag"] = np.where(
+        denominator_table["denominator_share_percent"] < 0.1,
+        "low denominator",
+        "",
+    )
+    denominator_table = pd.DataFrame({
+        "Bacterium": denominator_table["bacterium"],
+        "Activity retained (%)": denominator_table["activity_median"].map(_fmt_activity),
+        "Activity numerator": denominator_table["numerator_median"].map(_fmt_compact),
+        "No-resistance activity denominator": denominator_table["denominator_median"].map(_fmt_compact),
+        "Denominator share (%)": denominator_table["denominator_share_percent"].map(_fmt_share),
+        "Denominator flag": denominator_table["denominator_flag"],
+    })
+    lowest_names = summary.head(5)["bacterium"].tolist()
+    lowest_context = "this run" if n_runs == 1 else "these runs"
+    lowest_sentence = (
+        f"<p class='note'>The lowest retained-activity bacteria in {lowest_context} were: "
+        + ", ".join(lowest_names)
+        + ".</p>\n"
+        if lowest_names
+        else ""
+    )
+    extra_html = (
+        "<h2>Figure 15 Denominator Table</h2>\n"
+        + _html_table(denominator_table)
+        + lowest_sentence
+    )
+
+    footnotes = [
+        "Activity retained is calculated as sum(activity_r) divided by sum(max_possible_activity_r) "
+        "across baseline-policy rows in the 2022-2025 calibration window. The denominator "
+        "represents expected activity under the same drug exposure if resistance were absent. "
+        "The metric is weighted by actual antibiotic exposure and therefore can differ from "
+        "simple resistance prevalence. Low values indicate that the drugs being used for that "
+        "bacterium have little retained activity after resistance.",
+        "This is not an absolute measure of treatment adequacy, and it is not the percentage "
+        "of infections resistant. It measures resistance-related loss of activity conditional "
+        "on the antibiotics used.",
+        "Because this metric is weighted by drug exposure, organisms can have lower retained "
+        "activity than their simple resistance prevalence would suggest if treated person-days "
+        "are concentrated among resistant or poorly responding infections.",
+        "Bacteria with no treated-infection activity denominator are excluded from the plot "
+        "and denominator table.",
+        f"Source: matched simulation_summary_*.csv files. Values are medians across {n_runs} "
+        f"simulation run{'s' if n_runs > 1 else ''}; "
+        f"{'error bars show 5th-95th percentile ranges. ' if n_runs > 1 else 'no error bars are shown for a single run. '}",
+    ]
+    if detections:
+        footnotes.append("Activity columns detected as: " + "; ".join(sorted(detections)) + ".")
+    if pure_present:
+        footnotes.append(
+            "Pure activity columns were present, but this figure uses the drug-exposure-weighted "
+            "activity metric rather than the pure potency-only metric."
+        )
+    if excluded_denominatorless:
+        labels = [_figure_15_bacterium_label(slug) for slug in excluded_denominatorless]
+        footnotes.append(
+            "Excluded due to no treated-infection activity denominator: "
+            + ", ".join(labels)
+            + "."
+        )
+
+    _save_figure(
+        fig,
+        out_dir,
+        _F15_STEM,
+        _F15_TITLE,
+        "Higher values mean better retained antibiotic activity; lower values mean resistance "
+        "is reducing the activity of the drugs being used for that bacterium.",
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+
+
+_F19_TITLE = "Figure 19. Antibiotic exposure distribution by bacterium, 2022\u20132025"
+_F19_STEM = "Figure_19__distribution_drug_use_by_bacteria"
+_F19_REQUIRED_MESSAGE = (
+    "Figure 19 requires simulation_summary CSV output for "
+    "currently_on_drug_by_bacteria_drug. Re-run the Rust simulation with full "
+    "per-bacterium/per-drug summary content enabled, or provide simulation_summary "
+    "files containing this field."
+)
+
+_F19_OTHER_UNMAPPED_CLASS = "Other / unmapped"
+_F19_OTHER_CLASSES = "Other classes"
+_F19_MAX_DISPLAY_CLASSES = 16
+
+_F19_KNOWN_DRUG_SLUGS: list[str] = [
+    "sulfanilamide",
+    "penicillin_g",
+    "ampicillin",
+    "amoxicillin",
+    "piperacillin",
+    "ticarcillin",
+    "cephalexin",
+    "cefazolin",
+    "cefuroxime",
+    "ceftriaxone",
+    "ceftazidime",
+    "cefepime",
+    "ceftaroline",
+    "ceftolozane_tazobactam",
+    "cefiderocol",
+    "meropenem",
+    "imipenem_c",
+    "ertapenem",
+    "aztreonam",
+    "erythromycin",
+    "azithromycin",
+    "clarithromycin",
+    "clindamycin",
+    "gentamicin",
+    "tobramycin",
+    "amikacin",
+    "ciprofloxacin",
+    "levofloxacin",
+    "moxifloxacin",
+    "ofloxacin",
+    "tetracycline",
+    "doxycycline",
+    "minocycline",
+    "tigecycline",
+    "vancomycin",
+    "teicoplanin",
+    "dalbavancin",
+    "linezolid",
+    "tedizolid",
+    "daptomycin",
+    "quinu_dalfo",
+    "trim_sulf",
+    "chloramphenicol",
+    "nitrofurantoin",
+    "fosfomycin",
+    "retapamulin",
+    "fusidic_a",
+    "metronidazole",
+    "fidaxomicin",
+    "furazolidone",
+    "rifampicin",
+    "amoxicillin_clavulanate",
+    "piperacillin_tazobactam",
+    "ampicillin_sulbactam",
+    "ticarcillin_clavulanate",
+    "ceftazidime_avibactam",
+    "meropenem_vaborbactam",
+    "colistin",
+    "flucloxacillin",
+    "aztreonam_avibactam",
+    "cefixime",
+    "nalidixic_acid",
+]
+
+
+def _figure_19_fallback_drug_class_map() -> dict[str, str]:
+    groups = {
+        "Sulfonamides (J01E)": ["sulfanilamide", "trim_sulf"],
+        "Penicillins (J01C)": [
+            "penicillin_g", "ampicillin", "amoxicillin", "piperacillin",
+            "ticarcillin", "flucloxacillin",
+        ],
+        "Beta-lactamase combinations (J01CR)": [
+            "amoxicillin_clavulanate", "piperacillin_tazobactam",
+            "ampicillin_sulbactam", "ticarcillin_clavulanate",
+        ],
+        "Cephalosporins 1-2G": ["cephalexin", "cefazolin", "cefuroxime"],
+        "Cephalosporins 3G": ["ceftriaxone", "ceftazidime", "cefixime"],
+        "Cephalosporins 3G/BLI": ["ceftolozane_tazobactam"],
+        "Cephalosporins 4G": ["cefepime"],
+        "Anti-MRSA Cephalosporins (5G)": ["ceftaroline"],
+        "Siderophore Cephalosporins": ["cefiderocol"],
+        "Carbapenems (J01DH)": ["meropenem", "imipenem_c", "ertapenem"],
+        "Novel BL/BLI": [
+            "ceftazidime_avibactam", "meropenem_vaborbactam",
+            "aztreonam_avibactam",
+        ],
+        "Monobactams": ["aztreonam"],
+        "Macrolides (J01F)": ["erythromycin", "azithromycin", "clarithromycin"],
+        "Lincosamides (J01FF)": ["clindamycin"],
+        "Aminoglycosides (J01G)": ["gentamicin", "tobramycin", "amikacin"],
+        "Fluoroquinolones (J01M)": [
+            "ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin",
+            "nalidixic_acid",
+        ],
+        "Tetracyclines (J01A)": ["tetracycline", "doxycycline", "minocycline", "tigecycline"],
+        "Glycopeptides (J01XA)": ["vancomycin", "teicoplanin"],
+        "Lipoglycopeptides": ["dalbavancin"],
+        "Oxazolidinones (J01XX)": ["linezolid", "tedizolid"],
+        "Lipopeptides (J01XX09)": ["daptomycin"],
+        "Streptogramins (J01FG)": ["quinu_dalfo"],
+        "Chloramphenicol (J01BA)": ["chloramphenicol"],
+        "Nitrofurans (J01XE)": ["nitrofurantoin", "furazolidone"],
+        "Fosfomycin (J01XX01)": ["fosfomycin"],
+        "Pleuromutilins": ["retapamulin"],
+        "Fusidic acid (J01XC)": ["fusidic_a"],
+        "Nitroimidazoles": ["metronidazole"],
+        "Fidaxomicin": ["fidaxomicin"],
+        "Rifamycins (J04AB)": ["rifampicin"],
+        "Polymyxins (J01XB)": ["colistin"],
+    }
+    mapping: dict[str, str] = {}
+    for drug_class, drugs in groups.items():
+        for drug in drugs:
+            mapping[drug] = drug_class
+    return mapping
+
+
+def _figure_19_normalize_drug_name(value: object) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\s*/\s*", "_", text)
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_")
+    aliases = {
+        "co_trimoxazole": "trim_sulf",
+        "trimethoprim_sulfamethoxazole": "trim_sulf",
+        "tmp_smx": "trim_sulf",
+        "quinupristin_dalfopristin": "quinu_dalfo",
+        "imipenem_cilastatin": "imipenem_c",
+        "fusidic_acid": "fusidic_a",
+    }
+    return aliases.get(text, text)
+
+
+def _figure_19_drug_class_map(agg: dict | None) -> tuple[dict[str, str], str]:
+    mapping = _figure_19_fallback_drug_class_map()
+    source = "fallback drug-class map"
+    rb = agg.get("resistance_benchmarks", pd.DataFrame()) if agg is not None else pd.DataFrame()
+    if rb is not None and not rb.empty and {"Drug", "Class"}.issubset(rb.columns):
+        rb_mapping: dict[str, str] = {}
+        for _, row in rb[["Drug", "Class"]].dropna().iterrows():
+            drug = _figure_19_normalize_drug_name(row["Drug"])
+            drug_class = str(row["Class"]).strip()
+            if drug and drug_class and drug_class.lower() not in {"nan", "none", "---"}:
+                rb_mapping[drug] = drug_class
+        if rb_mapping:
+            mapping.update(rb_mapping)
+            source = "resistance_benchmarks Drug/Class columns plus fallback drug-class map"
+    return mapping, source
+
+
+def _figure_19_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_F19_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.5,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.92, bottom=0.08)
+    _save_figure(
+        fig,
+        out_dir,
+        _F19_STEM,
+        _F19_TITLE,
+        message,
+        [
+            "Cells show the percentage distribution of active antibiotic exposure among people "
+            "infected with each bacterium during the 2022-2025 calibration window. The numerator "
+            "is summed currently_on_drug_by_bacteria_drug for each bacterium-drug pair, aggregated "
+            "to drug class. This is not necessarily the drug prescribed specifically for that "
+            "bacterium; it includes empiric therapy, targeted therapy, combination therapy, and "
+            "bystander exposure from antibiotics used for other concurrent infections.",
+            "Rows are normalised within bacterium and sum to 100% across displayed classes plus "
+            "'Other classes'.",
+        ],
+        agg=agg,
+    )
+
+
+def _figure_19_detect_exposure_columns(
+    columns: list[str],
+    known_drugs: list[str],
+) -> tuple[dict[tuple[str, str], str], str | None, str | None]:
+    column_set = set(columns)
+    wide: dict[tuple[str, str], str] = {}
+    double_prefix = "currently_on_drug_by_bacteria_drug__"
+    single_prefix = "currently_on_drug_by_bacteria_drug_"
+
+    for col in columns:
+        if not col.startswith(double_prefix):
+            continue
+        remainder = col[len(double_prefix):]
+        if "__" not in remainder:
+            continue
+        bacterium, drug = remainder.split("__", 1)
+        if bacterium and drug:
+            wide[(bacterium, _figure_19_normalize_drug_name(drug))] = col
+
+    sorted_drugs = sorted(set(known_drugs), key=len, reverse=True)
+    for col in columns:
+        if not col.startswith(single_prefix) or col.startswith(double_prefix):
+            continue
+        remainder = col[len(single_prefix):]
+        for drug in sorted_drugs:
+            suffix = f"_{drug}"
+            if remainder.endswith(suffix) and len(remainder) > len(suffix):
+                bacterium = remainder[: -len(suffix)]
+                wide[(bacterium, drug)] = col
+                break
+
+    legacy_matches = 0
+    for bacterium in _F15_KNOWN_BACTERIA_SLUGS:
+        for drug in sorted_drugs:
+            col = f"{bacterium}_currently_on_drug_{drug}"
+            if col in column_set:
+                wide[(bacterium, drug)] = col
+                legacy_matches += 1
+
+    vector_col = (
+        "currently_on_drug_by_bacteria_drug"
+        if "currently_on_drug_by_bacteria_drug" in column_set
+        else None
+    )
+    if wide:
+        if legacy_matches:
+            return wide, None, "legacy Rust <bacterium>_currently_on_drug_<drug> columns"
+        return wide, None, "wide per-bacterium/per-drug columns"
+    if vector_col:
+        return {}, vector_col, "flat vector column"
+    return {}, None, None
+
+
+def _figure_19_rows_from_simulation_csv(
+    csv_path: Path,
+    drug_class_map: dict[str, str],
+) -> tuple[list[dict[str, object]], str | None, set[str], str | None]:
+    try:
+        columns = list(pd.read_csv(csv_path, nrows=0).columns)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [], f"{csv_path.name}: could not read simulation CSV ({exc}).", set(), None
+
+    known_drugs = list(dict.fromkeys(_F19_KNOWN_DRUG_SLUGS + sorted(drug_class_map)))
+    wide_cols, vector_col, detection = _figure_19_detect_exposure_columns(columns, known_drugs)
+    if not wide_cols and vector_col is None:
+        return [], f"{csv_path.name}: missing currently_on_drug_by_bacteria_drug columns.", set(), None
+
+    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    wanted = set(optional)
+    if wide_cols:
+        wanted.update(wide_cols.values())
+    elif vector_col is not None:
+        wanted.add(vector_col)
+
+    try:
+        df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [], f"{csv_path.name}: could not load Figure 19 columns ({exc}).", set(), detection
+
+    if "policy_option" in df.columns:
+        policy = pd.to_numeric(df["policy_option"], errors="coerce")
+        df = df[policy == 0].copy()
+
+    df["simulation_year_for_f19"] = _simulation_year_series(df)
+    df = df[(df["simulation_year_for_f19"] >= 2022.0) & (df["simulation_year_for_f19"] < 2026.0)].copy()
+    if df.empty:
+        return [], f"{csv_path.name}: no baseline-policy rows in 2022-2025.", set(), detection
+
+    grouped = df.groupby("run_id", dropna=False) if "run_id" in df.columns else [(csv_path.stem, df)]
+    rows: list[dict[str, object]] = []
+    unmapped: set[str] = set()
+
+    def _record_count(run_key: object, bacterium_slug: str, drug_slug: str, count: float) -> None:
+        if not np.isfinite(count) or count <= 0.0:
+            return
+        drug_class = drug_class_map.get(drug_slug)
+        if drug_class is None:
+            drug_class = _F19_OTHER_UNMAPPED_CLASS
+            unmapped.add(drug_slug)
+        rows.append({
+            "source": csv_path.name,
+            "run": str(run_key),
+            "bacterium_slug": bacterium_slug,
+            "bacterium": _figure_15_bacterium_label(bacterium_slug),
+            "drug": drug_slug,
+            "drug_class": drug_class,
+            "exposure_count": float(count),
+            "detection": detection,
+        })
+
+    if wide_cols:
+        for col in wide_cols.values():
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        for run_key, run_df in grouped:
+            for (bacterium_slug, drug_slug), col in wide_cols.items():
+                _record_count(run_key, bacterium_slug, drug_slug, float(run_df[col].sum(skipna=True)))
+    elif vector_col is not None:
+        parsed_lengths = [
+            len(values)
+            for values in (_figure_15_parse_vector_cell(value) for value in df[vector_col])
+            if values
+        ]
+        if not parsed_lengths:
+            return [], f"{csv_path.name}: Figure 19 vector column contained no numeric values.", unmapped, detection
+        vector_len = max(parsed_lengths)
+        n_bacteria = len(_F15_KNOWN_BACTERIA_SLUGS)
+        if vector_len % n_bacteria != 0:
+            return (
+                [],
+                f"{csv_path.name}: Figure 19 vector length {vector_len} is not divisible "
+                f"by known bacteria count {n_bacteria}.",
+                unmapped,
+                detection,
+            )
+        n_drugs = vector_len // n_bacteria
+        drug_slugs = list(_F19_KNOWN_DRUG_SLUGS[:n_drugs])
+        if n_drugs > len(drug_slugs):
+            drug_slugs.extend(f"drug_{idx + 1}" for idx in range(len(drug_slugs), n_drugs))
+
+        for run_key, run_df in grouped:
+            sums = np.zeros(vector_len, dtype=float)
+            for value in run_df[vector_col]:
+                values = np.array(_figure_15_parse_vector_cell(value), dtype=float)
+                values = _figure_15_extend_array(values, vector_len)
+                sums += np.nan_to_num(values, nan=0.0)
+            for bacterium_idx, bacterium_slug in enumerate(_F15_KNOWN_BACTERIA_SLUGS):
+                offset = bacterium_idx * n_drugs
+                for drug_idx, drug_slug in enumerate(drug_slugs):
+                    _record_count(run_key, bacterium_slug, drug_slug, float(sums[offset + drug_idx]))
+
+    return rows, None, unmapped, detection
+
+
+def _figure_19_activity_sort_values(csv_paths: list[Path]) -> dict[str, float]:
+    rows: list[dict[str, object]] = []
+    for csv_path in csv_paths:
+        run_rows, _, _, _, _ = _figure_15_rows_from_simulation_csv(csv_path)
+        rows.extend(run_rows)
+    if not rows:
+        return {}
+    df = pd.DataFrame(rows)
+    return (
+        df.groupby("bacterium_slug")["mean_activity_r_percent"]
+        .median()
+        .dropna()
+        .to_dict()
+    )
+
+
+def _figure_19_compact_count(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "-"
+    value_f = float(value)
+    if not np.isfinite(value_f):
+        return "-"
+    abs_value = abs(value_f)
+    if abs_value >= 1_000_000_000:
+        return f"{value_f / 1_000_000_000:.2f}B"
+    if abs_value >= 1_000_000:
+        return f"{value_f / 1_000_000:.2f}M"
+    if abs_value >= 1_000:
+        return f"{value_f / 1_000:.1f}K"
+    return f"{value_f:.0f}"
+
+
+def make_figure_19_antibiotic_exposure_distribution(
+    csv_paths: list[Path],
+    out_dir: Path,
+    agg: dict | None = None,
+) -> None:
+    if not csv_paths:
+        _figure_19_placeholder(out_dir, agg, _F19_REQUIRED_MESSAGE)
+        return
+
+    drug_class_map, class_mapping_source = _figure_19_drug_class_map(agg)
+    rows: list[dict[str, object]] = []
+    problems: list[str] = []
+    unmapped: set[str] = set()
+    detections: set[str] = set()
+
+    for csv_path in csv_paths:
+        run_rows, problem, run_unmapped, detection = _figure_19_rows_from_simulation_csv(
+            csv_path,
+            drug_class_map,
+        )
+        rows.extend(run_rows)
+        unmapped.update(run_unmapped)
+        if detection:
+            detections.add(detection)
+        if problem:
+            problems.append(problem)
+
+    if not rows:
+        detail = _F19_REQUIRED_MESSAGE
+        if problems and not any("missing currently_on_drug_by_bacteria_drug" in p for p in problems):
+            detail = " ".join(problems)
+        _figure_19_placeholder(out_dir, agg, detail)
+        return
+
+    count_df = pd.DataFrame(rows)
+    class_counts = (
+        count_df.groupby(["source", "run", "bacterium_slug", "bacterium", "drug_class"], as_index=False)
+        ["exposure_count"]
+        .sum()
+    )
+    class_totals = class_counts.groupby("drug_class")["exposure_count"].sum().sort_values(ascending=False)
+    top_classes = [
+        cls
+        for cls in class_totals.index.tolist()
+        if cls != _F19_OTHER_CLASSES
+    ][: _F19_MAX_DISPLAY_CLASSES]
+    if len(class_totals) > len(top_classes):
+        display_classes = top_classes + [_F19_OTHER_CLASSES]
+    else:
+        display_classes = top_classes
+
+    class_counts["display_class"] = np.where(
+        class_counts["drug_class"].isin(top_classes),
+        class_counts["drug_class"],
+        _F19_OTHER_CLASSES,
+    )
+    display_counts = (
+        class_counts.groupby(
+            ["source", "run", "bacterium_slug", "bacterium", "display_class"],
+            as_index=False,
+        )["exposure_count"]
+        .sum()
+    )
+    display_counts["denominator"] = display_counts.groupby(
+        ["source", "run", "bacterium_slug"]
+    )["exposure_count"].transform("sum")
+    display_counts = display_counts[display_counts["denominator"] > 0.0].copy()
+    display_counts["share_percent"] = (
+        100.0 * display_counts["exposure_count"] / display_counts["denominator"]
+    )
+
+    summary = (
+        display_counts.groupby(["bacterium_slug", "bacterium", "display_class"], as_index=False)
+        .agg(share_percent=("share_percent", "median"))
+    )
+    row_totals = summary.groupby("bacterium_slug")["share_percent"].transform("sum")
+    summary["share_percent"] = np.where(
+        row_totals > 0.0,
+        100.0 * summary["share_percent"] / row_totals,
+        summary["share_percent"],
+    )
+
+    denominators = (
+        display_counts[["source", "run", "bacterium_slug", "bacterium", "denominator"]]
+        .drop_duplicates()
+        .groupby(["bacterium_slug", "bacterium"], as_index=False)
+        .agg(denominator_median=("denominator", "median"))
+    )
+    activity_sort = _figure_19_activity_sort_values(csv_paths)
+    if activity_sort:
+        denominators["_sort_activity"] = denominators["bacterium_slug"].map(activity_sort)
+        denominators = denominators.sort_values(
+            ["_sort_activity", "denominator_median"],
+            ascending=[True, False],
+            na_position="last",
+        )
+    else:
+        denominators = denominators.sort_values("denominator_median", ascending=False)
+    bacteria_order = denominators["bacterium_slug"].tolist()
+
+    pivot = (
+        summary.pivot(index="bacterium_slug", columns="display_class", values="share_percent")
+        .reindex(index=bacteria_order, columns=display_classes)
+        .fillna(0.0)
+    )
+    labels = (
+        denominators.set_index("bacterium_slug")
+        .reindex(bacteria_order)["bacterium"]
+        .fillna(pd.Series(bacteria_order, index=bacteria_order))
+        .tolist()
+    )
+    class_labels = [_F2_CLASS_SHORT.get(cls, cls) for cls in display_classes]
+
+    fig_width = max(10.5, 3.5 + 0.62 * len(display_classes))
+    fig_height = max(6.0, 2.2 + 0.34 * len(bacteria_order))
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    matrix = pivot.to_numpy(dtype=float)
+    observed_max = float(np.nanmax(matrix)) if matrix.size else 0.0
+    vmax = min(100.0, max(10.0, math.ceil(observed_max / 5.0) * 5.0)) if observed_max > 0 else 100.0
+    im = ax.imshow(matrix, aspect="auto", cmap="YlGnBu", vmin=0.0, vmax=vmax)
+    cbar = fig.colorbar(im, ax=ax, fraction=0.028, pad=0.015)
+    cbar.set_label("Share of antibiotic exposure while infected (%)", fontsize=9)
+    ax.set_xticks(np.arange(len(display_classes)))
+    ax.set_xticklabels(class_labels, rotation=45, ha="right", fontsize=7)
+    ax.set_yticks(np.arange(len(bacteria_order)))
+    ax.set_yticklabels(labels, fontsize=7.5, fontstyle="italic")
+    ax.set_xlabel("Drug class", fontsize=10)
+    ax.set_ylabel("Bacterium", fontsize=10)
+    ax.set_title(_F19_TITLE, fontsize=10.5, fontweight="bold", pad=10)
+    ax.set_xticks(np.arange(-0.5, len(display_classes), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(bacteria_order), 1), minor=True)
+    ax.grid(which="minor", color="white", linewidth=0.45)
+    ax.tick_params(which="minor", bottom=False, left=False)
+    fig.tight_layout()
+
+    top_by_bacterium = (
+        summary.sort_values("share_percent", ascending=False)
+        .groupby(["bacterium_slug", "bacterium"], as_index=False)
+        .first()[["bacterium_slug", "display_class", "share_percent"]]
+        .rename(columns={"display_class": "top_class", "share_percent": "top_share"})
+    )
+    nonzero_counts = (
+        summary[summary["share_percent"] > 0.0]
+        .groupby("bacterium_slug")["display_class"]
+        .nunique()
+        .rename("nonzero_classes")
+        .reset_index()
+    )
+    table_df = (
+        denominators.merge(top_by_bacterium, on="bacterium_slug", how="left")
+        .merge(nonzero_counts, on="bacterium_slug", how="left")
+    )
+    denom_table = pd.DataFrame({
+        "Bacterium": table_df["bacterium"],
+        "Total antibiotic-exposure denominator": table_df["denominator_median"].map(_figure_19_compact_count),
+        "Top drug class": table_df["top_class"].fillna("-"),
+        "Top drug-class share (%)": table_df["top_share"].map(
+            lambda v: f"{float(v):.1f}" if pd.notna(v) and np.isfinite(float(v)) else "-"
+        ),
+        "Number of displayed classes with nonzero exposure": table_df["nonzero_classes"].fillna(0).astype(int),
+    })
+    extra_html = "<h2>Figure 19 Denominator Table</h2>\n" + _html_table(denom_table)
+
+    n_runs = int(display_counts[["source", "run"]].drop_duplicates().shape[0])
+    footnotes = [
+        "Cells show the percentage distribution of active antibiotic exposure among people "
+        "infected with each bacterium during the 2022-2025 calibration window. The numerator "
+        "is summed currently_on_drug_by_bacteria_drug for each bacterium-drug pair, aggregated "
+        "to drug class. This is not necessarily the drug prescribed specifically for that "
+        "bacterium; it includes empiric therapy, targeted therapy, combination therapy, and "
+        "bystander exposure from antibiotics used for other concurrent infections.",
+        "Rows are normalised within bacterium and sum to 100% across displayed classes plus "
+        "'Other classes'.",
+        f"Values are median within-bacterium class shares across {n_runs} simulation run"
+        f"{'s' if n_runs > 1 else ''}; exposure counts are summed first within each run, "
+        "then converted to percentages.",
+        "Drug-to-class mapping source: " + class_mapping_source + ".",
+    ]
+    if detections:
+        footnotes.append("Exposure columns detected as: " + "; ".join(sorted(detections)) + ".")
+    if activity_sort:
+        footnotes.append("Rows are sorted by Figure 15 retained activity, lowest first.")
+    else:
+        footnotes.append("Rows are sorted by median antibiotic-exposure denominator, highest first.")
+    if unmapped:
+        footnotes.append("Unmapped drugs assigned to 'Other / unmapped': " + ", ".join(sorted(unmapped)) + ".")
+    if len(class_totals) > len(top_classes):
+        collapsed = [cls for cls in class_totals.index if cls not in top_classes]
+        footnotes.append("Collapsed into 'Other classes': " + ", ".join(collapsed) + ".")
+
+    _save_figure(
+        fig,
+        out_dir,
+        _F19_STEM,
+        _F19_TITLE,
+        "Heatmap of antibiotic exposure distribution among infected people, normalised "
+        "within each bacterium.",
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+
+
+_F20_TITLE = "Figure 20. Serious-R by hospital and community, 2022\u20132025"
+_F20_STEM = "Figure_20__serious_r_by_hospital_community"
+_F20_REQUIRED_MESSAGE = (
+    "Figure 20 requires the Serious Resistance Locus table in calibration_summary_*.txt, "
+    "including hospital and community serious-R percentages."
+)
+_F20_VALUE_COLUMNS = [
+    "Overall Serious-R (%)",
+    "Hospital Serious-R (%)",
+    "Community Serious-R (%)",
+    "Sim H:C ratio",
+    "Target H:C ratio",
+    "Total New Infections",
+]
+
+
+def _figure_20_split_row(line: str) -> list[str]:
+    return re.split(r"\s{2,}", line.strip())
+
+
+def _figure_20_parse_number(value: object) -> float:
+    if value is None:
+        return np.nan
+    text = str(value).strip()
+    if text.lower() in {"", "nan", "none", "null", "---", "-", "\u2014"}:
+        return np.nan
+    try:
+        return float(text.replace(",", ""))
+    except ValueError:
+        return np.nan
+
+
+def _figure_20_bacterium_label(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    slug = re.sub(r"\s+", "_", text.lower().replace("_", " "))
+    return _figure_15_bacterium_label(slug)
+
+
+def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.DataFrame, dict[str, float]]:
+    try:
+        lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return pd.DataFrame(), {}
+
+    summary: dict[str, float] = {}
+    in_summary = False
+    table_title_idx: int | None = None
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("Serious Resistance Locus Summary"):
+            in_summary = True
+            continue
+        if stripped.startswith("Serious Resistance Locus (marker-drug hospital vs community resistance gap)"):
+            table_title_idx = idx
+            in_summary = False
+            break
+        if not in_summary:
+            continue
+        patterns = [
+            ("mean_overall_serious_r", r"Mean overall serious-R:\s*([0-9.+\-eE]+)%"),
+            ("mean_hospital_serious_r", r"Mean hospital serious-R:\s*([0-9.+\-eE]+)%"),
+            ("mean_community_serious_r", r"Mean community serious-R:\s*([0-9.+\-eE]+)%"),
+            (
+                "hc_fit_weighted",
+                r"H:C fit \|ln\(sim/target\)\|, infection-weighted:\s*([0-9.+\-eE]+)",
+            ),
+        ]
+        for key, pattern in patterns:
+            match = re.search(pattern, stripped)
+            if match:
+                summary[key] = _figure_20_parse_number(match.group(1))
+
+    if table_title_idx is None:
+        return pd.DataFrame(), summary
+
+    header_idx: int | None = None
+    for idx in range(table_title_idx + 1, len(lines)):
+        parts = _figure_20_split_row(lines[idx])
+        if "Bacteria" in parts and "Marker drug(s)" in parts:
+            header_idx = idx
+            break
+    if header_idx is None:
+        return pd.DataFrame(), summary
+
+    headers = _figure_20_split_row(lines[header_idx])
+    rows: list[list[str]] = []
+    for line in lines[header_idx + 1:]:
+        stripped = line.strip()
+        if not stripped:
+            break
+        parts = _figure_20_split_row(line)
+        if len(parts) < 3:
+            break
+        while len(parts) < len(headers):
+            parts.append("")
+        rows.append(parts[:len(headers)])
+
+    if not rows:
+        return pd.DataFrame(columns=headers), summary
+
+    df = pd.DataFrame(rows, columns=headers)
+    required_columns = {
+        "Bacteria",
+        "Marker drug(s)",
+        "Total New Infections",
+        "Hospital Serious-R (%)",
+        "Community Serious-R (%)",
+        "Sim H:C ratio",
+        "Target H:C ratio",
+    }
+    if not required_columns.issubset(df.columns):
+        return pd.DataFrame(), summary
+    for col in _F20_VALUE_COLUMNS:
+        if col in df.columns:
+            df[col] = df[col].map(_figure_20_parse_number)
+    if "Overall Serious-R (%)" not in df.columns:
+        df["Overall Serious-R (%)"] = np.nan
+    if "Marker drug(s)" not in df.columns:
+        df["Marker drug(s)"] = ""
+    if "Total New Infections" in df.columns:
+        df = df[df["Total New Infections"] > 0].copy()
+    else:
+        df = pd.DataFrame()
+    if df.empty:
+        return df, summary
+
+    df["source_file"] = Path(path).name
+    df["bacterium_key"] = df["Bacteria"].astype(str).str.strip().str.lower()
+    df["Bacterium display"] = df["Bacteria"].map(_figure_20_bacterium_label)
+    return df, summary
+
+
+def _figure_20_summarise_rows(rows: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    notes: list[str] = []
+    if rows.empty:
+        return pd.DataFrame(), notes
+
+    summary_rows: list[dict[str, object]] = []
+    for key, group in rows.groupby("bacterium_key", sort=False):
+        marker_values = [
+            str(value).strip()
+            for value in group["Marker drug(s)"].dropna().tolist()
+            if str(value).strip()
+        ]
+        target_values = group["Target H:C ratio"].dropna().astype(float).tolist()
+        target_first = target_values[0] if target_values else np.nan
+        if len({round(v, 8) for v in target_values if np.isfinite(v)}) > 1:
+            notes.append(
+                f"Target H:C ratio varied across runs for {group['Bacterium display'].iloc[0]}; "
+                "the first non-missing target value is shown."
+            )
+
+        row: dict[str, object] = {
+            "bacterium_key": key,
+            "bacterium": group["Bacterium display"].iloc[0],
+            "marker_drugs": marker_values[0] if marker_values else "\u2014",
+            "n_runs": int(group["source_file"].nunique()),
+            "target_hc_ratio": target_first,
+            "missing_hospital_any_run": bool(group["Hospital Serious-R (%)"].isna().any()),
+            "missing_community_any_run": bool(group["Community Serious-R (%)"].isna().any()),
+        }
+
+        for source_col, prefix in [
+            ("Overall Serious-R (%)", "overall"),
+            ("Hospital Serious-R (%)", "hospital"),
+            ("Community Serious-R (%)", "community"),
+            ("Sim H:C ratio", "sim_hc_ratio"),
+            ("Total New Infections", "total_new_infections"),
+        ]:
+            values = group[source_col].dropna().astype(float).to_numpy()
+            if len(values) == 0:
+                row[f"{prefix}_median"] = np.nan
+                row[f"{prefix}_p5"] = np.nan
+                row[f"{prefix}_p95"] = np.nan
+            else:
+                row[f"{prefix}_median"] = float(np.nanmedian(values))
+                row[f"{prefix}_p5"] = float(np.nanpercentile(values, 5))
+                row[f"{prefix}_p95"] = float(np.nanpercentile(values, 95))
+        summary_rows.append(row)
+
+    summary = pd.DataFrame(summary_rows)
+    summary["_overall_sort"] = summary["overall_median"].fillna(-1.0)
+    summary = (
+        summary.sort_values(
+            ["_overall_sort", "total_new_infections_median"],
+            ascending=[False, False],
+        )
+        .drop(columns=["_overall_sort"])
+        .reset_index(drop=True)
+    )
+    return summary, notes
+
+
+def _figure_20_format_percent(value: object) -> str:
+    return f"{float(value):.1f}" if pd.notna(value) and np.isfinite(float(value)) else "\u2014"
+
+
+def _figure_20_format_ratio(value: object) -> str:
+    return f"{float(value):.2f}" if pd.notna(value) and np.isfinite(float(value)) else "\u2014"
+
+
+def _figure_20_format_count(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "\u2014"
+    value_f = float(value)
+    if not np.isfinite(value_f):
+        return "\u2014"
+    return f"{value_f:,.0f}"
+
+
+def _figure_20_summary_box(summary_values: list[dict[str, float]], n_runs: int) -> str:
+    if not summary_values:
+        return ""
+    parts: list[str] = []
+    labels = [
+        ("mean_overall_serious_r", "overall", ".1f", "%"),
+        ("mean_hospital_serious_r", "hospital", ".1f", "%"),
+        ("mean_community_serious_r", "community", ".1f", "%"),
+        ("hc_fit_weighted", "H:C fit |ln(sim/target)|", ".2f", ""),
+    ]
+    for key, label, fmt, suffix in labels:
+        values = [
+            float(item[key])
+            for item in summary_values
+            if key in item and np.isfinite(float(item[key]))
+        ]
+        if not values:
+            continue
+        value = float(np.nanmedian(values))
+        parts.append(f"{label} {value:{fmt}}{suffix}")
+    if not parts:
+        return ""
+    scope = "this run" if n_runs == 1 else f"{n_runs} runs (median summary values)"
+    return (
+        "<div class='meta-box'><strong>Mean serious-R in "
+        + scope
+        + ":</strong> "
+        + ", ".join(parts)
+        + ".</div>\n"
+    )
+
+
+def _figure_20_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_F20_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.5,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.92, bottom=0.08)
+    _save_figure(
+        fig,
+        out_dir,
+        _F20_STEM,
+        _F20_TITLE,
+        message,
+        [
+            "Serious-R is defined using the bacterium-specific marker drug(s) listed in "
+            "the calibration summary. Hospital and community percentages are calculated "
+            "among new active infections in the 2022-2025 calibration window. Missing "
+            "hospital or community points indicate that the corresponding denominator was "
+            "unavailable or zero in the summary.",
+            "This figure uses serious-R marker resistance, not any-R. It should not be read "
+            "as resistance to all drugs.",
+        ],
+        agg=agg,
+    )
+
+
+def make_figure_20_serious_r_by_hospital_community(
+    calibration_paths: list[Union[str, Path]],
+    out_dir: Path,
+    agg: dict | None = None,
+) -> dict[str, object]:
+    parsed_frames: list[pd.DataFrame] = []
+    parsed_summaries: list[dict[str, float]] = []
+    for path in calibration_paths:
+        frame, summary_values = _figure_20_parse_calibration_summary(path)
+        if not frame.empty:
+            parsed_frames.append(frame)
+        if summary_values:
+            parsed_summaries.append(summary_values)
+
+    if not parsed_frames:
+        _figure_20_placeholder(out_dir, agg, _F20_REQUIRED_MESSAGE)
+        return {
+            "generated": "placeholder",
+            "bacteria_included": 0,
+            "n_runs": 0,
+            "missing_hospital_or_community_rows": 0,
+            "summary_block_parsed": bool(parsed_summaries),
+        }
+
+    all_rows = pd.concat(parsed_frames, ignore_index=True)
+    summary, target_notes = _figure_20_summarise_rows(all_rows)
+    if summary.empty:
+        _figure_20_placeholder(out_dir, agg, _F20_REQUIRED_MESSAGE)
+        return {
+            "generated": "placeholder",
+            "bacteria_included": 0,
+            "n_runs": int(all_rows["source_file"].nunique()),
+            "missing_hospital_or_community_rows": 0,
+            "summary_block_parsed": bool(parsed_summaries),
+        }
+
+    n_runs = int(all_rows["source_file"].nunique())
+    missing_rows = int(
+        (
+            summary["missing_hospital_any_run"]
+            | summary["missing_community_any_run"]
+            | summary["hospital_median"].isna()
+            | summary["community_median"].isna()
+        ).sum()
+    )
+
+    plot_summary = summary.iloc[::-1].reset_index(drop=True)
+    y = np.arange(len(plot_summary))
+    fig_height = max(6.0, 2.2 + 0.34 * len(plot_summary))
+    fig, ax = plt.subplots(figsize=(10.5, fig_height))
+
+    for idx, row in plot_summary.iterrows():
+        hospital = row["hospital_median"]
+        community = row["community_median"]
+        if pd.notna(hospital) and pd.notna(community):
+            ax.plot(
+                [float(community), float(hospital)],
+                [idx, idx],
+                color="#b0bec5",
+                linewidth=0.9,
+                alpha=0.65,
+                zorder=1,
+            )
+
+    def _plot_metric(prefix: str, label: str, color: str, marker: str) -> None:
+        values = plot_summary[f"{prefix}_median"].astype(float).to_numpy()
+        mask = np.isfinite(values)
+        if not mask.any():
+            return
+        xerr = None
+        if n_runs > 1:
+            p5 = plot_summary[f"{prefix}_p5"].astype(float).to_numpy()
+            p95 = plot_summary[f"{prefix}_p95"].astype(float).to_numpy()
+            err_low = np.where(np.isfinite(p5), np.clip(values - p5, 0.0, None), 0.0)
+            err_high = np.where(np.isfinite(p95), np.clip(p95 - values, 0.0, None), 0.0)
+            xerr = np.vstack([err_low[mask], err_high[mask]])
+        ax.errorbar(
+            values[mask],
+            y[mask],
+            xerr=xerr,
+            fmt=marker,
+            markersize=5.5,
+            color=color,
+            ecolor=color,
+            elinewidth=0.8,
+            capsize=2.5 if n_runs > 1 else 0,
+            linestyle="none",
+            label=label,
+            zorder=3,
+        )
+
+    _plot_metric("community", "Community Serious-R (%)", "#2A9D8F", "o")
+    _plot_metric("hospital", "Hospital Serious-R (%)", "#C65D00", "D")
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(plot_summary["bacterium"].values, fontsize=7.5, fontstyle="italic")
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Serious-R among new active infections (%)", fontsize=10)
+    ax.set_ylabel("Bacteria", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.5)
+    ax.legend(fontsize=8.5, frameon=False, loc="lower right")
+    fig.suptitle(_F20_TITLE, fontsize=10.5, fontweight="bold")
+    fig.tight_layout()
+
+    details = pd.DataFrame({
+        "Bacterium": summary["bacterium"],
+        "Marker drug(s)": summary["marker_drugs"],
+        "Total new infections": summary["total_new_infections_median"].map(_figure_20_format_count),
+        "Overall serious-R (%)": summary["overall_median"].map(_figure_20_format_percent),
+        "Hospital serious-R (%)": summary["hospital_median"].map(_figure_20_format_percent),
+        "Community serious-R (%)": summary["community_median"].map(_figure_20_format_percent),
+        "Sim H:C ratio": summary["sim_hc_ratio_median"].map(_figure_20_format_ratio),
+        "Target H:C ratio": summary["target_hc_ratio"].map(_figure_20_format_ratio),
+    })
+
+    summary_box = _figure_20_summary_box(parsed_summaries, n_runs)
+    extra_html = summary_box + "<h2>Figure 20 Details</h2>\n" + _html_table(details)
+
+    run_note = (
+        f"Values are medians across {n_runs} calibration summary file"
+        f"{'s' if n_runs > 1 else ''}; horizontal intervals show 5th-95th percentile ranges. "
+        "Total new infections in the table is the median across runs."
+        if n_runs > 1
+        else "Values are taken directly from the supplied calibration summary file."
+    )
+    footnotes = [
+        "Serious-R is defined using the bacterium-specific marker drug(s) listed in the "
+        "calibration summary. Hospital and community percentages are calculated among new "
+        "active infections in the 2022-2025 calibration window. Missing hospital or community "
+        "points indicate that the corresponding denominator was unavailable or zero in the summary.",
+        "This figure uses serious-R marker resistance, not any-R. It should not be read as "
+        "resistance to all drugs.",
+        run_note,
+    ]
+    if target_notes:
+        footnotes.extend(target_notes)
+
+    _save_figure(
+        fig,
+        out_dir,
+        _F20_STEM,
+        _F20_TITLE,
+        "Horizontal paired-dot plot of hospital-associated and community-associated serious-R "
+        "percentages from the Serious Resistance Locus calibration-summary table.",
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+
+    print(
+        "  Figure 20: "
+        f"{len(summary)} bacteria included from {n_runs} calibration summary file"
+        f"{'s' if n_runs > 1 else ''}; "
+        f"{missing_rows} row{'s' if missing_rows != 1 else ''} had missing hospital or community values; "
+        f"summary block {'parsed' if parsed_summaries else 'not found'}."
+    )
+    return {
+        "generated": "real data",
+        "bacteria_included": len(summary),
+        "n_runs": n_runs,
+        "missing_hospital_or_community_rows": missing_rows,
+        "summary_block_parsed": bool(parsed_summaries),
+    }
+
+
 # Legacy supplementary/additional figures below are retained for reference only;
 # they are not called by main().
 def make_fs2_syndrome_bars(agg: dict, out_dir: Path) -> None:
@@ -3567,7 +5583,7 @@ def make_index(agg: dict, out_dir: Path) -> None:
             "Figures/Figure_5__calibration_carriage_prevalence_by_bacteria.html",
             "Figure 5. Calibration: 2025 prevalence of carriage by bacterium",
         ),
-        ("Figures/Figure_6__resistance_trend.html", "Figure 6. Resistance trend"),
+        ("Figures/Figure_6__resistance_trend.html", "Figure 6. Resistance trends"),
         (
             "Figures/Figure_7__infection_death_rate_by_region.html",
             "Figure 7. Infection death rate by region",
@@ -3575,6 +5591,26 @@ def make_index(agg: dict, out_dir: Path) -> None:
         (
             "Figures/Figure_8__antibiotic_use_by_treatment_context.html",
             "Figure 8. Antibiotic use by treatment context, 2025",
+        ),
+        (
+            "Figures/Figure_10__resistance_pathway_counterfactuals.html",
+            "Figure 10. Counterfactual resistance-acquisition pathway comparisons",
+        ),
+        (
+            "Figures/Figure_11__sepsis_context_effective_therapy.html",
+            "Figure 11. Sepsis onset context and time to effective therapy, 2022\u20132025",
+        ),
+        (
+            "Figures/Figure_15__mean_activity_r_by_bacteria.html",
+            "Figure 15. Resistance-adjusted antibiotic activity retained by bacterium, 2022–2025",
+        ),
+        (
+            "Figures/Figure_19__distribution_drug_use_by_bacteria.html",
+            "Figure 19. Antibiotic exposure distribution by bacterium, 2022\u20132025",
+        ),
+        (
+            "Figures/Figure_20__serious_r_by_hospital_community.html",
+            "Figure 20. Serious-R by hospital and community, 2022\u20132025",
         ),
     ]:
         body += f"<li><a href='{fname}'><strong>{label}</strong></a></li>\n"
@@ -3617,9 +5653,9 @@ def main(input_args: list[str]) -> None:
     csv_paths = _discover_f1_simulation_csvs(paths)
     csv_runs_with_scale = _discover_simulation_csvs_with_scale(paths)
     if csv_paths:
-        print(f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6, 7, and 8.")
+        print(f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6, 7, 8, 11, 15, and 19.")
     else:
-        print("  No matching simulation CSVs found; Figures 6, 7, and 8 may render as placeholders.")
+        print("  No matching simulation CSVs found; Figures 6, 7, 8, 11, 15, and 19 may render as placeholders.")
 
     out = OUT_DIR
     print(f"\nGenerating paper outputs in {out.absolute()} ...")
@@ -3633,6 +5669,11 @@ def main(input_args: list[str]) -> None:
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_7_infection_death_rate_by_region(csv_paths, out, agg=agg)
     make_figure_8_antibiotic_use_by_context(csv_runs_with_scale, out, agg=agg)
+    make_figure_10_resistance_pathway_counterfactuals(out, agg=agg)
+    make_figure_11_sepsis_context_effective_therapy(csv_paths, out, agg=agg)
+    make_figure_15_mean_activity_by_bacteria(csv_paths, out, agg=agg)
+    make_figure_19_antibiotic_exposure_distribution(csv_paths, out, agg=agg)
+    make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
     make_index(agg, out)
 
     print(f"\nDone. Open {out / 'index.html'} to browse paper outputs.")

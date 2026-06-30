@@ -13,7 +13,7 @@
 
 use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use crate::observability;
-use crate::rules::apply_rules;
+use crate::rules::{apply_rules, serious_resistance_marker_drugs};
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
     load_float, store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel,
@@ -54,6 +54,25 @@ const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const DAYS_PER_YEAR: f64 = 365.0;
 const DETERMINISTIC_POPULATION_CHUNK_SIZE: usize = 8_192;
+/// Output-only threshold used to classify whether current therapy is effective
+/// for Figure 11 sepsis-episode reporting. This does not affect model dynamics.
+const EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD: f64 = 0.5;
+const SEPSIS_CONTEXT_NO_ANTIBIOTIC_ACTIVE: i32 = 0;
+const SEPSIS_CONTEXT_OTHER_OR_PROPHYLAXIS: i32 = 1;
+const SEPSIS_CONTEXT_EMPIRIC_NOT_EFFECTIVE: i32 = 2;
+const SEPSIS_CONTEXT_EMPIRIC_EFFECTIVE: i32 = 3;
+const SEPSIS_CONTEXT_TARGETED_NOT_EFFECTIVE: i32 = 4;
+const SEPSIS_CONTEXT_TARGETED_EFFECTIVE: i32 = 5;
+const SEPSIS_CONTEXT_UNKNOWN_OR_LEGACY: i32 = 6;
+const SEPSIS_CONTEXT_CATEGORY_COUNT: usize = 7;
+const SEPSIS_DELAY_ON_OR_BEFORE_ONSET_IDX: usize = 0;
+const SEPSIS_DELAY_LATER_SAME_DAY_IDX: usize = 1;
+const SEPSIS_DELAY_1_DAY_IDX: usize = 2;
+const SEPSIS_DELAY_2_3_DAYS_IDX: usize = 3;
+const SEPSIS_DELAY_4PLUS_DAYS_IDX: usize = 4;
+const SEPSIS_DELAY_NO_EFFECTIVE_IDX: usize = 5;
+const SEPSIS_DELAY_UNKNOWN_OR_CENSORED_IDX: usize = 6;
+const SEPSIS_EFFECTIVE_THERAPY_BUCKET_COUNT: usize = 7;
 
 fn current_antibiotic_context_priority(individual: &Individual) -> AntibioticUseContext {
     let mut saw_empiric = false;
@@ -596,6 +615,182 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
         Region::Home => individual.region_living,
         other => other,
     }
+}
+
+fn sepsis_effective_therapy_bucket_index(
+    onset_day: i32,
+    first_effective_day: i32,
+    effective_at_onset: bool,
+    outcome: &str,
+) -> usize {
+    if first_effective_day >= 0 {
+        let delay = (first_effective_day - onset_day).max(0);
+        if delay == 0 {
+            if effective_at_onset {
+                SEPSIS_DELAY_ON_OR_BEFORE_ONSET_IDX
+            } else {
+                SEPSIS_DELAY_LATER_SAME_DAY_IDX
+            }
+        } else if delay == 1 {
+            SEPSIS_DELAY_1_DAY_IDX
+        } else if delay <= 3 {
+            SEPSIS_DELAY_2_3_DAYS_IDX
+        } else {
+            SEPSIS_DELAY_4PLUS_DAYS_IDX
+        }
+    } else if outcome == "censored" {
+        SEPSIS_DELAY_UNKNOWN_OR_CENSORED_IDX
+    } else {
+        SEPSIS_DELAY_NO_EFFECTIVE_IDX
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SepsisDelayBucketAssignment {
+    policy_option: u8,
+    onset_time_step: usize,
+    bucket_idx: usize,
+}
+
+fn ensure_sepsis_episode_state(individual: &mut Individual, num_bacteria: usize) {
+    individual.sepsis_episode_open.resize(num_bacteria, false);
+    individual
+        .sepsis_episode_context_at_onset
+        .resize(num_bacteria, SEPSIS_CONTEXT_NO_ANTIBIOTIC_ACTIVE);
+    individual
+        .sepsis_episode_best_activity_at_onset
+        .resize(num_bacteria, 0.0);
+    individual
+        .sepsis_episode_effective_at_onset
+        .resize(num_bacteria, false);
+    individual
+        .sepsis_episode_first_effective_day
+        .resize(num_bacteria, -1);
+    individual
+        .sepsis_episode_region_at_onset
+        .resize(num_bacteria, -1);
+    individual
+        .sepsis_episode_hospitalized_at_onset
+        .resize(num_bacteria, false);
+    individual
+        .sepsis_episode_age_group_at_onset
+        .resize(num_bacteria, -1);
+    individual
+        .sepsis_episode_delay_bucket_recorded
+        .resize(num_bacteria, false);
+}
+
+fn best_active_antibiotic_activity(individual: &Individual, bacteria_idx: usize) -> f64 {
+    let mut best_activity = 0.0;
+    for (drug_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
+        if !is_using {
+            continue;
+        }
+        if let Some(resistance) = individual
+            .resistances
+            .get(bacteria_idx)
+            .and_then(|row| row.get(drug_idx))
+        {
+            let activity = load_float(resistance.activity_r);
+            if activity > best_activity {
+                best_activity = activity;
+            }
+        }
+    }
+    best_activity
+}
+
+fn sepsis_context_code_at_onset(individual: &Individual, best_activity: f64) -> i32 {
+    let mut saw_active = false;
+    let mut saw_targeted = false;
+    let mut saw_empiric = false;
+    let mut saw_other_or_prophylaxis = false;
+    let mut saw_unknown_or_legacy = false;
+
+    for (drug_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
+        if !is_using {
+            continue;
+        }
+        saw_active = true;
+        match individual
+            .drug_use_context
+            .get(drug_idx)
+            .copied()
+            .unwrap_or(AntibioticUseContext::None)
+        {
+            AntibioticUseContext::Targeted => saw_targeted = true,
+            AntibioticUseContext::Empiric => saw_empiric = true,
+            AntibioticUseContext::Prophylaxis
+            | AntibioticUseContext::OtherNoActiveModelledInfection
+            | AntibioticUseContext::OtherActiveAsymptomaticModelledBacterialInfection => {
+                saw_other_or_prophylaxis = true
+            }
+            AntibioticUseContext::Other | AntibioticUseContext::None => {
+                saw_unknown_or_legacy = true
+            }
+        }
+    }
+
+    if !saw_active {
+        return SEPSIS_CONTEXT_NO_ANTIBIOTIC_ACTIVE;
+    }
+
+    let effective = best_activity >= EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD;
+    if saw_targeted {
+        if effective {
+            SEPSIS_CONTEXT_TARGETED_EFFECTIVE
+        } else {
+            SEPSIS_CONTEXT_TARGETED_NOT_EFFECTIVE
+        }
+    } else if saw_empiric {
+        if effective {
+            SEPSIS_CONTEXT_EMPIRIC_EFFECTIVE
+        } else {
+            SEPSIS_CONTEXT_EMPIRIC_NOT_EFFECTIVE
+        }
+    } else if saw_other_or_prophylaxis {
+        SEPSIS_CONTEXT_OTHER_OR_PROPHYLAXIS
+    } else if saw_unknown_or_legacy {
+        SEPSIS_CONTEXT_UNKNOWN_OR_LEGACY
+    } else {
+        SEPSIS_CONTEXT_UNKNOWN_OR_LEGACY
+    }
+}
+
+fn sepsis_delay_assignment(
+    policy_option: u8,
+    individual: &Individual,
+    bacteria_idx: usize,
+    outcome: &str,
+) -> Option<SepsisDelayBucketAssignment> {
+    let onset_day = individual
+        .sepsis_onset_day
+        .get(bacteria_idx)
+        .copied()
+        .unwrap_or(-1);
+    if onset_day < 0 {
+        return None;
+    }
+    let first_effective_day = individual
+        .sepsis_episode_first_effective_day
+        .get(bacteria_idx)
+        .copied()
+        .unwrap_or(-1);
+    let effective_at_onset = individual
+        .sepsis_episode_effective_at_onset
+        .get(bacteria_idx)
+        .copied()
+        .unwrap_or(false);
+    Some(SepsisDelayBucketAssignment {
+        policy_option,
+        onset_time_step: onset_day as usize,
+        bucket_idx: sepsis_effective_therapy_bucket_index(
+            onset_day,
+            first_effective_day,
+            effective_at_onset,
+            outcome,
+        ),
+    })
 }
 
 const PAST_YEAR_WINDOW_DAYS: usize = 365;
@@ -1493,6 +1688,10 @@ pub struct TimeStepSummary {
     pub number_with_sepsis: usize,
     pub number_with_sepsis_by_bacteria: Vec<usize>, // per-bacteria counts of people with sepsis
     pub new_sepsis_cases_by_bacteria: Vec<usize>, // per-bacteria counts of people who developed sepsis this timestep
+    #[serde(default)]
+    pub sepsis_onset_context_counts: Vec<usize>, // Figure 11 Panel A, indexed by SEPSIS_CONTEXT_* constants
+    #[serde(default)]
+    pub sepsis_effective_therapy_delay_counts: Vec<usize>, // Figure 11 Panel B, assigned to onset timestep
     pub infections_prevented_by_drug_by_bacteria: Vec<usize>, // per-bacteria counts of infections prevented by existing therapy this timestep
     pub infections_by_bacteria: Vec<usize>,                   // indexed by bacteria
     pub infections_by_bacteria_under_5: Vec<usize>,
@@ -1515,6 +1714,8 @@ pub struct TimeStepSummary {
     pub max_possible_activity_r_pure_sum_by_bacteria: Vec<f64>,
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
+    pub newly_infected_with_serious_resistance_count: usize, // Newly infected people with serious-R marker resistance
+    pub newly_infected_serious_resistance_marker_eligible_count: usize, // Newly infected people whose bacterium has a serious-R marker
     pub new_drug_initiations_count: usize, // Number of people who started any new drug this time step
     pub new_drug_initiations_count_infected: usize, // Number of currently infected (excl. H. pylori) people who started any new drug this time step
     pub newly_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = new active infections this timestep by bacteria and home region
@@ -2194,8 +2395,13 @@ impl Simulation {
                 number_with_sepsis: usize,
                 number_with_sepsis_by_bacteria: Vec<usize>,
                 new_sepsis_cases_by_bacteria: Vec<usize>,
+                sepsis_onset_context_counts: Vec<usize>,
+                sepsis_effective_therapy_delay_counts: Vec<usize>,
+                sepsis_effective_therapy_delay_assignments: Vec<SepsisDelayBucketAssignment>,
                 newly_infected_count: usize,
                 newly_infected_with_resistance_count: usize,
+                newly_infected_with_serious_resistance_count: usize,
+                newly_infected_serious_resistance_marker_eligible_count: usize,
                 new_drug_initiations_count: usize,
                 new_drug_initiations_count_infected: usize,
                 newly_infected_by_bacteria_region: Vec<usize>,
@@ -2408,8 +2614,16 @@ impl Simulation {
                         number_with_sepsis: 0,
                         number_with_sepsis_by_bacteria: vec![0; num_bacteria],
                         new_sepsis_cases_by_bacteria: vec![0; num_bacteria],
+                        sepsis_onset_context_counts: vec![0; SEPSIS_CONTEXT_CATEGORY_COUNT],
+                        sepsis_effective_therapy_delay_counts: vec![
+                            0;
+                            SEPSIS_EFFECTIVE_THERAPY_BUCKET_COUNT
+                        ],
+                        sepsis_effective_therapy_delay_assignments: Vec::new(),
                         newly_infected_count: 0,
                         newly_infected_with_resistance_count: 0,
+                        newly_infected_with_serious_resistance_count: 0,
+                        newly_infected_serious_resistance_marker_eligible_count: 0,
                         new_drug_initiations_count: 0,
                         new_drug_initiations_count_infected: 0,
                         newly_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
@@ -2909,9 +3123,29 @@ impl Simulation {
                     {
                         *a += b;
                     }
+                    for (a, b) in self
+                        .sepsis_onset_context_counts
+                        .iter_mut()
+                        .zip(other.sepsis_onset_context_counts)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .sepsis_effective_therapy_delay_counts
+                        .iter_mut()
+                        .zip(other.sepsis_effective_therapy_delay_counts)
+                    {
+                        *a += b;
+                    }
+                    self.sepsis_effective_therapy_delay_assignments
+                        .extend(other.sepsis_effective_therapy_delay_assignments);
                     self.newly_infected_count += other.newly_infected_count;
                     self.newly_infected_with_resistance_count +=
                         other.newly_infected_with_resistance_count;
+                    self.newly_infected_with_serious_resistance_count +=
+                        other.newly_infected_with_serious_resistance_count;
+                    self.newly_infected_serious_resistance_marker_eligible_count +=
+                        other.newly_infected_serious_resistance_marker_eligible_count;
                     self.new_drug_initiations_count += other.new_drug_initiations_count;
                     self.new_drug_initiations_count_infected +=
                         other.new_drug_initiations_count_infected;
@@ -3521,6 +3755,26 @@ impl Simulation {
                         }
                     }
 
+                    // Snapshot current therapy before same-day rule updates can start or stop drugs.
+                    ensure_sepsis_episode_state(individual, num_bacteria);
+                    if individual.date_of_death.is_none() && individual.age >= 0 {
+                        for b_idx in 0..num_bacteria {
+                            if individual.level[b_idx] > INFECTION_EPS
+                                && !individual.sepsis[b_idx]
+                                && !individual.sepsis_episode_open[b_idx]
+                            {
+                                let best_activity =
+                                    best_active_antibiotic_activity(individual, b_idx);
+                                individual.sepsis_episode_best_activity_at_onset[b_idx] =
+                                    best_activity;
+                                individual.sepsis_episode_effective_at_onset[b_idx] =
+                                    best_activity >= EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD;
+                                individual.sepsis_episode_context_at_onset[b_idx] =
+                                    sepsis_context_code_at_onset(individual, best_activity);
+                            }
+                        }
+                    }
+
                     // Reset drug scores for this time step (initialize to -1 indicating no drug selection)
                     individual.bacteria_on_selection_day = -1;
                     for d_idx in 0..num_drugs {
@@ -3539,6 +3793,88 @@ impl Simulation {
                         param_cache,
                         &policy,
                     );
+
+                    let died_today = individual.date_of_death == Some(t);
+                    for b_idx in 0..num_bacteria {
+                        let started_today = individual.sepsis_onset_day[b_idx] == t as i32
+                            && !individual.sepsis_episode_open[b_idx];
+                        if started_today {
+                            individual.sepsis_episode_open[b_idx] = true;
+                            individual.sepsis_episode_delay_bucket_recorded[b_idx] = false;
+                            let context_idx = individual.sepsis_episode_context_at_onset[b_idx]
+                                .clamp(0, (SEPSIS_CONTEXT_CATEGORY_COUNT - 1) as i32)
+                                as usize;
+                            lt.sepsis_onset_context_counts[context_idx] += 1;
+                            individual.sepsis_episode_first_effective_day[b_idx] = if individual
+                                .sepsis_episode_effective_at_onset[b_idx]
+                            {
+                                t as i32
+                            } else {
+                                -1
+                            };
+                        }
+
+                        if individual.sepsis_episode_open[b_idx]
+                            && individual.sepsis_episode_first_effective_day[b_idx] < 0
+                        {
+                            let current_best_activity =
+                                best_active_antibiotic_activity(individual, b_idx);
+                            if current_best_activity >= EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD {
+                                individual.sepsis_episode_first_effective_day[b_idx] = t as i32;
+                            }
+                        }
+
+                        if individual.sepsis_episode_open[b_idx]
+                            && !individual.sepsis_episode_delay_bucket_recorded[b_idx]
+                            && individual.sepsis_episode_first_effective_day[b_idx] >= 0
+                        {
+                            if let Some(assignment) =
+                                sepsis_delay_assignment(policy.policy_option, individual, b_idx, "")
+                            {
+                                if assignment.onset_time_step == t {
+                                    lt.sepsis_effective_therapy_delay_counts
+                                        [assignment.bucket_idx] += 1;
+                                } else {
+                                    lt.sepsis_effective_therapy_delay_assignments
+                                        .push(assignment);
+                                }
+                                individual.sepsis_episode_delay_bucket_recorded[b_idx] = true;
+                            }
+                        }
+                    }
+
+                    for b_idx in 0..num_bacteria {
+                        if !individual.sepsis_episode_open[b_idx] {
+                            continue;
+                        }
+                        let outcome = if died_today {
+                            Some("death")
+                        } else if !individual.sepsis[b_idx] {
+                            Some("recovered")
+                        } else {
+                            None
+                        };
+                        if let Some(outcome) = outcome {
+                            if !individual.sepsis_episode_delay_bucket_recorded[b_idx] {
+                                if let Some(assignment) = sepsis_delay_assignment(
+                                    policy.policy_option,
+                                    individual,
+                                    b_idx,
+                                    outcome,
+                                ) {
+                                    if assignment.onset_time_step == t {
+                                        lt.sepsis_effective_therapy_delay_counts
+                                            [assignment.bucket_idx] += 1;
+                                    } else {
+                                        lt.sepsis_effective_therapy_delay_assignments
+                                            .push(assignment);
+                                    }
+                                    individual.sepsis_episode_delay_bucket_recorded[b_idx] = true;
+                                }
+                            }
+                            individual.sepsis_episode_open[b_idx] = false;
+                        }
+                    }
 
                     // Death accounting
                     if let Some(death_time) = individual.date_of_death {
@@ -3936,6 +4272,8 @@ impl Simulation {
                         let mut individual_has_any_r_positive = false;
                         let mut was_newly_infected = false;
                         let mut was_newly_infected_with_resistance = false;
+                        let mut was_newly_infected_with_serious_resistance = false;
+                        let mut was_newly_infected_marker_eligible = false;
                         let mut individual_has_any_infection_counted_for_syndrome = false;
                         let mut individual_has_any_new_infection_counted_for_syndrome = false;
                         let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
@@ -4044,6 +4382,31 @@ impl Simulation {
                                             } else {
                                                 lt.newly_infected_any_r_community_by_bacteria[b_idx] += 1;
                                             }
+                                        }
+                                        let marker_drugs =
+                                            serious_resistance_marker_drugs(BACTERIA_LIST[b_idx]);
+                                        if !marker_drugs.is_empty()
+                                            && !was_newly_infected_marker_eligible
+                                        {
+                                            lt.newly_infected_serious_resistance_marker_eligible_count +=
+                                                1;
+                                            was_newly_infected_marker_eligible = true;
+                                        }
+                                        if !was_newly_infected_with_serious_resistance
+                                            && marker_drugs.iter().any(|drug_name| {
+                                                DRUG_SHORT_NAMES
+                                                    .iter()
+                                                    .position(|candidate| candidate == drug_name)
+                                                    .map(|drug_idx| {
+                                                        load_float(
+                                                            individual.resistances[b_idx][drug_idx].any_r,
+                                                        ) > INFECTION_EPS
+                                                    })
+                                                    .unwrap_or(false)
+                                            })
+                                        {
+                                            lt.newly_infected_with_serious_resistance_count += 1;
+                                            was_newly_infected_with_serious_resistance = true;
                                         }
                                     }
                                     let base = b_idx * num_drugs;
@@ -4349,8 +4712,13 @@ impl Simulation {
                 number_with_sepsis,
                 number_with_sepsis_by_bacteria,
                 new_sepsis_cases_by_bacteria,
+                sepsis_onset_context_counts,
+                sepsis_effective_therapy_delay_counts,
+                sepsis_effective_therapy_delay_assignments,
                 newly_infected_count,
                 newly_infected_with_resistance_count,
+                newly_infected_with_serious_resistance_count,
+                newly_infected_serious_resistance_marker_eligible_count,
                 new_drug_initiations_count,
                 new_drug_initiations_count_infected,
                 newly_infected_by_bacteria_region,
@@ -4433,6 +4801,8 @@ impl Simulation {
                 syndrome_population_by_region,
                 ..
             } = totals;
+
+            self.apply_sepsis_delay_assignments(&sepsis_effective_therapy_delay_assignments);
 
             // resistance_by_bacteria_drug_flat is used directly as the flat Vec<usize> in TimeStepSummary
 
@@ -4558,9 +4928,13 @@ impl Simulation {
                 number_with_sepsis,
                 number_with_sepsis_by_bacteria,
                 new_sepsis_cases_by_bacteria,
+                sepsis_onset_context_counts,
+                sepsis_effective_therapy_delay_counts,
                 infections_prevented_by_drug_by_bacteria,
                 newly_infected_count,
                 newly_infected_with_resistance_count,
+                newly_infected_with_serious_resistance_count,
+                newly_infected_serious_resistance_marker_eligible_count,
                 new_drug_initiations_count,
                 new_drug_initiations_count_infected,
                 newly_infected_by_bacteria_region,
@@ -4795,6 +5169,10 @@ impl Simulation {
             }
         }
 
+        self.collect_censored_sepsis_delay_assignments(
+            self.current_policy_adjustments.policy_option,
+        );
+
         // Final journey logging - ensure all journey data is written at simulation end
         if self.journey_logger.enabled && !self.branch_active {
             let _ = self.journey_logger.finalize();
@@ -4802,6 +5180,52 @@ impl Simulation {
         }
 
         Ok(branch_snapshot)
+    }
+
+    fn collect_censored_sepsis_delay_assignments(&mut self, policy_option: u8) {
+        let num_bacteria = BACTERIA_LIST.len();
+        let mut assignments = Vec::new();
+        for individual in &mut self.population.individuals {
+            ensure_sepsis_episode_state(individual, num_bacteria);
+            for b_idx in 0..num_bacteria {
+                if individual.sepsis_episode_open[b_idx] {
+                    if !individual.sepsis_episode_delay_bucket_recorded[b_idx] {
+                        if let Some(assignment) =
+                            sepsis_delay_assignment(policy_option, individual, b_idx, "censored")
+                        {
+                            assignments.push(assignment);
+                        }
+                        individual.sepsis_episode_delay_bucket_recorded[b_idx] = true;
+                    }
+                    individual.sepsis_episode_open[b_idx] = false;
+                }
+            }
+        }
+        self.apply_sepsis_delay_assignments(&assignments);
+    }
+
+    fn apply_sepsis_delay_assignments(&mut self, assignments: &[SepsisDelayBucketAssignment]) {
+        if assignments.is_empty() {
+            return;
+        }
+        for assignment in assignments {
+            if assignment.bucket_idx >= SEPSIS_EFFECTIVE_THERAPY_BUCKET_COUNT {
+                continue;
+            }
+            if let Some(summary) = self.summary_log.iter_mut().find(|summary| {
+                summary.time_step == assignment.onset_time_step
+                    && summary.policy_option == assignment.policy_option
+            }) {
+                if summary.sepsis_effective_therapy_delay_counts.len()
+                    < SEPSIS_EFFECTIVE_THERAPY_BUCKET_COUNT
+                {
+                    summary
+                        .sepsis_effective_therapy_delay_counts
+                        .resize(SEPSIS_EFFECTIVE_THERAPY_BUCKET_COUNT, 0);
+                }
+                summary.sepsis_effective_therapy_delay_counts[assignment.bucket_idx] += 1;
+            }
+        }
     }
 
     pub fn run(&mut self) {
@@ -5099,7 +5523,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_taking_drug_count_other_no_active_modelled_infection,currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection,currently_taking_drug_count_other_unknown_or_legacy,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_taking_drug_count_other_no_active_modelled_infection,currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection,currently_taking_drug_count_other_unknown_or_legacy,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,newly_infected_with_serious_resistance_count,newly_infected_serious_resistance_marker_eligible_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,sepsis_onset_no_antibiotic_count,sepsis_onset_other_or_prophylaxis_only_count,sepsis_onset_empiric_not_effective_count,sepsis_onset_empiric_effective_count,sepsis_onset_targeted_not_effective_count,sepsis_onset_targeted_effective_count,sepsis_onset_unknown_legacy_count,sepsis_effective_therapy_on_or_before_onset_count,sepsis_effective_therapy_later_same_day_count,sepsis_effective_therapy_1_day_count,sepsis_effective_therapy_2_3_days_count,sepsis_effective_therapy_4plus_days_count,sepsis_no_effective_therapy_before_resolution_death_or_censoring_count,sepsis_effective_therapy_unknown_or_censored_count,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -5781,6 +6205,20 @@ impl Simulation {
                     std::io::Error::new(std::io::ErrorKind::Other, "failed to format summary row")
                 })
             };
+            let sepsis_context_count = |idx: i32| -> usize {
+                summary
+                    .sepsis_onset_context_counts
+                    .get(idx as usize)
+                    .copied()
+                    .unwrap_or(0)
+            };
+            let sepsis_delay_count = |idx: usize| -> usize {
+                summary
+                    .sepsis_effective_therapy_delay_counts
+                    .get(idx)
+                    .copied()
+                    .unwrap_or(0)
+            };
 
             append_scalar(format_args!("{}", summary.time_step))?;
             append_scalar(format_args!("{}", summary.policy_option))?;
@@ -5834,12 +6272,76 @@ impl Simulation {
                 "{}",
                 summary.newly_infected_with_resistance_count
             ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.newly_infected_with_serious_resistance_count
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.newly_infected_serious_resistance_marker_eligible_count
+            ))?;
             append_scalar(format_args!("{}", summary.new_drug_initiations_count))?;
             append_scalar(format_args!(
                 "{}",
                 summary.new_drug_initiations_count_infected
             ))?;
             append_scalar(format_args!("{}", summary.newly_infected_past_year))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_NO_ANTIBIOTIC_ACTIVE)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_OTHER_OR_PROPHYLAXIS)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_EMPIRIC_NOT_EFFECTIVE)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_EMPIRIC_EFFECTIVE)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_TARGETED_NOT_EFFECTIVE)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_TARGETED_EFFECTIVE)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_context_count(SEPSIS_CONTEXT_UNKNOWN_OR_LEGACY)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_ON_OR_BEFORE_ONSET_IDX)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_LATER_SAME_DAY_IDX)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_1_DAY_IDX)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_2_3_DAYS_IDX)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_4PLUS_DAYS_IDX)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_NO_EFFECTIVE_IDX)
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                sepsis_delay_count(SEPSIS_DELAY_UNKNOWN_OR_CENSORED_IDX)
+            ))?;
             append_scalar(format_args!("{}", summary.total_deaths))?;
             append_scalar(format_args!("{}", summary.deaths_background))?;
             append_scalar(format_args!("{}", summary.deaths_sepsis))?;

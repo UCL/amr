@@ -77,6 +77,51 @@ fn assert_individual_dimensions(individual: &Individual) {
         bacteria,
     );
     assert_len(
+        "sepsis_episode_open",
+        individual.sepsis_episode_open.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_context_at_onset",
+        individual.sepsis_episode_context_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_best_activity_at_onset",
+        individual.sepsis_episode_best_activity_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_effective_at_onset",
+        individual.sepsis_episode_effective_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_first_effective_day",
+        individual.sepsis_episode_first_effective_day.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_delay_bucket_recorded",
+        individual.sepsis_episode_delay_bucket_recorded.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_region_at_onset",
+        individual.sepsis_episode_region_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_hospitalized_at_onset",
+        individual.sepsis_episode_hospitalized_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
+        "sepsis_episode_age_group_at_onset",
+        individual.sepsis_episode_age_group_at_onset.len(),
+        bacteria,
+    );
+    assert_len(
         "infection_prevented_by_drug",
         individual.infection_prevented_by_drug.len(),
         bacteria,
