@@ -522,11 +522,26 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
                 "sepsis_recovery_log_odds_bacteria_level",
                 g.sepsis_recovery_log_odds_bacteria_level,
             ),
-            ("sepsis_recovery_log_odds_in_hospital", g.sepsis_recovery_log_odds_in_hospital),
-            ("sepsis_recovery_log_odds_age_infant", g.sepsis_recovery_log_odds_age_infant),
-            ("sepsis_recovery_log_odds_age_child", g.sepsis_recovery_log_odds_age_child),
-            ("sepsis_recovery_log_odds_age_adult", g.sepsis_recovery_log_odds_age_adult),
-            ("sepsis_recovery_log_odds_age_elderly", g.sepsis_recovery_log_odds_age_elderly),
+            (
+                "sepsis_recovery_log_odds_in_hospital",
+                g.sepsis_recovery_log_odds_in_hospital,
+            ),
+            (
+                "sepsis_recovery_log_odds_age_infant",
+                g.sepsis_recovery_log_odds_age_infant,
+            ),
+            (
+                "sepsis_recovery_log_odds_age_child",
+                g.sepsis_recovery_log_odds_age_child,
+            ),
+            (
+                "sepsis_recovery_log_odds_age_adult",
+                g.sepsis_recovery_log_odds_age_adult,
+            ),
+            (
+                "sepsis_recovery_log_odds_age_elderly",
+                g.sepsis_recovery_log_odds_age_elderly,
+            ),
             (
                 "sepsis_recovery_log_odds_immunosuppressed",
                 g.sepsis_recovery_log_odds_immunosuppressed,
