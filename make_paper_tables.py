@@ -1766,6 +1766,26 @@ def _class_summary(
     return sim_med, sim_lo, sim_hi, tgt
 
 
+def _f2_is_valid_organism_label(v: object) -> bool:
+    """Return False for separator/header artifacts that are not organism names."""
+    if v is None:
+        return False
+    if isinstance(v, float) and np.isnan(v):
+        return False
+    s = str(v).strip()
+    if not s or s.lower() == "nan":
+        return False
+    dash_normalised = (
+        s.replace("\u2013", "-")
+        .replace("\u2014", "-")
+        .replace("\u2212", "-")
+        .replace("\u00e2\u20ac\u201c", "-")
+        .replace("\u00e2\u20ac\u201d", "-")
+    )
+    compact = "".join(ch for ch in dash_normalised if not ch.isspace())
+    return set(compact) != {"-"}
+
+
 def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
     """
     Create Figure 2: dynamic grid showing infection resistance calibration fit
@@ -1785,7 +1805,19 @@ def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
     if "Flags" in rb.columns:
         rb = rb[~rb["Flags"].astype(str).str.contains("negligible", case=False, na=False)].copy()
     if rb.empty:
-        print("  Figure 3: no non-negligible resistance_benchmarks rows — skipping figure.")
+        print("  Figure 2: no non-negligible resistance_benchmarks rows — skipping figure.")
+        return
+
+    valid_organism_mask = rb["Bacteria"].apply(_f2_is_valid_organism_label)
+    if not bool(valid_organism_mask.all()):
+        skipped = sorted({str(v).strip() for v in rb.loc[~valid_organism_mask, "Bacteria"].dropna()})
+        print(
+            "  Figure 2: omitted non-organism resistance benchmark label(s): "
+            f"{', '.join(repr(v) for v in skipped)}."
+        )
+        rb = rb.loc[valid_organism_mask].copy()
+    if rb.empty:
+        print("  Figure 2: no plottable organism resistance_benchmarks rows — skipping figure.")
         return
 
     n_runs = agg.get("n_runs", 1)
@@ -8551,6 +8583,22 @@ def make_legacy_index(agg: dict, out_dir: Path) -> None:
 # Focused paper-output index
 # ---------------------------------------------------------------------------
 
+def _index_existing_link_items(
+    out_dir: Path,
+    items: list[tuple[str, str]],
+    empty_message: str,
+) -> str:
+    body = ""
+    for fname, label in items:
+        if (out_dir / fname).exists():
+            body += f"<li><a href='{fname}'><strong>{label}</strong></a></li>\n"
+        else:
+            print(f"  Index: skipped missing output {fname}")
+    if not body:
+        body = f"<li><em>{empty_message}</em></li>\n"
+    return body
+
+
 def make_index(agg: dict, out_dir: Path) -> None:
     n = agg.get("n_runs", 1)
 
@@ -8566,15 +8614,20 @@ def make_index(agg: dict, out_dir: Path) -> None:
     body += "</ul>\n"
 
     body += "<h2>Supplementary Tables</h2>\n<ul>\n"
-    body += (
-        "<li><a href='Tables/Supplementary_Table_S1__infection_outcomes_by_bacterium.html'>"
-        "<strong>Supplementary Table S1. Infection outcomes by bacterium, 2022\u20132025</strong>"
-        "</a></li>\n"
-    )
-    body += (
-        "<li><a href='Tables/Supplementary_Table_S2__detailed_bacterium_drug_resistance_benchmarks.html'>"
-        "<strong>Supplementary Table S2. Detailed bacterium-drug resistance benchmarks, "
-        "2022\u20132025</strong></a></li>\n"
+    body += _index_existing_link_items(
+        out_dir,
+        [
+            (
+                "Tables/Supplementary_Table_S1__infection_outcomes_by_bacterium.html",
+                "Supplementary Table S1. Infection outcomes by bacterium, 2022\u20132025",
+            ),
+            (
+                "Tables/Supplementary_Table_S2__detailed_bacterium_drug_resistance_benchmarks.html",
+                "Supplementary Table S2. Detailed bacterium-drug resistance benchmarks, "
+                "2022\u20132025",
+            ),
+        ],
+        "No supplementary tables were generated.",
     )
     body += "</ul>\n"
 
@@ -8634,30 +8687,34 @@ def make_index(agg: dict, out_dir: Path) -> None:
     body += "</ul>\n"
 
     body += "<h2>Supplementary Figures</h2>\n<ul>\n"
-    body += (
-        "<li><a href='Figures/Supplementary_Figure_S1__potential_activity_retained.html'>"
-        "<strong>Supplementary Figure S1. Potential antibiotic activity retained across "
-        "available drugs</strong></a></li>\n"
-    )
-    body += (
-        "<li><a href='Figures/Supplementary_Figure_S2__microbiome_resistance_reservoir.html'>"
-        "<strong>Supplementary Figure S2. Microbiome resistance reservoir, 2022\u20132025</strong>"
-        "</a></li>\n"
-    )
-    body += (
-        "<li><a href='Figures/Supplementary_Figure_S3__carrier_vs_non_carrier_infection_incidence.html'>"
-        "<strong>Supplementary Figure S3. Carrier versus non-carrier infection incidence, "
-        "2022\u20132025</strong></a></li>\n"
-    )
-    body += (
-        "<li><a href='Figures/Supplementary_Figure_S4__resistance_mechanisms_by_bacterium.html'>"
-        "<strong>Supplementary Figure S4. Resistance mechanisms by bacterium, "
-        "2022\u20132025</strong></a></li>\n"
-    )
-    body += (
-        "<li><a href='Figures/Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html'>"
-        "<strong>Supplementary Figure S5. Diagnostic testing and targeted-treatment cascade, "
-        "2022\u20132025</strong></a></li>\n"
+    body += _index_existing_link_items(
+        out_dir,
+        [
+            (
+                "Figures/Supplementary_Figure_S1__potential_activity_retained.html",
+                "Supplementary Figure S1. Potential antibiotic activity retained across "
+                "available drugs",
+            ),
+            (
+                "Figures/Supplementary_Figure_S2__microbiome_resistance_reservoir.html",
+                "Supplementary Figure S2. Microbiome resistance reservoir, 2022\u20132025",
+            ),
+            (
+                "Figures/Supplementary_Figure_S3__carrier_vs_non_carrier_infection_incidence.html",
+                "Supplementary Figure S3. Carrier versus non-carrier infection incidence, "
+                "2022\u20132025",
+            ),
+            (
+                "Figures/Supplementary_Figure_S4__resistance_mechanisms_by_bacterium.html",
+                "Supplementary Figure S4. Resistance mechanisms by bacterium, 2022\u20132025",
+            ),
+            (
+                "Figures/Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html",
+                "Supplementary Figure S5. Diagnostic testing and targeted-treatment cascade, "
+                "2022\u20132025",
+            ),
+        ],
+        "No supplementary figures were generated.",
     )
     body += "</ul>\n"
     body += "</body></html>"

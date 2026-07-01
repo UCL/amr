@@ -34,23 +34,740 @@ a { color: #2980b9; }
 <body>
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
 <h1>Supplementary Table S1. Infection outcomes by bacterium, 2022–2025</h1>
-<div class='meta-box'><strong>Target year:</strong> 2025 &nbsp;|&nbsp; <strong>Window:</strong> 4.00 simulated years (totals annualized to yearly equivalents) &nbsp;|&nbsp; <strong>Simulated population (mean):</strong> 1,750,181 &nbsp;|&nbsp; <strong>Population scale factor:</strong> 4,685.2305 &nbsp;|&nbsp; <strong>Runs:</strong> 1 accepted calibration run</div>
-<p class='note'>Supplementary Table S1 requires aggregate per-bacterium vector columns in simulation_summary_run#.csv: new_active_infections_by_bacteria, active_infection_days_by_bacteria, treated_infection_days_by_bacteria, effective_treated_infection_days_by_bacteria, infection_resolution_count_by_bacteria, sepsis_onset_count_by_bacteria, infection_death_count_by_bacteria, drug_failure_count_by_bacteria. Re-run the Rust simulation after adding these observability fields to generate the real table.</p>
-<h2>Required simulation_summary columns</h2>
-<ul>
-<li><code>new_active_infections_by_bacteria</code></li>
-<li><code>active_infection_days_by_bacteria</code></li>
-<li><code>treated_infection_days_by_bacteria</code></li>
-<li><code>effective_treated_infection_days_by_bacteria</code></li>
-<li><code>infection_resolution_count_by_bacteria</code></li>
-<li><code>sepsis_onset_count_by_bacteria</code></li>
-<li><code>infection_death_count_by_bacteria</code></li>
-<li><code>drug_failure_count_by_bacteria</code></li>
-</ul>
-<h2>Parser notes</h2>
-<ul>
-<li>simulation_summary_392475.csv: missing columns new_active_infections_by_bacteria, active_infection_days_by_bacteria, treated_infection_days_by_bacteria, effective_treated_infection_days_by_bacteria, infection_resolution_count_by_bacteria, sepsis_onset_count_by_bacteria, infection_death_count_by_bacteria, drug_failure_count_by_bacteria.</li>
-</ul>
-<ol class='footnotes'>
-<li>Old simulation_summary files remain readable: when the required aggregate columns are absent, this placeholder is generated rather than failing the paper-output build.</li><li>No supplementary-table-specific CSV or event-level output is required.</li>
+<div class='meta-box'><strong>Target year:</strong> 2025 &nbsp;|&nbsp; <strong>Window:</strong> 4.00 simulated years (totals annualized to yearly equivalents) &nbsp;|&nbsp; <strong>Simulated population (mean):</strong> 1,744,227 &nbsp;|&nbsp; <strong>Population scale factor:</strong> 4,701.2227 &nbsp;|&nbsp; <strong>Runs:</strong> 3 accepted calibration runs</div>
+<p class='note'>Baseline-policy rows with 2022 <= simulation year < 2026. Values are median run-level counts and rates across 3 accepted simulation runs; each run is summed across the window before rates are calculated.</p>
+<table>
+<thead><tr>
+<th>Bacterium</th>
+<th>New active infections</th>
+<th>Active infection-days</th>
+<th>Treated infection-days</th>
+<th>Effective treated infection-days</th>
+<th>Effective treated infection-days (% of treated)</th>
+<th>Infection resolutions</th>
+<th>Resolution rate per 1,000 new active infections</th>
+<th>Drug / treatment failure events</th>
+<th>Failure rate per 1,000 treated infection-days</th>
+<th>Sepsis onsets</th>
+<th>Sepsis onset rate per 1,000 new active infections</th>
+<th>Infection deaths</th>
+<th>Infection fatality per 1,000 new active infections</th>
+<th>Reliability flag</th>
+</tr></thead><tbody>
+<tr>
+<td>Staphylococcus aureus</td>
+<td>63,732</td>
+<td>268,177</td>
+<td>125,602</td>
+<td>77,421</td>
+<td>61.2</td>
+<td>62,944</td>
+<td>987.6</td>
+<td>4,278</td>
+<td>33.6</td>
+<td>7,572</td>
+<td>118.0</td>
+<td>1,666</td>
+<td>26.2</td>
+<td></td>
+</tr>
+<tr>
+<td>Escherichia coli</td>
+<td>174,102</td>
+<td>883,369</td>
+<td>189,270</td>
+<td>101,081</td>
+<td>56.9</td>
+<td>175,554</td>
+<td>1006.9</td>
+<td>3,157</td>
+<td>16.7</td>
+<td>7,310</td>
+<td>42.0</td>
+<td>1,281</td>
+<td>7.37</td>
+<td></td>
+</tr>
+<tr>
+<td>Helicobacter pylori</td>
+<td>156,643</td>
+<td>1,936,336</td>
+<td>100,018</td>
+<td>41,468</td>
+<td>41.7</td>
+<td>157,533</td>
+<td>1005.7</td>
+<td>4,037</td>
+<td>40.4</td>
+<td>0</td>
+<td>0.00</td>
+<td>1,120</td>
+<td>7.15</td>
+<td>low sepsis count; unstable rate</td>
+</tr>
+<tr>
+<td>Bordetella pertussis</td>
+<td>14,031</td>
+<td>74,134</td>
+<td>32,674</td>
+<td>31,177</td>
+<td>95.3</td>
+<td>13,814</td>
+<td>985.2</td>
+<td>137</td>
+<td>4.25</td>
+<td>19</td>
+<td>1.36</td>
+<td>400</td>
+<td>28.6</td>
+<td>low sepsis count; unstable rate</td>
+</tr>
+<tr>
+<td>Streptococcus pneumoniae</td>
+<td>152,607</td>
+<td>472,973</td>
+<td>146,926</td>
+<td>134,237</td>
+<td>90.2</td>
+<td>154,201</td>
+<td>1011.8</td>
+<td>2,323</td>
+<td>15.8</td>
+<td>1,313</td>
+<td>8.59</td>
+<td>320</td>
+<td>2.09</td>
+<td></td>
+</tr>
+<tr>
+<td>Klebsiella pneumoniae</td>
+<td>13,213</td>
+<td>64,673</td>
+<td>24,422</td>
+<td>18,010</td>
+<td>73.3</td>
+<td>13,132</td>
+<td>988.8</td>
+<td>416</td>
+<td>17.7</td>
+<td>2,143</td>
+<td>164.6</td>
+<td>311</td>
+<td>23.9</td>
+<td></td>
+</tr>
+<tr>
+<td>Shigella spp.</td>
+<td>163,876</td>
+<td>928,826</td>
+<td>521,265</td>
+<td>311,794</td>
+<td>59.0</td>
+<td>166,071</td>
+<td>1013.7</td>
+<td>14,219</td>
+<td>27.3</td>
+<td>181</td>
+<td>1.10</td>
+<td>278</td>
+<td>1.69</td>
+<td></td>
+</tr>
+<tr>
+<td>Streptococcus pyogenes</td>
+<td>14,806</td>
+<td>40,715</td>
+<td>8,152</td>
+<td>7,018</td>
+<td>86.5</td>
+<td>14,875</td>
+<td>1002.6</td>
+<td>43</td>
+<td>5.02</td>
+<td>1,045</td>
+<td>70.9</td>
+<td>167</td>
+<td>11.3</td>
+<td></td>
+</tr>
+<tr>
+<td>Haemophilus influenzae</td>
+<td>5,600</td>
+<td>29,203</td>
+<td>9,192</td>
+<td>7,578</td>
+<td>75.8</td>
+<td>5,506</td>
+<td>984.3</td>
+<td>119</td>
+<td>13.1</td>
+<td>759</td>
+<td>133.5</td>
+<td>163</td>
+<td>29.1</td>
+<td></td>
+</tr>
+<tr>
+<td>Treponema pallidum</td>
+<td>7,204</td>
+<td>60,018</td>
+<td>5,484</td>
+<td>4,639</td>
+<td>84.6</td>
+<td>7,144</td>
+<td>991.7</td>
+<td>80</td>
+<td>14.6</td>
+<td>25</td>
+<td>3.53</td>
+<td>159</td>
+<td>22.1</td>
+<td></td>
+</tr>
+<tr>
+<td>Pseudomonas aeruginosa</td>
+<td>3,005</td>
+<td>15,495</td>
+<td>7,545</td>
+<td>3,337</td>
+<td>46.4</td>
+<td>2,925</td>
+<td>969.5</td>
+<td>290</td>
+<td>38.4</td>
+<td>994</td>
+<td>323.0</td>
+<td>142</td>
+<td>46.1</td>
+<td></td>
+</tr>
+<tr>
+<td>Neisseria meningitidis</td>
+<td>481</td>
+<td>3,241</td>
+<td>1,363</td>
+<td>1,030</td>
+<td>77.4</td>
+<td>380</td>
+<td>751.0</td>
+<td>19</td>
+<td>12.6</td>
+<td>394</td>
+<td>778.7</td>
+<td>127</td>
+<td>264.0</td>
+<td></td>
+</tr>
+<tr>
+<td>Acinetobacter baumannii</td>
+<td>1,362</td>
+<td>7,255</td>
+<td>3,972</td>
+<td>2,113</td>
+<td>44.2</td>
+<td>1,236</td>
+<td>923.6</td>
+<td>145</td>
+<td>35.5</td>
+<td>382</td>
+<td>280.5</td>
+<td>115</td>
+<td>84.9</td>
+<td></td>
+</tr>
+<tr>
+<td>Salmonella enterica serovar Typhi</td>
+<td>14,512</td>
+<td>66,577</td>
+<td>25,910</td>
+<td>11,207</td>
+<td>40.6</td>
+<td>14,581</td>
+<td>1007.6</td>
+<td>445</td>
+<td>17.1</td>
+<td>1,387</td>
+<td>95.9</td>
+<td>106</td>
+<td>7.35</td>
+<td></td>
+</tr>
+<tr>
+<td>Streptococcus agalactiae</td>
+<td>2,757</td>
+<td>13,360</td>
+<td>4,670</td>
+<td>4,227</td>
+<td>90.5</td>
+<td>2,721</td>
+<td>986.4</td>
+<td>117</td>
+<td>20.8</td>
+<td>721</td>
+<td>261.5</td>
+<td>95</td>
+<td>32.5</td>
+<td></td>
+</tr>
+<tr>
+<td>Moraxella catarrhalis</td>
+<td>6,072</td>
+<td>51,740</td>
+<td>7,792</td>
+<td>7,364</td>
+<td>93.2</td>
+<td>6,111</td>
+<td>1001.0</td>
+<td>77</td>
+<td>10.2</td>
+<td>292</td>
+<td>48.7</td>
+<td>73</td>
+<td>12.2</td>
+<td></td>
+</tr>
+<tr>
+<td>Invasive non-typhoidal Salmonella spp.</td>
+<td>3,009</td>
+<td>16,545</td>
+<td>5,416</td>
+<td>3,883</td>
+<td>71.7</td>
+<td>3,005</td>
+<td>1000.3</td>
+<td>99</td>
+<td>18.3</td>
+<td>258</td>
+<td>84.4</td>
+<td>48</td>
+<td>15.7</td>
+<td></td>
+</tr>
+<tr>
+<td>Campylobacter jejuni</td>
+<td>94,715</td>
+<td>603,972</td>
+<td>351,230</td>
+<td>333,861</td>
+<td>95.1</td>
+<td>96,105</td>
+<td>1014.0</td>
+<td>953</td>
+<td>2.58</td>
+<td>0</td>
+<td>0.00</td>
+<td>46</td>
+<td>0.48</td>
+<td>low sepsis count; unstable rate</td>
+</tr>
+<tr>
+<td>Mycoplasma pneumoniae</td>
+<td>34,602</td>
+<td>237,494</td>
+<td>86,715</td>
+<td>11,613</td>
+<td>13.5</td>
+<td>35,086</td>
+<td>1014.0</td>
+<td>528</td>
+<td>6.37</td>
+<td>45</td>
+<td>1.30</td>
+<td>37</td>
+<td>1.06</td>
+<td></td>
+</tr>
+<tr>
+<td>Enterococcus faecium</td>
+<td>687</td>
+<td>3,889</td>
+<td>1,821</td>
+<td>1,407</td>
+<td>78.0</td>
+<td>669</td>
+<td>973.8</td>
+<td>59</td>
+<td>32.4</td>
+<td>197</td>
+<td>286.8</td>
+<td>32</td>
+<td>46.6</td>
+<td></td>
+</tr>
+<tr>
+<td>Salmonella enterica serovar Paratyphi A</td>
+<td>4,368</td>
+<td>20,238</td>
+<td>7,948</td>
+<td>3,795</td>
+<td>48.7</td>
+<td>4,402</td>
+<td>1007.5</td>
+<td>99</td>
+<td>12.5</td>
+<td>169</td>
+<td>38.2</td>
+<td>30</td>
+<td>6.79</td>
+<td></td>
+</tr>
+<tr>
+<td>Vibrio cholerae</td>
+<td>3,220</td>
+<td>11,672</td>
+<td>3,555</td>
+<td>3,175</td>
+<td>96.4</td>
+<td>3,256</td>
+<td>1007.1</td>
+<td>8</td>
+<td>2.49</td>
+<td>29</td>
+<td>9.07</td>
+<td>21</td>
+<td>6.56</td>
+<td></td>
+</tr>
+<tr>
+<td>Proteus spp.</td>
+<td>1,556</td>
+<td>8,936</td>
+<td>3,449</td>
+<td>2,885</td>
+<td>80.8</td>
+<td>1,566</td>
+<td>1003.7</td>
+<td>43</td>
+<td>13.9</td>
+<td>119</td>
+<td>78.0</td>
+<td>19</td>
+<td>12.5</td>
+<td>low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Clostridioides difficile</td>
+<td>1,982</td>
+<td>12,889</td>
+<td>6,103</td>
+<td>5,151</td>
+<td>84.7</td>
+<td>1,997</td>
+<td>1007.6</td>
+<td>91</td>
+<td>15.0</td>
+<td>17</td>
+<td>8.56</td>
+<td>15</td>
+<td>7.57</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Enterococcus faecalis</td>
+<td>1,256</td>
+<td>6,160</td>
+<td>1,511</td>
+<td>1,122</td>
+<td>75.2</td>
+<td>1,262</td>
+<td>1004.8</td>
+<td>22</td>
+<td>16.6</td>
+<td>138</td>
+<td>109.9</td>
+<td>15</td>
+<td>11.9</td>
+<td>low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Staphylococcus epidermidis</td>
+<td>2,193</td>
+<td>13,075</td>
+<td>5,456</td>
+<td>3,807</td>
+<td>68.1</td>
+<td>2,214</td>
+<td>1008.0</td>
+<td>314</td>
+<td>56.2</td>
+<td>55</td>
+<td>25.9</td>
+<td>14</td>
+<td>6.29</td>
+<td>low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Enterobacter spp.</td>
+<td>451</td>
+<td>2,050</td>
+<td>634</td>
+<td>352</td>
+<td>59.1</td>
+<td>448</td>
+<td>991.4</td>
+<td>19</td>
+<td>30.0</td>
+<td>41</td>
+<td>88.2</td>
+<td>9</td>
+<td>20.0</td>
+<td>low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Mycoplasma genitalium</td>
+<td>29,312</td>
+<td>334,267</td>
+<td>103,805</td>
+<td>19,882</td>
+<td>19.2</td>
+<td>29,714</td>
+<td>1014.0</td>
+<td>1,340</td>
+<td>12.9</td>
+<td>17</td>
+<td>0.59</td>
+<td>8</td>
+<td>0.28</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Neisseria gonorrhoeae</td>
+<td>72,521</td>
+<td>393,999</td>
+<td>136,967</td>
+<td>81,468</td>
+<td>60.5</td>
+<td>73,580</td>
+<td>1013.7</td>
+<td>2,606</td>
+<td>18.0</td>
+<td>0</td>
+<td>0.00</td>
+<td>7</td>
+<td>0.10</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Bacteroides fragilis</td>
+<td>2,868</td>
+<td>15,302</td>
+<td>5,703</td>
+<td>2,167</td>
+<td>38.0</td>
+<td>2,900</td>
+<td>1015.8</td>
+<td>126</td>
+<td>22.1</td>
+<td>3</td>
+<td>1.04</td>
+<td>6</td>
+<td>2.08</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Serratia spp.</td>
+<td>401</td>
+<td>2,078</td>
+<td>711</td>
+<td>562</td>
+<td>80.8</td>
+<td>401</td>
+<td>1000.0</td>
+<td>9</td>
+<td>13.3</td>
+<td>42</td>
+<td>101.9</td>
+<td>6</td>
+<td>15.0</td>
+<td>low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Enterobacter cloacae</td>
+<td>321</td>
+<td>1,242</td>
+<td>461</td>
+<td>286</td>
+<td>74.7</td>
+<td>325</td>
+<td>1006.2</td>
+<td>13</td>
+<td>28.2</td>
+<td>27</td>
+<td>84.1</td>
+<td>3</td>
+<td>9.62</td>
+<td>low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Chlamydia trachomatis</td>
+<td>119,914</td>
+<td>1,301,071</td>
+<td>134,856</td>
+<td>26,750</td>
+<td>19.7</td>
+<td>121,681</td>
+<td>1014.2</td>
+<td>738</td>
+<td>5.69</td>
+<td>0</td>
+<td>0.00</td>
+<td>2</td>
+<td>0.02</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Legionella pneumophila</td>
+<td>1,135</td>
+<td>6,765</td>
+<td>2,756</td>
+<td>408</td>
+<td>14.8</td>
+<td>1,148</td>
+<td>1012.8</td>
+<td>44</td>
+<td>16.7</td>
+<td>3</td>
+<td>2.87</td>
+<td>2</td>
+<td>1.91</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Citrobacter spp.</td>
+<td>493</td>
+<td>2,595</td>
+<td>728</td>
+<td>640</td>
+<td>89.6</td>
+<td>499</td>
+<td>1012.2</td>
+<td>11</td>
+<td>15.1</td>
+<td>13</td>
+<td>27.0</td>
+<td>2</td>
+<td>4.06</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Listeria monocytogenes</td>
+<td>46</td>
+<td>325</td>
+<td>95</td>
+<td>71</td>
+<td>70.5</td>
+<td>45</td>
+<td>978.3</td>
+<td>0</td>
+<td>0.00</td>
+<td>6</td>
+<td>146.3</td>
+<td>2</td>
+<td>43.5</td>
+<td>low infection denominator; low treated denominator; low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>MDR Mycobacterium tuberculosis</td>
+<td>386</td>
+<td>4,499</td>
+<td>363</td>
+<td>46</td>
+<td>12.4</td>
+<td>391</td>
+<td>1013.0</td>
+<td>29</td>
+<td>89.2</td>
+<td>0</td>
+<td>0.00</td>
+<td>1</td>
+<td>2.54</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Yersinia enterocolitica</td>
+<td>352</td>
+<td>2,462</td>
+<td>976</td>
+<td>510</td>
+<td>57.1</td>
+<td>359</td>
+<td>1019.9</td>
+<td>4</td>
+<td>4.01</td>
+<td>6</td>
+<td>17.0</td>
+<td>1</td>
+<td>2.82</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>P. stuartii</td>
+<td>286</td>
+<td>1,464</td>
+<td>977</td>
+<td>774</td>
+<td>76.5</td>
+<td>289</td>
+<td>1010.5</td>
+<td>24</td>
+<td>25.6</td>
+<td>0</td>
+<td>0.00</td>
+<td>1</td>
+<td>3.14</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Morganella spp.</td>
+<td>183</td>
+<td>1,215</td>
+<td>588</td>
+<td>400</td>
+<td>85.4</td>
+<td>183</td>
+<td>1000.0</td>
+<td>11</td>
+<td>19.7</td>
+<td>14</td>
+<td>76.5</td>
+<td>1</td>
+<td>7.19</td>
+<td>low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Stenotrophomonas maltophilia</td>
+<td>87</td>
+<td>518</td>
+<td>360</td>
+<td>58</td>
+<td>22.5</td>
+<td>86</td>
+<td>1038.8</td>
+<td>16</td>
+<td>46.5</td>
+<td>3</td>
+<td>29.1</td>
+<td>1</td>
+<td>13.2</td>
+<td>low infection denominator; low sepsis count; low death count; unstable rate</td>
+</tr>
+<tr>
+<td>Burkholderia cepacia complex</td>
+<td>18</td>
+<td>107</td>
+<td>50</td>
+<td>15</td>
+<td>32.7</td>
+<td>18</td>
+<td>1000.0</td>
+<td>0</td>
+<td>0.00</td>
+<td>0</td>
+<td>0.00</td>
+<td>0</td>
+<td>0.00</td>
+<td>low infection denominator; low treated denominator; low sepsis count; low death count; unstable rate</td>
+</tr>
+</tbody></table><ol class='footnotes'>
+<li>Supplementary Table S1 summarises baseline-policy infection outcomes by bacterium in the 2022-2025 window. Counts are raw simulated counts unless otherwise stated. Rates are calculated from summed numerators and denominators over the window within each run before cross-run summarisation.</li><li>Treatment exposure is counted while a person is infected with the bacterium and may include empiric therapy, targeted therapy, combination therapy, and bystander antibiotic exposure from other concurrent infections.</li><li>Effective treated infection-days use the same resistance-adjusted activity threshold as Figure 10 / the sepsis effective-therapy summary: activity_r >= 0.500.</li><li>Infection resolutions count immune-clearance plus drug-assisted-clearance resolution records, excluding death as the episode-ending event.</li><li>Sepsis onsets use the same per-bacterium incident sepsis semantics as the sepsis effective-therapy summary: a bacterium contributes on the timestep its sepsis episode begins while the infection is active.</li><li>Deaths are counted per pathogen involved. In polymicrobial cases, the same death can appear under more than one bacterium, so the sum across bacteria can exceed the headline infection-death total.</li><li>Drug / treatment failure events are the model's existing day-5 post-drug-initiation failure events, aggregated to bacterium. They are not inferred from ineffective treated infection-days.</li><li>Reliability flags mark rows with small denominators; rates in those rows should be interpreted cautiously.</li><li>Source: existing simulation_summary_run#.csv aggregate columns only. No event-level CSV is required or produced.</li><li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,744,227; population scale factor: 4,701.2227; runs: 3 accepted calibration runs.</li><li>Intervals are omitted to keep the supplementary table readable; displayed values are medians.</li>
 </ol></body></html>
