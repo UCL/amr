@@ -1,0 +1,8 @@
+Parsing 333 calibration file(s)...
+  -> 333 run(s) parsed and aggregated.
+  Found 211 simulation CSV(s) for Figures 6, 8, 9, 10, 11, 12, Supplementary Table S1, and Supplementary Figures S1, S3, S4, and S5. Supplementary Table S2 and Supplementary Figure S2 use calibration summary tables.
+
+Generating paper outputs in C:\Users\w3sth\rust_amr_project\paper_tables ...
+  Removed old generated folder: paper_tables\figures
+  Removed old generated folder: paper_tables\Tables
+  Saved: paper_tables\Tables\T1__model_summary.html

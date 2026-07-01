@@ -1299,6 +1299,45 @@ def _discover_simulation_csvs_with_scale(
     return rows
 
 
+_CSV_HEADER_CACHE: dict[Path, set[str] | None] = {}
+
+
+def _simulation_csv_columns(csv_path: Path) -> set[str] | None:
+    resolved = csv_path.resolve()
+    if resolved not in _CSV_HEADER_CACHE:
+        try:
+            _CSV_HEADER_CACHE[resolved] = set(pd.read_csv(csv_path, nrows=0).columns)
+        except (FileNotFoundError, pd.errors.EmptyDataError, OSError, ValueError):
+            _CSV_HEADER_CACHE[resolved] = None
+    return _CSV_HEADER_CACHE[resolved]
+
+
+def _filter_simulation_csvs_with_columns(
+    csv_paths: list[Path],
+    required_columns: list[str],
+    label: str,
+) -> list[Path]:
+    filtered: list[Path] = []
+    for csv_path in csv_paths:
+        columns = _simulation_csv_columns(csv_path)
+        if columns is not None and all(column in columns for column in required_columns):
+            filtered.append(csv_path)
+    if csv_paths:
+        print(
+            f"  {label}: {len(filtered)} of {len(csv_paths)} matching simulation CSV(s) "
+            "contain the required aggregate columns."
+        )
+    return filtered
+
+
+def _read_csv_selected(csv_path: Path, usecols: list[str] | set[str]) -> pd.DataFrame:
+    selected = list(dict.fromkeys(usecols))
+    try:
+        return pd.read_csv(csv_path, usecols=selected, engine="pyarrow")
+    except Exception:
+        return pd.read_csv(csv_path, usecols=selected)
+
+
 _F6_SERIOUS_RESISTANCE_COLUMN = "newly_infected_with_serious_resistance_count"
 _F6_MARKER_ELIGIBLE_COLUMN = "newly_infected_serious_resistance_marker_eligible_count"
 _F6_SERIOUS_R_MISSING_NOTE = (
@@ -1331,7 +1370,7 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
     if has_serious_column:
         usecols.append(_F6_SERIOUS_RESISTANCE_COLUMN)
     try:
-        df = pd.read_csv(csv_path, usecols=usecols)
+        df = _read_csv_selected(csv_path, usecols)
     except (FileNotFoundError, ValueError):
         return None, has_serious_column, has_marker_eligible_column
 
@@ -2778,7 +2817,7 @@ def _figure_7_rows_from_simulation_csv(csv_path: Path) -> list[dict[str, object]
         ])
 
     try:
-        df = pd.read_csv(csv_path, usecols=usecols)
+        df = _read_csv_selected(csv_path, usecols)
     except (FileNotFoundError, ValueError, OSError):
         return []
 
@@ -2995,7 +3034,7 @@ def _figure_8_rows_from_simulation_csv(
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
     wanted = set(old_required + detailed_required + optional)
     try:
-        df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+        df = _read_csv_selected(csv_path, wanted)
     except (FileNotFoundError, ValueError, OSError) as exc:
         return [], f"{csv_path.name}: could not read simulation CSV ({exc}).", "missing"
 
@@ -3447,7 +3486,7 @@ def _figure_11_load_summary(csv_path: Path) -> tuple[pd.DataFrame | None, str | 
         if column in header.columns
     ]
     try:
-        df = pd.read_csv(csv_path, usecols=usecols)
+        df = _read_csv_selected(csv_path, usecols)
     except (ValueError, OSError) as exc:
         return None, f"{csv_path.name}: unable to load summary rows ({exc})."
 
@@ -3925,7 +3964,7 @@ def _figure_15_rows_from_simulation_csv(
         wanted.update(vector_pair)
 
     try:
-        df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+        df = _read_csv_selected(csv_path, wanted)
     except (FileNotFoundError, ValueError, OSError) as exc:
         return [], f"{csv_path.name}: could not load Figure 11 columns ({exc}).", set(), pure_present, detection
 
@@ -4449,7 +4488,7 @@ def _figure_19_rows_from_simulation_csv(
         wanted.add(vector_col)
 
     try:
-        df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+        df = _read_csv_selected(csv_path, wanted)
     except (FileNotFoundError, ValueError, OSError) as exc:
         return [], f"{csv_path.name}: could not load Figure 12 columns ({exc}).", set(), detection
 
@@ -4874,7 +4913,7 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
     usecols = [column for column in _ST1_VECTOR_COLUMNS + optional if column in header.columns]
     try:
-        df = pd.read_csv(csv_path, usecols=usecols)
+        df = _read_csv_selected(csv_path, usecols)
     except (ValueError, OSError) as exc:
         return [], f"{csv_path.name}: unable to load Supplementary Table S1 columns ({exc})."
 
@@ -5704,7 +5743,7 @@ def _sf1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
     usecols = [column for column in list(required) + optional if column in header.columns]
     try:
-        df = pd.read_csv(csv_path, usecols=usecols)
+        df = _read_csv_selected(csv_path, usecols)
     except (ValueError, OSError) as exc:
         return [], f"{csv_path.name}: unable to load Supplementary Figure S1 columns ({exc})."
 
@@ -6505,7 +6544,7 @@ def _sf3_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
             wanted.update(_SF3_ANY_R_COLUMNS)
 
         try:
-            df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+            df = _read_csv_selected(csv_path, wanted)
         except (FileNotFoundError, ValueError, OSError) as exc:
             problems.append(f"{csv_path.name}: could not read required columns ({exc}).")
             continue
@@ -7079,7 +7118,7 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
 
         wanted = set(required + optional)
         try:
-            df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+            df = _read_csv_selected(csv_path, wanted)
         except (FileNotFoundError, ValueError, OSError) as exc:
             problems.append(f"{csv_path.name}: could not read required S4 columns ({exc}).")
             continue
@@ -7462,7 +7501,7 @@ def _sf5_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
 
         wanted = set(required + optional)
         try:
-            df = pd.read_csv(csv_path, usecols=lambda col: col in wanted)
+            df = _read_csv_selected(csv_path, wanted)
         except (FileNotFoundError, ValueError, OSError) as exc:
             problems.append(f"{csv_path.name}: could not read required S5 columns ({exc}).")
             continue
@@ -8767,17 +8806,62 @@ def main(input_args: list[str]) -> None:
             "Supplementary Table S2 and Supplementary Figure S2 use calibration summary tables."
         )
 
+    st1_csv_paths = _filter_simulation_csvs_with_columns(
+        csv_paths,
+        _ST1_VECTOR_COLUMNS,
+        "Supplementary Table S1",
+    )
+    sf1_csv_paths = _filter_simulation_csvs_with_columns(
+        csv_paths,
+        [_SF1_NUMERATOR_COLUMN, _SF1_DENOMINATOR_COLUMN],
+        "Supplementary Figure S1",
+    )
+    sf3_csv_paths = _filter_simulation_csvs_with_columns(
+        csv_paths,
+        _SF3_REQUIRED_COLUMNS,
+        "Supplementary Figure S3",
+    )
+    sf4_required_columns = [
+        "active_infection_days_by_bacteria",
+        "infection_days_with_any_resistance_mechanism_by_bacteria",
+        *[
+            _sf4_family_column(str(family["slug"]))
+            for family in _SF4_MECHANISM_FAMILIES
+        ],
+    ]
+    sf4_csv_paths = _filter_simulation_csvs_with_columns(
+        csv_paths,
+        sf4_required_columns,
+        "Supplementary Figure S4",
+    )
+    sf5_required_columns = [
+        column
+        for _, suffix in _SF5_SETTINGS
+        for column in _sf5_stage_columns_for_suffix(suffix)
+    ]
+    sf5_csv_paths = _filter_simulation_csvs_with_columns(
+        csv_paths,
+        ["time_in_years", "policy_option", *sf5_required_columns],
+        "Supplementary Figure S5",
+    )
+
     out = OUT_DIR
     print(f"\nGenerating paper outputs in {out.absolute()} ...")
     _prepare_output_dirs(out)
     make_t1(out)
-    make_supplementary_table_s1_infection_outcomes(csv_paths, out, agg=agg)
+    make_supplementary_table_s1_infection_outcomes(st1_csv_paths, out, agg=agg)
     make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
     make_figure_1_calibration_headline_metrics(agg, out)
     make_figure_2_calibration_resistance_fit(agg, out)
     make_figure_3_calibration_drug_class_share(agg, out)
     make_figure_4_calibration_infection_deaths(agg, out)
     make_figure_5_calibration_carriage_prevalence(agg, out)
+    make_supplementary_figure_s1_potential_activity_retained(sf1_csv_paths, out, agg=agg)
+    make_supplementary_figure_s2_microbiome_resistance_reservoir(runs, out, agg=agg)
+    make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(sf3_csv_paths, out, agg=agg)
+    make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(sf4_csv_paths, out, agg=agg)
+    make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(sf5_csv_paths, out, agg=agg)
+    make_index(agg, out)
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
     make_figure_7_infection_death_rate_by_region(csv_paths, out, agg=agg)
@@ -8786,11 +8870,6 @@ def main(input_args: list[str]) -> None:
     make_figure_15_mean_activity_by_bacteria(csv_paths, out, agg=agg)
     make_figure_19_antibiotic_exposure_distribution(csv_paths, out, agg=agg)
     make_figure_10_resistance_pathway_counterfactuals(out, agg=agg)
-    make_supplementary_figure_s1_potential_activity_retained(csv_paths, out, agg=agg)
-    make_supplementary_figure_s2_microbiome_resistance_reservoir(runs, out, agg=agg)
-    make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(csv_paths, out, agg=agg)
-    make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(csv_paths, out, agg=agg)
-    make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(csv_paths, out, agg=agg)
     make_index(agg, out)
 
     print(f"\nDone. Open {out / 'index.html'} to browse paper outputs.")

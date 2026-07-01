@@ -1,0 +1,1 @@
+Usage: python make_paper_tables.py <calibration_summary_*.txt> [...]
