@@ -10,11 +10,11 @@ calibration runs into median (5th–95th percentile) estimates.
 Usage
 -----
 Single run:
-    from parse_calibration import parse_file
+    from amr_simulation_output_analysis.parse_calibration import parse_file
     data = parse_file("output_graphs/calibration_summary_958282.txt")
 
 Multiple runs:
-    from parse_calibration import parse_files, aggregate
+    from amr_simulation_output_analysis.parse_calibration import parse_files, aggregate
     runs = parse_files(["output_graphs/calibration_summary_958282.txt", ...])
     agg  = aggregate(runs)   # numeric cells become "median (p5–p95)" strings
 """

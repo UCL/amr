@@ -17,7 +17,7 @@ from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 REPO_ROOT = Path(__file__).resolve().parents[1]
-POTENCY_AUDIT_MATRIX_PATH = REPO_ROOT / "potency_audit_matrix.csv"
+POTENCY_AUDIT_MATRIX_PATH = REPO_ROOT / "data" / "potency_audit_matrix.csv"
 NON_NEGLIGIBLE_POTENCY_CUTOFF = 0.15
 _BASELINE_POTENCY_LOOKUP_CACHE: Optional[Dict[Tuple[str, str], float]] = None
 

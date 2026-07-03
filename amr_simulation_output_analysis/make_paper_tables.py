@@ -2,15 +2,18 @@
 make_paper_tables.py
 
 Generate the paper-facing HTML outputs from one or more calibration_summary_*.txt
-files: Table 1, Supplementary Tables S1-S2, main Figures 1-13, and Supplementary Figures S1-S5.
+files: Table 1, Supplementary Tables S1-S2, main Figures 1-13, and Supplementary Figures S1-S6.
 
 Usage
 -----
 Single run:
-    python make_paper_tables.py output_graphs/calibration_summary_958282.txt
+    python amr_simulation_output_analysis/make_paper_tables.py output_graphs/calibration_summary_958282.txt
 
 Multiple runs (pass explicit paths or a glob):
-    python make_paper_tables.py output_graphs/calibration_summary_*.txt
+    python amr_simulation_output_analysis/make_paper_tables.py output_graphs/calibration_summary_*.txt
+
+Package/module form:
+    python -m amr_simulation_output_analysis.make_paper_tables output_graphs/calibration_summary_*.txt
 
 Output
 ------
@@ -39,6 +42,7 @@ paper_tables/
         Supplementary_Figure_S3__carrier_vs_non_carrier_infection_incidence.html/.png/.svg
         Supplementary_Figure_S4__resistance_mechanisms_by_bacterium.html/.png/.svg
         Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html/.png/.svg
+        Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium.html/.png/.svg
 """
 
 from __future__ import annotations
@@ -61,9 +65,16 @@ import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 
-from parse_calibration import aggregate, parse_files
+try:
+    from .parse_calibration import aggregate, parse_files
+except ImportError:  # Allows direct script execution from this folder.
+    from parse_calibration import aggregate, parse_files
 
-OUT_DIR = Path("paper_tables")
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+OUT_DIR = REPO_ROOT / "paper_tables"
+CALIBRATION_TARGETS_PATH = REPO_ROOT / "data" / "calibration_targets.json"
+SIMULATION_OUTPUTS_DIR = REPO_ROOT / "amr_simulation_output_analysis_outputs"
 TABLES_DIRNAME = "Tables"
 FIGURES_DIRNAME = "Figures"
 GENERATED_SUBDIRS = (
@@ -184,6 +195,19 @@ def _save(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     print(f"  Saved: {path}")
+
+
+def _resolve_project_path(path: Union[str, Path]) -> Path:
+    """Resolve relative paths from cwd first, then from the repository root."""
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    if candidate.exists():
+        return candidate
+    root_candidate = REPO_ROOT / candidate
+    if root_candidate.exists():
+        return root_candidate
+    return candidate
 
 
 def _prepare_output_dirs(out_dir: Path) -> None:
@@ -616,7 +640,7 @@ def make_t1(out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def _load_current_headline_targets() -> dict[str, float]:
-    path = Path("data") / "calibration_targets.json"
+    path = CALIBRATION_TARGETS_PATH
     if not path.exists():
         return {}
 
@@ -1210,12 +1234,12 @@ def _discover_f1_simulation_csvs(input_paths: list[Union[str, Path]]) -> list[Pa
     For F1 we need the numeric run id, so extract the trailing six digits and look
     for simulation_summary_{run_id}.csv in the standard output directory.
     """
-    csv_dir = Path("amr_simulation_output_analysis_outputs")
+    csv_dir = SIMULATION_OUTPUTS_DIR
     csv_paths: list[Path] = []
     seen: set[Path] = set()
 
     for input_path in input_paths:
-        path = Path(input_path)
+        path = _resolve_project_path(input_path)
 
         candidates: list[Path] = []
         if path.name.startswith("simulation_summary_") and path.suffix.lower() == ".csv":
@@ -1242,7 +1266,7 @@ def _discover_f1_simulation_csvs(input_paths: list[Union[str, Path]]) -> list[Pa
 
 def _population_scale_factor_from_calibration(path: Union[str, Path]) -> float | None:
     try:
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
+        text = _resolve_project_path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
     match = re.search(
@@ -1264,12 +1288,12 @@ def _discover_simulation_csvs_with_scale(
     """
     Return matching simulation_summary CSVs paired with their calibration scale factor.
     """
-    csv_dir = Path("amr_simulation_output_analysis_outputs")
+    csv_dir = SIMULATION_OUTPUTS_DIR
     rows: list[tuple[Path, float | None]] = []
     seen: set[Path] = set()
 
     for input_path in input_paths:
-        path = Path(input_path)
+        path = _resolve_project_path(input_path)
         scale_factor = (
             None
             if path.name.startswith("simulation_summary_") and path.suffix.lower() == ".csv"
@@ -1332,6 +1356,9 @@ def _filter_simulation_csvs_with_columns(
 
 def _read_csv_selected(csv_path: Path, usecols: list[str] | set[str]) -> pd.DataFrame:
     selected = list(dict.fromkeys(usecols))
+    available = _simulation_csv_columns(csv_path)
+    if available is not None:
+        selected = [column for column in selected if column in available]
     try:
         return pd.read_csv(csv_path, usecols=selected, engine="pyarrow")
     except Exception:
@@ -3354,7 +3381,7 @@ def make_figure_10_resistance_pathway_counterfactuals(
     print("  Figure 13: placeholder for future resistance-pathway counterfactual runs.")
 
 
-_F11_TITLE = "Figure 10. Sepsis onset context and time to effective therapy, 2022\u20132025"
+_F11_TITLE = "Figure 10. Underlying sepsis onset context and time to effective therapy, 2022\u20132025"
 _F11_STEM = "Figure_10__sepsis_context_effective_therapy"
 _F11_REQUIRED_MESSAGE = (
     "Figure 10 requires simulation_summary columns for sepsis-onset context counts and "
@@ -3659,22 +3686,22 @@ def make_figure_11_sepsis_context_effective_therapy(
         context_counts,
         context_total,
         _F11_CONTEXT_COLOURS,
-        "A. Antibiotic context at sepsis onset",
+        "A. Antibiotic context at underlying sepsis onset",
     )
     _figure_11_stacked_bar(
         axes[1],
         delay_counts,
         delay_total,
         _F11_DELAY_COLOURS,
-        "B. Time to first effective therapy",
+        "B. Time from underlying sepsis onset to first effective therapy",
     )
     fig.suptitle(_F11_TITLE, fontsize=11, fontweight="bold")
     fig.tight_layout(rect=[0, 0.02, 0.78, 0.96])
 
     detail_rows: list[dict[str, object]] = []
     for panel, counts, denominator in [
-        ("A. Antibiotic context at onset", context_counts_all, context_total),
-        ("B. Time to first effective therapy", delay_counts_all, delay_total),
+        ("A. Antibiotic context at underlying sepsis onset", context_counts_all, context_total),
+        ("B. Time from underlying sepsis onset to first effective therapy", delay_counts_all, delay_total),
     ]:
         for label, count in counts:
             pct = 100.0 * count / denominator if denominator else 0.0
@@ -3707,6 +3734,14 @@ def make_figure_11_sepsis_context_effective_therapy(
     footnotes = [
         "Figure 10 reads only aggregate columns in simulation_summary_run#.csv; no event-level "
         "sepsis CSV is required or produced.",
+        "Sepsis onset is the modelled onset of underlying sepsis physiology, not the time of "
+        "clinical recognition, healthcare presentation, or diagnosis. Some modelled sepsis "
+        "episodes occur in people who never reach care or whose sepsis is not clinically "
+        "recognised. \u2018No antibiotic active\u2019 means no active antibiotic in the model at "
+        "underlying sepsis onset; it should not be interpreted as failure to administer "
+        "antibiotics after recognised sepsis. Clinical recognition and attendance are modelled "
+        "separately from underlying sepsis onset. Timing is measured in model days, so "
+        "\u2018later in the same model day\u2019 is not a clinical hour-level delay.",
         "Panel A uses course-start context labels in priority order: targeted, empiric, "
         "other/prophylaxis, no active antibiotic, then unknown/legacy. Effective categories "
         "mean at least one currently active antibiotic met the activity threshold for that bacterium.",
@@ -7704,6 +7739,679 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
     )
 
 
+# ---------------------------------------------------------------------------
+# Supplementary Figure S6. New active infection denominators by bacterium
+# ---------------------------------------------------------------------------
+
+_SF6_TITLE = "Supplementary Figure S6. New active infection denominators by bacterium, 2022\u20132025"
+_SF6_STEM = "Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium"
+_SF6_TOTAL_COLUMN = "new_active_infections_by_bacteria"
+_SF6_HOSPITAL_REGIONS = [
+    "north_america",
+    "south_america",
+    "africa",
+    "asia",
+    "europe",
+    "oceania",
+]
+_SF6_REQUIRED_MESSAGE = (
+    "Supplementary Figure S6 requires total, hospital, and community new active "
+    "infection denominators by bacterium for the 2022-2025 serious-R window. "
+    "The total denominator column is new_active_infections_by_bacteria; "
+    "hospital/community denominators are derived from existing per-region "
+    "newly_infected_hospital columns when available."
+)
+_SF6_SPECIAL_ORGANISM_NOTES = {
+    "mdr_mycobacterium_tuberculosis": (
+        "special organism; MDR-TB is excluded from serious-R summaries because "
+        "rifampicin resistance is definitional in the MDR-TB model"
+    ),
+}
+
+
+def _sf6_placeholder(
+    out_dir: Path,
+    agg: dict | None,
+    message: str,
+    problems: list[str] | None = None,
+) -> None:
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_SF6_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.2,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.92, bottom=0.08)
+    extra_html = ""
+    if problems:
+        extra_html += "<h2>Parser notes</h2>\n<ul>\n"
+        for problem in problems[:10]:
+            extra_html += f"<li>{problem}</li>\n"
+        extra_html += "</ul>\n"
+    _save_figure(
+        fig,
+        out_dir,
+        _SF6_STEM,
+        _SF6_TITLE,
+        message,
+        [
+            "Supplementary Figure S6 requires total, hospital, and community new active "
+            "infection denominators by bacterium for the 2022-2025 serious-R window.",
+            "calibration_summary_*.txt is an internal diagnostic file and is not required "
+            "to interpret this reader-facing page.",
+            "Old simulation_summary files remain readable: when required aggregate columns "
+            "are absent, this placeholder is generated rather than failing the paper-output build.",
+        ],
+        agg=agg,
+        extra_html=extra_html,
+    )
+
+
+def _sf6_hospital_columns_for_slug(slug: str, available: set[str]) -> list[str]:
+    return [
+        f"{slug}_newly_infected_hospital_{region}"
+        for region in _SF6_HOSPITAL_REGIONS
+        if f"{slug}_newly_infected_hospital_{region}" in available
+    ]
+
+
+def _sf6_sum_series(df: pd.DataFrame, columns: list[str]) -> float:
+    if not columns:
+        return np.nan
+    total = 0.0
+    seen = False
+    for column in columns:
+        if column not in df.columns:
+            continue
+        total += float(pd.to_numeric(df[column], errors="coerce").sum(skipna=True))
+        seen = True
+    return total if seen else np.nan
+
+
+def _sf6_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object]], str | None]:
+    columns = _simulation_csv_columns(csv_path)
+    if columns is None:
+        return [], f"{csv_path.name}: unable to read simulation summary header."
+    if _SF6_TOTAL_COLUMN not in columns:
+        return [], f"{csv_path.name}: missing {_SF6_TOTAL_COLUMN}."
+
+    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    hospital_columns: list[str] = []
+    for slug in _F15_KNOWN_BACTERIA_SLUGS:
+        hospital_columns.extend(_sf6_hospital_columns_for_slug(slug, columns))
+
+    usecols = [_SF6_TOTAL_COLUMN, *optional, *hospital_columns]
+    try:
+        df = _read_csv_selected(csv_path, usecols)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [], f"{csv_path.name}: unable to load S6 denominator columns ({exc})."
+
+    if "policy_option" in df.columns:
+        df = df[pd.to_numeric(df["policy_option"], errors="coerce") == 0].copy()
+    df["sf6_year"] = _simulation_year_series(df)
+    df = df[(df["sf6_year"] >= 2022.0) & (df["sf6_year"] < 2026.0)].copy()
+    if df.empty:
+        return [], f"{csv_path.name}: no baseline-policy rows in 2022-2025."
+
+    grouped = df.groupby("run_id", dropna=False) if "run_id" in df.columns else [(csv_path.stem, df)]
+    target_len = len(_F15_KNOWN_BACTERIA_SLUGS)
+    rows: list[dict[str, object]] = []
+    hospital_source_available = bool(hospital_columns)
+
+    for run_key, run_df in grouped:
+        total_values = _st1_sum_vector_column(run_df, _SF6_TOTAL_COLUMN, target_len)
+        run_len = max(target_len, len(total_values))
+        total_values = _figure_15_extend_array(total_values, run_len)
+
+        for b_idx in range(run_len):
+            slug = (
+                _F15_KNOWN_BACTERIA_SLUGS[b_idx]
+                if b_idx < len(_F15_KNOWN_BACTERIA_SLUGS)
+                else f"bacterium_{b_idx + 1}"
+            )
+            total = float(total_values[b_idx])
+            hospital_columns_for_bacterium = _sf6_hospital_columns_for_slug(slug, set(run_df.columns))
+            hospital = _sf6_sum_series(run_df, hospital_columns_for_bacterium)
+            if np.isfinite(hospital):
+                community = total - hospital
+                if community < 0 and abs(community) < 1e-9:
+                    community = 0.0
+                elif community < 0:
+                    community = np.nan
+            else:
+                community = np.nan
+
+            rows.append({
+                "source": csv_path.name,
+                "run": str(run_key),
+                "bacterium_slug": slug,
+                "bacterium": _figure_15_bacterium_label(slug),
+                "total_new_active_infections": total,
+                "hospital_new_active_infections": hospital,
+                "community_new_active_infections": community,
+                "hospital_source_available": bool(hospital_columns_for_bacterium),
+                "all_hospital_source_available": hospital_source_available,
+                "sum_mismatch": (
+                    bool(np.isfinite(hospital) and np.isfinite(community) and abs((hospital + community) - total) > 0.5)
+                ),
+            })
+
+    if not rows:
+        return [], f"{csv_path.name}: S6 denominator columns contained no usable values."
+    return rows, None
+
+
+def _sf6_bacterium_key(label: object) -> str:
+    return str(label or "").strip().lower()
+
+
+def _sf6_serious_r_context(calibration_paths: list[Union[str, Path]]) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for path in calibration_paths:
+        frame, _summary_values = _figure_20_parse_calibration_summary(path)
+        if not frame.empty:
+            frames.append(frame)
+    if not frames:
+        return pd.DataFrame()
+    all_rows = pd.concat(frames, ignore_index=True)
+    summary, _notes = _figure_20_summarise_rows(all_rows)
+    if summary.empty:
+        return pd.DataFrame()
+    return pd.DataFrame({
+        "bacterium_key": summary["bacterium"].map(_sf6_bacterium_key),
+        "Marker drug(s)": summary["marker_drugs"],
+        "Overall serious-R (%)": summary["overall_median"],
+        "Hospital serious-R (%)": summary["hospital_median"],
+        "Community serious-R (%)": summary["community_median"],
+    })
+
+
+def _sf6_adequacy_label(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "not available"
+    n = float(value)
+    if not np.isfinite(n):
+        return "not available"
+    if n <= 0:
+        return "no denominator"
+    if n < 20:
+        return "very sparse"
+    if n < 100:
+        return "sparse"
+    if n < 500:
+        return "moderate"
+    return "larger denominator"
+
+
+def _sf6_adequacy_code(value: object) -> int:
+    label = _sf6_adequacy_label(value)
+    return {
+        "not available": 0,
+        "no denominator": 1,
+        "very sparse": 2,
+        "sparse": 3,
+        "moderate": 4,
+        "larger denominator": 5,
+    }[label]
+
+
+def _sf6_format_count(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "\u2014"
+    value_f = float(value)
+    if not np.isfinite(value_f):
+        return "\u2014"
+    return f"{value_f:,.0f}"
+
+
+def _sf6_format_interval(p5: object, p95: object) -> str:
+    if p5 is None or p95 is None or pd.isna(p5) or pd.isna(p95):
+        return "\u2014"
+    p5_f = float(p5)
+    p95_f = float(p95)
+    if not np.isfinite(p5_f) or not np.isfinite(p95_f):
+        return "\u2014"
+    return f"{p5_f:,.0f}-{p95_f:,.0f}"
+
+
+def _sf6_format_percent(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "\u2014"
+    value_f = float(value)
+    if not np.isfinite(value_f):
+        return "\u2014"
+    return f"{value_f:.1f}"
+
+
+def _sf6_run_notes(row: pd.Series) -> str:
+    notes: list[str] = []
+    slug = str(row.get("bacterium_slug", ""))
+    if slug in _SF6_SPECIAL_ORGANISM_NOTES:
+        notes.append(_SF6_SPECIAL_ORGANISM_NOTES[slug])
+    if bool(row.get("sum_mismatch", False)):
+        notes.append("hospital/community sum mismatch")
+    if not bool(row.get("hospital_source_available_any", False)):
+        notes.append("hospital/community new-infection denominators not available")
+    for stratum, pct_col, n_col in [
+        ("hospital", "Hospital serious-R (%)", "hospital_new_active_infections_median"),
+        ("community", "Community serious-R (%)", "community_new_active_infections_median"),
+    ]:
+        pct = row.get(pct_col)
+        n = row.get(n_col)
+        if (
+            pct is not None
+            and pd.notna(pct)
+            and np.isfinite(float(pct))
+            and (float(pct) <= 0.0 or float(pct) >= 100.0)
+            and _sf6_adequacy_label(n) in {"no denominator", "very sparse", "sparse"}
+        ):
+            notes.append(f"apparent {stratum} {float(pct):.0f}% serious-R with sparse denominator")
+    return "; ".join(dict.fromkeys(notes)) or "\u2014"
+
+
+def _sf6_summarise_rows(rows: list[dict[str, object]], calibration_paths: list[Union[str, Path]]) -> pd.DataFrame:
+    raw = pd.DataFrame(rows)
+    if raw.empty:
+        return pd.DataFrame()
+
+    summary_rows: list[dict[str, object]] = []
+    for (slug, bacterium), group in raw.groupby(["bacterium_slug", "bacterium"], sort=False):
+        row: dict[str, object] = {
+            "bacterium_slug": slug,
+            "bacterium": bacterium,
+            "bacterium_key": _sf6_bacterium_key(bacterium),
+            "runs_contributing": int(group[["source", "run"]].drop_duplicates().shape[0]),
+            "hospital_source_available_any": bool(group["hospital_source_available"].any()),
+            "sum_mismatch": bool(group["sum_mismatch"].any()),
+        }
+        for col in [
+            "total_new_active_infections",
+            "hospital_new_active_infections",
+            "community_new_active_infections",
+        ]:
+            values = pd.to_numeric(group[col], errors="coerce").dropna().astype(float).to_numpy()
+            if len(values) == 0:
+                row[f"{col}_median"] = np.nan
+                row[f"{col}_p5"] = np.nan
+                row[f"{col}_p95"] = np.nan
+            else:
+                row[f"{col}_median"] = float(np.nanmedian(values))
+                row[f"{col}_p5"] = float(np.nanpercentile(values, 5))
+                row[f"{col}_p95"] = float(np.nanpercentile(values, 95))
+        total = row["total_new_active_infections_median"]
+        hospital = row["hospital_new_active_infections_median"]
+        if pd.notna(total) and np.isfinite(float(total)) and float(total) > 0 and pd.notna(hospital):
+            row["percent_hospital_median"] = 100.0 * float(hospital) / float(total)
+        else:
+            row["percent_hospital_median"] = np.nan
+        summary_rows.append(row)
+
+    summary = pd.DataFrame(summary_rows)
+    context = _sf6_serious_r_context(calibration_paths)
+    if not context.empty:
+        summary = summary.merge(context, on="bacterium_key", how="left")
+    else:
+        summary["Marker drug(s)"] = "\u2014"
+        summary["Overall serious-R (%)"] = np.nan
+        summary["Hospital serious-R (%)"] = np.nan
+        summary["Community serious-R (%)"] = np.nan
+
+    summary["Marker drug(s)"] = summary["Marker drug(s)"].fillna("\u2014")
+    summary["Notes"] = summary.apply(_sf6_run_notes, axis=1)
+    summary = summary.sort_values(
+        ["total_new_active_infections_median", "bacterium"],
+        ascending=[False, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    return summary
+
+
+def _sf6_add_errorbar(
+    ax: "plt.Axes",
+    summary: pd.DataFrame,
+    y: np.ndarray,
+    prefix: str,
+    label: str,
+    color: str,
+    marker: str,
+    n_runs: int,
+) -> None:
+    values = summary[f"{prefix}_median"].astype(float).to_numpy()
+    mask = np.isfinite(values)
+    if not mask.any():
+        return
+    xerr = None
+    if n_runs > 1:
+        p5 = summary[f"{prefix}_p5"].astype(float).to_numpy()
+        p95 = summary[f"{prefix}_p95"].astype(float).to_numpy()
+        err_low = np.where(np.isfinite(p5), np.clip(values - p5, 0.0, None), 0.0)
+        err_high = np.where(np.isfinite(p95), np.clip(p95 - values, 0.0, None), 0.0)
+        xerr = np.vstack([err_low[mask], err_high[mask]])
+    ax.errorbar(
+        values[mask],
+        y[mask],
+        xerr=xerr,
+        fmt=marker,
+        markersize=4.6,
+        color=color,
+        ecolor=color,
+        elinewidth=0.75,
+        capsize=2.2 if n_runs > 1 else 0,
+        linestyle="none",
+        label=label,
+        zorder=3,
+    )
+
+
+def _sf6_apply_count_axis(ax: "plt.Axes", values: list[float]) -> None:
+    finite = [float(value) for value in values if np.isfinite(float(value)) and float(value) > 0]
+    if not finite:
+        ax.set_xlim(0, 1)
+        return
+    max_value = max(finite)
+    min_value = min(finite)
+    if max_value / max(min_value, 1.0) >= 100.0:
+        ax.set_xscale("symlog", linthresh=1.0)
+    ax.set_xlim(0, max_value * 1.18)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.45)
+
+
+def make_supplementary_figure_s6_new_active_infection_denominators(
+    csv_paths: list[Path],
+    calibration_paths: list[Union[str, Path]],
+    out_dir: Path,
+    agg: dict | None = None,
+) -> dict[str, object]:
+    if not csv_paths:
+        _sf6_placeholder(
+            out_dir,
+            agg,
+            _SF6_REQUIRED_MESSAGE,
+            ["No matching simulation_summary_*.csv files with new_active_infections_by_bacteria were found."],
+        )
+        print("  Supplementary Figure S6: placeholder (no matching denominator CSVs).")
+        return {"generated": "placeholder", "bacteria_included": 0, "n_runs": 0}
+
+    rows: list[dict[str, object]] = []
+    problems: list[str] = []
+    for csv_path in csv_paths:
+        run_rows, problem = _sf6_rows_from_simulation_csv(csv_path)
+        rows.extend(run_rows)
+        if problem:
+            problems.append(problem)
+
+    if not rows:
+        _sf6_placeholder(out_dir, agg, _SF6_REQUIRED_MESSAGE, problems)
+        print("  Supplementary Figure S6: placeholder (no usable denominator rows).")
+        return {"generated": "placeholder", "bacteria_included": 0, "n_runs": 0}
+
+    summary = _sf6_summarise_rows(rows, calibration_paths)
+    if summary.empty:
+        _sf6_placeholder(out_dir, agg, _SF6_REQUIRED_MESSAGE, problems)
+        print("  Supplementary Figure S6: placeholder (empty denominator summary).")
+        return {"generated": "placeholder", "bacteria_included": 0, "n_runs": 0}
+
+    n_runs = int(pd.DataFrame(rows)[["source", "run"]].drop_duplicates().shape[0])
+    has_hospital = bool(summary["hospital_source_available_any"].any())
+    plot_summary = summary.iloc[::-1].reset_index(drop=True)
+    y = np.arange(len(plot_summary))
+
+    fig_height = max(8.0, 2.2 + 0.28 * len(plot_summary))
+    fig_width = 15.5 if has_hospital else 11.5
+    ncols = 3 if has_hospital else 2
+    width_ratios = [1.15, 1.35, 0.62] if has_hospital else [1.25, 0.9]
+    fig, axes = plt.subplots(
+        1,
+        ncols,
+        figsize=(fig_width, fig_height),
+        sharey=True,
+        gridspec_kw={"width_ratios": width_ratios, "wspace": 0.08},
+    )
+    if ncols == 2:
+        ax_total, ax_placeholder = axes
+        ax_split = None
+        ax_heat = ax_placeholder
+    else:
+        ax_total, ax_split, ax_heat = axes
+
+    _sf6_add_errorbar(
+        ax_total,
+        plot_summary,
+        y,
+        "total_new_active_infections",
+        "Total",
+        "#1565C0",
+        "o",
+        n_runs,
+    )
+    _sf6_apply_count_axis(
+        ax_total,
+        plot_summary["total_new_active_infections_median"].fillna(0).astype(float).tolist(),
+    )
+    ax_total.set_title("A. Total new active infections", fontsize=9.5, fontweight="bold")
+    ax_total.set_xlabel("Raw simulated n, 2022-2025", fontsize=8.8)
+    ax_total.set_yticks(y)
+    ax_total.set_yticklabels(plot_summary["bacterium"].values, fontsize=7.1, fontstyle="italic")
+    ax_total.spines[["top", "right"]].set_visible(False)
+
+    if has_hospital and ax_split is not None:
+        for idx, row in plot_summary.iterrows():
+            h = row["hospital_new_active_infections_median"]
+            c = row["community_new_active_infections_median"]
+            if pd.notna(h) and pd.notna(c) and np.isfinite(float(h)) and np.isfinite(float(c)):
+                ax_split.plot([float(h), float(c)], [idx, idx], color="#b0bec5", linewidth=0.75, alpha=0.6)
+        _sf6_add_errorbar(
+            ax_split,
+            plot_summary,
+            y,
+            "hospital_new_active_infections",
+            "Hospital-acquired",
+            "#C65D00",
+            "D",
+            n_runs,
+        )
+        _sf6_add_errorbar(
+            ax_split,
+            plot_summary,
+            y,
+            "community_new_active_infections",
+            "Community-acquired",
+            "#2A9D8F",
+            "o",
+            n_runs,
+        )
+        _sf6_apply_count_axis(
+            ax_split,
+            pd.concat(
+                [
+                    plot_summary["hospital_new_active_infections_median"],
+                    plot_summary["community_new_active_infections_median"],
+                ],
+                ignore_index=True,
+            )
+            .fillna(0)
+            .astype(float)
+            .tolist(),
+        )
+        ax_split.set_title("B. Hospital and community denominators", fontsize=9.5, fontweight="bold")
+        ax_split.set_xlabel("Raw simulated n, 2022-2025", fontsize=8.8)
+        ax_split.spines[["top", "right"]].set_visible(False)
+        ax_split.tick_params(axis="y", left=False, labelleft=False)
+        ax_split.legend(fontsize=7.6, frameon=False, loc="lower right")
+    else:
+        ax_placeholder.text(
+            0.5,
+            0.5,
+            "Hospital/community denominator\ncolumns were not available.\nPanel A uses total n only.",
+            ha="center",
+            va="center",
+            transform=ax_placeholder.transAxes,
+            fontsize=9.2,
+            color="#555",
+            bbox=dict(boxstyle="round,pad=0.5", fc="#f5f5f5", ec="#bbb"),
+        )
+        ax_placeholder.set_axis_off()
+
+    if has_hospital:
+        heat_values = np.column_stack([
+            plot_summary["hospital_new_active_infections_median"].map(_sf6_adequacy_code).to_numpy(),
+            plot_summary["community_new_active_infections_median"].map(_sf6_adequacy_code).to_numpy(),
+        ])
+        cmap = mcolors.ListedColormap([
+            "#e0e0e0",
+            "#f7f7f7",
+            "#d73027",
+            "#fc8d59",
+            "#fee08b",
+            "#1a9850",
+        ])
+        ax_heat.imshow(heat_values, aspect="auto", interpolation="nearest", cmap=cmap, vmin=0, vmax=5)
+        ax_heat.set_title("C. Denominator adequacy", fontsize=9.5, fontweight="bold")
+        ax_heat.set_xticks([0, 1])
+        ax_heat.set_xticklabels(["Hospital", "Community"], rotation=45, ha="right", fontsize=7.5)
+        ax_heat.tick_params(axis="y", left=False, labelleft=False)
+        ax_heat.set_yticks(y)
+        ax_heat.set_yticklabels([])
+        for spine in ax_heat.spines.values():
+            spine.set_visible(False)
+        legend_items = [
+            mpatches.Patch(color="#e0e0e0", label="not available"),
+            mpatches.Patch(color="#f7f7f7", label="n = 0"),
+            mpatches.Patch(color="#d73027", label="1-19"),
+            mpatches.Patch(color="#fc8d59", label="20-99"),
+            mpatches.Patch(color="#fee08b", label="100-499"),
+            mpatches.Patch(color="#1a9850", label=">=500"),
+        ]
+        ax_heat.legend(
+            handles=legend_items,
+            title="Raw n",
+            fontsize=6.6,
+            title_fontsize=7.2,
+            frameon=False,
+            loc="lower center",
+            bbox_to_anchor=(0.5, -0.01),
+        )
+
+    fig.suptitle(_SF6_TITLE, fontsize=10.8, fontweight="bold", y=0.995)
+    fig.tight_layout(rect=[0, 0.01, 1, 0.985])
+
+    if n_runs > 1:
+        table_df = pd.DataFrame({
+            "Bacterium": summary["bacterium"],
+            "Serious-R marker drug(s)": summary["Marker drug(s)"],
+            "Total n, median": summary["total_new_active_infections_median"].map(_sf6_format_count),
+            "Total n, 5th-95th": [
+                _sf6_format_interval(p5, p95)
+                for p5, p95 in zip(
+                    summary["total_new_active_infections_p5"],
+                    summary["total_new_active_infections_p95"],
+                )
+            ],
+            "Hospital n, median": summary["hospital_new_active_infections_median"].map(_sf6_format_count),
+            "Hospital n, 5th-95th": [
+                _sf6_format_interval(p5, p95)
+                for p5, p95 in zip(
+                    summary["hospital_new_active_infections_p5"],
+                    summary["hospital_new_active_infections_p95"],
+                )
+            ],
+            "Community n, median": summary["community_new_active_infections_median"].map(_sf6_format_count),
+            "Community n, 5th-95th": [
+                _sf6_format_interval(p5, p95)
+                for p5, p95 in zip(
+                    summary["community_new_active_infections_p5"],
+                    summary["community_new_active_infections_p95"],
+                )
+            ],
+        })
+    else:
+        table_df = pd.DataFrame({
+            "Bacterium": summary["bacterium"],
+            "Serious-R marker drug(s)": summary["Marker drug(s)"],
+            "Total new active infections, raw simulated n": summary[
+                "total_new_active_infections_median"
+            ].map(_sf6_format_count),
+            "Hospital new active infections, raw simulated n": summary[
+                "hospital_new_active_infections_median"
+            ].map(_sf6_format_count),
+            "Community new active infections, raw simulated n": summary[
+                "community_new_active_infections_median"
+            ].map(_sf6_format_count),
+        })
+
+    table_df["Percent hospital"] = summary["percent_hospital_median"].map(_sf6_format_percent)
+    table_df["Denominator adequacy flag, hospital"] = summary[
+        "hospital_new_active_infections_median"
+    ].map(_sf6_adequacy_label)
+    table_df["Denominator adequacy flag, community"] = summary[
+        "community_new_active_infections_median"
+    ].map(_sf6_adequacy_label)
+    table_df["Overall serious-R (%)"] = summary["Overall serious-R (%)"].map(_sf6_format_percent)
+    table_df["Hospital serious-R (%)"] = summary["Hospital serious-R (%)"].map(_sf6_format_percent)
+    table_df["Community serious-R (%)"] = summary["Community serious-R (%)"].map(_sf6_format_percent)
+    table_df["Runs contributing"] = summary["runs_contributing"].astype(int).astype(str)
+    table_df["Notes"] = summary["Notes"]
+
+    extra_html = (
+        "<h2>Detailed new active infection denominators for serious-R interpretation</h2>\n"
+        + _html_table(table_df)
+    )
+    if problems:
+        extra_html += "<h2>Parser notes</h2>\n<ul>\n"
+        for problem in problems[:10]:
+            extra_html += f"<li>{problem}</li>\n"
+        extra_html += "</ul>\n"
+
+    run_note = (
+        f"Counts are summarised across {n_runs} accepted runs; displayed values are "
+        "run-level medians and intervals are 5th-95th percentiles."
+        if n_runs > 1
+        else "Counts are from the supplied run."
+    )
+    footnotes = [
+        "Counts are summarised over baseline-policy new active infections in the 2022-2025 calibration window.",
+        "Data source: aggregate model outputs parsed into paper_tables. calibration_summary_*.txt is not required to interpret this page.",
+        "Counts are raw simulated bacterium-specific new active infection events and are provided to interpret bacterium-specific serious-R percentages.",
+        "Hospital and community new-infection strata use the infection_hospital_acquired event flag exported by the model: hospital-acquired events are hospital, and all other new active infections are community. The existing Figure 7 serious-R percentages preferentially use current hospital/community infected-stock denominators when those stock-split columns are available; this page shows new active infection event denominators for interpretability and labels that distinction directly.",
+        "Counts are raw simulated n values, not population-scaled incidence estimates.",
+        "Small denominators can make serious-R percentages unstable; apparent 0% or 100% serious-R values should be interpreted cautiously when denominators are sparse.",
+        "Serious-R is a model-defined marker-drug resistance endpoint and is not a directly observed surveillance category.",
+        "If multiple bacteria can be involved in one infection episode, bacterium-specific infection events may count separately by bacterium.",
+        run_note,
+        "Denominator adequacy categories are interpretation aids only: no denominator = n = 0; very sparse = 1-19; sparse = 20-99; moderate = 100-499; larger denominator = >=500.",
+    ]
+
+    _save_figure(
+        fig,
+        out_dir,
+        _SF6_STEM,
+        _SF6_TITLE,
+        "Total and hospital/community raw simulated new active infection denominators by bacterium.",
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+    generated_status = "real data" if has_hospital else "partial data"
+    print(
+        "  Supplementary Figure S6: "
+        f"{generated_status}; {len(summary)} bacteria included from {n_runs} run"
+        f"{'s' if n_runs != 1 else ''}."
+    )
+    return {
+        "generated": generated_status,
+        "bacteria_included": len(summary),
+        "n_runs": n_runs,
+        "hospital_community_available": has_hospital,
+    }
+
+
 _F20_TITLE = "Figure 7. Serious-R by hospital and community, 2022\u20132025"
 _F20_STEM = "Figure_7__serious_r_by_hospital_community"
 _F20_REQUIRED_MESSAGE = (
@@ -7746,7 +8454,7 @@ def _figure_20_bacterium_label(value: object) -> str:
 
 def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.DataFrame, dict[str, float]]:
     try:
-        lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = _resolve_project_path(path).read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return pd.DataFrame(), {}
 
@@ -7833,7 +8541,7 @@ def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.Dat
     if df.empty:
         return df, summary
 
-    df["source_file"] = Path(path).name
+    df["source_file"] = _resolve_project_path(path).name
     df["bacterium_key"] = df["Bacteria"].astype(str).str.strip().str.lower()
     df["Bacterium display"] = df["Bacteria"].map(_figure_20_bacterium_label)
     return df, summary
@@ -8100,7 +8808,13 @@ def make_figure_20_serious_r_by_hospital_community(
     })
 
     summary_box = _figure_20_summary_box(parsed_summaries, n_runs)
-    extra_html = summary_box + "<h2>Figure 7 Details</h2>\n" + _html_table(details)
+    s6_link = (
+        "<p class='note'>For the raw new active infection denominator counts used to "
+        "interpret bacterium-specific serious-R estimates, see "
+        "<a href='Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium.html'>"
+        "Supplementary Figure S6</a>.</p>\n"
+    )
+    extra_html = summary_box + s6_link + "<h2>Figure 7 Details</h2>\n" + _html_table(details)
 
     run_note = (
         f"Values are medians across {n_runs} calibration summary file"
@@ -8671,58 +9385,62 @@ def make_index(agg: dict, out_dir: Path) -> None:
     body += "</ul>\n"
 
     body += "<h2>Figures</h2>\n<ul>\n"
-    for fname, label in [
-        (
-            "Figures/Figure_1__calibration_headline_metrics.html",
-            "Figure 1. Calibration: 2025 headline health and antibiotic-use metrics",
-        ),
-        (
-            "Figures/Figure_2__calibration_resistance_fit_by_bacteria_drug_class.html",
-            "Figure 2. Calibration: 2025 resistance fit by bacterium and drug class",
-        ),
-        (
-            "Figures/Figure_3__calibration_drug_class_share.html",
-            "Figure 3. Calibration: 2025 antibiotic use by drug class",
-        ),
-        (
-            "Figures/Figure_4__calibration_infection_deaths_by_bacteria.html",
-            "Figure 4. Calibration: 2025 infection deaths by bacterium",
-        ),
-        (
-            "Figures/Figure_5__calibration_carriage_prevalence_by_bacteria.html",
-            "Figure 5. Calibration: 2025 prevalence of carriage by bacterium",
-        ),
-        ("Figures/Figure_6__resistance_trends.html", "Figure 6. Resistance trends"),
-        (
-            "Figures/Figure_7__serious_r_by_hospital_community.html",
-            "Figure 7. Serious-R by hospital and community, 2022\u20132025",
-        ),
-        (
-            "Figures/Figure_8__infection_death_rate_by_region.html",
-            "Figure 8. Infection death rate by region, 2022\u20132025",
-        ),
-        (
-            "Figures/Figure_9__antibiotic_use_by_treatment_context.html",
-            "Figure 9. Antibiotic use by treatment context, 2025",
-        ),
-        (
-            "Figures/Figure_10__sepsis_context_effective_therapy.html",
-            "Figure 10. Sepsis onset context and time to effective therapy, 2022\u20132025",
-        ),
-        (
-            "Figures/Figure_11__activity_retained_by_bacterium.html",
-            "Figure 11. Resistance-adjusted antibiotic activity retained by bacterium, 2022\u20132025",
-        ),
-        (
-            "Figures/Figure_12__distribution_drug_use_by_bacteria.html",
-            "Figure 12. Antibiotic exposure distribution by bacterium, 2022\u20132025",
-        ),
-        (
-            "Figures/Figure_13__resistance_pathway_counterfactuals.html",
-            "Figure 13. Counterfactual resistance-acquisition pathway comparisons",
-        ),
-    ]:
-        body += f"<li><a href='{fname}'><strong>{label}</strong></a></li>\n"
+    body += _index_existing_link_items(
+        out_dir,
+        [
+            (
+                "Figures/Figure_1__calibration_headline_metrics.html",
+                "Figure 1. Calibration: 2025 headline health and antibiotic-use metrics",
+            ),
+            (
+                "Figures/Figure_2__calibration_resistance_fit_by_bacteria_drug_class.html",
+                "Figure 2. Calibration: 2025 resistance fit by bacterium and drug class",
+            ),
+            (
+                "Figures/Figure_3__calibration_drug_class_share.html",
+                "Figure 3. Calibration: 2025 antibiotic use by drug class",
+            ),
+            (
+                "Figures/Figure_4__calibration_infection_deaths_by_bacteria.html",
+                "Figure 4. Calibration: 2025 infection deaths by bacterium",
+            ),
+            (
+                "Figures/Figure_5__calibration_carriage_prevalence_by_bacteria.html",
+                "Figure 5. Calibration: 2025 prevalence of carriage by bacterium",
+            ),
+            ("Figures/Figure_6__resistance_trends.html", "Figure 6. Resistance trends"),
+            (
+                "Figures/Figure_7__serious_r_by_hospital_community.html",
+                "Figure 7. Serious-R by hospital and community, 2022\u20132025",
+            ),
+            (
+                "Figures/Figure_8__infection_death_rate_by_region.html",
+                "Figure 8. Infection death rate by region, 2022\u20132025",
+            ),
+            (
+                "Figures/Figure_9__antibiotic_use_by_treatment_context.html",
+                "Figure 9. Antibiotic use by treatment context, 2025",
+            ),
+            (
+                "Figures/Figure_10__sepsis_context_effective_therapy.html",
+                "Figure 10. Underlying sepsis onset context and time to effective therapy, "
+                "2022\u20132025",
+            ),
+            (
+                "Figures/Figure_11__activity_retained_by_bacterium.html",
+                "Figure 11. Resistance-adjusted antibiotic activity retained by bacterium, 2022\u20132025",
+            ),
+            (
+                "Figures/Figure_12__distribution_drug_use_by_bacteria.html",
+                "Figure 12. Antibiotic exposure distribution by bacterium, 2022\u20132025",
+            ),
+            (
+                "Figures/Figure_13__resistance_pathway_counterfactuals.html",
+                "Figure 13. Counterfactual resistance-acquisition pathway comparisons",
+            ),
+        ],
+        "No main figures were generated.",
+    )
     body += "</ul>\n"
 
     body += "<h2>Supplementary Figures</h2>\n<ul>\n"
@@ -8752,6 +9470,11 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "Supplementary Figure S5. Diagnostic testing and targeted-treatment cascade, "
                 "2022\u20132025",
             ),
+            (
+                "Figures/Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium.html",
+                "Supplementary Figure S6. New active infection denominators by bacterium, "
+                "2022\u20132025",
+            ),
         ],
         "No supplementary figures were generated.",
     )
@@ -8766,19 +9489,34 @@ def make_index(agg: dict, out_dir: Path) -> None:
 
 def main(input_args: list[str]) -> None:
     if not input_args:
-        print("Usage: python make_paper_tables.py <calibration_summary_*.txt> [...]")
+        print(
+            "Usage: python -m amr_simulation_output_analysis.make_paper_tables "
+            "<calibration_summary_*.txt> [...]"
+        )
         sys.exit(1)
 
     # Expand any glob patterns
-    paths: list[str] = []
+    paths: list[Path] = []
+    seen_paths: set[Path] = set()
     for arg in input_args:
-        expanded = glob.glob(arg)
-        if expanded:
-            paths.extend(expanded)
-        elif Path(arg).exists():
-            paths.append(arg)
-        else:
+        candidates = [_resolve_project_path(item) for item in glob.glob(arg)]
+        if not candidates and not Path(arg).is_absolute():
+            candidates = [Path(item) for item in glob.glob(str(REPO_ROOT / arg))]
+        if not candidates:
+            candidate = _resolve_project_path(arg)
+            if candidate.exists():
+                candidates.append(candidate)
+
+        if not candidates:
             print(f"  Warning: no file found for '{arg}'")
+            continue
+
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+            paths.append(candidate)
 
     if not paths:
         print("No input files found.")
@@ -8796,13 +9534,13 @@ def main(input_args: list[str]) -> None:
     if csv_paths:
         print(
             f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6, 8, 9, 10, 11, 12, "
-            "Supplementary Table S1, and Supplementary Figures S1, S3, S4, and S5. "
+            "Supplementary Table S1, and Supplementary Figures S1, S3, S4, S5, and S6. "
             "Supplementary Table S2 and Supplementary Figure S2 use calibration summary tables."
         )
     else:
         print(
             "  No matching simulation CSVs found; Figures 6, 8, 9, 10, 11, 12, and "
-            "Supplementary Table S1 / Supplementary Figures S1, S3, S4, and S5 may render as placeholders. "
+            "Supplementary Table S1 / Supplementary Figures S1, S3, S4, S5, and S6 may render as placeholders. "
             "Supplementary Table S2 and Supplementary Figure S2 use calibration summary tables."
         )
 
@@ -8844,6 +9582,11 @@ def main(input_args: list[str]) -> None:
         ["time_in_years", "policy_option", *sf5_required_columns],
         "Supplementary Figure S5",
     )
+    sf6_csv_paths = _filter_simulation_csvs_with_columns(
+        csv_paths,
+        [_SF6_TOTAL_COLUMN],
+        "Supplementary Figure S6",
+    )
 
     out = OUT_DIR
     print(f"\nGenerating paper outputs in {out.absolute()} ...")
@@ -8861,6 +9604,7 @@ def main(input_args: list[str]) -> None:
     make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(sf3_csv_paths, out, agg=agg)
     make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(sf4_csv_paths, out, agg=agg)
     make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(sf5_csv_paths, out, agg=agg)
+    make_supplementary_figure_s6_new_active_infection_denominators(sf6_csv_paths, paths, out, agg=agg)
     make_index(agg, out)
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
