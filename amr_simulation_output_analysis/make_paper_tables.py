@@ -2,7 +2,7 @@
 make_paper_tables.py
 
 Generate the paper-facing HTML outputs from one or more calibration_summary_*.txt
-files: Table 1, Supplementary Tables S1-S2, main Figures 1-13, and Supplementary Figures S1-S6.
+files: Table 1, Supplementary Tables S1-S2, main Figures 1-13, and Supplementary Figures S1-S7.
 
 Usage
 -----
@@ -43,6 +43,7 @@ paper_tables/
         Supplementary_Figure_S4__resistance_mechanisms_by_bacterium.html/.png/.svg
         Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html/.png/.svg
         Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium.html/.png/.svg
+        Supplementary_Figure_S7__active_infection_incidence_by_bacterium.html/.png/.svg
 """
 
 from __future__ import annotations
@@ -62,6 +63,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
@@ -5722,7 +5724,7 @@ def make_supplementary_table_s2_resistance_benchmarks(
     )
 
 
-_SF1_TITLE = "Supplementary Figure S1. Potential antibiotic activity retained across available drugs"
+_SF1_TITLE = "Supplementary Figure S1. Antibiotic activity retained after resistance among treated active infections"
 _SF1_STEM = "Supplementary_Figure_S1__potential_activity_retained"
 _SF1_NUMERATOR_COLUMN = "potential_activity_existing_drugs_sum_by_bacteria"
 _SF1_DENOMINATOR_COLUMN = "max_possible_potential_activity_existing_drugs_sum_by_bacteria"
@@ -8412,6 +8414,301 @@ def make_supplementary_figure_s6_new_active_infection_denominators(
     }
 
 
+# ---------------------------------------------------------------------------
+# Supplementary Figure S7. Active infection incidence by bacterium
+# ---------------------------------------------------------------------------
+
+_SF7_TITLE = (
+    "Supplementary Figure S7. Active infection incidence by bacterium: "
+    "simulation versus target, 2022\u20132025"
+)
+_SF7_STEM = "Supplementary_Figure_S7__active_infection_incidence_by_bacterium"
+_SF7_REQUIRED_MESSAGE = (
+    "Supplementary Figure S7 requires the Bacteria Burden Benchmarks infection "
+    "table in calibration_summary_*.txt, including Bacteria, Infection target "
+    "(%), and Infection simulation (%)."
+)
+
+
+def _sf7_placeholder(out_dir: Path, agg: dict | None, message: str) -> dict[str, object]:
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_SF7_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.2,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+        wrap=True,
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.92, bottom=0.08)
+    _save_figure(
+        fig,
+        out_dir,
+        _SF7_STEM,
+        _SF7_TITLE,
+        message,
+        [
+            "The placeholder is generated so the paper-output build remains complete "
+            "when older calibration summaries lack the required burden-benchmark columns.",
+        ],
+        agg=agg,
+    )
+    return {"generated": "placeholder", "bacteria_included": 0}
+
+
+def _sf7_find_column(columns: pd.Index, exact: str, include: list[str], exclude: list[str] | None = None) -> str | None:
+    lower_exact = exact.lower()
+    for column in columns:
+        if str(column).strip().lower() == lower_exact:
+            return str(column)
+    exclude_terms = [term.lower() for term in (exclude or [])]
+    for column in columns:
+        text = str(column).strip().lower()
+        if all(term.lower() in text for term in include) and not any(term in text for term in exclude_terms):
+            return str(column)
+    return None
+
+
+def _sf7_format_percent(value: object) -> str:
+    parsed = _first_numeric_value(value)
+    if parsed is None or not np.isfinite(parsed):
+        return "\u2014"
+    value_f = float(parsed)
+    if value_f == 0:
+        return "0"
+    if abs(value_f) < 0.01:
+        return f"{value_f:.4f}"
+    if abs(value_f) < 1:
+        return f"{value_f:.3f}"
+    return f"{value_f:.2f}"
+
+
+def _sf7_format_interval(lo: object, hi: object) -> str:
+    lo_text = _sf7_format_percent(lo)
+    hi_text = _sf7_format_percent(hi)
+    if lo_text == "\u2014" or hi_text == "\u2014":
+        return "\u2014"
+    return f"{lo_text}-{hi_text}"
+
+
+def _sf7_format_ratio(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "\u2014"
+    value_f = float(value)
+    if not np.isfinite(value_f):
+        return "\u2014"
+    return f"{value_f:.2f}"
+
+
+def _sf7_axis_label(value: float, _pos: int) -> str:
+    if value == 0:
+        return "0"
+    if abs(value) < 0.01:
+        return f"{value:.4f}".rstrip("0").rstrip(".")
+    if abs(value) < 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.1f}".rstrip("0").rstrip(".")
+
+
+def make_supplementary_figure_s7_active_infection_incidence(
+    agg: dict,
+    out_dir: Path,
+) -> dict[str, object]:
+    bi = agg.get("bacteria_infections", pd.DataFrame()).copy()
+    n_runs = int(agg.get("n_runs", 1) or 1)
+    if bi is None or bi.empty:
+        print("  Supplementary Figure S7: placeholder (no bacteria burden table).")
+        return _sf7_placeholder(out_dir, agg, _SF7_REQUIRED_MESSAGE)
+
+    bacterium_col = "Bacteria" if "Bacteria" in bi.columns else str(bi.columns[0])
+    target_col = _sf7_find_column(
+        bi.columns,
+        "Infection target (%)",
+        ["infection", "target", "%"],
+        ["hospital", "carriage", "<5", "65+"],
+    )
+    simulation_col = _sf7_find_column(
+        bi.columns,
+        "Infection simulation (%)",
+        ["infection", "simulation", "%"],
+        ["hospital", "carriage", "<5", "65+"],
+    )
+    if target_col is None or simulation_col is None:
+        missing = []
+        if target_col is None:
+            missing.append("Infection target (%)")
+        if simulation_col is None:
+            missing.append("Infection simulation (%)")
+        message = _SF7_REQUIRED_MESSAGE + " Missing: " + ", ".join(missing) + "."
+        print("  Supplementary Figure S7: placeholder (missing infection columns).")
+        return _sf7_placeholder(out_dir, agg, message)
+
+    work = bi[[bacterium_col, target_col, simulation_col]].copy()
+    work = _add_interval_columns(work, target_col, "_target")
+    work = _add_interval_columns(work, simulation_col, "_simulation")
+    work = work.dropna(subset=["_target_med", "_simulation_med"], how="any").copy()
+    if work.empty:
+        print("  Supplementary Figure S7: placeholder (no numeric infection rows).")
+        return _sf7_placeholder(out_dir, agg, "No numeric target/simulation infection rows were found.")
+
+    work["_ratio"] = np.where(
+        work["_target_med"].astype(float) > 0.0,
+        work["_simulation_med"].astype(float) / work["_target_med"].astype(float),
+        np.nan,
+    )
+    work["_difference"] = work["_simulation_med"].astype(float) - work["_target_med"].astype(float)
+    work["_label"] = work[bacterium_col].astype(str).str.strip()
+    work["_summary_flag"] = np.where(
+        work["_label"].str.endswith("*"),
+        "simulation >2x or <0.5x target in calibration summary",
+        "\u2014",
+    )
+    work = work.sort_values(
+        ["_target_med", "_simulation_med", "_label"],
+        ascending=[False, False, True],
+        na_position="last",
+    ).reset_index(drop=True)
+
+    plot = work.iloc[::-1].reset_index(drop=True)
+    y = np.arange(len(plot))
+    fig_height = max(6.5, 2.2 + 0.28 * len(plot))
+    fig, ax = plt.subplots(figsize=(10.4, fig_height))
+
+    for idx, row in plot.iterrows():
+        target = float(row["_target_med"])
+        simulation = float(row["_simulation_med"])
+        if np.isfinite(target) and np.isfinite(simulation):
+            ax.plot([target, simulation], [idx, idx], color="#b0bec5", linewidth=0.85, zorder=1)
+
+    target_values = plot["_target_med"].to_numpy(dtype=float)
+    simulation_values = plot["_simulation_med"].to_numpy(dtype=float)
+    target_mask = np.isfinite(target_values)
+    simulation_mask = np.isfinite(simulation_values)
+
+    ax.scatter(
+        target_values[target_mask],
+        y[target_mask] - 0.11,
+        marker="D",
+        s=25,
+        color="#FF7043",
+        edgecolors="white",
+        linewidths=0.35,
+        label="Target",
+        zorder=3,
+    )
+
+    sim_err_low, sim_err_high = _asymmetric_errors(plot, "_simulation")
+    xerr = None
+    if n_runs > 1:
+        xerr = np.vstack([sim_err_low[simulation_mask], sim_err_high[simulation_mask]])
+    ax.errorbar(
+        simulation_values[simulation_mask],
+        y[simulation_mask] + 0.11,
+        xerr=xerr,
+        fmt="o",
+        markersize=4.5,
+        color="#1565C0",
+        ecolor="#1565C0",
+        elinewidth=0.75,
+        capsize=2.2 if n_runs > 1 else 0,
+        linestyle="none",
+        label="Simulation median" if n_runs > 1 else "Simulation",
+        zorder=4,
+    )
+
+    finite_values = [
+        float(value)
+        for value in [*target_values.tolist(), *simulation_values.tolist()]
+        if np.isfinite(float(value)) and float(value) >= 0.0
+    ]
+    positive_values = [value for value in finite_values if value > 0.0]
+    axis_note = ""
+    if positive_values:
+        max_value = max(positive_values)
+        min_value = min(positive_values)
+        if max_value / max(min_value, 1e-12) >= 100.0:
+            linthresh = max(min_value, max_value / 10_000.0)
+            ax.set_xscale("symlog", linthresh=linthresh, linscale=0.8)
+            axis_note = (
+                "The x-axis uses a symmetric log scale near zero because target "
+                "infection percentages vary by several orders of magnitude across bacteria."
+            )
+        ax.set_xlim(left=0.0, right=max_value * 1.25)
+    else:
+        ax.set_xlim(0.0, 1.0)
+
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_sf7_axis_label))
+    ax.set_yticks(y)
+    ax.set_yticklabels(plot["_label"].values, fontsize=7.1, fontstyle="italic")
+    ax.set_xlabel("Active infection incidence (% of world population)", fontsize=9.5)
+    ax.set_title(_SF7_TITLE, fontsize=10.8, fontweight="bold", pad=10)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.45)
+    ax.legend(fontsize=8.2, frameon=False, loc="lower right")
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+
+    table_cols: dict[str, object] = {
+        "Bacterium": work["_label"],
+        "Infection target (%)": work["_target_med"].map(_sf7_format_percent),
+        "Infection simulation, median (%)": work["_simulation_med"].map(_sf7_format_percent),
+    }
+    if n_runs > 1:
+        table_cols["Infection simulation, 5th-95th (%)"] = [
+            _sf7_format_interval(lo, hi)
+            for lo, hi in zip(work["_simulation_lo"], work["_simulation_hi"])
+        ]
+    table_cols["Simulation/target ratio"] = work["_ratio"].map(_sf7_format_ratio)
+    table_cols["Simulation minus target (percentage points)"] = work["_difference"].map(_sf7_format_percent)
+    table_cols["Calibration summary flag"] = work["_summary_flag"]
+    table_df = pd.DataFrame(table_cols)
+
+    extra_html = (
+        "<h2>Active infection incidence by bacterium</h2>\n"
+        + _html_table(table_df)
+    )
+    interval_note = (
+        "Simulation points are medians across accepted calibration summaries; horizontal "
+        "error bars show 5th-95th percentiles."
+        if n_runs > 1
+        else "Simulation points are from the supplied calibration summary."
+    )
+    footnotes = [
+        "Data source: Bacteria Burden Benchmarks \u2014 Infections & Carriage in "
+        "calibration_summary_*.txt. This figure displays Infection target (%) and "
+        "Infection simulation (%) only.",
+        "The plotted values are calibration-summary active-infection percentages by "
+        "bacterium. No new model-output CSV files are used.",
+        interval_note,
+        "Asterisks in bacterium labels are carried over from the calibration summary and "
+        "indicate simulated infection rates greater than 2x or less than 0.5x the target.",
+    ]
+    if axis_note:
+        footnotes.append(axis_note)
+
+    _save_figure(
+        fig,
+        out_dir,
+        _SF7_STEM,
+        _SF7_TITLE,
+        "Target and simulated active-infection incidence by bacterium from the "
+        "Bacteria Burden Benchmarks infection table.",
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+    print(
+        "  Supplementary Figure S7: real data; "
+        f"{len(work)} bacteria included from {n_runs} calibration summary "
+        f"{'files' if n_runs != 1 else 'file'}."
+    )
+    return {"generated": "real data", "bacteria_included": len(work), "n_runs": n_runs}
+
+
 _F20_TITLE = "Figure 7. Serious-R by hospital and community, 2022\u20132025"
 _F20_STEM = "Figure_7__serious_r_by_hospital_community"
 _F20_REQUIRED_MESSAGE = (
@@ -9475,6 +9772,11 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "Supplementary Figure S6. New active infection denominators by bacterium, "
                 "2022\u20132025",
             ),
+            (
+                "Figures/Supplementary_Figure_S7__active_infection_incidence_by_bacterium.html",
+                "Supplementary Figure S7. Active infection incidence by bacterium: "
+                "simulation versus target, 2022\u20132025",
+            ),
         ],
         "No supplementary figures were generated.",
     )
@@ -9535,13 +9837,13 @@ def main(input_args: list[str]) -> None:
         print(
             f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6, 8, 9, 10, 11, 12, "
             "Supplementary Table S1, and Supplementary Figures S1, S3, S4, S5, and S6. "
-            "Supplementary Table S2 and Supplementary Figure S2 use calibration summary tables."
+            "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
     else:
         print(
             "  No matching simulation CSVs found; Figures 6, 8, 9, 10, 11, 12, and "
             "Supplementary Table S1 / Supplementary Figures S1, S3, S4, S5, and S6 may render as placeholders. "
-            "Supplementary Table S2 and Supplementary Figure S2 use calibration summary tables."
+            "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
 
     st1_csv_paths = _filter_simulation_csvs_with_columns(
@@ -9605,6 +9907,7 @@ def main(input_args: list[str]) -> None:
     make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(sf4_csv_paths, out, agg=agg)
     make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(sf5_csv_paths, out, agg=agg)
     make_supplementary_figure_s6_new_active_infection_denominators(sf6_csv_paths, paths, out, agg=agg)
+    make_supplementary_figure_s7_active_infection_incidence(agg, out)
     make_index(agg, out)
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)

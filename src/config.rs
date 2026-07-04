@@ -11611,9 +11611,9 @@ lazy_static! {
                     ("trim_sulf", 0.60),
                     ("amoxicillin_clavulanate", 10.0),
                     ("amoxicillin", 1.4),
-                    ("ciprofloxacin", 0.92), // stewardship concerns limit empiric quinolone use for UTI
-                    ("ampicillin", 0.68),
-                    ("levofloxacin", 0.83),
+                    ("ciprofloxacin", 0.8 ), // stewardship concerns limit empiric quinolone use for UTI
+                    ("ampicillin", 0.7 ),
+                    ("levofloxacin", 0.8 ),
                     ("nitrofurantoin", 140.0), // genuine first-line for uncomplicated UTI
                     ("fosfomycin", 110.0),
                     ("cephalexin", 5.5),
@@ -11642,12 +11642,12 @@ lazy_static! {
             (
                 2,
                 &[
-                    ("flucloxacillin", 14.0), // first-line empiric SSTI: covers Staph and Strep
+                    ("flucloxacillin", 13.0), // first-line empiric SSTI: covers Staph and Strep
                     ("amoxicillin_clavulanate", 4.5),
-                    ("amoxicillin", 3.4),
+                    ("amoxicillin", 3.0),
                     ("cephalexin", 6.7),
-                    ("ampicillin", 2.8),
-                    ("penicillin_g", 3.4),
+                    ("ampicillin", 2.5),
+                    ("penicillin_g", 2.0),
                     ("cefazolin", 6.7),
                     ("clindamycin", 3.5),
                     ("trim_sulf", 0.50),
@@ -11670,13 +11670,13 @@ lazy_static! {
                 3,
                 &[
                     ("amoxicillin_clavulanate", 11.0),
-                    ("amoxicillin", 4.5),
-                    ("penicillin_g", 4.5),
-                    ("ampicillin", 2.3),
-                    ("azithromycin", 0.99),
-                    ("clarithromycin", 0.99),
-                    ("ceftriaxone", 6.2),
-                    ("erythromycin", 0.76),
+                    ("amoxicillin", 4.0),
+                    ("penicillin_g", 3.0),
+                    ("ampicillin", 2.0),
+                    ("azithromycin", 0.8 ),
+                    ("clarithromycin", 0.8 ),
+                    ("ceftriaxone", 6.0),
+                    ("erythromycin", 0.7 ),
                     ("cefuroxime", 3.8),
                     ("piperacillin_tazobactam", 9.0),
                     ("levofloxacin", 1.1),
@@ -11713,7 +11713,7 @@ lazy_static! {
                     ("amoxicillin_clavulanate", 4.0),
                     ("ampicillin", 4.5),
                     ("amoxicillin", 4.5),
-                    ("penicillin_g", 4.5),
+                    ("penicillin_g", 3.0),
                     ("flucloxacillin", 9.0),
                     ("vancomycin", 150.0),
                     ("linezolid", 140.0),
@@ -11754,8 +11754,8 @@ lazy_static! {
                     ("meropenem_vaborbactam", 500.0),
                     ("ciprofloxacin", 1.4),
                     ("levofloxacin", 1.4),
-                    ("ampicillin", 5.6),
-                    ("amoxicillin", 5.6),
+                    ("ampicillin", 4.0),
+                    ("amoxicillin", 4.0),
                     ("trim_sulf", 0.10),
                     ("gentamicin", 70.0),
                     ("amikacin", 70.0),
@@ -11769,8 +11769,8 @@ lazy_static! {
                     ("ceftriaxone", 11.0),
                     ("ceftazidime", 11.0),
                     ("cefepime", 18.0),
-                    ("penicillin_g", 12.0),
-                    ("ampicillin", 11.0),
+                    ("penicillin_g",  9.0),
+                    ("ampicillin",  9.0),
                     ("vancomycin", 90.0),
                     ("linezolid", 80.0),
                     ("cefixime", 0.88),
@@ -11786,17 +11786,17 @@ lazy_static! {
                 7,
                 &[
                     ("ciprofloxacin", 0.83),
-                    ("azithromycin", 0.76),
+                    ("azithromycin", 0.6 ),
                     ("amoxicillin_clavulanate", 2.5),
-                    ("amoxicillin", 2.3),
-                    ("ampicillin", 2.3),
-                    ("levofloxacin", 0.83),
+                    ("amoxicillin", 2.0),
+                    ("ampicillin", 2.0),
+                    ("levofloxacin", 0.80),
                     ("ampicillin_sulbactam", 2.0),
                     ("trim_sulf", 0.20),
                     ("doxycycline", 1.2),
                     ("minocycline", 1.0),
                     ("cefixime", 3.5),
-                    ("penicillin_g", 2.3),
+                    ("penicillin_g", 1.0),
                     ("cephalexin", 3.4),
                     ("cefuroxime", 3.4),
                     ("furazolidone", 0.23),
@@ -11808,16 +11808,16 @@ lazy_static! {
             (
                 8,
                 &[
-                    ("penicillin_g", 4.5),
-                    ("azithromycin", 0.99),
+                    ("penicillin_g", 3.0),
+                    ("azithromycin", 0.8 ),
                     ("ceftriaxone", 11.0),
                     ("cefixime", 9.2),
                     ("doxycycline", 4.5),
                     ("amoxicillin_clavulanate", 3.5),
-                    ("amoxicillin", 2.3),
+                    ("amoxicillin", 2.0),
                     ("cefuroxime", 6.7),
                     ("clindamycin", 4.0),
-                    ("ampicillin", 3.4),
+                    ("ampicillin", 3.0),
                     ("ampicillin_sulbactam", 2.5),
                     ("ciprofloxacin", 0.55),
                     ("levofloxacin", 0.74),
@@ -11831,13 +11831,13 @@ lazy_static! {
             (
                 9,
                 &[
-                    ("flucloxacillin", 14.0), // dominant empiric choice for bone/joint (Staph cover essential)
+                    ("flucloxacillin", 12.0), // dominant empiric choice for bone/joint (Staph cover essential)
                     ("cefazolin", 7.6),
                     ("vancomycin", 150.0),
-                    ("ampicillin", 9.0),
+                    ("ampicillin", 8.0),
                     ("ceftriaxone", 9.7),
                     ("cephalexin", 4.2),
-                    ("penicillin_g", 6.8),
+                    ("penicillin_g", 5.0),
                     ("linezolid", 140.0),
                     ("tedizolid", 110.0),
                     ("dalbavancin", 110.0),
@@ -11869,7 +11869,7 @@ lazy_static! {
                     ("ceftolozane_tazobactam", 30.0),
                     ("aztreonam_avibactam", 2.0),
                     ("ciprofloxacin", 2.3),
-                    ("azithromycin", 0.61),
+                    ("azithromycin", 0.6 ),
                 ],
             ),
         ];
@@ -11890,8 +11890,8 @@ lazy_static! {
         let syndrome_0_background_drug_scores = [
             ("sulfanilamide", 0.0010),
             ("penicillin_g", 0.0010),
-            ("ampicillin", 0.090),
-            ("amoxicillin", 0.28),
+            ("ampicillin", 0.080),
+            ("amoxicillin", 0.25),
             ("piperacillin", 0.0010),
             ("ticarcillin", 0.0010),
             ("cephalexin", 0.15),
@@ -11907,9 +11907,9 @@ lazy_static! {
             ("imipenem_c", 0.0010),
             ("ertapenem", 0.0010),
             ("aztreonam", 0.0010),
-            ("erythromycin", 0.031),
-            ("azithromycin", 0.17),
-            ("clarithromycin", 0.031),
+            ("erythromycin", 0.03 ),
+            ("azithromycin", 0.14),
+            ("clarithromycin", 0.03 ),
             ("clindamycin", 0.040),
             ("gentamicin", 0.0010),
             ("tobramycin", 0.0010),
@@ -11946,7 +11946,7 @@ lazy_static! {
             ("ceftazidime_avibactam", 0.0010),
             ("meropenem_vaborbactam", 0.0010),
             ("colistin", 0.0010),
-            ("flucloxacillin", 0.068),
+            ("flucloxacillin", 0.06 ),
             ("aztreonam_avibactam", 0.0010),
             ("cefixime", 0.13),
             ("nalidixic_acid", 0.018),
@@ -12089,27 +12089,27 @@ lazy_static! {
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         // sepsis_baseline_log_odds ^^^^
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-            ("acinetobacter_baumannii", -5.5),
+            ("acinetobacter_baumannii", -5.1),
             ("citrobacter_spp.", -8.6),
             ("enterobacter_spp.", -7.1),
             ("enterococcus_faecalis", -6.5),       // was -8.0; CFR 0.74x under-death
-            ("enterococcus_faecium", -4.9),         // was -8.0; CFR 0.40x under-death
+            ("enterococcus_faecium", -4.2),         // was -8.0; CFR 0.40x under-death
             ("escherichia_coli", -9.3),             // was -8.5; CFR 2.7x over-death
-            ("klebsiella_pneumoniae", -5.8),        // was -8.0; CFR 0.83x under-death
+            ("klebsiella_pneumoniae", -5.5),        // was -8.0; CFR 0.83x under-death
             ("morganella_spp.", -7.1),
             ("proteus_spp.", -7.1),
             ("serratia_spp.", -7.3),
-            ("pseudomonas_aeruginosa", -5.1),       // was -8.0; CFR 0.38x under-death
+            ("pseudomonas_aeruginosa", -4.8),       // was -8.0; CFR 0.38x under-death
             ("stenotrophomonas_maltophilia", -7.3),
-            ("staphylococcus_aureus", -7.9),
+            ("staphylococcus_aureus", -8.1),
             ("staphylococcus_epidermidis", -7.3),
-            ("streptococcus_pneumoniae", -9.1 ),
+            ("streptococcus_pneumoniae", -9.2 ),
             ("salmonella_enterica_serovar_typhi", -7.3),
             ("salmonella_enterica_serovar_paratyphi_a", -8.3), // was -8.0; CFR 3.4x over-death
-            ("invasive_non-typhoidal_salmonella_spp.", -8.5),  // was -8.0; CFR 1.9x over-death
+            ("invasive_non-typhoidal_salmonella_spp.", -8.2),  // was -8.0; CFR 1.9x over-death
             ("shigella_spp.", -11.6),
             ("neisseria_gonorrhoeae", -23.3),
-            ("streptococcus_pyogenes", -5.1),       // was -8.0; CFR 0.20x under-death (invasive GAS)
+            ("streptococcus_pyogenes", -4.9),       // was -8.0; CFR 0.20x under-death (invasive GAS)
             ("streptococcus_agalactiae", -6.3),     // was -8.0; CFR 0.55x under-death
             ("haemophilus_influenzae", -8.5),
             ("chlamydia_trachomatis", -18.3),
@@ -12122,9 +12122,10 @@ lazy_static! {
             ("yersinia_enterocolitica", -8.8),     // was -8.0; CFR 6.7x over-death
             ("moraxella_catarrhalis", -11.4),
             ("treponema_pallidum", -10.3),
-            ("bordetella_pertussis", -13.0),
+            ("bordetella_pertussis", -14.5),
             ("helicobacter_pylori", -500.0),
             ("mdr_mycobacterium_tuberculosis", -38.0),
+            ("legionella_pneumophila", -10.0)
         ];
 
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
