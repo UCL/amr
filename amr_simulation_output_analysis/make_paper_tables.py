@@ -2,7 +2,8 @@
 make_paper_tables.py
 
 Generate the paper-facing HTML outputs from one or more calibration_summary_*.txt
-files: Table 1, Supplementary Tables S1-S2, main Figures 1-13, and Supplementary Figures S1-S7.
+files: Table 1, Supplementary Table S2, main Figures 1-13,
+Supplementary Figures S1-S3 and S5-S8, and diagnostic Supplementary Figure SX.
 
 Usage
 -----
@@ -21,7 +22,6 @@ paper_tables/
     index.html
     Tables/
         T1__model_summary.html
-        Supplementary_Table_S1__infection_outcomes_by_bacterium.html
         Supplementary_Table_S2__detailed_bacterium_drug_resistance_benchmarks.html
     Figures/
         Figure_1__calibration_headline_metrics.html/.png/.svg
@@ -40,10 +40,11 @@ paper_tables/
         Supplementary_Figure_S1__potential_activity_retained.html/.png/.svg
         Supplementary_Figure_S2__microbiome_resistance_reservoir.html/.png/.svg
         Supplementary_Figure_S3__carrier_vs_non_carrier_infection_incidence.html/.png/.svg
-        Supplementary_Figure_S4__resistance_mechanisms_by_bacterium.html/.png/.svg
         Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html/.png/.svg
         Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium.html/.png/.svg
         Supplementary_Figure_S7__active_infection_incidence_by_bacterium.html/.png/.svg
+        Supplementary_Figure_S8__infection_outcome_pathway_by_bacterium.html/.png/.svg
+        Supplementary_Figure_SX__modelled_resistance_mechanisms_by_bacterium.html/.png/.svg
 """
 
 from __future__ import annotations
@@ -1726,6 +1727,17 @@ _F2_CLASS_SHORT: dict[str, str] = {
     "Fidaxomicin":                       "Fidaxomicin",
 }
 
+_F2_DISPLAY_POTENCY_THRESHOLD = 0.25
+_F2_EXCLUDED_CLASSES = {"Rifamycins (J04AB)"}
+_F2_EXCLUDED_BACTERIA_SLUGS = {"mdr_mycobacterium_tuberculosis"}
+_F2_BACTERIA_SLUG_NORMALIZATION_OVERRIDES = {
+    "p_stuartii": "providencia_stuartii",
+}
+_F2_DRUG_SLUG_NORMALIZATION_OVERRIDES = {
+    "doxyclycline": "doxycycline",
+}
+_F2_BASELINE_POTENCY_LOOKUP_CACHE: dict[tuple[str, str], float] | None = None
+
 # Colour scheme
 _F2_COLOUR_SIM    = "#2196F3"   # blue — simulation
 _F2_COLOUR_TARGET = "#FF7043"   # deep orange — surveillance target
@@ -1834,6 +1846,118 @@ def _class_summary(
     return sim_med, sim_lo, sim_hi, tgt
 
 
+def _f2_slugify_value(name: object) -> str:
+    return str(name or "").strip().lower().replace(" ", "_")
+
+
+def _f2_slugify_bacteria_value(name: object) -> str:
+    slug = _f2_slugify_value(name)
+    return _F2_BACTERIA_SLUG_NORMALIZATION_OVERRIDES.get(slug, slug)
+
+
+def _f2_normalize_drug_slug(name: object) -> str:
+    slug = _f2_slugify_value(name)
+    return _F2_DRUG_SLUG_NORMALIZATION_OVERRIDES.get(slug, slug)
+
+
+def _f2_load_baseline_potency_lookup() -> dict[tuple[str, str], float]:
+    global _F2_BASELINE_POTENCY_LOOKUP_CACHE
+
+    if _F2_BASELINE_POTENCY_LOOKUP_CACHE is not None:
+        return _F2_BASELINE_POTENCY_LOOKUP_CACHE
+
+    path = REPO_ROOT / "data" / "potency_audit_matrix.csv"
+    if not path.exists():
+        print(
+            f"  Figure 2: {path} not found; potency display threshold "
+            "will not be applied."
+        )
+        _F2_BASELINE_POTENCY_LOOKUP_CACHE = {}
+        return _F2_BASELINE_POTENCY_LOOKUP_CACHE
+
+    try:
+        potency_df = pd.read_csv(path)
+    except Exception as exc:
+        print(
+            f"  Figure 2: could not read {path.name} ({exc}); potency display "
+            "threshold will not be applied."
+        )
+        _F2_BASELINE_POTENCY_LOOKUP_CACHE = {}
+        return _F2_BASELINE_POTENCY_LOOKUP_CACHE
+
+    required = {"bacteria", "drug", "potency_no_r"}
+    if potency_df.empty or not required.issubset(potency_df.columns):
+        print(
+            f"  Figure 2: {path.name} is missing required columns; potency "
+            "display threshold will not be applied."
+        )
+        _F2_BASELINE_POTENCY_LOOKUP_CACHE = {}
+        return _F2_BASELINE_POTENCY_LOOKUP_CACHE
+
+    lookup: dict[tuple[str, str], float] = {}
+    for _, row in potency_df.iterrows():
+        bacteria = row.get("bacteria")
+        drug = row.get("drug")
+        potency = row.get("potency_no_r")
+        if pd.isna(bacteria) or pd.isna(drug) or pd.isna(potency):
+            continue
+        lookup[(_f2_slugify_bacteria_value(bacteria), _f2_normalize_drug_slug(drug))] = float(potency)
+
+    _F2_BASELINE_POTENCY_LOOKUP_CACHE = lookup
+    return _F2_BASELINE_POTENCY_LOOKUP_CACHE
+
+
+def _f2_class_has_display_potency(rows: pd.DataFrame) -> bool:
+    lookup = _f2_load_baseline_potency_lookup()
+    if not lookup:
+        return True
+
+    for _, row in rows.iterrows():
+        potency = lookup.get(
+            (
+                _f2_slugify_bacteria_value(row.get("Bacteria")),
+                _f2_normalize_drug_slug(row.get("Drug")),
+            )
+        )
+        if potency is not None and potency >= _F2_DISPLAY_POTENCY_THRESHOLD:
+            return True
+    return False
+
+
+def _f2_apply_display_filters(rb: pd.DataFrame) -> pd.DataFrame:
+    """Apply Figure 2 presentation exclusions without changing upstream metrics."""
+    if rb.empty:
+        return rb
+
+    kept_indices: list[object] = []
+    dropped_excluded = 0
+    dropped_potency = 0
+    for (_, cls), rows in rb.groupby(["Bacteria", "Class"], dropna=False, sort=False):
+        bacterium = rows["Bacteria"].iloc[0]
+        bacterium_slug = _f2_slugify_bacteria_value(bacterium)
+        cls_name = str(cls)
+
+        if bacterium_slug in _F2_EXCLUDED_BACTERIA_SLUGS or cls_name in _F2_EXCLUDED_CLASSES:
+            dropped_excluded += 1
+            continue
+        if not _f2_class_has_display_potency(rows):
+            dropped_potency += 1
+            continue
+        kept_indices.extend(rows.index.tolist())
+
+    if dropped_excluded:
+        print(f"  Figure 2: excluded {dropped_excluded} special-case organism/class cell(s).")
+    if dropped_potency:
+        print(
+            f"  Figure 2: excluded {dropped_potency} organism/class cell(s) with no drug "
+            f"at baseline potency >= {_F2_DISPLAY_POTENCY_THRESHOLD:.2f}."
+        )
+
+    if not kept_indices:
+        return rb.iloc[0:0].copy()
+    return rb.loc[kept_indices].copy()
+
+
 def _f2_is_valid_organism_label(v: object) -> bool:
     """Return False for separator/header artifacts that are not organism names."""
     if v is None:
@@ -1886,6 +2010,11 @@ def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
         rb = rb.loc[valid_organism_mask].copy()
     if rb.empty:
         print("  Figure 2: no plottable organism resistance_benchmarks rows — skipping figure.")
+        return
+
+    rb = _f2_apply_display_filters(rb)
+    if rb.empty:
+        print("  Figure 2: no rows remain after display potency/special-case filters — skipping figure.")
         return
 
     n_runs = agg.get("n_runs", 1)
@@ -2040,7 +2169,12 @@ def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
         figure_note,
         "Drug class resistance within a panel is averaged across all specific drugs in that class.",
         "Drugs flagged as negligible potency (baseline potency < 0.15) are excluded from class averages.",
-        "All bacteria with resistance benchmark data in the simulation output are included. "
+        f"Drug classes are shown only where at least one drug in the class has baseline potency >= "
+        f"{_F2_DISPLAY_POTENCY_THRESHOLD:.2f} for that bacterium.",
+        "Rifamycins and MDR Mycobacterium tuberculosis are omitted from this broad calibration figure "
+        "because they are special-case TB/rifampicin-resistance outputs rather than comparable "
+        "general drug-class calibration cells.",
+        "Eligible bacteria with resistance benchmark data in the simulation output are included. "
         "IHME/WHO-ESKAPE priority bacteria are shown first, remainder alphabetically.",
     ] + _RESISTANCE_TARGET_SOURCE_NOTES)
     body += "</body></html>"
@@ -4844,7 +4978,9 @@ def make_figure_19_antibiotic_exposure_distribution(
 
 _ST1_TITLE = "Supplementary Table S1. Infection outcomes by bacterium, 2022\u20132025"
 _ST1_STEM = "Supplementary_Table_S1__infection_outcomes_by_bacterium"
-_ST1_VECTOR_COLUMNS = [
+_S8_TITLE = "Supplementary Figure S8. Infection outcome pathway by bacterium, 2022\u20132025"
+_S8_STEM = "Supplementary_Figure_S8__infection_outcome_pathway_by_bacterium"
+_ST1_REQUIRED_VECTOR_COLUMNS = [
     "new_active_infections_by_bacteria",
     "active_infection_days_by_bacteria",
     "treated_infection_days_by_bacteria",
@@ -4852,13 +4988,17 @@ _ST1_VECTOR_COLUMNS = [
     "infection_resolution_count_by_bacteria",
     "sepsis_onset_count_by_bacteria",
     "infection_death_count_by_bacteria",
+]
+_ST1_OPTIONAL_VECTOR_COLUMNS = [
     "drug_failure_count_by_bacteria",
 ]
+_ST1_VECTOR_COLUMNS = _ST1_REQUIRED_VECTOR_COLUMNS + _ST1_OPTIONAL_VECTOR_COLUMNS
 _ST1_REQUIRED_MESSAGE = (
-    "Supplementary Table S1 requires aggregate per-bacterium vector columns in "
-    "simulation_summary_run#.csv: " + ", ".join(_ST1_VECTOR_COLUMNS) + ". "
-    "Re-run the Rust simulation after adding these observability fields to generate "
-    "the real table."
+    "Supplementary Figure S8 requires aggregate per-bacterium vector columns in "
+    "simulation_summary_*.csv: " + ", ".join(_ST1_REQUIRED_VECTOR_COLUMNS) + ". "
+    "The optional drug_failure_count_by_bacteria column is used for the treatment-failure panel "
+    "when available. Re-run the Rust simulation with the required aggregate observability "
+    "fields to generate the real pathway figure."
 )
 
 
@@ -4943,12 +5083,17 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
         return [], f"{csv_path.name}: unable to read simulation summary CSV ({exc})."
 
     available = set(header.columns)
-    missing = [column for column in _ST1_VECTOR_COLUMNS if column not in available]
+    missing = [column for column in _ST1_REQUIRED_VECTOR_COLUMNS if column not in available]
     if missing:
         return [], f"{csv_path.name}: missing columns {', '.join(missing)}."
+    drug_failure_available = "drug_failure_count_by_bacteria" in available
 
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
-    usecols = [column for column in _ST1_VECTOR_COLUMNS + optional if column in header.columns]
+    usecols = [
+        column
+        for column in _ST1_REQUIRED_VECTOR_COLUMNS + _ST1_OPTIONAL_VECTOR_COLUMNS + optional
+        if column in header.columns
+    ]
     try:
         df = _read_csv_selected(csv_path, usecols)
     except (ValueError, OSError) as exc:
@@ -4968,8 +5113,16 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
     for run_key, run_df in grouped:
         totals = {
             column: _st1_sum_vector_column(run_df, column, target_len)
-            for column in _ST1_VECTOR_COLUMNS
+            for column in _ST1_REQUIRED_VECTOR_COLUMNS
         }
+        if drug_failure_available:
+            totals["drug_failure_count_by_bacteria"] = _st1_sum_vector_column(
+                run_df,
+                "drug_failure_count_by_bacteria",
+                target_len,
+            )
+        else:
+            totals["drug_failure_count_by_bacteria"] = np.full(target_len, np.nan)
         run_len = max(len(values) for values in totals.values())
         for column in totals:
             totals[column] = _figure_15_extend_array(totals[column], run_len)
@@ -4997,11 +5150,13 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
                 "new_active_infections": new_infections,
                 "active_infection_days": active_days,
                 "treated_infection_days": treated_days,
+                "treated_infection_percent": _st1_percent(treated_days, active_days),
                 "effective_treated_infection_days": effective_days,
                 "effective_treated_percent": _st1_percent(effective_days, treated_days),
                 "infection_resolutions": resolutions,
                 "resolution_rate_per_1000": _st1_rate_per_1000(resolutions, new_infections),
                 "drug_failure_events": drug_failures,
+                "drug_failure_available": drug_failure_available,
                 "drug_failure_rate_per_1000_treated_days": _st1_rate_per_1000(
                     drug_failures,
                     treated_days,
@@ -5042,6 +5197,389 @@ def _st1_format_rate(value: object) -> str:
     if not np.isfinite(value_f):
         return "\u2014"
     return f"{value_f:.2f}" if abs(value_f) < 10 else f"{value_f:.1f}"
+
+
+def _st1_build_summary(rows: list[dict[str, object]]) -> tuple[pd.DataFrame, int]:
+    if not rows:
+        return pd.DataFrame(), 0
+    df = pd.DataFrame(rows)
+    n_runs = int(df[["source", "run"]].drop_duplicates().shape[0])
+    summary = (
+        df.groupby(["bacterium_slug", "bacterium"], as_index=False)
+        .agg(
+            new_active_infections=("new_active_infections", "median"),
+            active_infection_days=("active_infection_days", "median"),
+            treated_infection_days=("treated_infection_days", "median"),
+            treated_infection_percent=("treated_infection_percent", "median"),
+            effective_treated_infection_days=("effective_treated_infection_days", "median"),
+            effective_treated_percent=("effective_treated_percent", "median"),
+            infection_resolutions=("infection_resolutions", "median"),
+            resolution_rate_per_1000=("resolution_rate_per_1000", "median"),
+            drug_failure_events=("drug_failure_events", "median"),
+            drug_failure_available=("drug_failure_available", "any"),
+            drug_failure_rate_per_1000_treated_days=(
+                "drug_failure_rate_per_1000_treated_days",
+                "median",
+            ),
+            sepsis_onsets=("sepsis_onsets", "median"),
+            sepsis_rate_per_1000=("sepsis_rate_per_1000", "median"),
+            infection_deaths=("infection_deaths", "median"),
+            fatality_per_1000=("fatality_per_1000", "median"),
+        )
+    )
+    summary["reliability_flag"] = summary.apply(
+        lambda row: _st1_reliability_flags(
+            float(row["new_active_infections"]),
+            float(row["treated_infection_days"]),
+            float(row["sepsis_onsets"]),
+            float(row["infection_deaths"]),
+        ),
+        axis=1,
+    )
+    summary = summary.sort_values(
+        ["infection_deaths", "new_active_infections"],
+        ascending=[False, False],
+    ).reset_index(drop=True)
+    return summary, n_runs
+
+
+def _st1_detail_table_from_summary(summary: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame({
+        "Bacterium": summary["bacterium"],
+        "New active infections": summary["new_active_infections"].map(_st1_format_count),
+        "Active infection-days": summary["active_infection_days"].map(_st1_format_count),
+        "Treated infection-days": summary["treated_infection_days"].map(_st1_format_count),
+        "Treated infection-days (% of active)": summary["treated_infection_percent"].map(_st1_format_percent),
+        "Effective treated infection-days": summary["effective_treated_infection_days"].map(_st1_format_count),
+        "Effective treated infection-days (% of treated)": summary["effective_treated_percent"].map(_st1_format_percent),
+        "Infection resolutions": summary["infection_resolutions"].map(_st1_format_count),
+        "Resolution rate per 1,000 new active infections": summary["resolution_rate_per_1000"].map(_st1_format_rate),
+        "Drug / treatment failure events": summary["drug_failure_events"].map(_st1_format_count),
+        "Failure rate per 1,000 treated infection-days": summary[
+            "drug_failure_rate_per_1000_treated_days"
+        ].map(_st1_format_rate),
+        "Sepsis onsets": summary["sepsis_onsets"].map(_st1_format_count),
+        "Sepsis onset rate per 1,000 new active infections": summary["sepsis_rate_per_1000"].map(_st1_format_rate),
+        "Infection deaths": summary["infection_deaths"].map(_st1_format_count),
+        "Infection fatality per 1,000 new active infections": summary["fatality_per_1000"].map(_st1_format_rate),
+        "Reliability flag": summary["reliability_flag"],
+    })
+
+
+def _s8_reliability_legend_html() -> str:
+    legend = pd.DataFrame({
+        "Reliability flag": [
+            "low infection denominator",
+            "low treated denominator",
+            "low sepsis count",
+            "low death count",
+            "unstable rate",
+        ],
+        "Meaning": [
+            "Fewer than 100 new active infections in the run-level median denominator.",
+            "Fewer than 100 treated infection-days in the run-level median denominator.",
+            "Fewer than 20 sepsis-onset events in the run-level median numerator.",
+            "Fewer than 20 infection-death events in the run-level median numerator.",
+            "At least one small-count flag applies; pathway rates should be interpreted cautiously.",
+        ],
+    })
+    return "<h2>Reliability flag legend</h2>\n" + _html_table(legend)
+
+
+def _s8_placeholder(
+    out_dir: Path,
+    agg: dict | None,
+    message: str,
+    problems: list[str] | None = None,
+) -> dict[str, object]:
+    fig, ax = plt.subplots(figsize=(10.5, 3.8))
+    ax.text(
+        0.5,
+        0.5,
+        f"{_S8_TITLE}\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.2,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+        wrap=True,
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.88, bottom=0.08)
+
+    required = pd.DataFrame({
+        "Required simulation_summary field": _ST1_REQUIRED_VECTOR_COLUMNS,
+    })
+    extra_html = (
+        "<p class='note'>This placeholder replaces the prior standalone Supplementary Table S1 "
+        "layout. A model run with the required aggregate simulation_summary fields is needed "
+        "to render the pathway figure and detailed table.</p>\n"
+        "<h2>Required fields</h2>\n"
+        + _html_table(required)
+    )
+    if problems:
+        extra_html += "<h2>Parser notes</h2>\n<ul>\n"
+        for problem in problems[:10]:
+            extra_html += f"<li>{problem}</li>\n"
+        extra_html += "</ul>\n"
+
+    _save_figure(
+        fig,
+        out_dir,
+        _S8_STEM,
+        _S8_TITLE,
+        message,
+        [
+            "Old simulation_summary files remain readable: when required aggregate columns are absent, "
+            "this placeholder is generated rather than failing the paper-output build.",
+            "No new model-output CSV file is required or produced.",
+        ],
+        agg=agg,
+        extra_html=extra_html,
+    )
+    return {"generated": "placeholder", "bacteria_included": 0, "n_runs": 0}
+
+
+def _s8_apply_count_axis(ax: "plt.Axes", values: pd.Series | np.ndarray) -> None:
+    finite = [
+        float(value)
+        for value in pd.Series(values).dropna().to_numpy(dtype=float)
+        if np.isfinite(float(value)) and float(value) > 0.0
+    ]
+    if not finite:
+        ax.set_xlim(0, 1)
+        return
+    max_value = max(finite)
+    min_value = min(finite)
+    if max_value / max(min_value, 1.0) >= 100.0:
+        ax.set_xscale("symlog", linthresh=max(1.0, min_value))
+    ax.set_xlim(0, max_value * 1.18)
+
+
+def _s8_plot_rate_panel(
+    ax: "plt.Axes",
+    y: np.ndarray,
+    values: pd.Series,
+    title: str,
+    color: str,
+    xlabel: str,
+) -> None:
+    numeric = pd.to_numeric(values, errors="coerce").to_numpy(dtype=float)
+    mask = np.isfinite(numeric)
+    if mask.any():
+        ax.scatter(numeric[mask], y[mask], s=20, color=color, edgecolors="white", linewidths=0.35, zorder=3)
+        ax.set_xlim(0, max(1.0, float(np.nanmax(numeric[mask])) * 1.15))
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "No usable values",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=8.2,
+            color="#555",
+        )
+        ax.set_xlim(0, 1)
+    ax.set_title(title, loc="left", fontsize=9.2, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=8.1)
+    ax.grid(axis="x", linewidth=0.35, alpha=0.45)
+    ax.spines[["top", "right"]].set_visible(False)
+
+
+def make_supplementary_figure_s8_infection_outcome_pathway(
+    csv_paths: list[Path],
+    out_dir: Path,
+    agg: dict | None = None,
+) -> dict[str, object]:
+    if not csv_paths:
+        print("  Supplementary Figure S8: placeholder (no simulation summary CSVs found).")
+        return _s8_placeholder(
+            out_dir,
+            agg,
+            _ST1_REQUIRED_MESSAGE,
+            ["No matching simulation_summary_*.csv files were found."],
+        )
+
+    rows: list[dict[str, object]] = []
+    problems: list[str] = []
+    for csv_path in csv_paths:
+        run_rows, problem = _st1_rows_from_simulation_csv(csv_path)
+        rows.extend(run_rows)
+        if problem:
+            problems.append(problem)
+
+    if not rows:
+        print("  Supplementary Figure S8: placeholder (no usable ST1/S8 rows).")
+        return _s8_placeholder(out_dir, agg, _ST1_REQUIRED_MESSAGE, problems)
+
+    summary, n_runs = _st1_build_summary(rows)
+    if summary.empty:
+        print("  Supplementary Figure S8: placeholder (empty pathway summary).")
+        return _s8_placeholder(out_dir, agg, _ST1_REQUIRED_MESSAGE, problems)
+
+    table = _st1_detail_table_from_summary(summary)
+    has_drug_failure = bool(summary["drug_failure_available"].any())
+    plot = summary.reset_index(drop=True)
+    y = np.arange(len(plot))
+    fig_height = max(8.5, 2.2 + 0.25 * len(plot))
+    fig, axes = plt.subplots(
+        1,
+        5,
+        figsize=(18.2, fig_height),
+        sharey=True,
+        gridspec_kw={"width_ratios": [1.1, 1.35, 1.05, 1.0, 1.0], "wspace": 0.1},
+    )
+
+    axes[0].barh(y, plot["new_active_infections"].to_numpy(dtype=float), height=0.58, color="#4E79A7", alpha=0.85)
+    axes[0].set_title("A. New active infections", loc="left", fontsize=9.2, fontweight="bold")
+    axes[0].set_xlabel("Raw simulated n", fontsize=8.1)
+    axes[0].set_yticks(y)
+    axes[0].set_yticklabels(plot["bacterium"].values, fontsize=6.5, fontstyle="italic")
+    axes[0].invert_yaxis()
+    _s8_apply_count_axis(axes[0], plot["new_active_infections"])
+    axes[0].grid(axis="x", linewidth=0.35, alpha=0.45)
+    axes[0].spines[["top", "right"]].set_visible(False)
+
+    treated_pct = plot["treated_infection_percent"].to_numpy(dtype=float)
+    effective_pct = plot["effective_treated_percent"].to_numpy(dtype=float)
+    for idx, (treated, effective) in enumerate(zip(treated_pct, effective_pct)):
+        if np.isfinite(treated) and np.isfinite(effective):
+            axes[1].plot([treated, effective], [idx, idx], color="#b0bec5", linewidth=0.75, zorder=1)
+    treated_mask = np.isfinite(treated_pct)
+    effective_mask = np.isfinite(effective_pct)
+    axes[1].scatter(
+        treated_pct[treated_mask],
+        y[treated_mask] - 0.09,
+        s=18,
+        color="#59A14F",
+        edgecolors="white",
+        linewidths=0.3,
+        label="Treated / active",
+        zorder=3,
+    )
+    axes[1].scatter(
+        effective_pct[effective_mask],
+        y[effective_mask] + 0.09,
+        s=18,
+        color="#F28E2B",
+        edgecolors="white",
+        linewidths=0.3,
+        label="Effective / treated",
+        zorder=3,
+    )
+    max_pct = np.nanmax([np.nanmax(treated_pct) if treated_mask.any() else 0, np.nanmax(effective_pct) if effective_mask.any() else 0])
+    axes[1].set_xlim(0, max(100.0, float(max_pct) * 1.08))
+    axes[1].set_title("B. Treatment exposure and effectiveness", loc="left", fontsize=9.2, fontweight="bold")
+    axes[1].set_xlabel("% of denominator days", fontsize=8.1)
+    axes[1].grid(axis="x", linewidth=0.35, alpha=0.45)
+    axes[1].legend(fontsize=6.8, frameon=False, loc="lower right")
+    axes[1].spines[["top", "right"]].set_visible(False)
+
+    if has_drug_failure:
+        _s8_plot_rate_panel(
+            axes[2],
+            y,
+            plot["drug_failure_rate_per_1000_treated_days"],
+            "C. Treatment failure",
+            "#E15759",
+            "Events per 1,000 treated days",
+        )
+    else:
+        axes[2].text(
+            0.5,
+            0.5,
+            "drug_failure_count_by_bacteria\nwas not available",
+            ha="center",
+            va="center",
+            transform=axes[2].transAxes,
+            fontsize=8.2,
+            color="#555",
+            bbox=dict(boxstyle="round,pad=0.4", fc="#f5f5f5", ec="#bbb"),
+        )
+        axes[2].set_title("C. Treatment failure", loc="left", fontsize=9.2, fontweight="bold")
+        axes[2].set_xlabel("Unavailable", fontsize=8.1)
+        axes[2].set_xlim(0, 1)
+        axes[2].spines[["top", "right"]].set_visible(False)
+
+    _s8_plot_rate_panel(
+        axes[3],
+        y,
+        plot["sepsis_rate_per_1000"],
+        "D. Sepsis onset",
+        "#B07AA1",
+        "Onsets per 1,000 infections",
+    )
+    _s8_plot_rate_panel(
+        axes[4],
+        y,
+        plot["fatality_per_1000"],
+        "E. Infection fatality",
+        "#7F3C8D",
+        "Deaths per 1,000 infections",
+    )
+    for ax in axes[1:]:
+        ax.tick_params(axis="y", left=False, labelleft=False)
+    fig.suptitle(_S8_TITLE, fontsize=11, fontweight="bold", y=0.995)
+    fig.subplots_adjust(left=0.16, right=0.995, top=0.955, bottom=0.065, wspace=0.12)
+
+    extra_html = (
+        "<p class='note'><strong>Layout note:</strong> This figure replaces the prior standalone "
+        "Supplementary Table S1 layout. The detailed numeric Supplementary Table S1 content is "
+        "preserved below the multipanel figure.</p>\n"
+        "<p class='note'>Panel A provides denominator context for the pathway rates in this figure. "
+        "Supplementary Figure S6 focuses specifically on serious-R denominators, and Supplementary "
+        "Figure S7 compares active infection incidence with calibration targets.</p>\n"
+        "<h2>Detailed infection outcome table</h2>\n"
+        + _html_table(table)
+        + _s8_reliability_legend_html()
+    )
+    note = (
+        "Integrated pathway view of baseline-policy infection outcomes by bacterium; rows are sorted "
+        "by median infection deaths, then median new active infections."
+    )
+    footnotes = [
+        "Values summarise baseline-policy infection outcomes by bacterium in the 2022-2025 window.",
+        "Counts are raw simulated counts unless otherwise stated.",
+        "Rates are calculated from summed run-level numerators and denominators over the window.",
+        "Treatment exposure is counted while a person is infected with the bacterium and may include empiric therapy, targeted therapy, combination therapy, and bystander antibiotic exposure.",
+        "Effective treated infection-days use the same resistance-adjusted activity threshold as the sepsis effective-therapy summary, expected activity_r >= 0.500.",
+        "Infection resolutions count active infection episodes ending by clearance/resolution rather than death.",
+        "Sepsis onsets use the existing simulation_summary aggregate semantics.",
+        "Deaths are counted per pathogen involved; in polymicrobial cases, the same death can appear under more than one bacterium.",
+        "Drug / treatment failure events use the existing model-defined failure-event semantics.",
+        "Reliability flags mark small denominators and unstable rates.",
+        f"Metrics are calculated within each run first and displayed as medians across {n_runs} accepted simulation run{'s' if n_runs != 1 else ''}.",
+        "Source: existing simulation_summary_*.csv aggregate columns only. No event-level or supplementary-output CSV file is required or produced.",
+    ]
+    if not has_drug_failure:
+        footnotes.append("drug_failure_count_by_bacteria was unavailable, so Panel C and failure-rate table cells are placeholders.")
+    if problems:
+        footnotes.append("Some simulation summary CSVs were skipped: " + " ".join(problems[:3]))
+
+    _save_figure(
+        fig,
+        out_dir,
+        _S8_STEM,
+        _S8_TITLE,
+        note,
+        footnotes,
+        agg=agg,
+        extra_html=extra_html,
+    )
+    print(
+        "  Supplementary Figure S8: real data; "
+        f"{len(summary)} bacterium row{'s' if len(summary) != 1 else ''} from "
+        f"{n_runs} run{'s' if n_runs != 1 else ''}; "
+        f"drug-failure panel {'available' if has_drug_failure else 'placeholder'}."
+    )
+    return {
+        "generated": "real data",
+        "bacteria_included": int(len(summary)),
+        "n_runs": n_runs,
+        "drug_failure_available": has_drug_failure,
+    }
 
 
 def make_supplementary_table_s1_infection_outcomes(
@@ -6894,11 +7432,12 @@ def make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(
     )
 
 
-_SF4_TITLE = "Supplementary Figure S4. Resistance mechanisms by bacterium, 2022\u20132025"
-_SF4_STEM = "Supplementary_Figure_S4__resistance_mechanisms_by_bacterium"
+_SF4_TITLE = "Supplementary Figure SX. Modelled resistance mechanisms by bacterium, 2022\u20132025"
+_SF4_STEM = "Supplementary_Figure_SX__modelled_resistance_mechanisms_by_bacterium"
 _SF4_REQUIRED_MESSAGE = (
-    "Supplementary Figure S4 requires simulation_summary aggregate columns for active "
-    "infection-days by bacterium and infection-days with resistance-mechanism families by bacterium."
+    "Supplementary Figure SX requires simulation_summary aggregate columns for active "
+    "infection-days by bacterium and exact per-bacterium/per-ResistanceMechanism active "
+    "infection-day counts named <bacterium>_infected_with_<mechanism>."
 )
 
 # Keep this mapping aligned with resistance_mechanism_family_idx() in src/simulation/simulation.rs.
@@ -7076,31 +7615,93 @@ _SF4_MECHANISM_FAMILIES: list[dict[str, object]] = [
 ]
 
 
+_SF4_EXACT_MECHANISMS: list[dict[str, str]] = [
+    {"variant": "ResistanceMechanism::EnzymeEsblCtxM", "slug": "enzyme_esbl_ctx_m", "label": "ESBL CTX-M"},
+    {"variant": "ResistanceMechanism::EnzymeEsblTem", "slug": "enzyme_esbl_tem", "label": "ESBL TEM"},
+    {"variant": "ResistanceMechanism::EnzymeEsblShv", "slug": "enzyme_esbl_shv", "label": "ESBL SHV"},
+    {"variant": "ResistanceMechanism::EnzymeKpc", "slug": "enzyme_kpc", "label": "KPC"},
+    {"variant": "ResistanceMechanism::EnzymeNdmVim", "slug": "enzyme_ndm_vim", "label": "NDM/VIM"},
+    {"variant": "ResistanceMechanism::EnzymeOxa48", "slug": "enzyme_oxa_48", "label": "OXA-48"},
+    {"variant": "ResistanceMechanism::EnzymeAmpcCmy", "slug": "enzyme_ampc_cmy", "label": "AmpC CMY"},
+    {"variant": "ResistanceMechanism::EnzymeAmpcDha", "slug": "enzyme_ampc_dha", "label": "AmpC DHA"},
+    {"variant": "ResistanceMechanism::MutationAmpCDerepression", "slug": "mutation_ampc_derepression", "label": "AmpC derepression"},
+    {"variant": "ResistanceMechanism::TargetSitePbp2aMecA", "slug": "target_site_pbp2a_meca", "label": "PBP2a mecA"},
+    {"variant": "ResistanceMechanism::TargetSiteVanA", "slug": "target_site_van_a", "label": "vanA"},
+    {"variant": "ResistanceMechanism::TargetSiteVanB", "slug": "target_site_van_b", "label": "vanB"},
+    {"variant": "ResistanceMechanism::MutationGyrAPrimary", "slug": "mutation_gyra_primary", "label": "gyrA primary"},
+    {"variant": "ResistanceMechanism::MutationGyrAParCSecondary", "slug": "mutation_gyra_parc_secondary", "label": "gyrA/parC secondary"},
+    {"variant": "ResistanceMechanism::ProtectionQnr", "slug": "protection_qnr", "label": "qnr protection"},
+    {"variant": "ResistanceMechanism::Enzyme16sRrmt", "slug": "enzyme_16s_rrmt", "label": "16S rRNA methyltransferase"},
+    {"variant": "ResistanceMechanism::TargetSiteErmB", "slug": "target_site_erm_b", "label": "ermB"},
+    {"variant": "ResistanceMechanism::TargetSiteCfr", "slug": "target_site_cfr", "label": "cfr"},
+    {"variant": "ResistanceMechanism::EnzymeCat", "slug": "enzyme_cat", "label": "CAT"},
+    {"variant": "ResistanceMechanism::EffluxAcrabTolc", "slug": "efflux_acrab_tolc", "label": "AcrAB-TolC"},
+    {"variant": "ResistanceMechanism::EffluxMexxyOprm", "slug": "efflux_mexxy_oprm", "label": "MexXY-OprM"},
+    {"variant": "ResistanceMechanism::PorinLossOmpk35_36", "slug": "porin_loss_ompk35_36", "label": "OmpK35/36 loss"},
+    {"variant": "ResistanceMechanism::PorinLossOprd", "slug": "porin_loss_oprd", "label": "OprD loss"},
+    {"variant": "ResistanceMechanism::ModificationMcr1", "slug": "modification_mcr_1", "label": "mcr-1"},
+    {"variant": "ResistanceMechanism::MutationPolymyxinRegulatory", "slug": "mutation_polymyxin_regulatory", "label": "polymyxin regulatory"},
+    {"variant": "ResistanceMechanism::GlobalEffluxPump", "slug": "global_efflux_pump", "label": "global efflux pump"},
+    {"variant": "ResistanceMechanism::GlobalPorinLoss", "slug": "global_porin_loss", "label": "global porin loss"},
+    {"variant": "ResistanceMechanism::MutationFolatePathway", "slug": "mutation_folate_pathway", "label": "folate pathway"},
+    {"variant": "ResistanceMechanism::MutationNitroreductase", "slug": "mutation_nitroreductase", "label": "nitroreductase"},
+    {"variant": "ResistanceMechanism::EnzymeFos", "slug": "enzyme_fos", "label": "Fos enzyme"},
+    {"variant": "ResistanceMechanism::MutationMprF", "slug": "mutation_mpr_f", "label": "mprF"},
+    {"variant": "ResistanceMechanism::MutationLiafsrCls", "slug": "mutation_liafsr_cls", "label": "liaFSR/cls"},
+    {"variant": "ResistanceMechanism::MutationRpoB", "slug": "mutation_rpo_b", "label": "rpoB"},
+    {"variant": "ResistanceMechanism::ProtectionFusB", "slug": "protection_fus_b", "label": "fusB protection"},
+    {"variant": "ResistanceMechanism::ProtectionTetM", "slug": "protection_tet_m", "label": "tetM protection"},
+    {"variant": "ResistanceMechanism::EnzymeAacAph", "slug": "enzyme_aac_aph", "label": "AAC/APH"},
+    {"variant": "ResistanceMechanism::EnzymeBlaZ", "slug": "enzyme_bla_z", "label": "blaZ"},
+    {"variant": "ResistanceMechanism::EnzymeTem1", "slug": "enzyme_tem_1", "label": "TEM-1"},
+    {"variant": "ResistanceMechanism::EnzymeMphA", "slug": "enzyme_mph_a", "label": "mphA"},
+    {"variant": "ResistanceMechanism::EnzymeOxaAcinetobacter", "slug": "enzyme_oxa_acinetobacter", "label": "Acinetobacter OXA"},
+    {"variant": "ResistanceMechanism::Mutation23sRrna", "slug": "mutation_23s_rrna", "label": "23S rRNA macrolide"},
+    {"variant": "ResistanceMechanism::Mutation23sRrnaOxazolidinone", "slug": "mutation_23s_rrna_oxazolidinone", "label": "23S rRNA oxazolidinone"},
+    {"variant": "ResistanceMechanism::EffluxTetAbc", "slug": "efflux_tet_abc", "label": "TetABC efflux"},
+    {"variant": "ResistanceMechanism::MutationPbpMosaic", "slug": "mutation_pbp_mosaic", "label": "PBP mosaic"},
+    {"variant": "ResistanceMechanism::EffluxMtrCde", "slug": "efflux_mtr_cde", "label": "MtrCDE efflux"},
+    {"variant": "ResistanceMechanism::AsYetUnknown", "slug": "as_yet_unknown", "label": "as-yet-unknown"},
+]
+
+
 def _sf4_family_column(slug: str) -> str:
     return f"infection_days_with_mechanism_family_{slug}_by_bacteria"
 
 
-def _sf4_mapping_table_html() -> str:
-    mapping = pd.DataFrame({
-        "Display family": [str(family["label"]) for family in _SF4_MECHANISM_FAMILIES],
-        "Internal family slug": [str(family["slug"]) for family in _SF4_MECHANISM_FAMILIES],
-        "ResistanceMechanism enum variants included": [
-            "; ".join(str(variant) for variant in family["variants"])
-            for family in _SF4_MECHANISM_FAMILIES
-        ],
-        "Notes": [str(family["notes"]) for family in _SF4_MECHANISM_FAMILIES],
-    })
-    return "<h2>Mechanism Family Mapping</h2>\n" + _html_table(mapping)
+def _sf4_family_lookup() -> dict[str, dict[str, str]]:
+    lookup: dict[str, dict[str, str]] = {}
+    for family in _SF4_MECHANISM_FAMILIES:
+        for variant in family["variants"]:
+            lookup[str(variant)] = {
+                "family": str(family["label"]),
+                "notes": str(family["notes"]),
+            }
+    return lookup
 
 
-def _sf4_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
+def _sf4_mechanism_definitions_table_html() -> str:
+    family_lookup = _sf4_family_lookup()
+    rows: list[dict[str, str]] = []
+    for mechanism in _SF4_EXACT_MECHANISMS:
+        info = family_lookup.get(str(mechanism["variant"]), {})
+        rows.append({
+            "Mechanism enum variant": str(mechanism["variant"]),
+            "Short display label": str(mechanism["label"]),
+            "Broad interpretive family": info.get("family", "\u2014"),
+            "Notes": info.get("notes", "\u2014"),
+        })
+    return "<h2>ResistanceMechanism variant definitions</h2>\n" + _html_table(pd.DataFrame(rows))
+
+
+def _sf4_placeholder(out_dir: Path, agg: dict | None, message: str) -> dict[str, object]:
     fig, ax = plt.subplots(figsize=(10.5, 3.8))
     _sf2_axis_placeholder(ax, _SF4_TITLE, message)
     fig.subplots_adjust(left=0.03, right=0.97, top=0.88, bottom=0.08)
     footnotes = [
-        "Data source for a real Supplementary Figure S4 is aggregate simulation_summary_run#.csv fields. "
-        "calibration_summary_*.txt is not reader-facing and does not replace these fields.",
-        "The mechanism-family mapping intended for this figure is shown below.",
+        "A real Supplementary Figure SX requires aggregate simulation_summary_*.csv fields with exact "
+        "per-bacterium/per-ResistanceMechanism active infection-day counts.",
+        "Grouped mechanism-family columns are not used as a fallback for the SX heatmap.",
     ]
     _save_figure(
         fig,
@@ -7110,8 +7711,9 @@ def _sf4_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
         message,
         footnotes,
         agg=agg,
-        extra_html=_sf4_mapping_table_html(),
+        extra_html=_sf4_mechanism_definitions_table_html(),
     )
+    return {"generated": "placeholder", "bacteria_included": 0, "mechanisms_included": 0}
 
 
 def _sf4_sum_vector_column(df: pd.DataFrame, column: str, target_len: int) -> np.ndarray:
@@ -7123,23 +7725,40 @@ def _sf4_sum_vector_column(df: pd.DataFrame, column: str, target_len: int) -> np
     return total
 
 
+def _sf4_exact_column(bacterium_slug: str, mechanism_slug: str) -> str:
+    return f"{bacterium_slug}_infected_with_{mechanism_slug}"
+
+
+def _sf4_exact_required_columns() -> list[str]:
+    return [
+        _sf4_exact_column(bacterium_slug, str(mechanism["slug"]))
+        for bacterium_slug in _F15_KNOWN_BACTERIA_SLUGS
+        for mechanism in _SF4_EXACT_MECHANISMS
+    ]
+
+
 def _sf4_percent(numerator: float, denominator: float) -> float:
     if not np.isfinite(numerator) or not np.isfinite(denominator) or denominator <= 0.0:
         return np.nan
     return 100.0 * numerator / denominator
 
 
-def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]], list[str]]:
+def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]], list[str], bool]:
     rows: list[dict[str, object]] = []
     problems: list[str] = []
     target_len = len(_F15_KNOWN_BACTERIA_SLUGS)
-    family_columns = [_sf4_family_column(str(family["slug"])) for family in _SF4_MECHANISM_FAMILIES]
+    exact_columns = _sf4_exact_required_columns()
     required = [
         "active_infection_days_by_bacteria",
         "infection_days_with_any_resistance_mechanism_by_bacteria",
-        *family_columns,
+        *exact_columns,
     ]
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    any_new_active_available = False
+
+    if not csv_paths:
+        problems.append("No matching simulation_summary_*.csv files were found.")
+        return rows, problems, any_new_active_available
 
     for csv_path in csv_paths:
         try:
@@ -7148,85 +7767,156 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
             problems.append(f"{csv_path.name}: could not read simulation CSV ({exc}).")
             continue
 
-        missing = [column for column in required if column not in header]
+        header_set = set(header)
+        missing = [column for column in required if column not in header_set]
         if missing:
-            problems.append(f"{csv_path.name}: missing {', '.join(missing[:4])}.")
+            problems.append(
+                f"{csv_path.name}: missing exact SX fields; first missing columns: "
+                + ", ".join(missing[:6])
+            )
             continue
 
-        wanted = set(required + optional)
+        new_active_available = "new_active_infections_by_bacteria" in header_set
+        any_new_active_available = any_new_active_available or new_active_available
+        wanted = [
+            column
+            for column in dict.fromkeys(
+                required + optional + (["new_active_infections_by_bacteria"] if new_active_available else [])
+            )
+            if column in header_set
+        ]
+        n_mechanisms = len(_SF4_EXACT_MECHANISMS)
+        run_states: dict[str, dict[str, object]] = {}
+        matched_rows = 0
         try:
-            df = _read_csv_selected(csv_path, wanted)
-        except (FileNotFoundError, ValueError, OSError) as exc:
-            problems.append(f"{csv_path.name}: could not read required S4 columns ({exc}).")
-            continue
-        if df.empty:
-            problems.append(f"{csv_path.name}: simulation CSV has no rows.")
+            chunk_iter = pd.read_csv(csv_path, usecols=wanted, chunksize=4000)
+            for chunk in chunk_iter:
+                if chunk.empty:
+                    continue
+                if "policy_option" in chunk.columns:
+                    policy = pd.to_numeric(chunk["policy_option"], errors="coerce")
+                    chunk = chunk[policy.eq(0)].copy()
+                years = _simulation_year_series(chunk)
+                chunk = chunk[(years >= 2022.0) & (years < 2026.0)].copy()
+                if chunk.empty:
+                    continue
+                matched_rows += int(len(chunk))
+                if "run_id" not in chunk.columns:
+                    chunk["run_id"] = csv_path.stem
+
+                for run_id, group in chunk.groupby("run_id", dropna=False):
+                    run_key = str(run_id)
+                    state = run_states.setdefault(
+                        run_key,
+                        {
+                            "active_days": np.zeros(target_len, dtype=float),
+                            "any_days": np.zeros(target_len, dtype=float),
+                            "new_active": (
+                                np.zeros(target_len, dtype=float)
+                                if new_active_available
+                                else np.full(target_len, np.nan)
+                            ),
+                            "mechanism_days": np.zeros((target_len, n_mechanisms), dtype=float),
+                        },
+                    )
+                    state["active_days"] = state["active_days"] + _sf4_sum_vector_column(
+                        group,
+                        "active_infection_days_by_bacteria",
+                        target_len,
+                    )
+                    state["any_days"] = state["any_days"] + _sf4_sum_vector_column(
+                        group,
+                        "infection_days_with_any_resistance_mechanism_by_bacteria",
+                        target_len,
+                    )
+                    if new_active_available:
+                        state["new_active"] = state["new_active"] + _sf4_sum_vector_column(
+                            group,
+                            "new_active_infections_by_bacteria",
+                            target_len,
+                        )
+                    try:
+                        exact_sums = group[exact_columns].sum(axis=0, skipna=True).to_numpy(dtype=float)
+                    except (TypeError, ValueError):
+                        exact_sums = (
+                            group[exact_columns]
+                            .apply(pd.to_numeric, errors="coerce")
+                            .sum(axis=0, skipna=True)
+                            .to_numpy(dtype=float)
+                        )
+                    state["mechanism_days"] = state["mechanism_days"] + exact_sums.reshape(
+                        (target_len, n_mechanisms)
+                    )
+        except (FileNotFoundError, ValueError, OSError, pd.errors.EmptyDataError) as exc:
+            problems.append(f"{csv_path.name}: could not read required SX columns ({exc}).")
             continue
 
-        if "policy_option" in df.columns:
-            policy = pd.to_numeric(df["policy_option"], errors="coerce")
-            df = df[policy.eq(0)].copy()
-        years = _simulation_year_series(df)
-        df = df[(years >= 2022.0) & (years < 2026.0)].copy()
-        if df.empty:
+        if matched_rows == 0 or not run_states:
             problems.append(f"{csv_path.name}: no baseline-policy rows in 2022-2025.")
             continue
 
-        if "run_id" not in df.columns:
-            df["run_id"] = csv_path.stem
-        for run_id, group in df.groupby("run_id", dropna=False):
-            active_days = _sf4_sum_vector_column(group, "active_infection_days_by_bacteria", target_len)
-            any_days = _sf4_sum_vector_column(
-                group,
-                "infection_days_with_any_resistance_mechanism_by_bacteria",
-                target_len,
-            )
-            family_days_by_slug = {
-                str(family["slug"]): _sf4_sum_vector_column(
-                    group,
-                    _sf4_family_column(str(family["slug"])),
-                    target_len,
-                )
-                for family in _SF4_MECHANISM_FAMILIES
-            }
+        for run_id, state in run_states.items():
+            active_days = np.asarray(state["active_days"], dtype=float)
+            any_days = np.asarray(state["any_days"], dtype=float)
+            new_active = np.asarray(state["new_active"], dtype=float)
+            mechanism_days = np.asarray(state["mechanism_days"], dtype=float)
             for b_idx, bacterium_slug in enumerate(_F15_KNOWN_BACTERIA_SLUGS):
                 row: dict[str, object] = {
                     "source": csv_path.name,
                     "run": str(run_id),
                     "bacterium_idx": b_idx,
+                    "bacterium_slug": bacterium_slug,
                     "bacterium": _figure_15_bacterium_label(bacterium_slug),
                     "active_infection_days": active_days[b_idx],
+                    "new_active_infections": new_active[b_idx],
+                    "new_active_infections_available": new_active_available,
                     "any_mechanism_days": any_days[b_idx],
                     "any_mechanism_percent": _sf4_percent(any_days[b_idx], active_days[b_idx]),
                 }
-                for family in _SF4_MECHANISM_FAMILIES:
-                    slug = str(family["slug"])
-                    days = family_days_by_slug[slug][b_idx]
+                for mech_idx, mechanism in enumerate(_SF4_EXACT_MECHANISMS):
+                    slug = str(mechanism["slug"])
+                    days = float(mechanism_days[b_idx, mech_idx])
                     row[f"{slug}_days"] = days
                     row[f"{slug}_percent"] = _sf4_percent(days, active_days[b_idx])
                 rows.append(row)
-    return rows, problems
+    return rows, problems, any_new_active_available
+
+
+def _sf4_median_numeric(values: pd.Series) -> float:
+    numeric = pd.to_numeric(values, errors="coerce").dropna().to_numpy(dtype=float)
+    if len(numeric) == 0:
+        return np.nan
+    return float(np.nanmedian(numeric))
 
 
 def _sf4_reliability_flag(row: dict[str, object]) -> str:
     flags: list[str] = []
     active_days = float(row.get("active_infection_days", np.nan))
+    new_active = float(row.get("new_active_infections", np.nan))
     any_days = float(row.get("any_mechanism_days", np.nan))
-    family_counts = [
-        float(row.get(f"{family['slug']}_days", np.nan))
-        for family in _SF4_MECHANISM_FAMILIES
+    exact_counts = [
+        float(row.get(f"{mechanism['slug']}_days", np.nan))
+        for mechanism in _SF4_EXACT_MECHANISMS
     ]
-    finite_family_counts = [value for value in family_counts if np.isfinite(value)]
-    max_family_count = max(finite_family_counts) if finite_family_counts else np.nan
+    finite_exact_counts = [value for value in exact_counts if np.isfinite(value)]
+    max_exact_count = max(finite_exact_counts) if finite_exact_counts else np.nan
+
     if not np.isfinite(active_days) or active_days <= 0.0:
         flags.append("no active infection-days")
-    elif active_days < 100.0:
+    elif active_days < 1000.0:
         flags.append("low active infection-days")
-    if np.isfinite(any_days) and any_days <= 0.0:
-        flags.append("no recorded mechanisms")
-    if np.isfinite(any_days) and any_days > 0.0 and np.isfinite(max_family_count) and max_family_count < 20.0:
+
+    if not bool(row.get("new_active_infections_available", False)) or not np.isfinite(new_active):
+        flags.append("incident denominator unavailable")
+    elif new_active < 100.0:
+        flags.append("low incident infection denominator")
+    elif new_active < 500.0:
+        flags.append("moderate incident infection denominator")
+
+    if np.isfinite(any_days) and any_days > 0.0 and np.isfinite(max_exact_count) and max_exact_count < 20.0:
         flags.append("sparse mechanism counts")
-    return "; ".join(flags)
+
+    return "; ".join(flags) if flags else "\u2014"
 
 
 def _sf4_summarise(rows: list[dict[str, object]]) -> pd.DataFrame:
@@ -7235,18 +7925,21 @@ def _sf4_summarise(rows: list[dict[str, object]]) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     records: list[dict[str, object]] = []
     for (bacterium_idx, bacterium), group in df.groupby(["bacterium_idx", "bacterium"], dropna=False):
+        run_pairs = group[["source", "run"]].drop_duplicates()
         record: dict[str, object] = {
             "bacterium_idx": int(bacterium_idx),
             "bacterium": str(bacterium),
-            "active_infection_days": float(np.nanmedian(pd.to_numeric(group["active_infection_days"], errors="coerce"))),
-            "any_mechanism_days": float(np.nanmedian(pd.to_numeric(group["any_mechanism_days"], errors="coerce"))),
-            "any_mechanism_percent": float(np.nanmedian(pd.to_numeric(group["any_mechanism_percent"], errors="coerce"))),
-            "n_runs": int(group["run"].nunique()),
+            "active_infection_days": _sf4_median_numeric(group["active_infection_days"]),
+            "new_active_infections": _sf4_median_numeric(group["new_active_infections"]),
+            "new_active_infections_available": bool(group["new_active_infections_available"].any()),
+            "any_mechanism_days": _sf4_median_numeric(group["any_mechanism_days"]),
+            "any_mechanism_percent": _sf4_median_numeric(group["any_mechanism_percent"]),
+            "n_runs": int(run_pairs.shape[0]),
         }
-        for family in _SF4_MECHANISM_FAMILIES:
-            slug = str(family["slug"])
-            record[f"{slug}_days"] = float(np.nanmedian(pd.to_numeric(group[f"{slug}_days"], errors="coerce")))
-            record[f"{slug}_percent"] = float(np.nanmedian(pd.to_numeric(group[f"{slug}_percent"], errors="coerce")))
+        for mechanism in _SF4_EXACT_MECHANISMS:
+            slug = str(mechanism["slug"])
+            record[f"{slug}_days"] = _sf4_median_numeric(group[f"{slug}_days"])
+            record[f"{slug}_percent"] = _sf4_median_numeric(group[f"{slug}_percent"])
         record["reliability_flag"] = _sf4_reliability_flag(record)
         records.append(record)
     summary = pd.DataFrame(records)
@@ -7263,6 +7956,8 @@ def _sf4_format_percent(value: object) -> str:
     value_f = float(value)
     if not np.isfinite(value_f):
         return "\u2014"
+    if value_f > 0.0 and value_f < 0.1:
+        return f"{value_f:.3f}"
     return f"{value_f:.1f}"
 
 
@@ -7275,43 +7970,63 @@ def _sf4_format_count(value: object) -> str:
     return f"{int(np.rint(value_f)):,}"
 
 
+def _sf4_axis_short_label(label: str) -> str:
+    replacements = {
+        "16S rRNA methyltransferase": "16S rRNA\nmethyl.",
+        "23S rRNA oxazolidinone": "23S rRNA\noxazol.",
+        "23S rRNA macrolide": "23S rRNA\nmacrol.",
+        "polymyxin regulatory": "polymyxin\nreg.",
+        "global efflux pump": "global\nefflux",
+        "global porin loss": "global\nporin",
+        "gyrA/parC secondary": "gyrA/parC\nsecondary",
+        "AmpC derepression": "AmpC\nderepr.",
+        "Acinetobacter OXA": "Acinet.\nOXA",
+        "as-yet-unknown": "as-yet\nunknown",
+    }
+    return replacements.get(label, label.replace(" ", "\n", 1))
+
+
 def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
     csv_paths: list[Path],
     out_dir: Path,
     agg: dict | None = None,
-) -> None:
-    rows, problems = _sf4_rows_from_csvs(csv_paths)
+) -> dict[str, object]:
+    rows, problems, any_new_active_available = _sf4_rows_from_csvs(csv_paths)
     summary = _sf4_summarise(rows)
     if summary.empty:
         message = _SF4_REQUIRED_MESSAGE
         if problems:
             message += " Parser notes: " + " ".join(problems[:3])
-        _sf4_placeholder(out_dir, agg, message)
-        print("  Supplementary Figure S4: placeholder (required mechanism-family summary fields missing).")
-        return
+        print("  Supplementary Figure SX: placeholder (required exact mechanism fields missing).")
+        return _sf4_placeholder(out_dir, agg, message)
 
-    family_slugs = [str(family["slug"]) for family in _SF4_MECHANISM_FAMILIES]
-    family_labels = [str(family["short_label"]) for family in _SF4_MECHANISM_FAMILIES]
-    heatmap = summary[[f"{slug}_percent" for slug in family_slugs]].to_numpy(dtype=float)
+    mechanism_slugs = [str(mechanism["slug"]) for mechanism in _SF4_EXACT_MECHANISMS]
+    mechanism_labels = [str(mechanism["label"]) for mechanism in _SF4_EXACT_MECHANISMS]
+    heatmap = summary[[f"{slug}_percent" for slug in mechanism_slugs]].to_numpy(dtype=float)
     finite_values = heatmap[np.isfinite(heatmap)]
-    vmax = max(1.0, min(100.0, float(np.nanpercentile(finite_values, 95)))) if finite_values.size else 1.0
+    positive_values = finite_values[finite_values > 0.0]
+    if positive_values.size:
+        vmax = max(1.0, min(100.0, float(np.nanpercentile(positive_values, 95))))
+    else:
+        vmax = 1.0
 
     fig_height = max(9.0, 2.0 + 0.24 * len(summary))
-    fig, ax = plt.subplots(figsize=(15.5, fig_height), constrained_layout=True)
+    fig_width = max(18.0, 0.42 * len(mechanism_slugs))
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), constrained_layout=True)
     cmap = plt.cm.YlOrRd.copy()
     cmap.set_bad("#F2F2F2")
     image = ax.imshow(heatmap, aspect="auto", cmap=cmap, vmin=0.0, vmax=vmax)
-    ax.set_xticks(np.arange(len(family_labels)))
-    ax.set_xticklabels(family_labels, rotation=45, ha="right", fontsize=7.5)
+    ax.set_xticks(np.arange(len(mechanism_labels)))
+    ax.set_xticklabels([_sf4_axis_short_label(label) for label in mechanism_labels], rotation=70, ha="right", fontsize=6.2)
     ax.set_yticks(np.arange(len(summary)))
     ax.set_yticklabels(summary["bacterium"].values, fontsize=6.8, fontstyle="italic")
     ax.set_title(
-        "Resistance-mechanism family prevalence among active infection-days",
+        "Exact ResistanceMechanism prevalence among active infection-days",
         loc="left",
         fontsize=10.5,
         fontweight="bold",
     )
-    ax.set_xlabel("Mechanism family", fontsize=9)
+    ax.set_xlabel("ResistanceMechanism enum variant", fontsize=9)
     ax.set_ylabel("Bacterium", fontsize=9)
     cbar = fig.colorbar(image, ax=ax, shrink=0.72)
     cbar.set_label("% of active infection-days", fontsize=8.5)
@@ -7319,39 +8034,41 @@ def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
 
     table_data: dict[str, object] = {
         "Bacterium": summary["bacterium"],
-        "Active infection-days": summary["active_infection_days"].map(_sf4_format_count),
-        "Infection-days with any recorded resistance mechanism": summary["any_mechanism_days"].map(_sf4_format_count),
-        "Any mechanism prevalence (%)": summary["any_mechanism_percent"].map(_sf4_format_percent),
     }
-    for family in _SF4_MECHANISM_FAMILIES:
-        slug = str(family["slug"])
-        label = str(family["label"])
+    if bool(summary["new_active_infections_available"].any()):
+        table_data["New active infections"] = summary["new_active_infections"].map(_sf4_format_count)
+    table_data["Active infection-days"] = summary["active_infection_days"].map(_sf4_format_count)
+    table_data["Infection-days with any recorded resistance mechanism"] = summary[
+        "any_mechanism_days"
+    ].map(_sf4_format_count)
+    table_data["Any recorded mechanism (%)"] = summary["any_mechanism_percent"].map(_sf4_format_percent)
+    for mechanism in _SF4_EXACT_MECHANISMS:
+        slug = str(mechanism["slug"])
+        label = str(mechanism["label"])
         table_data[f"{label} (%)"] = summary[f"{slug}_percent"].map(_sf4_format_percent)
     table_data["Reliability flag"] = summary["reliability_flag"]
-    extra_html = "<h2>Mechanism-Family Prevalence by Bacterium</h2>\n"
+    table_data["Runs contributing"] = summary["n_runs"].astype(int).astype(str)
+
+    extra_html = "<h2>Exact mechanism prevalence by bacterium</h2>\n"
     extra_html += _html_table(pd.DataFrame(table_data))
-    extra_html += _sf4_mapping_table_html()
+    extra_html += _sf4_mechanism_definitions_table_html()
 
     n_runs = int(max(summary["n_runs"].max(), 1))
     footnotes = [
-        "Values are summarised over baseline-policy rows in the 2022-2025 calibration window.",
-        "Data source: aggregate simulation_summary_run#.csv fields. calibration_summary_*.txt is not required "
-        "to interpret this page.",
-        "Mechanism-family prevalence is calculated among active infection-days for each bacterium.",
-        "Cells show the percentage of active infection-days for a bacterium with at least one resistance "
-        "mechanism in the specified family.",
-        "Mechanism families are not mutually exclusive; one infection-day can contribute to more than one "
-        "family, so percentages across a row can sum to more than 100%.",
-        "Internal ResistanceMechanism enum variants are grouped into compact display families. The full "
-        "mapping used for this figure is shown in the table below.",
-        "The model stores mechanism state at person-bacterium level; for this figure, mechanism state is "
-        "evaluated only on days when the person has an active infection with that bacterium.",
-        "This is descriptive simulation output and should not be interpreted as an external genomic "
-        "surveillance estimate.",
-        "Small active infection-day denominators can make mechanism-family percentages unstable.",
+        "This figure shows modelled, biologically motivated resistance-mechanism state in the simulation. It is not an externally observed genomic surveillance estimate.",
+        "Mechanisms are the exact ResistanceMechanism enum variants used by the model, not grouped mechanism families.",
+        "Percentages are calculated among active infection-days for each bacterium in the 2022-2025 baseline-policy window.",
+        "Active infection-days are repeated model observations within infection episodes, not independent clinical isolates.",
+        "Mechanism columns are not mutually exclusive; one infection-day can carry more than one mechanism.",
+        "Mechanism state can arise through the model's resistance pathways, including acquisition from circulating profiles, microbiome/carriage inheritance, HGT where allowed, environmental or ratchet floors, and de novo emergence under drug pressure.",
+        "The figure is intended as model-transparency output. The primary resistance calibration result remains the phenotypic bacterium-drug benchmark shown in Figure 2 and Supplementary Table S2.",
+        "Rare bacteria may have small incident infection denominators even when active infection-days are nonzero; those rows should be interpreted cautiously.",
         f"Percentages are calculated within each run first and shown as medians across {n_runs} simulation "
         f"run{'s' if n_runs != 1 else ''}; intervals are omitted to keep the heatmap readable.",
+        "Reliability flags identify rows with low active infection-days, low or moderate incident infection denominators, sparse exact mechanism counts, or unavailable incident denominators.",
     ]
+    if not any_new_active_available:
+        footnotes.append("new_active_infections_by_bacteria was unavailable; incident infection denominator flags were therefore unavailable.")
     if problems:
         footnotes.append("Parser notes: " + " ".join(problems[:4]))
 
@@ -7360,16 +8077,24 @@ def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
         out_dir,
         _SF4_STEM,
         _SF4_TITLE,
-        "Baseline-policy resistance-mechanism family prevalence among active infection-days.",
+        "Baseline-policy exact resistance-mechanism prevalence among active infection-days.",
         footnotes,
         agg=agg,
         extra_html=extra_html,
     )
     print(
-        "  Supplementary Figure S4: real data; "
-        f"{len(summary)} bacterium row{'s' if len(summary) != 1 else ''} from "
-        f"{n_runs} run{'s' if n_runs != 1 else ''}."
+        "  Supplementary Figure SX: real data; "
+        f"{len(summary)} bacterium row{'s' if len(summary) != 1 else ''}, "
+        f"{len(_SF4_EXACT_MECHANISMS)} exact mechanism columns, "
+        f"new active infection denominators {'available' if any_new_active_available else 'unavailable'}."
     )
+    return {
+        "generated": "real data",
+        "bacteria_included": int(len(summary)),
+        "mechanisms_included": int(len(_SF4_EXACT_MECHANISMS)),
+        "new_active_infections_available": bool(any_new_active_available),
+        "n_runs": n_runs,
+    }
 
 
 _SF5_TITLE = "Supplementary Figure S5. Diagnostic testing and targeted-treatment cascade, 2022\u20132025"
@@ -9668,10 +10393,6 @@ def make_index(agg: dict, out_dir: Path) -> None:
         out_dir,
         [
             (
-                "Tables/Supplementary_Table_S1__infection_outcomes_by_bacterium.html",
-                "Supplementary Table S1. Infection outcomes by bacterium, 2022\u20132025",
-            ),
-            (
                 "Tables/Supplementary_Table_S2__detailed_bacterium_drug_resistance_benchmarks.html",
                 "Supplementary Table S2. Detailed bacterium-drug resistance benchmarks, "
                 "2022\u20132025",
@@ -9759,10 +10480,6 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "2022\u20132025",
             ),
             (
-                "Figures/Supplementary_Figure_S4__resistance_mechanisms_by_bacterium.html",
-                "Supplementary Figure S4. Resistance mechanisms by bacterium, 2022\u20132025",
-            ),
-            (
                 "Figures/Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html",
                 "Supplementary Figure S5. Diagnostic testing and targeted-treatment cascade, "
                 "2022\u20132025",
@@ -9777,8 +10494,26 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "Supplementary Figure S7. Active infection incidence by bacterium: "
                 "simulation versus target, 2022\u20132025",
             ),
+            (
+                "Figures/Supplementary_Figure_S8__infection_outcome_pathway_by_bacterium.html",
+                "Supplementary Figure S8. Infection outcome pathway by bacterium, "
+                "2022\u20132025",
+            ),
         ],
         "No supplementary figures were generated.",
+    )
+    body += "</ul>\n"
+    body += "<h2>Supplementary / Diagnostic Figures</h2>\n<ul>\n"
+    body += _index_existing_link_items(
+        out_dir,
+        [
+            (
+                "Figures/Supplementary_Figure_SX__modelled_resistance_mechanisms_by_bacterium.html",
+                "Supplementary Figure SX. Modelled resistance mechanisms by bacterium, "
+                "2022\u20132025",
+            ),
+        ],
+        "No supplementary diagnostic figures were generated.",
     )
     body += "</ul>\n"
     body += "</body></html>"
@@ -9836,20 +10571,21 @@ def main(input_args: list[str]) -> None:
     if csv_paths:
         print(
             f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6, 8, 9, 10, 11, 12, "
-            "Supplementary Table S1, and Supplementary Figures S1, S3, S4, S5, and S6. "
+            "Supplementary Figures S1, S3, S5, S6, and S8, "
+            "and diagnostic Supplementary Figure SX. "
             "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
     else:
         print(
             "  No matching simulation CSVs found; Figures 6, 8, 9, 10, 11, 12, and "
-            "Supplementary Table S1 / Supplementary Figures S1, S3, S4, S5, and S6 may render as placeholders. "
+            "Supplementary Figures S1, S3, S5, S6, S8, and diagnostic SX may render as placeholders. "
             "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
 
     st1_csv_paths = _filter_simulation_csvs_with_columns(
         csv_paths,
-        _ST1_VECTOR_COLUMNS,
-        "Supplementary Table S1",
+        _ST1_REQUIRED_VECTOR_COLUMNS,
+        "Supplementary Figure S8",
     )
     sf1_csv_paths = _filter_simulation_csvs_with_columns(
         csv_paths,
@@ -9861,19 +10597,7 @@ def main(input_args: list[str]) -> None:
         _SF3_REQUIRED_COLUMNS,
         "Supplementary Figure S3",
     )
-    sf4_required_columns = [
-        "active_infection_days_by_bacteria",
-        "infection_days_with_any_resistance_mechanism_by_bacteria",
-        *[
-            _sf4_family_column(str(family["slug"]))
-            for family in _SF4_MECHANISM_FAMILIES
-        ],
-    ]
-    sf4_csv_paths = _filter_simulation_csvs_with_columns(
-        csv_paths,
-        sf4_required_columns,
-        "Supplementary Figure S4",
-    )
+    sf4_csv_paths = csv_paths
     sf5_required_columns = [
         column
         for _, suffix in _SF5_SETTINGS
@@ -9894,7 +10618,6 @@ def main(input_args: list[str]) -> None:
     print(f"\nGenerating paper outputs in {out.absolute()} ...")
     _prepare_output_dirs(out)
     make_t1(out)
-    make_supplementary_table_s1_infection_outcomes(st1_csv_paths, out, agg=agg)
     make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
     make_figure_1_calibration_headline_metrics(agg, out)
     make_figure_2_calibration_resistance_fit(agg, out)
@@ -9908,6 +10631,7 @@ def main(input_args: list[str]) -> None:
     make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(sf5_csv_paths, out, agg=agg)
     make_supplementary_figure_s6_new_active_infection_denominators(sf6_csv_paths, paths, out, agg=agg)
     make_supplementary_figure_s7_active_infection_incidence(agg, out)
+    make_supplementary_figure_s8_infection_outcome_pathway(st1_csv_paths, out, agg=agg)
     make_index(agg, out)
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)

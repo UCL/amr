@@ -11611,9 +11611,9 @@ lazy_static! {
                     ("trim_sulf", 0.60),
                     ("amoxicillin_clavulanate", 10.0),
                     ("amoxicillin", 1.4),
-                    ("ciprofloxacin", 0.8 ), // stewardship concerns limit empiric quinolone use for UTI
+                    ("ciprofloxacin", 0.6 ), // stewardship concerns limit empiric quinolone use for UTI
                     ("ampicillin", 0.7 ),
-                    ("levofloxacin", 0.8 ),
+                    ("levofloxacin", 0.6 ),
                     ("nitrofurantoin", 140.0), // genuine first-line for uncomplicated UTI
                     ("fosfomycin", 110.0),
                     ("cephalexin", 5.5),
@@ -11627,7 +11627,7 @@ lazy_static! {
                     ("imipenem_c", 25.0),
                     ("ertapenem", 25.0),
                     ("meropenem_vaborbactam", 18.0),
-                    ("ceftazidime_avibactam", 12.0),
+                    ("ceftazidime_avibactam", 18.0),
                     ("aztreonam_avibactam", 1.0),
                     ("cefixime", 6.2),
                     ("gentamicin", 6.0),
@@ -11661,7 +11661,7 @@ lazy_static! {
                     ("ceftaroline", 20.0),
                     ("quinu_dalfo", 8.0),
                     ("rifampicin", 0.50),
-                    ("ciprofloxacin", 1.4),
+                    ("ciprofloxacin", 1.0),
                     ("piperacillin_tazobactam", 4.5),
                 ],
             ),
@@ -11679,8 +11679,8 @@ lazy_static! {
                     ("erythromycin", 0.7 ),
                     ("cefuroxime", 3.8),
                     ("piperacillin_tazobactam", 9.0),
-                    ("levofloxacin", 1.1),
-                    ("moxifloxacin", 1.1),
+                    ("levofloxacin", 1.0),
+                    ("moxifloxacin", 1.0),
                     ("cefixime", 5.7),
                     ("aztreonam_avibactam", 0.010),
                     ("cefepime", 12.0),
@@ -11699,13 +11699,13 @@ lazy_static! {
                 4,
                 &[
                     ("piperacillin_tazobactam", 24.0), // Keep strong empiric Gram-negative coverage, but let carbapenems compete.
-                    ("meropenem", 1600.0),
+                    ("meropenem", 1500.0),
                     ("imipenem_c", 1200.0),
-                    ("meropenem_vaborbactam", 600.0),
+                    ("meropenem_vaborbactam", 500.0),
                     ("ceftazidime_avibactam", 22.0),
                     ("aztreonam_avibactam", 2.0),
                     ("aztreonam", 30.0),
-                    ("ceftolozane_tazobactam", 30.0),
+                    ("ceftolozane_tazobactam", 40.0),
                     ("cefepime", 40.0),
                     ("ceftazidime", 11.0),
                     ("ceftriaxone", 7.0),
@@ -11747,13 +11747,13 @@ lazy_static! {
                     ("ceftazidime", 7.9),
                     ("cefepime", 22.0),
                     ("ceftriaxone", 6.2),
-                    ("ceftazidime_avibactam", 18.0),
+                    ("ceftazidime_avibactam", 22.0),
                     ("aztreonam_avibactam", 2.0),
                     ("aztreonam", 25.0),
                     ("ceftolozane_tazobactam", 25.0),
                     ("meropenem_vaborbactam", 500.0),
-                    ("ciprofloxacin", 1.4),
-                    ("levofloxacin", 1.4),
+                    ("ciprofloxacin", 1.0),
+                    ("levofloxacin", 1.0),
                     ("ampicillin", 4.0),
                     ("amoxicillin", 4.0),
                     ("trim_sulf", 0.10),
@@ -11785,7 +11785,7 @@ lazy_static! {
             (
                 7,
                 &[
-                    ("ciprofloxacin", 0.83),
+                    ("ciprofloxacin", 0.8 ),
                     ("azithromycin", 0.6 ),
                     ("amoxicillin_clavulanate", 2.5),
                     ("amoxicillin", 2.0),
@@ -11908,16 +11908,16 @@ lazy_static! {
             ("ertapenem", 0.0010),
             ("aztreonam", 0.0010),
             ("erythromycin", 0.03 ),
-            ("azithromycin", 0.14),
+            ("azithromycin", 0.09 ),
             ("clarithromycin", 0.03 ),
             ("clindamycin", 0.040),
             ("gentamicin", 0.0010),
             ("tobramycin", 0.0010),
             ("amikacin", 0.0010),
-            ("ciprofloxacin", 0.11),
-            ("levofloxacin", 0.046),
-            ("moxifloxacin", 0.028),
-            ("ofloxacin", 0.046),
+            ("ciprofloxacin", 0.1 ),
+            ("levofloxacin", 0.04 ),
+            ("moxifloxacin", 0.025),
+            ("ofloxacin", 0.04 ),
             ("tetracycline", 0.040),
             ("doxycycline", 0.18),
             ("minocycline", 0.020),
@@ -12089,40 +12089,40 @@ lazy_static! {
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         // sepsis_baseline_log_odds ^^^^
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-            ("acinetobacter_baumannii", -5.1),
-            ("citrobacter_spp.", -8.6),
-            ("enterobacter_spp.", -7.1),
-            ("enterococcus_faecalis", -6.5),       // was -8.0; CFR 0.74x under-death
+            ("acinetobacter_baumannii", -4.5),
+            ("citrobacter_spp.", -8.2),
+            ("enterobacter_spp.", -6.8),
+            ("enterococcus_faecalis", -6.0),       // was -8.0; CFR 0.74x under-death
             ("enterococcus_faecium", -4.2),         // was -8.0; CFR 0.40x under-death
             ("escherichia_coli", -9.3),             // was -8.5; CFR 2.7x over-death
-            ("klebsiella_pneumoniae", -5.5),        // was -8.0; CFR 0.83x under-death
+            ("klebsiella_pneumoniae", -5.1),        // was -8.0; CFR 0.83x under-death
             ("morganella_spp.", -7.1),
-            ("proteus_spp.", -7.1),
+            ("proteus_spp.", -6.9),
             ("serratia_spp.", -7.3),
-            ("pseudomonas_aeruginosa", -4.8),       // was -8.0; CFR 0.38x under-death
+            ("pseudomonas_aeruginosa", -4.2),       // was -8.0; CFR 0.38x under-death
             ("stenotrophomonas_maltophilia", -7.3),
-            ("staphylococcus_aureus", -8.1),
-            ("staphylococcus_epidermidis", -7.3),
-            ("streptococcus_pneumoniae", -9.2 ),
+            ("staphylococcus_aureus", -8.4),
+            ("staphylococcus_epidermidis", -7.1),
+            ("streptococcus_pneumoniae", -8.8 ),
             ("salmonella_enterica_serovar_typhi", -7.3),
             ("salmonella_enterica_serovar_paratyphi_a", -8.3), // was -8.0; CFR 3.4x over-death
-            ("invasive_non-typhoidal_salmonella_spp.", -8.2),  // was -8.0; CFR 1.9x over-death
+            ("invasive_non-typhoidal_salmonella_spp.", -7.9),  // was -8.0; CFR 1.9x over-death
             ("shigella_spp.", -11.6),
             ("neisseria_gonorrhoeae", -23.3),
             ("streptococcus_pyogenes", -4.9),       // was -8.0; CFR 0.20x under-death (invasive GAS)
             ("streptococcus_agalactiae", -6.3),     // was -8.0; CFR 0.55x under-death
             ("haemophilus_influenzae", -8.5),
             ("chlamydia_trachomatis", -18.3),
-            ("vibrio_cholerae", -8.0),
+            ("vibrio_cholerae", -7.8),
             ("neisseria_meningitidis", -7.2),
             ("listeria_monocytogenes", -7.3),
             ("clostridioides_difficile", -10.3),
             ("campylobacter_jejuni", -19.3),
-            ("enterobacter_cloacae", -6.5),
+            ("enterobacter_cloacae", -6.2),
             ("yersinia_enterocolitica", -8.8),     // was -8.0; CFR 6.7x over-death
             ("moraxella_catarrhalis", -11.4),
             ("treponema_pallidum", -10.3),
-            ("bordetella_pertussis", -14.5),
+            ("bordetella_pertussis", -20.0),
             ("helicobacter_pylori", -500.0),
             ("mdr_mycobacterium_tuberculosis", -38.0),
             ("legionella_pneumophila", -10.0)
