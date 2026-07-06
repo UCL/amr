@@ -2785,7 +2785,7 @@ pub(crate) fn apply_rules(
                         // Focused calibration pass reduces TMP-SMX overshoot while modestly
                         // restoring macrolide and fluoroquinolone prophylaxis pressure.
                         // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
-                        "trim_sulf" => 0.5,
+                        "trim_sulf" => 0.45,
                         "azithromycin" => 1.0,
                         "ciprofloxacin" => 1.2,
                         "levofloxacin" => 0.9,

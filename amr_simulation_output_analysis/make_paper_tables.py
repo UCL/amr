@@ -29,7 +29,8 @@ paper_tables/
         Figure_3__calibration_drug_class_share.html/.png/.svg
         Figure_4__calibration_infection_deaths_by_bacteria.html/.png/.svg
         Figure_5__calibration_carriage_prevalence_by_bacteria.html/.png/.svg
-        Figure_6__resistance_trends.html/.png/.svg
+        Figure_6A__resistance_trends.html/.png/.svg
+        Figure_6B__resistance_trends_by_bacterium.html/.png/.svg
         Figure_7__serious_r_by_hospital_community.html/.png/.svg
         Figure_8__infection_death_rate_by_region.html/.png/.svg
         Figure_9__antibiotic_use_by_treatment_context.html/.png/.svg
@@ -1218,7 +1219,7 @@ def make_s4(agg: dict, out_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Figure 1 — Resistance trend (1930–2025)
+# Figure 6A/B — Resistance trends (1930–2025)
 # ---------------------------------------------------------------------------
 
 #: Calendar year corresponding to simulation time_in_years == 0.
@@ -1375,6 +1376,8 @@ _F6_SERIOUS_R_MISSING_NOTE = (
     "newly_infected_with_serious_resistance_count. Re-run the Rust simulation after "
     "adding this field to show the serious-R line."
 )
+_F6B_DENOMINATOR_COLUMN = "new_active_infections_by_bacteria"
+_F6B_TOP_N_BACTERIA = 10
 
 
 def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, bool]:
@@ -1418,7 +1421,10 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
             df[_F6_SERIOUS_RESISTANCE_COLUMN] / df["newly_infected_count"] * 100.0
         )
         columns.append("pct_serious_resistant")
-    return df[columns], has_serious_column, has_marker_eligible_column
+    df["year_int"] = df["year"].apply(int)
+    annual = df.groupby("year_int", as_index=False)[columns[1:]].mean()
+    annual["year"] = annual["year_int"].astype(float)
+    return annual[columns], has_serious_column, has_marker_eligible_column
 
 
 def _combine_annual_resistance_series(
@@ -1441,7 +1447,7 @@ def _combine_annual_resistance_series(
 
 def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None:
     """
-    Figure 6: time trend of resistance among new active bacterial infections.
+    Figure 6A: time trend of resistance among new active bacterial infections.
 
     Each run in *csv_paths* contributes one time series.  The figure shows:
       - solid mean line across all runs
@@ -1452,7 +1458,7 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     """
     fig_dir = out_dir / FIGURES_DIRNAME
     fig_dir.mkdir(parents=True, exist_ok=True)
-    stem = "Figure_6__resistance_trends"
+    stem = "Figure_6A__resistance_trends"
     png_path = fig_dir / f"{stem}.png"
     svg_path = fig_dir / f"{stem}.svg"
     html_path = fig_dir / f"{stem}.html"
@@ -1553,7 +1559,7 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     else:
         # Placeholder panel
         ax.text(0.5, 0.5,
-                "Figure 6. Resistance trends\n\n"
+                "Figure 6A. Resistance trends\n\n"
                 "Data not yet available.\n"
                 "Re-run with full-period simulation output\n"
                 "(simulation_summary_*.csv covering 1930-2025)\n"
@@ -1576,7 +1582,7 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
             n_label = f"n = {n_runs} run{'s' if n_runs > 1 else ''}"
         ax.legend(fontsize=9, frameon=False, title=n_label, title_fontsize=8)
 
-    fig.suptitle("Figure 6. Resistance trends", fontsize=11, fontweight="bold")
+    fig.suptitle("Figure 6A. Resistance trends", fontsize=11, fontweight="bold")
     fig.tight_layout()
 
     fig.savefig(png_path, dpi=150, bbox_inches="tight")
@@ -1588,7 +1594,7 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
     # HTML wrapper
     html_rel_img = f"{stem}.png"
     html_rel_svg = f"{stem}.svg"
-    body  = _html_head("Figure 6. Resistance Trends")
+    body  = _html_head("Figure 6A. Resistance Trends")
     body += _back_link()
     if data_available:
         figure_note = (
@@ -1626,10 +1632,311 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
         )
         footnotes = [figure_note]
     body += (
-        f"<img src='{html_rel_img}' alt='Figure 6' "
+        f"<img src='{html_rel_img}' alt='Figure 6A' "
         f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
     )
     body += f"<p class='note'>Download: <a href='{html_rel_img}'>PNG</a> | <a href='{html_rel_svg}'>SVG</a></p>\n"
+    body += _html_footnotes(footnotes)
+    body += "</body></html>"
+    _save(html_path, body)
+
+
+def _f6b_any_r_columns_for_slug(slug: str, available: set[str]) -> list[str]:
+    return [
+        column
+        for column in (
+            f"{slug}_newly_infected_any_r_hospital",
+            f"{slug}_newly_infected_any_r_community",
+        )
+        if column in available
+    ]
+
+
+def _load_bacteria_resistance_trend_rows(csv_path: Path) -> tuple[list[dict[str, object]], str | None]:
+    columns = _simulation_csv_columns(csv_path)
+    if columns is None:
+        return [], f"{csv_path.name}: unable to read simulation summary header."
+    if _F6B_DENOMINATOR_COLUMN not in columns:
+        return [], f"{csv_path.name}: missing {_F6B_DENOMINATOR_COLUMN}."
+
+    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    numerator_columns: list[str] = []
+    per_bacterium_columns: dict[str, list[str]] = {}
+    for slug in _F15_KNOWN_BACTERIA_SLUGS:
+        slug_columns = _f6b_any_r_columns_for_slug(slug, columns)
+        per_bacterium_columns[slug] = slug_columns
+        numerator_columns.extend(slug_columns)
+    if not numerator_columns:
+        return [], f"{csv_path.name}: missing per-bacterium any-R newly infected columns."
+
+    usecols = [_F6B_DENOMINATOR_COLUMN, *optional, *numerator_columns]
+    try:
+        df = _read_csv_selected(csv_path, usecols)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [], f"{csv_path.name}: unable to load Figure 6B columns ({exc})."
+    if df.empty:
+        return [], f"{csv_path.name}: no rows available."
+
+    years = _simulation_year_series(df)
+    valid_year = years.notna()
+    df = df.loc[valid_year].copy()
+    years = years.loc[valid_year]
+    if df.empty:
+        return [], f"{csv_path.name}: no rows with valid simulation year."
+
+    target_len = len(_F15_KNOWN_BACTERIA_SLUGS)
+    denominator_values = [
+        _figure_15_extend_array(
+            np.array(_figure_15_parse_vector_cell(value), dtype=float),
+            target_len,
+        )
+        for value in df[_F6B_DENOMINATOR_COLUMN]
+    ]
+    if not denominator_values:
+        return [], f"{csv_path.name}: no denominator values found."
+    denominator_matrix = np.vstack(denominator_values)
+
+    run_series = (
+        df["run_id"].astype(str)
+        if "run_id" in df.columns
+        else pd.Series(csv_path.stem, index=df.index)
+    )
+    work = pd.DataFrame({
+        "year_int": years.astype(int).to_numpy(),
+        "run_id": run_series.to_numpy(),
+    })
+    records: list[dict[str, object]] = []
+    for b_idx, slug in enumerate(_F15_KNOWN_BACTERIA_SLUGS):
+        numerator_cols = per_bacterium_columns.get(slug, [])
+        if not numerator_cols:
+            continue
+        numeric_num = pd.DataFrame({
+            col: pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+            for col in numerator_cols
+        })
+        bacterium_work = work.copy()
+        bacterium_work["denominator"] = denominator_matrix[:, b_idx]
+        bacterium_work["numerator"] = numeric_num.sum(axis=1).to_numpy(dtype=float)
+        annual = (
+            bacterium_work
+            .groupby(["run_id", "year_int"], as_index=False)[["denominator", "numerator"]]
+            .sum()
+        )
+        annual = annual[annual["denominator"] > 0.0].copy()
+        for _, row in annual.iterrows():
+            records.append({
+                "source": csv_path.name,
+                "run_id": row["run_id"],
+                "year": int(row["year_int"]),
+                "bacterium_slug": slug,
+                "bacterium": _figure_15_bacterium_label(slug),
+                "new_active_infections": float(row["denominator"]),
+                "new_active_infections_any_r": float(row["numerator"]),
+            })
+
+    if not records:
+        return [], f"{csv_path.name}: no positive per-bacterium new-infection denominators."
+    return records, None
+
+
+def _f6b_placeholder(
+    out_dir: Path,
+    message: str,
+    problems: list[str] | None = None,
+) -> None:
+    fig_dir = out_dir / FIGURES_DIRNAME
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    stem = "Figure_6B__resistance_trends_by_bacterium"
+    fig, ax = plt.subplots(figsize=(10, 4.2))
+    ax.text(
+        0.5,
+        0.5,
+        f"Figure 6B. Resistance trends by bacterium\n\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=10.5,
+        color="#555",
+        bbox=dict(boxstyle="round,pad=0.6", fc="#f5f5f5", ec="#bbb"),
+        wrap=True,
+    )
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0.03, right=0.97, top=0.90, bottom=0.08)
+    png_path = fig_dir / f"{stem}.png"
+    svg_path = fig_dir / f"{stem}.svg"
+    html_path = fig_dir / f"{stem}.html"
+    fig.savefig(png_path, dpi=150, bbox_inches="tight")
+    fig.savefig(svg_path, bbox_inches="tight")
+    plt.close(fig)
+
+    body = _html_head("Figure 6B. Resistance Trends by Bacterium")
+    body += _back_link()
+    body += (
+        f"<img src='{stem}.png' alt='Figure 6B' "
+        f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
+    )
+    body += f"<p class='note'>Download: <a href='{stem}.png'>PNG</a> | <a href='{stem}.svg'>SVG</a></p>\n"
+    footnotes = [message]
+    if problems:
+        footnotes.append("Parser notes: " + " ".join(problems[:5]))
+    body += _html_footnotes(footnotes)
+    body += "</body></html>"
+    _save(html_path, body)
+    print(f"  Saved: {png_path}")
+    print(f"  Saved: {svg_path}")
+
+
+def make_figure_6b_resistance_trend_by_bacterium(
+    csv_paths: list[Path],
+    out_dir: Path,
+) -> None:
+    """Figure 6B: any-resistance trend for the ten highest-incidence bacteria."""
+    rows: list[dict[str, object]] = []
+    problems: list[str] = []
+    for csv_path in csv_paths:
+        csv_rows, problem = _load_bacteria_resistance_trend_rows(csv_path)
+        rows.extend(csv_rows)
+        if problem:
+            problems.append(problem)
+
+    if not rows:
+        _f6b_placeholder(
+            out_dir,
+            "Per-bacterium resistance trend data are not available. Required columns are "
+            f"{_F6B_DENOMINATOR_COLUMN} and per-bacterium "
+            "newly_infected_any_r_hospital/community columns.",
+            problems,
+        )
+        return
+
+    data = pd.DataFrame(rows)
+    data["pct_any_resistant"] = np.where(
+        data["new_active_infections"] > 0.0,
+        data["new_active_infections_any_r"] / data["new_active_infections"] * 100.0,
+        np.nan,
+    )
+    incidence = (
+        data.groupby(["bacterium_slug", "bacterium"], as_index=False)["new_active_infections"]
+        .sum()
+        .sort_values("new_active_infections", ascending=False)
+    )
+    top = incidence.head(_F6B_TOP_N_BACTERIA)
+    top_slugs = top["bacterium_slug"].tolist()
+    if not top_slugs:
+        _f6b_placeholder(out_dir, "No positive per-bacterium incidence denominators were found.", problems)
+        return
+
+    plot_data = data[data["bacterium_slug"].isin(top_slugs)].copy()
+    annual = (
+        plot_data
+        .groupby(["bacterium_slug", "bacterium", "year"], as_index=False)[
+            ["new_active_infections", "new_active_infections_any_r"]
+        ]
+        .sum()
+    )
+    annual["pct_any_resistant"] = np.where(
+        annual["new_active_infections"] > 0.0,
+        annual["new_active_infections_any_r"] / annual["new_active_infections"] * 100.0,
+        np.nan,
+    )
+    year_min_data = int(annual["year"].min())
+    year_max_data = int(annual["year"].max())
+
+    fig_dir = out_dir / FIGURES_DIRNAME
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    stem = "Figure_6B__resistance_trends_by_bacterium"
+    png_path = fig_dir / f"{stem}.png"
+    svg_path = fig_dir / f"{stem}.svg"
+    html_path = fig_dir / f"{stem}.html"
+
+    fig, ax = plt.subplots(figsize=(11.5, 6.2))
+    colour_cycle = plt.cm.tab10(np.linspace(0, 1, len(top_slugs)))
+    rank_lookup = {slug: idx + 1 for idx, slug in enumerate(top_slugs)}
+    for colour, slug in zip(colour_cycle, top_slugs):
+        bacterium_rows = annual[annual["bacterium_slug"] == slug].sort_values("year")
+        if bacterium_rows.empty:
+            continue
+        label = f"{rank_lookup[slug]}. {bacterium_rows['bacterium'].iloc[0]}"
+        ax.plot(
+            bacterium_rows["year"].to_numpy(dtype=float),
+            bacterium_rows["pct_any_resistant"].to_numpy(dtype=float),
+            linewidth=1.7,
+            marker="o",
+            markersize=2.4,
+            color=colour,
+            label=label,
+        )
+
+    if year_min_data > _F1_SIM_EPOCH_YEAR + 80:
+        ax.text(
+            0.02,
+            0.97,
+            "Note: data currently cover calibration window only "
+            f"({year_min_data}\u2013{year_max_data}).",
+            transform=ax.transAxes,
+            fontsize=8,
+            va="top",
+            color="#c0392b",
+            bbox=dict(boxstyle="round,pad=0.3", fc="#fff3cd", ec="#f0c040", alpha=0.9),
+        )
+
+    ax.set_xlim(_F1_SIM_EPOCH_YEAR, _F1_SIM_EPOCH_YEAR + 96)
+    ax.set_ylim(0, 100)
+    ax.set_xlabel("Year", fontsize=11)
+    ax.set_ylabel("New infections with any resistance (%)", fontsize=11)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", linewidth=0.4, alpha=0.5)
+    ax.legend(
+        fontsize=7.5,
+        frameon=False,
+        loc="center left",
+        bbox_to_anchor=(1.01, 0.5),
+        title=f"Top {_F6B_TOP_N_BACTERIA} by incidence",
+        title_fontsize=8,
+    )
+    fig.suptitle(
+        "Figure 6B. Resistance trends by bacterium",
+        fontsize=11,
+        fontweight="bold",
+    )
+    fig.tight_layout(rect=[0, 0, 0.80, 1])
+    fig.savefig(png_path, dpi=150, bbox_inches="tight")
+    fig.savefig(svg_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {png_path}")
+    print(f"  Saved: {svg_path}")
+
+    top_table = top.copy()
+    top_table["Rank"] = np.arange(1, len(top_table) + 1)
+    top_table["New active infections"] = top_table["new_active_infections"].map(
+        lambda value: f"{float(value):,.0f}"
+    )
+    top_table = top_table[["Rank", "bacterium", "New active infections"]].rename(
+        columns={"bacterium": "Bacterium"}
+    )
+
+    body = _html_head("Figure 6B. Resistance Trends by Bacterium")
+    body += _back_link()
+    body += (
+        f"<img src='{stem}.png' alt='Figure 6B' "
+        f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
+    )
+    body += f"<p class='note'>Download: <a href='{stem}.png'>PNG</a> | <a href='{stem}.svg'>SVG</a></p>\n"
+    body += "<h2>Included bacteria</h2>\n"
+    body += _html_table(top_table)
+    footnotes = [
+        f"Lines show the {_F6B_TOP_N_BACTERIA} bacteria with the highest total new active "
+        "infection incidence across the supplied simulation summary files.",
+        "For each bacterium and calendar year, the numerator is new active infections with any-R "
+        "recorded in either hospital-acquired or community-acquired infection columns. The denominator "
+        f"is {_F6B_DENOMINATOR_COLUMN}.",
+        "Values are annual count-weighted percentages pooled across supplied runs to keep the ten-line "
+        "comparison readable.",
+        "Figure 6A remains the overall population-level trend; Figure 6B decomposes the any-resistance "
+        "component by bacterium.",
+    ]
+    if problems:
+        footnotes.append("Parser notes: " + " ".join(problems[:5]))
     body += _html_footnotes(footnotes)
     body += "</body></html>"
     _save(html_path, body)
@@ -10426,7 +10733,11 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "Figures/Figure_5__calibration_carriage_prevalence_by_bacteria.html",
                 "Figure 5. Calibration: 2025 prevalence of carriage by bacterium",
             ),
-            ("Figures/Figure_6__resistance_trends.html", "Figure 6. Resistance trends"),
+            ("Figures/Figure_6A__resistance_trends.html", "Figure 6A. Resistance trends"),
+            (
+                "Figures/Figure_6B__resistance_trends_by_bacterium.html",
+                "Figure 6B. Resistance trends by bacterium",
+            ),
             (
                 "Figures/Figure_7__serious_r_by_hospital_community.html",
                 "Figure 7. Serious-R by hospital and community, 2022\u20132025",
@@ -10570,14 +10881,14 @@ def main(input_args: list[str]) -> None:
     csv_runs_with_scale = _discover_simulation_csvs_with_scale(paths)
     if csv_paths:
         print(
-            f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6, 8, 9, 10, 11, 12, "
+            f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6A, 6B, 8, 9, 10, 11, 12, "
             "Supplementary Figures S1, S3, S5, S6, and S8, "
             "and diagnostic Supplementary Figure SX. "
             "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
     else:
         print(
-            "  No matching simulation CSVs found; Figures 6, 8, 9, 10, 11, 12, and "
+            "  No matching simulation CSVs found; Figures 6A, 6B, 8, 9, 10, 11, 12, and "
             "Supplementary Figures S1, S3, S5, S6, S8, and diagnostic SX may render as placeholders. "
             "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
@@ -10634,6 +10945,7 @@ def main(input_args: list[str]) -> None:
     make_supplementary_figure_s8_infection_outcome_pathway(st1_csv_paths, out, agg=agg)
     make_index(agg, out)
     make_figure_6_resistance_trend(csv_paths, out)
+    make_figure_6b_resistance_trend_by_bacterium(csv_paths, out)
     make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
     make_figure_7_infection_death_rate_by_region(csv_paths, out, agg=agg)
     make_figure_8_antibiotic_use_by_context(csv_runs_with_scale, out, agg=agg)
