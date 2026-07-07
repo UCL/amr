@@ -12089,19 +12089,19 @@ lazy_static! {
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         // sepsis_baseline_log_odds ^^^^
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-            ("acinetobacter_baumannii", -5.7),
+            ("acinetobacter_baumannii", -5.1),
             ("citrobacter_spp.", -8.6),
-            ("enterobacter_spp.", -6.6),
-            ("enterococcus_faecalis", -5.8),       // was -8.0; CFR 0.74x under-death
-            ("enterococcus_faecium", -5.0),         // was -8.0; CFR 0.40x under-death
+            ("enterobacter_spp.", -6.0),
+            ("enterococcus_faecalis", -5.2),       // was -8.0; CFR 0.74x under-death
+            ("enterococcus_faecium", -4.2),         // was -8.0; CFR 0.40x under-death
             ("escherichia_coli", -9.0),             // was -8.5; CFR 2.7x over-death
-            ("klebsiella_pneumoniae", -5.8),        // was -8.0; CFR 0.83x under-death
+            ("klebsiella_pneumoniae", -5.5),        // was -8.0; CFR 0.83x under-death
             ("morganella_spp.", -7.1),
             ("proteus_spp.", -6.1),
             ("serratia_spp.", -7.3),
-            ("pseudomonas_aeruginosa", -5.4),       // was -8.0; CFR 0.38x under-death
+            ("pseudomonas_aeruginosa", -5.0),       // was -8.0; CFR 0.38x under-death
             ("stenotrophomonas_maltophilia", -7.3),
-            ("staphylococcus_aureus", -7.4),
+            ("staphylococcus_aureus", -7.8),
             ("staphylococcus_epidermidis", -7.3),
             ("streptococcus_pneumoniae", -9.0 ),
             ("salmonella_enterica_serovar_typhi", -7.3),
@@ -12109,7 +12109,7 @@ lazy_static! {
             ("invasive_non-typhoidal_salmonella_spp.", -8.5),  // was -8.0; CFR 1.9x over-death
             ("shigella_spp.", -12.0),
             ("neisseria_gonorrhoeae", -23.3),
-            ("streptococcus_pyogenes", -5.4),       // was -8.0; CFR 0.20x under-death (invasive GAS)
+            ("streptococcus_pyogenes", -5.0),       // was -8.0; CFR 0.20x under-death (invasive GAS)
             ("streptococcus_agalactiae", -5.7),     // was -8.0; CFR 0.55x under-death
             ("haemophilus_influenzae", -8.5),
             ("chlamydia_trachomatis", -18.3),
@@ -12118,11 +12118,11 @@ lazy_static! {
             ("listeria_monocytogenes", -7.3),
             ("clostridioides_difficile", - 9.8),
             ("campylobacter_jejuni", -19.3),
-            ("enterobacter_cloacae", -6.0),
+            ("enterobacter_cloacae", -5.2),
             ("yersinia_enterocolitica", -8.8),     // was -8.0; CFR 6.7x over-death
             ("moraxella_catarrhalis", -10.4),
             ("treponema_pallidum", -10.3),
-            ("bordetella_pertussis", -15.0),
+            ("bordetella_pertussis", -500.0),
             ("helicobacter_pylori", -500.0),
             ("mdr_mycobacterium_tuberculosis", -38.0),
         ];

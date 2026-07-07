@@ -459,7 +459,18 @@ def load_simulation_data(
             if cache_is_fresh:
                 cache_df = _read_parquet_cache(parquet_path)
                 if cache_df is not None:
-                    return cache_df
+                    if usecols:
+                        missing_cached_cols = [col for col in usecols if col not in cache_df.columns]
+                        if missing_cached_cols:
+                            logger.info(
+                                "Parquet cache %s is missing %d requested column(s); refreshing from CSV",
+                                parquet_path,
+                                len(missing_cached_cols),
+                            )
+                        else:
+                            return cache_df
+                    else:
+                        return cache_df
             else:
                 logger.info(
                     "Parquet cache %s is older than CSV %s; refreshing from CSV",

@@ -467,15 +467,23 @@ def _gather_calibration_context(
 
     window_years = _estimate_window_years(year_df)
     scale_factor = _compute_population_scale(year_df, targets.world_population)
-    (
-        resistance_window_df,
-        resistance_window_label,
-        resistance_expanded_df,
-        resistance_expanded_label,
-    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=4)
+    calibration_window_label = _calibration_window_label(
+        targets.target_year,
+        window_years_before,
+        window_years_after,
+    )
+    calibration_window_year_range = _calibration_window_year_range(
+        targets.target_year,
+        window_years_before,
+        window_years_after,
+    )
+    resistance_window_df = year_df
+    resistance_expanded_df = year_df
+    resistance_window_label = calibration_window_label
+    resistance_expanded_label = calibration_window_label
 
     headline_df = _build_headline_table(df, year_df, targets, scale_factor, window_years)
-    testing_summary_df = _calculate_testing_summary_table(year_df, targets.target_year)
+    testing_summary_df = _calculate_testing_summary_table(year_df, calibration_window_year_range)
     microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
     drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
     drug_class_history_df = _calculate_drug_class_history_table(
@@ -501,6 +509,11 @@ def _gather_calibration_context(
 
     overall_resistance = _calculate_overall_resistance(resistance_df)
     bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor, window_years)
+    (
+        calibration_window_new_infections_df,
+        calibration_window_new_infections_total,
+        scalar_new_infections_total,
+    ) = _calculate_calibration_window_new_infection_totals(year_df)
     resistance_incidence_locus_df = _calculate_resistance_incidence_locus_table(year_df)
     serious_resistance_locus_df = _calculate_serious_resistance_locus_table(year_df)
     age_region_death_rate_df = _calculate_age_region_death_rate_table(year_df, window_years)
@@ -515,6 +528,8 @@ def _gather_calibration_context(
         "year_df": year_df,
         "scale_factor": scale_factor,
         "window_years": window_years,
+        "calibration_window_label": calibration_window_label,
+        "calibration_window_year_range": calibration_window_year_range,
         "resistance_window_df": resistance_window_df,
         "resistance_window_label": resistance_window_label,
         "resistance_expanded_df": resistance_expanded_df,
@@ -530,6 +545,9 @@ def _gather_calibration_context(
         "microbiome_resident_targets": microbiome_resident_targets,
         "overall_resistance": overall_resistance,
         "bacteria_burden_df": bacteria_burden_df,
+        "calibration_window_new_infections_df": calibration_window_new_infections_df,
+        "calibration_window_new_infections_total": calibration_window_new_infections_total,
+        "scalar_new_infections_total": scalar_new_infections_total,
         "reserve_drug_stats": _calculate_reserve_drug_stats(year_df),
         "simulation_csv_path": simulation_csv_path,
     }
@@ -600,37 +618,14 @@ def _estimate_window_years(frame: pd.DataFrame) -> float:
     return max(len(frame) / 365.0, 0.0)
 
 
-def _select_resistance_windows(
-    df: pd.DataFrame,
-    calendar_year: pd.Series,
-    target_year: int,
-    max_years: int = 3,
-) -> Tuple[pd.DataFrame, str, pd.DataFrame, str]:
-    """Return primary (target-year) and expanded windows for resistance metrics."""
+def _calibration_window_year_range(target_year: int, years_before: int, years_after: int) -> str:
+    start_year = int(target_year) - max(0, int(years_before))
+    end_year = int(target_year) + max(0, int(years_after))
+    return str(start_year) if start_year == end_year else f"{start_year}-{end_year}"
 
-    mask_target_year = (calendar_year >= target_year) & (calendar_year < target_year + 1)
-    primary_df = df.loc[mask_target_year]
-    primary_label = str(target_year)
 
-    min_year_value = calendar_year.min()
-    if pd.isna(min_year_value):
-        min_year_value = target_year
-
-    start_year = max(int(np.floor(min_year_value)), target_year - max_years + 1)
-    expanded_mask = (calendar_year >= start_year) & (calendar_year < target_year + 1)
-    expanded_df = df.loc[expanded_mask]
-    expanded_label = f"{start_year}-{target_year}" if start_year != target_year else primary_label
-
-    if expanded_df.empty and len(df) > 0:
-        fallback_days = min(len(df), 365 * max_years)
-        expanded_df = df.tail(fallback_days)
-        expanded_label = f"trailing {fallback_days} days"
-
-    if primary_df.empty:
-        primary_df = expanded_df
-        primary_label = expanded_label
-
-    return primary_df, primary_label, expanded_df, expanded_label
+def _calibration_window_label(target_year: int, years_before: int, years_after: int) -> str:
+    return f"{_calibration_window_year_range(target_year, years_before, years_after)} calibration window"
 
 
 def _format_delta(sim_value: Optional[float], target: Optional[float]) -> Optional[float]:
@@ -652,11 +647,122 @@ def _safe_mean(series: pd.Series) -> Optional[float]:
     return float(value) if not pd.isna(value) else None
 
 
+def _parse_numeric_vector_cell(value: object) -> List[float]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "null"}:
+        return []
+    text = text.strip("[]()")
+    if not text:
+        return []
+    parts = [part.strip() for part in re.split(r"[;,]", text) if part.strip()]
+    if len(parts) == 1 and " " in parts[0]:
+        parts = [part.strip() for part in re.split(r"\s+", parts[0]) if part.strip()]
+
+    values: List[float] = []
+    for part in parts:
+        try:
+            values.append(float(part))
+        except ValueError:
+            values.append(float("nan"))
+    return values
+
+
+def _extend_numeric_array(values: np.ndarray, target_len: int) -> np.ndarray:
+    if len(values) >= target_len:
+        return values
+    extended = np.zeros(target_len, dtype=float)
+    if len(values):
+        extended[: len(values)] = values
+    return extended
+
+
+def _ordered_bacteria_slugs_from_columns(df: pd.DataFrame) -> List[str]:
+    suffix = "_currently_infected"
+    slugs: List[str] = []
+    seen: Set[str] = set()
+    for column in df.columns:
+        if not column.endswith(suffix):
+            continue
+        slug = column[: -len(suffix)]
+        if slug == "total":
+            continue
+        canonical = _canonicalize_bacteria_slug(slug)
+        if canonical not in seen:
+            seen.add(canonical)
+            slugs.append(canonical)
+    return slugs
+
+
+def _display_bacteria_slug(slug: str) -> str:
+    canonical = _canonicalize_bacteria_slug(slug)
+    return BACTERIA_DISPLAY_NAME_OVERRIDES.get(canonical, canonical.replace("_", " "))
+
+
+def _format_count(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None or not np.isfinite(numeric):
+        return "---"
+    return f"{int(round(numeric)):,.0f}"
+
+
+def _calculate_calibration_window_new_infection_totals(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, Optional[float], Optional[float]]:
+    columns = ["Bacteria", "Total new active infections"]
+    if df.empty or "new_active_infections_by_bacteria" not in df.columns:
+        scalar_total = None
+        if "newly_infected_count" in df.columns:
+            scalar_total = float(pd.to_numeric(df["newly_infected_count"], errors="coerce").sum(skipna=True))
+        return pd.DataFrame(columns=columns), None, scalar_total
+
+    totals = np.zeros(0, dtype=float)
+    for value in df["new_active_infections_by_bacteria"]:
+        values = np.array(_parse_numeric_vector_cell(value), dtype=float)
+        if len(values) == 0:
+            continue
+        if len(values) > len(totals):
+            totals = _extend_numeric_array(totals, len(values))
+        values = _extend_numeric_array(values, len(totals))
+        totals += np.nan_to_num(values, nan=0.0)
+
+    scalar_total = None
+    if "newly_infected_count" in df.columns:
+        scalar_total = float(pd.to_numeric(df["newly_infected_count"], errors="coerce").sum(skipna=True))
+
+    if len(totals) == 0:
+        return pd.DataFrame(columns=columns), None, scalar_total
+
+    slugs = _ordered_bacteria_slugs_from_columns(df)
+    if len(slugs) < len(totals):
+        slugs = slugs + [f"bacterium_index_{idx + 1}" for idx in range(len(slugs), len(totals))]
+
+    rows = []
+    for idx, total in enumerate(totals):
+        slug = slugs[idx] if idx < len(slugs) else f"bacterium_index_{idx + 1}"
+        label = _display_bacteria_slug(slug) if not slug.startswith("bacterium_index_") else slug.replace("_", " ")
+        rows.append({
+            "Bacteria": label,
+            "Total new active infections": total,
+        })
+
+    result = pd.DataFrame(rows, columns=columns)
+    result.sort_values(
+        by=["Total new active infections", "Bacteria"],
+        ascending=[False, True],
+        kind="mergesort",
+        inplace=True,
+    )
+    result["Total new active infections"] = result["Total new active infections"].map(_format_count)
+    return result.reset_index(drop=True), float(np.nansum(totals)), scalar_total
+
+
 def _calculate_testing_summary_table(
     year_df: pd.DataFrame,
-    target_year: int,
+    window_label: str,
 ) -> pd.DataFrame:
-    mean_column = f"{target_year} window mean (%)"
+    mean_column = f"{window_label} window mean (%)"
     columns = ["Metric", mean_column, "Window", "Notes"]
     if year_df.empty or "total_currently_infected" not in year_df.columns:
         return pd.DataFrame(columns=columns)
@@ -687,7 +793,7 @@ def _calculate_testing_summary_table(
             {
                 "Metric": "Bacterial identification done",
                 mean_column: bacterial_identification_mean,
-                "Window": str(target_year),
+                "Window": window_label,
                 "Notes": "Excludes H. pylori; descriptive metric only",
             }
         )
@@ -698,7 +804,7 @@ def _calculate_testing_summary_table(
             {
                 "Metric": "Resistance testing done",
                 mean_column: resistance_testing_mean,
-                "Window": str(target_year),
+                "Window": window_label,
                 "Notes": "Excludes H. pylori; descriptive metric only",
             }
         )
@@ -3584,6 +3690,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     drug_class_history_df = context.get("drug_class_history_df")
     resistance_df = context.get("resistance_df")
     bacteria_burden_df = context.get("bacteria_burden_df")
+    calibration_window_new_infections_df = context.get("calibration_window_new_infections_df")
 
     if not isinstance(headline_df, pd.DataFrame):
         headline_df = pd.DataFrame()
@@ -3599,6 +3706,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         resistance_df = pd.DataFrame()
     if not isinstance(bacteria_burden_df, pd.DataFrame):
         bacteria_burden_df = pd.DataFrame()
+    if not isinstance(calibration_window_new_infections_df, pd.DataFrame):
+        calibration_window_new_infections_df = pd.DataFrame()
 
     scale_factor_obj = context.get("scale_factor")
     scale_factor = float(scale_factor_obj) if isinstance(scale_factor_obj, (int, float)) else 1.0
@@ -3620,6 +3729,9 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     reserve_drug_stats = context.get("reserve_drug_stats", {})
     bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
     resistance_locus_df = context.get("resistance_incidence_locus_df")
+    calibration_window_title = str(
+        context.get("calibration_window_label") or f"{targets.target_year} calibration window"
+    ).replace("calibration window", "Calibration Window")
     calibration_score = _calculate_calibration_score(
         targets,
         headline_df,
@@ -3663,6 +3775,35 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 )
             handle.write("\n")
 
+        vector_total = _coerce_float(context.get("calibration_window_new_infections_total"))
+        scalar_total = _coerce_float(context.get("scalar_new_infections_total"))
+        handle.write("Calibration-Window New Infection Totals\n")
+        handle.write(
+            "Per-bacterium totals are raw model counts summed across the shared calibration "
+            "window from new_active_infections_by_bacteria; they are not annualized.\n"
+        )
+        if vector_total is not None:
+            handle.write(f"Overall per-bacterium total: {_format_count(vector_total)}\n")
+        if scalar_total is not None:
+            handle.write(f"Scalar newly_infected_count total: {_format_count(scalar_total)}\n")
+        if scalar_total is not None and vector_total is not None:
+            difference = vector_total - scalar_total
+            if abs(difference) > 0.5:
+                handle.write(
+                    "Note: the per-bacterium total differs from the scalar total when multiple "
+                    "bacterial infection events can be counted for the same timestep/person.\n"
+                )
+        if not calibration_window_new_infections_df.empty:
+            handle.write(
+                _render_table_with_alignment(
+                    calibration_window_new_infections_df,
+                    left_columns={"Bacteria"},
+                )
+            )
+            handle.write("\n\n")
+        else:
+            handle.write("(new_active_infections_by_bacteria unavailable in the loaded simulation data)\n\n")
+
         if not headline_df.empty:
             headline_display = headline_df.copy()
             sepsis_mask = headline_display["Metric"].str.contains("sepsis", case=False, na=False)
@@ -3688,7 +3829,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("Headline Metrics\n(no metrics configured)\n\n")
 
         if not testing_summary_df.empty:
-            handle.write(f"Testing Summary ({targets.target_year} Calibration Window)\n")
+            handle.write(f"Testing Summary ({calibration_window_title})\n")
             handle.write(
                 testing_summary_df.to_string(
                     index=False,
@@ -3699,7 +3840,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("\n\n")
         else:
             handle.write(
-                f"Testing Summary ({targets.target_year} Calibration Window)\n"
+                f"Testing Summary ({calibration_window_title})\n"
                 "(no testing metrics available)\n\n"
             )
 

@@ -153,6 +153,7 @@ CALIBRATION_PATTERNS = [
     r'.*_newly_infected_non_carrier$',
     r'.*_newly_infected_under_5$',
     r'.*_newly_infected_over_65$',
+    r'^new_active_infections_by_bacteria$',
     r'.*_deaths_under_5$',
     r'.*_deaths_over_65$',
     r'.*_deaths_hospital_acquired$',

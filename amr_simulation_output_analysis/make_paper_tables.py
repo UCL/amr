@@ -16,6 +16,9 @@ Multiple runs (pass explicit paths or a glob):
 Package/module form:
     python -m amr_simulation_output_analysis.make_paper_tables output_graphs/calibration_summary_*.txt
 
+Figure 2 summary mode:
+    Edit FIGURE2_SUMMARY_MODE below: "median_range" or "mean_ci".
+
 Output
 ------
 paper_tables/
@@ -79,6 +82,12 @@ REPO_ROOT = SCRIPT_DIR.parent
 OUT_DIR = REPO_ROOT / "paper_tables"
 CALIBRATION_TARGETS_PATH = REPO_ROOT / "data" / "calibration_targets.json"
 SIMULATION_OUTPUTS_DIR = REPO_ROOT / "amr_simulation_output_analysis_outputs"
+
+# Figure 2 toggle. Options:
+#   "median_range" - simulation median with 5th-95th percentile range
+#   "mean_ci"      - simulation mean with 95% confidence interval
+FIGURE2_SUMMARY_MODE = "mean_ci"
+
 TABLES_DIRNAME = "Tables"
 FIGURES_DIRNAME = "Figures"
 GENERATED_SUBDIRS = (
@@ -2037,6 +2046,8 @@ _F2_CLASS_SHORT: dict[str, str] = {
 _F2_DISPLAY_POTENCY_THRESHOLD = 0.25
 _F2_EXCLUDED_CLASSES = {"Rifamycins (J04AB)"}
 _F2_EXCLUDED_BACTERIA_SLUGS = {"mdr_mycobacterium_tuberculosis"}
+_F2_SUMMARY_MEDIAN_RANGE = "median_range"
+_F2_SUMMARY_MEAN_CI = "mean_ci"
 _F2_BACTERIA_SLUG_NORMALIZATION_OVERRIDES = {
     "p_stuartii": "providencia_stuartii",
 }
@@ -2127,15 +2138,63 @@ def _parse_resistance_val(v: object) -> tuple[float, float, float] | None:
     return _parse_interval_val(v)
 
 
-def _class_summary(
+def _f2_normalize_summary_mode(value: object) -> str:
+    raw = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "": _F2_SUMMARY_MEDIAN_RANGE,
+        "median": _F2_SUMMARY_MEDIAN_RANGE,
+        "median_range": _F2_SUMMARY_MEDIAN_RANGE,
+        "median_5_95": _F2_SUMMARY_MEDIAN_RANGE,
+        "median_p5_p95": _F2_SUMMARY_MEDIAN_RANGE,
+        "mean": _F2_SUMMARY_MEAN_CI,
+        "mean_ci": _F2_SUMMARY_MEAN_CI,
+        "mean_95ci": _F2_SUMMARY_MEAN_CI,
+        "mean_95_ci": _F2_SUMMARY_MEAN_CI,
+    }
+    if raw not in aliases:
+        valid = ", ".join(sorted({_F2_SUMMARY_MEDIAN_RANGE, _F2_SUMMARY_MEAN_CI}))
+        raise ValueError(f"Unknown Figure 2 summary mode '{value}'. Use one of: {valid}.")
+    return aliases[raw]
+
+
+def _f2_default_summary_mode() -> str:
+    return _f2_normalize_summary_mode(FIGURE2_SUMMARY_MODE)
+
+
+def _f2_t_critical_975(n_values: int) -> float:
+    """Two-sided 95% t critical value for n run-level values."""
+    df = max(1, int(n_values) - 1)
+    table = {
+        1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+        6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+        11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+        16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+        21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+        26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045, 30: 2.042,
+    }
+    return table.get(df, 1.960 if df > 120 else 2.000)
+
+
+def _f2_ci95(values: list[float]) -> tuple[float | None, float | None, float | None]:
+    arr = np.array([v for v in values if np.isfinite(v)], dtype=float)
+    if len(arr) == 0:
+        return None, None, None
+    center = float(np.mean(arr))
+    if len(arr) == 1:
+        return center, center, center
+    se = float(np.std(arr, ddof=1) / math.sqrt(len(arr)))
+    half_width = _f2_t_critical_975(len(arr)) * se
+    return center, max(0.0, center - half_width), min(100.0, center + half_width)
+
+
+def _f2_class_summary_from_aggregated_rows(
     rows: pd.DataFrame,
     sim_col: str,
     tgt_col: str,
 ) -> tuple[float | None, float | None, float | None, float | None]:
     """
-    Summarise all drug rows for one class:
-    Returns (sim_median, sim_lo, sim_hi, tgt_mean).
-    Uses mean of per-drug medians for bar height; [min-lo, max-hi] for error span.
+    Current Figure 2 behaviour: mean of per-drug run medians, with the
+    displayed interval spanning the drug-level 5th-95th percentile limits.
     """
     sims: list[tuple[float, float, float]] = []
     tgts: list[float] = []
@@ -2151,6 +2210,100 @@ def _class_summary(
     sim_hi  = float(np.max([s[2] for s in sims]))  if sims else None
     tgt     = float(np.mean(tgts)) if tgts else None
     return sim_med, sim_lo, sim_hi, tgt
+
+
+def _f2_run_label(run: dict, index: int) -> str:
+    meta = run.get("meta", {}) if isinstance(run, dict) else {}
+    return str(meta.get("run_id") or meta.get("source_file") or f"run_{index + 1}")
+
+
+def _f2_raw_resistance_rows(runs: list[dict] | None) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for idx, run in enumerate(runs or []):
+        rb = run.get("resistance_benchmarks", pd.DataFrame()) if isinstance(run, dict) else pd.DataFrame()
+        if rb is None or rb.empty:
+            continue
+        frame = rb.copy()
+        frame["_f2_run"] = _f2_run_label(run, idx)
+        frames.append(frame)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True, sort=False)
+
+
+def _f2_build_median_range_class_table(rb: pd.DataFrame, sim_col: str, tgt_col: str) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for (bacterium, cls), group in rb.groupby(["Bacteria", "Class"], dropna=False, sort=False):
+        sim, lo, hi, target = _f2_class_summary_from_aggregated_rows(group, sim_col, tgt_col)
+        if sim is None and target is None:
+            continue
+        rows.append({
+            "Bacteria": bacterium,
+            "Class": cls,
+            "sim": sim,
+            "lo": lo,
+            "hi": hi,
+            "target": target,
+        })
+    return pd.DataFrame(rows)
+
+
+def _f2_build_mean_ci_class_table(runs: list[dict] | None, sim_col: str, tgt_col: str) -> pd.DataFrame:
+    rb = _f2_raw_resistance_rows(runs)
+    if rb.empty:
+        return pd.DataFrame()
+    if "Flags" in rb.columns:
+        rb = rb[~rb["Flags"].astype(str).str.contains("negligible", case=False, na=False)].copy()
+    if rb.empty:
+        return pd.DataFrame()
+    rb = rb.loc[rb["Bacteria"].apply(_f2_is_valid_organism_label)].copy()
+    rb = _f2_apply_display_filters(rb)
+    if rb.empty:
+        return pd.DataFrame()
+
+    rb["_f2_sim"] = rb[sim_col].apply(_first_numeric_value) if sim_col in rb.columns else np.nan
+    rb["_f2_target"] = rb[tgt_col].apply(_first_numeric_value) if tgt_col in rb.columns else np.nan
+
+    run_class = (
+        rb.dropna(subset=["_f2_sim"])
+        .groupby(["Bacteria", "Class", "_f2_run"], as_index=False)["_f2_sim"]
+        .mean()
+    )
+    target_by_class = (
+        rb.dropna(subset=["_f2_target"])
+        .groupby(["Bacteria", "Class"], as_index=False)["_f2_target"]
+        .mean()
+        .rename(columns={"_f2_target": "target"})
+    )
+
+    keys = set(zip(run_class["Bacteria"], run_class["Class"])) | set(
+        zip(target_by_class["Bacteria"], target_by_class["Class"])
+    )
+    rows: list[dict[str, object]] = []
+    target_lookup = {
+        (row["Bacteria"], row["Class"]): float(row["target"])
+        for _, row in target_by_class.iterrows()
+        if pd.notna(row["target"])
+    }
+    for bacterium, cls in sorted(keys, key=lambda item: (str(item[0]).lower(), str(item[1]).lower())):
+        values = run_class.loc[
+            (run_class["Bacteria"] == bacterium) & (run_class["Class"] == cls),
+            "_f2_sim",
+        ].astype(float).tolist()
+        center, lo, hi = _f2_ci95(values)
+        target = target_lookup.get((bacterium, cls))
+        if center is None and target is None:
+            continue
+        rows.append({
+            "Bacteria": bacterium,
+            "Class": cls,
+            "sim": center,
+            "lo": lo,
+            "hi": hi,
+            "target": target,
+            "n_runs": len([v for v in values if np.isfinite(v)]),
+        })
+    return pd.DataFrame(rows)
 
 
 def _f2_slugify_value(name: object) -> str:
@@ -2285,7 +2438,7 @@ def _f2_is_valid_organism_label(v: object) -> bool:
     return set(compact) != {"-"}
 
 
-def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
+def _make_figure_2_calibration_resistance_fit_legacy(agg: dict, out_dir: Path) -> None:
     """
     Create Figure 2: dynamic grid showing infection resistance calibration fit
     for all bacteria present in the resistance_benchmarks data.
@@ -2434,7 +2587,7 @@ def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
         ncol=2, fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0),
     )
     fig.suptitle(
-        "Figure 2. Calibration: 2025 resistance fit by bacterium and drug class",
+        "Figure 2. Calibration: resistance fit by bacterium and drug class",
         fontsize=11, fontweight="bold", y=1.01,
     )
     fig.text(0.5, -0.01, ci_note, ha="center", fontsize=7.5, color="#555")
@@ -2456,7 +2609,7 @@ def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
     # HTML wrapper
     html_rel_img = f"{stem}.png"
     html_rel_svg = f"{stem}.svg"
-    body  = _html_head("Figure 2. Calibration: 2025 Resistance Fit")
+    body  = _html_head("Figure 2. Calibration: Resistance Fit")
     body += _back_link()
     figure_note = (
         "Each panel shows the simulated (blue) and surveillance-target (orange) "
@@ -2490,7 +2643,276 @@ def make_figure_2_calibration_resistance_fit(agg: dict, out_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Figure F3 — Calibration block scores
+# Active Figure 2 implementation with selectable uncertainty summary
+# ---------------------------------------------------------------------------
+
+def make_figure_2_calibration_resistance_fit(
+    agg: dict,
+    out_dir: Path,
+    *,
+    runs: list[dict] | None = None,
+    summary_mode: str | None = None,
+) -> None:
+    """
+    Create Figure 2 with a selectable uncertainty summary.
+
+    Default mode preserves the existing median/range display from the
+    aggregated calibration summary. Mean-CI mode uses the per-run parsed
+    resistance benchmark tables to compute one class mean per run, then
+    plots the mean and a two-sided 95% t confidence interval.
+    """
+    mode = _f2_normalize_summary_mode(summary_mode or _f2_default_summary_mode())
+    n_runs = int(agg.get("n_runs", 1) or 1)
+    sim_col = "Inf sim (%)"
+    tgt_col = "Inf target (%)"
+
+    class_summary = pd.DataFrame()
+    if mode == _F2_SUMMARY_MEAN_CI:
+        class_summary = _f2_build_mean_ci_class_table(runs, sim_col, tgt_col)
+        if class_summary.empty:
+            print(
+                "  Figure 2: mean-CI mode needs per-run resistance_benchmarks data; "
+                "falling back to median/range mode."
+            )
+            mode = _F2_SUMMARY_MEDIAN_RANGE
+
+    if mode == _F2_SUMMARY_MEDIAN_RANGE:
+        rb = agg.get("resistance_benchmarks", pd.DataFrame())
+        if rb is None or rb.empty:
+            print("  F2: no resistance_benchmarks data - skipping figure.")
+            return
+
+        if "Flags" in rb.columns:
+            rb = rb[~rb["Flags"].astype(str).str.contains("negligible", case=False, na=False)].copy()
+        if rb.empty:
+            print("  Figure 2: no non-negligible resistance_benchmarks rows - skipping figure.")
+            return
+
+        valid_organism_mask = rb["Bacteria"].apply(_f2_is_valid_organism_label)
+        if not bool(valid_organism_mask.all()):
+            skipped = sorted({str(v).strip() for v in rb.loc[~valid_organism_mask, "Bacteria"].dropna()})
+            print(
+                "  Figure 2: omitted non-organism resistance benchmark label(s): "
+                f"{', '.join(repr(v) for v in skipped)}."
+            )
+            rb = rb.loc[valid_organism_mask].copy()
+        if rb.empty:
+            print("  Figure 2: no plottable organism resistance_benchmarks rows - skipping figure.")
+            return
+
+        rb = _f2_apply_display_filters(rb)
+        if rb.empty:
+            print("  Figure 2: no rows remain after display potency/special-case filters - skipping figure.")
+            return
+
+        class_summary = _f2_build_median_range_class_table(rb, sim_col, tgt_col)
+
+    if class_summary.empty:
+        print("  Figure 2: no plottable resistance_benchmarks class summaries - skipping figure.")
+        return
+
+    print(f"  Figure 2: summary mode = {mode}.")
+
+    all_organisms_in_data = sorted(class_summary["Bacteria"].dropna().unique().tolist())
+    ordered = [o for o in _F2_ORGANISM_ORDER if o in all_organisms_in_data]
+    ordered += sorted(o for o in all_organisms_in_data if o not in ordered)
+
+    ncols = 4
+    nrows = math.ceil(len(ordered) / ncols)
+    fig_height = max(14, 3.8 * nrows)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(22, fig_height))
+    axes_flat = np.array(axes).flatten()
+
+    for panel_idx, organism in enumerate(ordered):
+        ax = axes_flat[panel_idx]
+        org_rows = class_summary[class_summary["Bacteria"] == organism].copy()
+
+        if org_rows.empty:
+            ax.text(
+                0.5, 0.5, "No data", ha="center", va="center",
+                transform=ax.transAxes, fontsize=9, color="#888",
+            )
+            ax.set_title(organism, fontsize=8.5, fontstyle="italic", pad=3)
+            ax.axis("off")
+            continue
+
+        classes_in_data = set(org_rows["Class"].dropna().unique())
+        ordered_classes = [c for c in _F2_CLASS_ORDER if c in classes_in_data]
+        ordered_classes += sorted(c for c in classes_in_data if c not in _F2_CLASS_ORDER)
+
+        bar_classes: list[str] = []
+        sim_centers: list[float] = []
+        sim_los: list[float] = []
+        sim_his: list[float] = []
+        tgt_means: list[float | None] = []
+
+        for cls in ordered_classes:
+            cls_rows = org_rows[org_rows["Class"] == cls]
+            if cls_rows.empty:
+                continue
+            row = cls_rows.iloc[0]
+            sim = row.get("sim")
+            lo = row.get("lo")
+            hi = row.get("hi")
+            target = row.get("target")
+            sim_val = float(sim) if pd.notna(sim) else None
+            lo_val = float(lo) if pd.notna(lo) else sim_val
+            hi_val = float(hi) if pd.notna(hi) else sim_val
+            target_val = float(target) if pd.notna(target) else None
+
+            if sim_val is None and target_val is None:
+                continue
+            bar_classes.append(cls)
+            sim_centers.append(sim_val if sim_val is not None else 0.0)
+            sim_los.append(lo_val if lo_val is not None else sim_centers[-1])
+            sim_his.append(hi_val if hi_val is not None else sim_centers[-1])
+            tgt_means.append(target_val)
+
+        if not bar_classes:
+            ax.text(
+                0.5, 0.5, "No data", ha="center", va="center",
+                transform=ax.transAxes, fontsize=9, color="#888",
+            )
+            ax.set_title(organism, fontsize=8.5, fontstyle="italic", pad=3)
+            continue
+
+        x = np.arange(len(bar_classes))
+        width = 0.38
+        labels = [_F2_CLASS_SHORT.get(c, c) for c in bar_classes]
+
+        err_lo = np.clip(np.array(sim_centers) - np.array(sim_los), 0, None)
+        err_hi = np.clip(np.array(sim_his) - np.array(sim_centers), 0, None)
+        ax.bar(
+            x - width / 2,
+            sim_centers,
+            width,
+            color=_F2_COLOUR_SIM,
+            alpha=0.85,
+            label=None,
+            yerr=[err_lo, err_hi],
+            capsize=2.5,
+            error_kw={"elinewidth": 0.8, "ecolor": "#0D47A1", "capthick": 0.8},
+        )
+
+        tgt_vals = [t if t is not None else 0.0 for t in tgt_means]
+        tgt_alpha = [1.0 if t is not None else 0.0 for t in tgt_means]
+        for i, (tv, ta) in enumerate(zip(tgt_vals, tgt_alpha)):
+            ax.bar(
+                x[i] + width / 2,
+                tv,
+                width,
+                color=_F2_COLOUR_TARGET,
+                alpha=0.85 * ta,
+                label=None,
+            )
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=5.5)
+        ax.set_ylim(0, 105)
+        ax.set_ylabel("Resistance (%)", fontsize=7, labelpad=2)
+        ax.yaxis.set_tick_params(labelsize=6)
+        ax.axhline(y=100, color="#ccc", linewidth=0.4, linestyle="--")
+        ax.grid(axis="y", linewidth=0.35, alpha=0.5)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.set_title(organism, fontsize=8.5, fontstyle="italic", pad=3)
+
+    for idx in range(len(ordered), nrows * ncols):
+        axes_flat[idx].axis("off")
+
+    sim_label = "Simulation mean" if mode == _F2_SUMMARY_MEAN_CI else "Simulation median"
+    sim_patch = mpatches.Patch(color=_F2_COLOUR_SIM, alpha=0.85, label=sim_label)
+    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Surveillance target")
+    if mode == _F2_SUMMARY_MEAN_CI:
+        ci_note = (
+            f"Error bars: 95% confidence interval for the mean across {n_runs} stochastic run"
+            f"{'s' if n_runs != 1 else ''}."
+            if n_runs > 1 else "Single run; mean equals the single run value and no confidence interval is shown."
+        )
+    else:
+        ci_note = (
+            f"Error bars: aggregated 5th-95th percentile range across {n_runs} accepted run"
+            f"{'s' if n_runs != 1 else ''}."
+            if n_runs > 1 else "Single run; no uncertainty interval shown."
+        )
+
+    fig.legend(
+        handles=[sim_patch, tgt_patch],
+        loc="lower center",
+        ncol=2,
+        fontsize=9,
+        frameon=False,
+        bbox_to_anchor=(0.5, 0.0),
+    )
+    fig.suptitle(
+        "Figure 2. Calibration: resistance fit by bacterium and drug class",
+        fontsize=11,
+        fontweight="bold",
+        y=1.01,
+    )
+    fig.text(0.5, -0.01, ci_note, ha="center", fontsize=7.5, color="#555")
+    fig.tight_layout(rect=[0, 0.04, 1, 1])
+
+    fig_dir = out_dir / FIGURES_DIRNAME
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    stem = "Figure_2__calibration_resistance_fit_by_bacteria_drug_class"
+    png_path = fig_dir / f"{stem}.png"
+    svg_path = fig_dir / f"{stem}.svg"
+    fig.savefig(png_path, dpi=150, bbox_inches="tight")
+    fig.savefig(svg_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {png_path}")
+    print(f"  Saved: {svg_path}")
+
+    html_rel_img = f"{stem}.png"
+    html_rel_svg = f"{stem}.svg"
+    body = _html_head("Figure 2. Calibration: Resistance Fit")
+    body += _back_link()
+    if mode == _F2_SUMMARY_MEAN_CI:
+        figure_note = (
+            "Each panel shows the simulated (blue) and surveillance-target (orange) "
+            "infection resistance percentage by drug class for one bacterium. "
+            "Simulation bars show the mean of run-level class means; error bars show "
+            "a two-sided 95% t confidence interval across stochastic runs. "
+            "Classes without data for a given bacterium are omitted."
+        )
+    else:
+        figure_note = (
+            "Each panel shows the simulated (blue) and surveillance-target (orange) "
+            "infection resistance percentage by drug class for one bacterium. "
+            "Simulation bars show the mean across all drugs in the class using the "
+            "aggregated calibration-summary median; error bars retain the aggregated "
+            "5th-95th percentile range. Classes without data for a given bacterium "
+            "are omitted."
+        )
+    body += (
+        f"<img src='{html_rel_img}' alt='Figure 2' "
+        f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
+    )
+    body += f"<p class='note'>Download: <a href='{html_rel_img}'>PNG</a> | <a href='{html_rel_svg}'>SVG</a></p>\n"
+    body += _html_footnotes([
+        _meta_footnote(agg),
+        figure_note,
+        (
+            f"Figure 2 summary mode: {mode}. To switch modes, edit "
+            "FIGURE2_SUMMARY_MODE in make_paper_tables.py."
+        ),
+        "Drug class resistance within a panel is averaged across all specific drugs in that class.",
+        "Drugs flagged as negligible potency (baseline potency < 0.15) are excluded from class averages.",
+        f"Drug classes are shown only where at least one drug in the class has baseline potency >= "
+        f"{_F2_DISPLAY_POTENCY_THRESHOLD:.2f} for that bacterium.",
+        "Rifamycins and MDR Mycobacterium tuberculosis are omitted from this broad calibration figure "
+        "because they are special-case TB/rifampicin-resistance outputs rather than comparable "
+        "general drug-class calibration cells.",
+        "Eligible bacteria with resistance benchmark data in the simulation output are included. "
+        "IHME/WHO-ESKAPE priority bacteria are shown first, remainder alphabetically.",
+    ] + _RESISTANCE_TARGET_SOURCE_NOTES)
+    body += "</body></html>"
+    html_path = fig_dir / f"{stem}.html"
+    _save(html_path, body)
+
+
+# ---------------------------------------------------------------------------
+# Figure F3 - Calibration block scores
 # ---------------------------------------------------------------------------
 
 # Legacy calibration-score figure retained for reference only; not called by main().
@@ -6415,7 +6837,7 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
     notes = [
         "Data source: Resistance Benchmarks table parsed from calibration_summary_*.txt. "
         "calibration_summary_*.txt is an internal diagnostic file and is not required to interpret this page.",
-        "Values refer to the 2022-2025 calibration window unless a row is explicitly flagged as using an expanded window.",
+        "Values refer to the shared calibration window reported in the source calibration summaries.",
         "Infection resistance simulation (%) is the simulated percentage of infection-days for the bacterium-drug combination classified as resistant.",
         "Infection resistance target (%) is the target or benchmark value used for calibration comparison where available.",
         "Average resistant level is summarised among resistant positives where defined; rows with no resistant infections do not have a meaningful average resistant level.",
@@ -10719,7 +11141,7 @@ def make_index(agg: dict, out_dir: Path) -> None:
             ),
             (
                 "Figures/Figure_2__calibration_resistance_fit_by_bacteria_drug_class.html",
-                "Figure 2. Calibration: 2025 resistance fit by bacterium and drug class",
+                "Figure 2. Calibration: resistance fit by bacterium and drug class",
             ),
             (
                 "Figures/Figure_3__calibration_drug_class_share.html",
@@ -10931,7 +11353,12 @@ def main(input_args: list[str]) -> None:
     make_t1(out)
     make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
     make_figure_1_calibration_headline_metrics(agg, out)
-    make_figure_2_calibration_resistance_fit(agg, out)
+    make_figure_2_calibration_resistance_fit(
+        agg,
+        out,
+        runs=runs,
+        summary_mode=FIGURE2_SUMMARY_MODE,
+    )
     make_figure_3_calibration_drug_class_share(agg, out)
     make_figure_4_calibration_infection_deaths(agg, out)
     make_figure_5_calibration_carriage_prevalence(agg, out)
