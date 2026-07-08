@@ -1336,17 +1336,22 @@ def _discover_simulation_csvs_with_scale(
     return rows
 
 
-_CSV_HEADER_CACHE: dict[Path, set[str] | None] = {}
+_CSV_HEADER_CACHE: dict[Path, tuple[str, ...] | None] = {}
 
 
-def _simulation_csv_columns(csv_path: Path) -> set[str] | None:
+def _simulation_csv_column_names(csv_path: Path) -> tuple[str, ...] | None:
     resolved = csv_path.resolve()
     if resolved not in _CSV_HEADER_CACHE:
         try:
-            _CSV_HEADER_CACHE[resolved] = set(pd.read_csv(csv_path, nrows=0).columns)
+            _CSV_HEADER_CACHE[resolved] = tuple(pd.read_csv(csv_path, nrows=0).columns)
         except (FileNotFoundError, pd.errors.EmptyDataError, OSError, ValueError):
             _CSV_HEADER_CACHE[resolved] = None
     return _CSV_HEADER_CACHE[resolved]
+
+
+def _simulation_csv_columns(csv_path: Path) -> set[str] | None:
+    names = _simulation_csv_column_names(csv_path)
+    return set(names) if names is not None else None
 
 
 def _filter_simulation_csvs_with_columns(
@@ -1397,12 +1402,10 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
     generate the original any-resistance trend.
     """
     needed = ["time_in_years", "newly_infected_count", "newly_infected_with_resistance_count"]
-    try:
-        header = pd.read_csv(csv_path, nrows=0)
-    except (FileNotFoundError, pd.errors.EmptyDataError):
+    available_columns = _simulation_csv_columns(csv_path)
+    if available_columns is None:
         return None, False, False
 
-    available_columns = set(header.columns)
     has_serious_column = _F6_SERIOUS_RESISTANCE_COLUMN in available_columns
     has_marker_eligible_column = _F6_MARKER_ELIGIBLE_COLUMN in available_columns
     if any(column not in available_columns for column in needed):
@@ -3679,9 +3682,8 @@ def _figure_7_rows_from_simulation_csv(csv_path: Path) -> list[dict[str, object]
     per year during calendar years 2022-2025. The denominator is regional
     person-years alive, not an unweighted mean of age-specific rates.
     """
-    try:
-        columns = set(pd.read_csv(csv_path, nrows=0).columns)
-    except (FileNotFoundError, ValueError, OSError):
+    columns = _simulation_csv_columns(csv_path)
+    if columns is None:
         return []
 
     if "time_in_years" not in columns:
@@ -4358,12 +4360,10 @@ def _figure_11_placeholder(out_dir: Path, agg: dict | None, message: str) -> Non
 
 
 def _figure_11_load_summary(csv_path: Path) -> tuple[pd.DataFrame | None, str | None]:
-    try:
-        header = pd.read_csv(csv_path, nrows=0)
-    except (FileNotFoundError, pd.errors.EmptyDataError, OSError) as exc:
-        return None, f"{csv_path.name}: unable to read simulation summary CSV ({exc})."
+    available = _simulation_csv_columns(csv_path)
+    if available is None:
+        return None, f"{csv_path.name}: unable to read simulation summary CSV header."
 
-    available = set(header.columns)
     missing = [column for column in _F11_REQUIRED_COLUMNS if column not in available]
     if missing:
         return None, f"{csv_path.name}: missing columns {', '.join(missing)}."
@@ -4375,7 +4375,7 @@ def _figure_11_load_summary(csv_path: Path) -> tuple[pd.DataFrame | None, str | 
     usecols = [
         column
         for column in _F11_REQUIRED_COLUMNS + _F11_OPTIONAL_COLUMNS
-        if column in header.columns
+        if column in available
     ]
     try:
         df = _read_csv_selected(csv_path, usecols)
@@ -4840,13 +4840,25 @@ def _figure_15_detect_activity_columns(
     return wide_pairs, vector_pair, missing_denominator, pure_present, detection
 
 
-def _figure_15_rows_from_simulation_csv(
+_FIGURE_15_ROWS_CACHE: dict[
+    Path,
+    tuple[list[dict[str, object]], str | None, set[str], bool, str | None],
+] = {}
+
+
+def _copy_figure_15_rows_result(
+    result: tuple[list[dict[str, object]], str | None, set[str], bool, str | None],
+) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
+    rows, problem, no_denominator, saw_pure, detection = result
+    return [dict(row) for row in rows], problem, set(no_denominator), saw_pure, detection
+
+
+def _figure_15_rows_from_simulation_csv_uncached(
     csv_path: Path,
 ) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
-    try:
-        columns = list(pd.read_csv(csv_path, nrows=0).columns)
-    except (FileNotFoundError, ValueError, OSError) as exc:
-        return [], f"{csv_path.name}: could not read simulation CSV ({exc}).", set(), False, None
+    columns = _simulation_csv_column_names(csv_path)
+    if columns is None:
+        return [], f"{csv_path.name}: could not read simulation CSV header.", set(), False, None
 
     wide_pairs, vector_pair, missing_denominator, pure_present, detection = (
         _figure_15_detect_activity_columns(columns)
@@ -4940,6 +4952,15 @@ def _figure_15_rows_from_simulation_csv(
                 })
 
     return rows, None, no_denominator, pure_present, detection
+
+
+def _figure_15_rows_from_simulation_csv(
+    csv_path: Path,
+) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
+    resolved = csv_path.resolve()
+    if resolved not in _FIGURE_15_ROWS_CACHE:
+        _FIGURE_15_ROWS_CACHE[resolved] = _figure_15_rows_from_simulation_csv_uncached(csv_path)
+    return _copy_figure_15_rows_result(_FIGURE_15_ROWS_CACHE[resolved])
 
 
 def make_figure_15_mean_activity_by_bacteria(
@@ -5370,10 +5391,9 @@ def _figure_19_rows_from_simulation_csv(
     csv_path: Path,
     drug_class_map: dict[str, str],
 ) -> tuple[list[dict[str, object]], str | None, set[str], str | None]:
-    try:
-        columns = list(pd.read_csv(csv_path, nrows=0).columns)
-    except (FileNotFoundError, ValueError, OSError) as exc:
-        return [], f"{csv_path.name}: could not read simulation CSV ({exc}).", set(), None
+    columns = _simulation_csv_column_names(csv_path)
+    if columns is None:
+        return [], f"{csv_path.name}: could not read simulation CSV header.", set(), None
 
     known_drugs = list(dict.fromkeys(_F19_KNOWN_DRUG_SLUGS + sorted(drug_class_map)))
     wide_cols, vector_col, detection = _figure_19_detect_exposure_columns(columns, known_drugs)
@@ -5806,12 +5826,11 @@ def _st1_reliability_flags(
 
 
 def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object]], str | None]:
-    try:
-        header = pd.read_csv(csv_path, nrows=0)
-    except (FileNotFoundError, pd.errors.EmptyDataError, OSError) as exc:
-        return [], f"{csv_path.name}: unable to read simulation summary CSV ({exc})."
+    header = _simulation_csv_column_names(csv_path)
+    if header is None:
+        return [], f"{csv_path.name}: unable to read simulation summary CSV header."
 
-    available = set(header.columns)
+    available = set(header)
     missing = [column for column in _ST1_REQUIRED_VECTOR_COLUMNS if column not in available]
     if missing:
         return [], f"{csv_path.name}: missing columns {', '.join(missing)}."
@@ -5821,7 +5840,7 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
     usecols = [
         column
         for column in _ST1_REQUIRED_VECTOR_COLUMNS + _ST1_OPTIONAL_VECTOR_COLUMNS + optional
-        if column in header.columns
+        if column in available
     ]
     try:
         df = _read_csv_selected(csv_path, usecols)
@@ -7033,19 +7052,18 @@ def _sf1_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
 
 
 def _sf1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object]], str | None]:
-    try:
-        header = pd.read_csv(csv_path, nrows=0)
-    except (FileNotFoundError, pd.errors.EmptyDataError, OSError) as exc:
-        return [], f"{csv_path.name}: unable to read simulation summary CSV ({exc})."
+    header = _simulation_csv_column_names(csv_path)
+    if header is None:
+        return [], f"{csv_path.name}: unable to read simulation summary CSV header."
 
     required = {_SF1_NUMERATOR_COLUMN, _SF1_DENOMINATOR_COLUMN}
-    available = set(header.columns)
+    available = set(header)
     missing = sorted(required - available)
     if missing:
         return [], f"{csv_path.name}: missing columns {', '.join(missing)}."
 
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
-    usecols = [column for column in list(required) + optional if column in header.columns]
+    usecols = [column for column in list(required) + optional if column in available]
     try:
         df = _read_csv_selected(csv_path, usecols)
     except (ValueError, OSError) as exc:
@@ -7830,10 +7848,9 @@ def _sf3_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
 
     for csv_path in csv_paths:
-        try:
-            header = list(pd.read_csv(csv_path, nrows=0).columns)
-        except (FileNotFoundError, ValueError, OSError) as exc:
-            problems.append(f"{csv_path.name}: could not read simulation CSV ({exc}).")
+        header = _simulation_csv_column_names(csv_path)
+        if header is None:
+            problems.append(f"{csv_path.name}: could not read simulation CSV header.")
             continue
 
         missing = [column for column in _SF3_REQUIRED_COLUMNS if column not in header]
@@ -8490,10 +8507,9 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
         return rows, problems, any_new_active_available
 
     for csv_path in csv_paths:
-        try:
-            header = list(pd.read_csv(csv_path, nrows=0).columns)
-        except (FileNotFoundError, ValueError, OSError) as exc:
-            problems.append(f"{csv_path.name}: could not read simulation CSV ({exc}).")
+        header = _simulation_csv_column_names(csv_path)
+        if header is None:
+            problems.append(f"{csv_path.name}: could not read simulation CSV header.")
             continue
 
         header_set = set(header)
@@ -8980,10 +8996,9 @@ def _sf5_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
     optional = ["run_id", "simulation_year", "year", "time_step"]
 
     for csv_path in csv_paths:
-        try:
-            header = list(pd.read_csv(csv_path, nrows=0).columns)
-        except (FileNotFoundError, ValueError, OSError) as exc:
-            problems.append(f"{csv_path.name}: could not read simulation CSV ({exc}).")
+        header = _simulation_csv_column_names(csv_path)
+        if header is None:
+            problems.append(f"{csv_path.name}: could not read simulation CSV header.")
             continue
         missing = [column for column in required if column not in header]
         if missing:
@@ -11370,7 +11385,6 @@ def main(input_args: list[str]) -> None:
     make_supplementary_figure_s6_new_active_infection_denominators(sf6_csv_paths, paths, out, agg=agg)
     make_supplementary_figure_s7_active_infection_incidence(agg, out)
     make_supplementary_figure_s8_infection_outcome_pathway(st1_csv_paths, out, agg=agg)
-    make_index(agg, out)
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_6b_resistance_trend_by_bacterium(csv_paths, out)
     make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
