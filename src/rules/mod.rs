@@ -2957,11 +2957,15 @@ pub(crate) fn apply_rules(
                 let mut empiric_signal_present = false;
                 let mut empiric_multiplier = 1.0;
                 if empiric_selection {
+                    let current_year = 1930.0 + (time_step as f64 / 365.0);
                     if prophylaxis_candidate {
                         empiric_signal_present = true;
                         empiric_multiplier *= prophylaxis_score;
                     } else if active_syndrome_ids.is_empty() {
-                        let syn_score = store.syndrome.empiric_drug_score(0, drug_idx);
+                        let syn_score =
+                            store
+                                .syndrome
+                                .empiric_drug_score_at_year(0, drug_idx, current_year);
                         if syn_score > 1.0 {
                             empiric_signal_present = true;
                         }
@@ -2969,7 +2973,11 @@ pub(crate) fn apply_rules(
                     } else {
                         for &syndrome_id in active_syndrome_ids {
                             let syn_score =
-                                store.syndrome.empiric_drug_score(syndrome_id, drug_idx);
+                                store.syndrome.empiric_drug_score_at_year(
+                                    syndrome_id,
+                                    drug_idx,
+                                    current_year,
+                                );
                             if syn_score > 1.0 {
                                 empiric_signal_present = true;
                             }

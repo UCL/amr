@@ -1372,6 +1372,9 @@ pub struct SyndromeParameters {
     initiation_multiplier: Vec<f64>,
     non_sepsis_mortality_log_odds: Vec<f64>,
     empiric_drug_scores: Vec<Vec<f64>>,
+    /// Time-varying overrides for empiric drug scores, keyed by syndrome_id * num_drugs + drug_idx.
+    /// Populated from keys like `syndrome_{id}_empiric_drug_{drug}_score_before_{YYYY}`.
+    empiric_drug_score_era_overrides: HashMap<usize, Vec<(f64, f64)>>,
     bacteria_growth_multiplier: Vec<f64>,
     /// Drug penetration multipliers by syndrome: [syndrome_id][drug_idx] -> penetration factor (0.0-1.0)
     /// Accounts for tissue/compartment-specific drug distribution
@@ -1445,11 +1448,51 @@ impl SyndromeParameters {
             empiric_drug_scores[0][drug_idx] = get_or_default(map, &key, 0.01);
         }
 
+        // Parse time-varying empiric syndrome-drug score overrides:
+        //   syndrome_{id}_empiric_drug_{drug}_score_before_{YYYY}
+        // These model historical syndromic prescribing before pathogen confirmation.
+        let era_suffix = "_score_before_";
+        let mut empiric_drug_score_era_overrides: HashMap<usize, Vec<(f64, f64)>> =
+            HashMap::new();
+        for (key, &value) in map.iter() {
+            if let Some(pos) = key.find(era_suffix) {
+                let prefix = &key[..pos];
+                let year_str = &key[pos + era_suffix.len()..];
+                let Ok(cutoff_year) = year_str.parse::<f64>() else {
+                    continue;
+                };
+                let Some(rest) = prefix.strip_prefix("syndrome_") else {
+                    continue;
+                };
+                let Some(drug_pos) = rest.find("_empiric_drug_") else {
+                    continue;
+                };
+                let Ok(syndrome_id) = rest[..drug_pos].parse::<usize>() else {
+                    continue;
+                };
+                if syndrome_id > Self::MAX_SYNDROME_ID {
+                    continue;
+                }
+                let drug_name = &rest[drug_pos + "_empiric_drug_".len()..];
+                if let Some(drug_idx) = DRUG_SHORT_NAMES.iter().position(|&d| d == drug_name) {
+                    let flat_idx = syndrome_id * num_drugs + drug_idx;
+                    empiric_drug_score_era_overrides
+                        .entry(flat_idx)
+                        .or_default()
+                        .push((cutoff_year, value));
+                }
+            }
+        }
+        for entries in empiric_drug_score_era_overrides.values_mut() {
+            entries.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        }
+
         SyndromeParameters {
             sepsis_log_odds,
             initiation_multiplier,
             non_sepsis_mortality_log_odds,
             empiric_drug_scores,
+            empiric_drug_score_era_overrides,
             bacteria_growth_multiplier,
             drug_penetration,
         }
@@ -1947,6 +1990,25 @@ impl SyndromeParameters {
             .and_then(|scores| scores.get(drug_idx))
             .copied()
             .unwrap_or(0.1)
+    }
+
+    /// Returns the empiric drug score appropriate for the simulation year.
+    /// `_score_before_YYYY` overrides are used for historical syndromic prescribing.
+    pub fn empiric_drug_score_at_year(
+        &self,
+        syndrome_id: usize,
+        drug_idx: usize,
+        simulation_year: f64,
+    ) -> f64 {
+        let flat_idx = syndrome_id * DRUG_SHORT_NAMES.len() + drug_idx;
+        if let Some(overrides) = self.empiric_drug_score_era_overrides.get(&flat_idx) {
+            for &(cutoff_year, score) in overrides.iter() {
+                if simulation_year < cutoff_year {
+                    return score;
+                }
+            }
+        }
+        self.empiric_drug_score(syndrome_id, drug_idx)
     }
 
     #[inline]
@@ -6895,7 +6957,7 @@ lazy_static! {
         map.insert("campylobacter_jejuni_non_sepsis_infection_death_log_odds".to_string(), -0.5);   // Sepsis at -20; non-sepsis is main death route (CFR 1.4x over)
         map.insert("mycoplasma_pneumoniae_non_sepsis_infection_death_log_odds".to_string(), -0.7);  // Low-mortality respiratory pathogen (CFR 1.9x over)
         // --- Increase non-sepsis death (under-mortality bacteria where sepsis is not the mechanism) ---
-        map.insert("bordetella_pertussis_non_sepsis_infection_death_log_odds".to_string(), 4.0);    // Deaths from respiratory failure in infants, not sepsis (CFR 0.03x)
+        map.insert("bordetella_pertussis_non_sepsis_infection_death_log_odds".to_string(), 1.0);    // Deaths from respiratory failure in infants, not sepsis (CFR 0.03x)
         map.insert("treponema_pallidum_non_sepsis_infection_death_log_odds".to_string(), 3.5);      // Tertiary/congenital syphilis deaths (CFR 0.06x)
         map.insert("vibrio_cholerae_non_sepsis_infection_death_log_odds".to_string(), 2.5);         // Death from dehydration, not sepsis (CFR 0.07x)
         map.insert("clostridioides_difficile_non_sepsis_infection_death_log_odds".to_string(), 2.0); // Colitis/toxic megacolon deaths (CFR 0.10x)
@@ -11884,6 +11946,25 @@ lazy_static! {
                 }
             }
         }
+
+        // Genital syndrome historical empiric treatment.
+        // These are syndromic prescribing weights before organism confirmation/AST,
+        // complementing organism-specific N. gonorrhoeae targeted multipliers below.
+        // Drug introduction gates still apply, so a pre-cutoff score cannot make a drug
+        // available before its real introduction year.
+        map.insert("syndrome_8_empiric_drug_sulfanilamide_score_before_1945".to_string(), 10.0); // 1937-1945: sulfonamides as primary gonorrhoea therapy
+        map.insert("syndrome_8_empiric_drug_sulfanilamide_score_before_1965".to_string(), 4.0);  // 1945-1965: declining but still substantial use
+        map.insert("syndrome_8_empiric_drug_penicillin_g_score_before_1987".to_string(), 12.0);  // pre-FQ era dominant empiric genital-discharge therapy
+        map.insert("syndrome_8_empiric_drug_ampicillin_score_before_1987".to_string(), 5.0);     // oral aminopenicillin alternative
+        map.insert("syndrome_8_empiric_drug_amoxicillin_score_before_1987".to_string(), 5.0);    // oral aminopenicillin alternative
+        map.insert("syndrome_8_empiric_drug_tetracycline_score_before_1987".to_string(), 5.0);   // NGU/chlamydia co-treatment before modern testing
+        map.insert("syndrome_8_empiric_drug_doxycycline_score_before_1987".to_string(), 5.0);    // NGU/chlamydia co-treatment before modern testing
+        map.insert("syndrome_8_empiric_drug_trim_sulf_score_before_1990".to_string(), 5.0);      // TMP-SMX/sulfonamide-class genital empiric pressure
+        map.insert("syndrome_8_empiric_drug_ciprofloxacin_score_before_2007".to_string(), 10.0); // 1987-2007: FQ era empiric gonorrhoea therapy
+        map.insert("syndrome_8_empiric_drug_ofloxacin_score_before_2007".to_string(), 6.0);      // 1990-2007: older FQ genital regimen
+        map.insert("syndrome_8_empiric_drug_ceftriaxone_score_before_2007".to_string(), 2.0);    // pre-2007 fallback before becoming dominant
+        map.insert("syndrome_8_empiric_drug_cefixime_score_before_2007".to_string(), 3.0);       // oral 3GC fallback before ceftriaxone dominance
+        map.insert("syndrome_8_empiric_drug_azithromycin_score_before_2020".to_string(), 3.0);   // dual-therapy/single-dose STI era before retreat
 
         // Syndrome 0: background / no-active-modelled-bacterial-infection prescribing.
         // Reserve floors remain unchanged so carbapenems do not become background drugs.
