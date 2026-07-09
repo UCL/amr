@@ -2556,6 +2556,76 @@ def _load_drug_class_history_targets(path: Optional[Path]) -> Dict[str, Dict[int
     return history_targets
 
 
+def _mean_current_drug_days(
+    frame: pd.DataFrame,
+    drugs: Iterable[str],
+) -> Tuple[float, List[str]]:
+    """Return mean active drug exposures per day for a configured drug list."""
+
+    running_total = 0.0
+    included: List[str] = []
+    seen: Set[str] = set()
+
+    for slug in drugs:
+        if not isinstance(slug, str):
+            continue
+        normalized_slug = slug.strip()
+        if not normalized_slug or normalized_slug in seen:
+            continue
+        seen.add(normalized_slug)
+
+        col_name = f"{normalized_slug}_currently_on_drug"
+        if col_name not in frame.columns:
+            continue
+        mean_value = _safe_mean(frame[col_name])
+        if mean_value is None:
+            continue
+        running_total += float(mean_value)
+        included.append(normalized_slug)
+
+    return running_total, included
+
+
+def _total_configured_drug_days(
+    frame: pd.DataFrame,
+    classes: Iterable[Dict[str, object]],
+) -> Optional[float]:
+    """Return mean daily active drug exposures across all configured classes."""
+
+    if frame.empty:
+        return None
+
+    running_total = 0.0
+    found = False
+    seen: Set[str] = set()
+
+    for class_entry in classes:
+        if not isinstance(class_entry, dict):
+            continue
+        drug_list = class_entry.get("drugs", [])
+        if not isinstance(drug_list, Iterable):
+            continue
+
+        for slug in drug_list:
+            if not isinstance(slug, str):
+                continue
+            normalized_slug = slug.strip()
+            if not normalized_slug or normalized_slug in seen:
+                continue
+            seen.add(normalized_slug)
+
+            col_name = f"{normalized_slug}_currently_on_drug"
+            if col_name not in frame.columns:
+                continue
+            mean_value = _safe_mean(frame[col_name])
+            if mean_value is None:
+                continue
+            running_total += float(mean_value)
+            found = True
+
+    return running_total if found and running_total > 0 else None
+
+
 def _calculate_drug_class_table(
     year_df: pd.DataFrame,
     drug_cfg: Optional[Dict[str, object]],
@@ -2569,8 +2639,7 @@ def _calculate_drug_class_table(
         return pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 
     target_details = _load_drug_class_target_details(drug_cfg.get("path"))
-    total_on_drug_series = year_df.get("currently_taking_drug_count")
-    total_on_drug = _safe_mean(total_on_drug_series) if total_on_drug_series is not None else None
+    total_drug_days = _total_configured_drug_days(year_df, classes)
     records = []
 
     for class_entry in classes:
@@ -2582,23 +2651,13 @@ def _calculate_drug_class_table(
         if not label or not drug_list:
             continue
 
-        running_total = 0.0
-        included = []
-        for slug in drug_list:
-            col_name = f"{slug}_currently_on_drug"
-            if col_name not in year_df:
-                continue
-            mean_value = _safe_mean(year_df[col_name])
-            if mean_value is None:
-                continue
-            running_total += mean_value
-            included.append(slug)
+        running_total, included = _mean_current_drug_days(year_df, drug_list)
 
         share_percent: Optional[float] = None
-        if included and total_on_drug and total_on_drug > 0:
-            share = running_total / total_on_drug
+        if included and total_drug_days and total_drug_days > 0:
+            share = running_total / total_drug_days
             share_percent = share * 100.0
-        elif included and total_on_drug is None:
+        elif included and total_drug_days is None:
             share_percent = None
 
         target_info = target_details.get(class_entry.get("name"), {})
@@ -2635,7 +2694,7 @@ def _calculate_drug_class_table(
         })
 
     # Calculate residual "Other" category if shares don't sum to 100
-    if records and total_on_drug and total_on_drug > 0:
+    if records and total_drug_days and total_drug_days > 0:
         total_share_sum = sum((r["Share (%)"] or 0.0) for r in records)
         
         # If we are missing a significant chunk (>0.1%), add an "Other / Unspecified" row
@@ -2648,7 +2707,7 @@ def _calculate_drug_class_table(
                  # Re-derive total users from the first record or calculate directly
                  # total_users_est = total_on_drug * scale_factor / 1e6
                  # residual_users = total_users_est * (residual_share / 100.0)
-                 residual_users = (total_on_drug * scale_factor / 1e6) * (residual_share / 100.0)
+                 residual_users = (total_drug_days * scale_factor / 1e6) * (residual_share / 100.0)
 
             records.append({
                 "Class": DEFAULT_DRUG_CLASS_LABEL,
@@ -2703,7 +2762,7 @@ def _calculate_drug_class_history_table(
     window_years_after = max(0, int(history_cfg.get("window_years_after", 0)))
 
     year_frames: Dict[int, pd.DataFrame] = {}
-    total_on_drug_by_year: Dict[int, Optional[float]] = {}
+    total_drug_days_by_year: Dict[int, Optional[float]] = {}
     for year in years:
         year_frame = _ensure_year_slice(
             df,
@@ -2713,28 +2772,15 @@ def _calculate_drug_class_history_table(
             window_years_after=window_years_after,
         )
         year_frames[year] = year_frame
-        total_series = year_frame.get("currently_taking_drug_count")
-        total_on_drug_by_year[year] = _safe_mean(total_series) if total_series is not None else None
+        total_drug_days_by_year[year] = _total_configured_drug_days(year_frame, classes)
 
-    def _compute_share(frame: pd.DataFrame, total_on_drug: Optional[float], drugs: Iterable[str]) -> float:
-        if frame is None or frame.empty or total_on_drug is None or total_on_drug <= 0:
+    def _compute_share(frame: pd.DataFrame, total_drug_days: Optional[float], drugs: Iterable[str]) -> float:
+        if frame is None or frame.empty or total_drug_days is None or total_drug_days <= 0:
             return np.nan
-        running_total = 0.0
-        found = False
-        for slug in drugs:
-            if not isinstance(slug, str):
-                continue
-            col_name = f"{slug}_currently_on_drug"
-            if col_name not in frame.columns:
-                continue
-            mean_value = _safe_mean(frame[col_name])
-            if mean_value is None:
-                continue
-            running_total += float(mean_value)
-            found = True
-        if not found:
+        running_total, included = _mean_current_drug_days(frame, drugs)
+        if not included:
             return np.nan
-        share = running_total / total_on_drug
+        share = running_total / total_drug_days
         return float(share * 100.0) if np.isfinite(share) else np.nan
 
     columns: List[str] = ["Class"]
@@ -2771,7 +2817,7 @@ def _calculate_drug_class_history_table(
 
         row: Dict[str, object] = {"Class": label}
         for year in years:
-            share_value = _compute_share(year_frames.get(year), total_on_drug_by_year.get(year), drug_list)
+            share_value = _compute_share(year_frames.get(year), total_drug_days_by_year.get(year), drug_list)
             target_value = target_map.get(year) if target_map else np.nan
             row[f"Share {year} (%)"] = share_value
             row[f"Target {year} (%)"] = target_value
@@ -4114,7 +4160,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     "\u0394 2025",
                     drug_history_display["Share 2025 (%)"] - drug_history_display["Target 2025 (%)"],
                 )
-            handle.write("Drug Class Share History (simulation % vs. target %) (8)\n")
+            handle.write("Drug Class Share History (simulation drug-day % vs. target %) (8)\n")
             handle.write(
                 drug_history_display.to_string(
                     index=False,
@@ -4321,17 +4367,17 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         # Footnotes
         handle.write("\n---\nFootnotes\n\n")
         handle.write(
-            "(1) Infection deaths target: 9.5 million bacterial infection deaths per year.\n"
-            "    GBD 2019 estimated 13.7 million total infection-related deaths globally, including\n"
-            "    viral, parasitic, and fungal causes (Ikuta et al. 2022, Lancet 399:629-655). The\n"
-            "    bacterial-only subset was approximately 7.7 million in the conservative GBD\n"
-            "    accounting. Murray et al. (2022, Lancet 399:629-655, GRAM study) estimated\n"
-            "    4.95 million deaths associated with bacterial AMR specifically. The 9.5 million\n"
-            "    target represents an inclusive count of bacterial infection deaths incorporating\n"
-            "    bacterial fractions of mixed-aetiology categories (bacterial pneumonia within\n"
-            "    lower respiratory infections, TB deaths ~1.3M/year, and bacterial contributions\n"
-            "    to diarrhoeal disease), consistent with Lozano et al. (2012, Lancet 380:2095-2128)\n"
-            "    and subsequent GBD cycles estimating 8-10 million bacterial deaths.\n"
+            "(1) Infection deaths target: 6.4 million model-scope bacterial infection deaths per year.\n"
+            "    The target is aligned to the simulation numerator: sepsis-related plus non-sepsis\n"
+            "    infection deaths, excluding H. pylori and MDR-TB. GBD 2019 estimated 13.7 million\n"
+            "    total infection-related deaths globally, including viral, parasitic, and fungal\n"
+            "    causes. The 33-pathogen bacterial analysis estimated approximately 7.7 million\n"
+            "    bacterial-pathogen-associated deaths, while Murray et al. (2022, Lancet 399:629-655,\n"
+            "    GRAM study) estimated 4.95 million deaths associated with bacterial AMR specifically.\n"
+            "    The per-organism mortality targets encoded for this model sum to about 7.39 million\n"
+            "    including H. pylori gastric-cancer mortality and MDR-TB. Excluding those two\n"
+            "    out-of-scope categories gives 6.40 million, used here as the like-for-like headline\n"
+            "    calibration target.\n"
         )
         handle.write(
             "\n(2) Antibiotic use target: 100 million people on antibiotics on an average day.\n"
@@ -4409,6 +4455,9 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         )
         handle.write(
             "\n(8) Drug class share targets derived from multiple surveillance sources. ECDC\n"
+            "    Simulation shares use total active antibiotic drug-days across the configured\n"
+            "    drug classes as the denominator, so simulation class shares are compositional\n"
+            "    and sum to 100% apart from rounding.\n"
             "    ESAC-Net (European Surveillance of Antimicrobial Consumption, annual reports,\n"
             "    esac-net.europa.eu) provides class-level DDD/1000/day breakdowns for 30 EU/EEA\n"
             "    countries. Klein et al. (2018, PNAS 115:E3463-E3470) provided global class-level\n"
