@@ -83,7 +83,7 @@
 use crate::config::{
     calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+    parameter_store, DrugBacteriaMatrix, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
     RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
@@ -128,6 +128,269 @@ fn sample_weighted_index(weights: &[f64], rng: &mut impl Rng) -> Option<usize> {
             log::warn!("skipping invalid weighted selection: {}", err);
             None
         }
+    }
+}
+
+fn empiric_explicit_era_initiation_multiplier(
+    drug_bacteria: &DrugBacteriaMatrix,
+    drug_idx: usize,
+    levels: &[f64],
+    symptoms: &[bool],
+    identified: &[bool],
+    syndromes: &[i32],
+    active_syndrome_ids: &[usize],
+    simulation_year: f64,
+    targeted_selection: bool,
+    prophylaxis_candidate: bool,
+    symptomatic_infection_present: bool,
+) -> f64 {
+    if targeted_selection
+        || prophylaxis_candidate
+        || !symptomatic_infection_present
+        || active_syndrome_ids.is_empty()
+    {
+        return 1.0;
+    }
+
+    let mut multiplier = 1.0_f64;
+    for b_idx in 0..BACTERIA_LIST.len() {
+        if levels[b_idx] <= INFECTION_EPS {
+            continue;
+        }
+        if !symptoms[b_idx] {
+            continue;
+        }
+        if identified[b_idx] {
+            continue;
+        }
+
+        let syndrome_id = syndromes[b_idx];
+        if syndrome_id < 0 || !active_syndrome_ids.contains(&(syndrome_id as usize)) {
+            continue;
+        }
+
+        if let Some(era_multiplier) = drug_bacteria.explicit_era_initiation_multiplier_at_year(
+            b_idx,
+            drug_idx,
+            simulation_year,
+        ) {
+            multiplier = multiplier.max(era_multiplier);
+        }
+    }
+
+    multiplier
+}
+
+#[cfg(test)]
+mod empiric_history_tests {
+    use super::*;
+
+    fn bacteria_idx(name: &str) -> usize {
+        BACTERIA_LIST
+            .iter()
+            .position(|&bacteria| bacteria == name)
+            .expect("test bacteria should exist")
+    }
+
+    fn drug_idx(name: &str) -> usize {
+        DRUG_SHORT_NAMES
+            .iter()
+            .position(|&drug| drug == name)
+            .expect("test drug should exist")
+    }
+
+    fn empty_infection_state() -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<i32>) {
+        (
+            vec![0.0; BACTERIA_LIST.len()],
+            vec![false; BACTERIA_LIST.len()],
+            vec![false; BACTERIA_LIST.len()],
+            vec![0; BACTERIA_LIST.len()],
+        )
+    }
+
+    #[test]
+    fn empiric_history_multiplier_applies_only_to_symptomatic_empiric_path() {
+        let store = parameter_store();
+        let gonorrhoea_idx = bacteria_idx("neisseria_gonorrhoeae");
+        let ciprofloxacin_idx = drug_idx("ciprofloxacin");
+        let (mut levels, mut symptoms, mut identified, mut syndromes) = empty_infection_state();
+        levels[gonorrhoea_idx] = 1.0;
+        symptoms[gonorrhoea_idx] = true;
+        syndromes[gonorrhoea_idx] = 8;
+
+        let active_sti_syndrome = [8usize];
+
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &active_sti_syndrome,
+                1988.0,
+                false,
+                false,
+                true,
+            ),
+            120.0
+        );
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &active_sti_syndrome,
+                2007.0,
+                false,
+                false,
+                true,
+            ),
+            1.0
+        );
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &active_sti_syndrome,
+                1988.0,
+                true,
+                false,
+                true,
+            ),
+            1.0
+        );
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &active_sti_syndrome,
+                1988.0,
+                false,
+                true,
+                true,
+            ),
+            1.0
+        );
+
+        symptoms[gonorrhoea_idx] = false;
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &active_sti_syndrome,
+                1988.0,
+                false,
+                false,
+                false,
+            ),
+            1.0
+        );
+
+        symptoms[gonorrhoea_idx] = true;
+        identified[gonorrhoea_idx] = true;
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &active_sti_syndrome,
+                1988.0,
+                false,
+                false,
+                true,
+            ),
+            1.0
+        );
+
+        identified[gonorrhoea_idx] = false;
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &[7usize],
+                1988.0,
+                false,
+                false,
+                true,
+            ),
+            1.0
+        );
+    }
+
+    #[test]
+    fn empiric_history_multiplier_uses_maximum_across_matching_symptomatic_infections() {
+        let store = parameter_store();
+        let gonorrhoea_idx = bacteria_idx("neisseria_gonorrhoeae");
+        let campylobacter_idx = bacteria_idx("campylobacter_jejuni");
+        let ciprofloxacin_idx = drug_idx("ciprofloxacin");
+        let (mut levels, mut symptoms, identified, mut syndromes) = empty_infection_state();
+
+        levels[gonorrhoea_idx] = 1.0;
+        symptoms[gonorrhoea_idx] = true;
+        syndromes[gonorrhoea_idx] = 8;
+
+        levels[campylobacter_idx] = 1.0;
+        symptoms[campylobacter_idx] = true;
+        syndromes[campylobacter_idx] = 7;
+
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &[7usize, 8usize],
+                1995.0,
+                false,
+                false,
+                true,
+            ),
+            120.0
+        );
+
+        symptoms[gonorrhoea_idx] = false;
+        assert_eq!(
+            empiric_explicit_era_initiation_multiplier(
+                &store.drug_bacteria,
+                ciprofloxacin_idx,
+                &levels,
+                &symptoms,
+                &identified,
+                &syndromes,
+                &[7usize, 8usize],
+                1995.0,
+                false,
+                false,
+                true,
+            ),
+            10.0
+        );
     }
 }
 
@@ -2989,37 +3252,19 @@ pub(crate) fn apply_rules(
                     // historically syndrome-directed clinical practice, not perfect pathogen
                     // knowledge. Base bacterium-drug initiation multipliers are not applied
                     // here; only explicit era overrides are used.
-                    if !prophylaxis_candidate && !active_syndrome_ids.is_empty() {
-                        let mut empiric_history_multiplier = 1.0_f64;
-                        for b_idx in 0..BACTERIA_LIST.len() {
-                            if individual.level[b_idx] <= INFECTION_EPS {
-                                continue;
-                            }
-                            if individual.test_identified_infection[b_idx] {
-                                continue;
-                            }
-
-                            let syndrome_id = individual.infectious_syndrome[b_idx];
-                            if syndrome_id < 0
-                                || !active_syndrome_ids.contains(&(syndrome_id as usize))
-                            {
-                                continue;
-                            }
-
-                            if let Some(multiplier) = store
-                                .drug_bacteria
-                                .explicit_era_initiation_multiplier_at_year(
-                                    b_idx,
-                                    drug_idx,
-                                    current_year,
-                                )
-                            {
-                                empiric_history_multiplier =
-                                    empiric_history_multiplier.max(multiplier);
-                            }
-                        }
-                        empiric_multiplier *= empiric_history_multiplier;
-                    }
+                    empiric_multiplier *= empiric_explicit_era_initiation_multiplier(
+                        &store.drug_bacteria,
+                        drug_idx,
+                        &individual.level,
+                        &individual.infection_has_caused_symptoms,
+                        &individual.test_identified_infection,
+                        &individual.infectious_syndrome,
+                        active_syndrome_ids,
+                        current_year,
+                        targeted_selection,
+                        prophylaxis_candidate,
+                        symptomatic_infection_present,
+                    );
                     score *= empiric_multiplier;
                 }
 
