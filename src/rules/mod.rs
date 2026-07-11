@@ -2463,10 +2463,9 @@ pub(crate) fn apply_rules(
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
                     // Check if bacteria treatment was recognized in current year
-                    let current_year = 1930.0 + (time_step as f64 / 365.0);
                     if let Some(recognition_year) = store.bacteria.treatment_recognition_year(b_idx)
                     {
-                        if current_year < recognition_year {
+                        if simulation_year < recognition_year {
                             // Skip this bacteria - treatment not yet recognized, don't continue drugs for it
                             continue;
                         }
@@ -2957,7 +2956,6 @@ pub(crate) fn apply_rules(
                 let mut empiric_signal_present = false;
                 let mut empiric_multiplier = 1.0;
                 if empiric_selection {
-                    let current_year = 1930.0 + (time_step as f64 / 365.0);
                     if prophylaxis_candidate {
                         empiric_signal_present = true;
                         empiric_multiplier *= prophylaxis_score;
@@ -2965,7 +2963,7 @@ pub(crate) fn apply_rules(
                         let syn_score =
                             store
                                 .syndrome
-                                .empiric_drug_score_at_year(0, drug_idx, current_year);
+                                .empiric_drug_score_at_year(0, drug_idx, simulation_year);
                         if syn_score > 1.0 {
                             empiric_signal_present = true;
                         }
@@ -2975,7 +2973,7 @@ pub(crate) fn apply_rules(
                             let syn_score = store.syndrome.empiric_drug_score_at_year(
                                 syndrome_id,
                                 drug_idx,
-                                current_year,
+                                simulation_year,
                             );
                             if syn_score > 1.0 {
                                 empiric_signal_present = true;
@@ -2996,11 +2994,10 @@ pub(crate) fn apply_rules(
 
                     for &b_idx in identified_bacteria {
                         // Check if bacteria treatment was recognized in current year
-                        let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
                             store.bacteria.treatment_recognition_year(b_idx)
                         {
-                            if current_year < recognition_year {
+                            if simulation_year < recognition_year {
                                 // Skip this bacteria - treatment not yet recognized
                                 continue;
                             }
@@ -3699,11 +3696,10 @@ pub(crate) fn apply_rules(
                     let mut max_bacteria_specific_multiplier: f64 = 1.0;
                     for &b_idx in identified_bacteria {
                         // Check if bacteria treatment was recognized in current year
-                        let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
                             store.bacteria.treatment_recognition_year(b_idx)
                         {
-                            if current_year < recognition_year {
+                            if simulation_year < recognition_year {
                                 // Skip this bacteria - treatment not yet recognized
                                 continue;
                             }
@@ -3711,7 +3707,7 @@ pub(crate) fn apply_rules(
 
                         let specific_multiplier = store
                             .drug_bacteria
-                            .initiation_multiplier_at_year(b_idx, drug_idx, current_year);
+                            .initiation_multiplier_at_year(b_idx, drug_idx, simulation_year);
                         max_bacteria_specific_multiplier =
                             max_bacteria_specific_multiplier.max(specific_multiplier);
                     }

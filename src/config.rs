@@ -1372,9 +1372,10 @@ pub struct SyndromeParameters {
     initiation_multiplier: Vec<f64>,
     non_sepsis_mortality_log_odds: Vec<f64>,
     empiric_drug_scores: Vec<Vec<f64>>,
-    /// Time-varying overrides for empiric drug scores, keyed by syndrome_id * num_drugs + drug_idx.
-    /// Populated from keys like `syndrome_{id}_empiric_drug_{drug}_score_before_{YYYY}`.
-    empiric_drug_score_era_overrides: HashMap<usize, Vec<(f64, f64)>>,
+    /// Time-varying overrides indexed by syndrome_id * num_drugs + drug_idx.
+    /// Each schedule is populated from keys like
+    /// `syndrome_{id}_empiric_drug_{drug}_score_before_{YYYY}`.
+    empiric_drug_score_era_overrides: Vec<Vec<(f64, f64)>>,
     bacteria_growth_multiplier: Vec<f64>,
     /// Drug penetration multipliers by syndrome: [syndrome_id][drug_idx] -> penetration factor (0.0-1.0)
     /// Accounts for tissue/compartment-specific drug distribution
@@ -1452,7 +1453,7 @@ impl SyndromeParameters {
         //   syndrome_{id}_empiric_drug_{drug}_score_before_{YYYY}
         // These model historical syndromic prescribing before pathogen confirmation.
         let era_suffix = "_score_before_";
-        let mut empiric_drug_score_era_overrides: HashMap<usize, Vec<(f64, f64)>> = HashMap::new();
+        let mut empiric_drug_score_era_overrides = vec![Vec::new(); len * num_drugs];
         for (key, &value) in map.iter() {
             if let Some(pos) = key.find(era_suffix) {
                 let prefix = &key[..pos];
@@ -1475,14 +1476,11 @@ impl SyndromeParameters {
                 let drug_name = &rest[drug_pos + "_empiric_drug_".len()..];
                 if let Some(drug_idx) = DRUG_SHORT_NAMES.iter().position(|&d| d == drug_name) {
                     let flat_idx = syndrome_id * num_drugs + drug_idx;
-                    empiric_drug_score_era_overrides
-                        .entry(flat_idx)
-                        .or_default()
-                        .push((cutoff_year, value));
+                    empiric_drug_score_era_overrides[flat_idx].push((cutoff_year, value));
                 }
             }
         }
-        for entries in empiric_drug_score_era_overrides.values_mut() {
+        for entries in &mut empiric_drug_score_era_overrides {
             entries.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         }
 
@@ -1993,6 +1991,7 @@ impl SyndromeParameters {
 
     /// Returns the empiric drug score appropriate for the simulation year.
     /// `_score_before_YYYY` overrides are used for historical syndromic prescribing.
+    #[inline]
     pub fn empiric_drug_score_at_year(
         &self,
         syndrome_id: usize,
@@ -2000,7 +1999,7 @@ impl SyndromeParameters {
         simulation_year: f64,
     ) -> f64 {
         let flat_idx = syndrome_id * DRUG_SHORT_NAMES.len() + drug_idx;
-        if let Some(overrides) = self.empiric_drug_score_era_overrides.get(&flat_idx) {
+        if let Some(overrides) = self.empiric_drug_score_era_overrides.get(flat_idx) {
             for &(cutoff_year, score) in overrides.iter() {
                 if simulation_year < cutoff_year {
                     return score;
@@ -14184,6 +14183,48 @@ pub fn calculate_resistance_floor(bacteria_name: &str, drug: &str, current_day: 
     }
 
     get_global_param("resistance_floor_default_level").unwrap_or(0.01)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SyndromeParameters, DRUG_SHORT_NAMES};
+    use std::collections::HashMap;
+
+    #[test]
+    fn empiric_score_uses_sorted_historical_schedule_then_base_score() {
+        let drug_idx = DRUG_SHORT_NAMES
+            .iter()
+            .position(|&name| name == "ciprofloxacin")
+            .expect("ciprofloxacin is a configured drug");
+        let mut values = HashMap::new();
+        values.insert(
+            "syndrome_8_empiric_drug_ciprofloxacin_score".to_string(),
+            0.5,
+        );
+        values.insert(
+            "syndrome_8_empiric_drug_ciprofloxacin_score_before_2007".to_string(),
+            2.0,
+        );
+        values.insert(
+            "syndrome_8_empiric_drug_ciprofloxacin_score_before_1987".to_string(),
+            4.0,
+        );
+
+        let parameters = SyndromeParameters::from_map(&values);
+
+        assert_eq!(
+            parameters.empiric_drug_score_at_year(8, drug_idx, 1986.0),
+            4.0
+        );
+        assert_eq!(
+            parameters.empiric_drug_score_at_year(8, drug_idx, 1990.0),
+            2.0
+        );
+        assert_eq!(
+            parameters.empiric_drug_score_at_year(8, drug_idx, 2007.0),
+            0.5
+        );
+    }
 }
 
 // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
