@@ -1,4 +1,4 @@
-﻿// Centralized configuration and parameter management for the AMR simulation.
+// Centralized configuration and parameter management for the AMR simulation.
 //
 // Contains:
 //   - Initialization of global, bacteria-specific, and drug-specific parameters
@@ -1452,8 +1452,7 @@ impl SyndromeParameters {
         //   syndrome_{id}_empiric_drug_{drug}_score_before_{YYYY}
         // These model historical syndromic prescribing before pathogen confirmation.
         let era_suffix = "_score_before_";
-        let mut empiric_drug_score_era_overrides: HashMap<usize, Vec<(f64, f64)>> =
-            HashMap::new();
+        let mut empiric_drug_score_era_overrides: HashMap<usize, Vec<(f64, f64)>> = HashMap::new();
         for (key, &value) in map.iter() {
             if let Some(pos) = key.find(era_suffix) {
                 let prefix = &key[..pos];
@@ -2825,6 +2824,28 @@ impl DrugBacteriaMatrix {
         self.initiation_multiplier[self.index(bacteria_idx, drug_idx)]
     }
 
+    /// Returns an explicit `_before_YYYY` initiation multiplier for this year, if one
+    /// applies, without falling back to the base initiation multiplier.
+    pub fn explicit_era_initiation_multiplier_at_year(
+        &self,
+        bacteria_idx: usize,
+        drug_idx: usize,
+        simulation_year: f64,
+    ) -> Option<f64> {
+        let idx = self.index(bacteria_idx, drug_idx);
+        self.initiation_multiplier_era_overrides
+            .get(&idx)
+            .and_then(|overrides| {
+                overrides.iter().find_map(|&(cutoff_year, multiplier)| {
+                    if simulation_year < cutoff_year {
+                        Some(multiplier)
+                    } else {
+                        None
+                    }
+                })
+            })
+    }
+
     /// Returns the initiation multiplier appropriate for the given simulation year.
     /// If `_before_YYYY` era overrides exist for this (bacteria, drug) pair, the
     /// smallest cutoff year that is still > `simulation_year` wins; otherwise the
@@ -2852,6 +2873,67 @@ impl DrugBacteriaMatrix {
     #[allow(dead_code)]
     pub fn mic_lt2_threshold(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
         self.mic_lt2_threshold[self.index(bacteria_idx, drug_idx)]
+    }
+}
+
+#[cfg(test)]
+mod drug_bacteria_matrix_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn explicit_era_initiation_multiplier_does_not_fall_back_to_base() {
+        let mut map = HashMap::new();
+        map.insert(
+            "drug_ciprofloxacin_for_bacteria_escherichia_coli_initiation_multiplier".to_string(),
+            2.5,
+        );
+        map.insert(
+            "drug_ciprofloxacin_for_bacteria_escherichia_coli_initiation_multiplier_before_1990"
+                .to_string(),
+            4.0,
+        );
+        map.insert(
+            "drug_ciprofloxacin_for_bacteria_escherichia_coli_initiation_multiplier_before_2000"
+                .to_string(),
+            8.0,
+        );
+
+        let matrix =
+            DrugBacteriaMatrix::from_map(&map, BACTERIA_LIST.len(), DRUG_SHORT_NAMES.len());
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&bacteria| bacteria == "escherichia_coli")
+            .expect("test bacteria should exist");
+        let other_bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&bacteria| bacteria == "shigella_spp.")
+            .expect("comparison bacteria should exist");
+        let drug_idx = DRUG_SHORT_NAMES
+            .iter()
+            .position(|&drug| drug == "ciprofloxacin")
+            .expect("test drug should exist");
+
+        assert_eq!(
+            matrix.explicit_era_initiation_multiplier_at_year(bacteria_idx, drug_idx, 1985.0),
+            Some(4.0)
+        );
+        assert_eq!(
+            matrix.explicit_era_initiation_multiplier_at_year(bacteria_idx, drug_idx, 1995.0),
+            Some(8.0)
+        );
+        assert_eq!(
+            matrix.explicit_era_initiation_multiplier_at_year(bacteria_idx, drug_idx, 2000.0),
+            None
+        );
+        assert_eq!(
+            matrix.explicit_era_initiation_multiplier_at_year(other_bacteria_idx, drug_idx, 1985.0),
+            None
+        );
+        assert_eq!(
+            matrix.initiation_multiplier_at_year(bacteria_idx, drug_idx, 2005.0),
+            2.5
+        );
     }
 }
 

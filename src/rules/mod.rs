@@ -2972,17 +2972,53 @@ pub(crate) fn apply_rules(
                         empiric_multiplier *= syn_score;
                     } else {
                         for &syndrome_id in active_syndrome_ids {
-                            let syn_score =
-                                store.syndrome.empiric_drug_score_at_year(
-                                    syndrome_id,
-                                    drug_idx,
-                                    current_year,
-                                );
+                            let syn_score = store.syndrome.empiric_drug_score_at_year(
+                                syndrome_id,
+                                drug_idx,
+                                current_year,
+                            );
                             if syn_score > 1.0 {
                                 empiric_signal_present = true;
                             }
                             empiric_multiplier *= syn_score;
                         }
+                    }
+                    // Explicit bacterium-drug `_before_YYYY` initiation multipliers are also
+                    // applied during empiric treatment when the patient has an active
+                    // symptomatic infection with the corresponding syndrome. This represents
+                    // historically syndrome-directed clinical practice, not perfect pathogen
+                    // knowledge. Base bacterium-drug initiation multipliers are not applied
+                    // here; only explicit era overrides are used.
+                    if !prophylaxis_candidate && !active_syndrome_ids.is_empty() {
+                        let mut empiric_history_multiplier = 1.0_f64;
+                        for b_idx in 0..BACTERIA_LIST.len() {
+                            if individual.level[b_idx] <= INFECTION_EPS {
+                                continue;
+                            }
+                            if individual.test_identified_infection[b_idx] {
+                                continue;
+                            }
+
+                            let syndrome_id = individual.infectious_syndrome[b_idx];
+                            if syndrome_id < 0
+                                || !active_syndrome_ids.contains(&(syndrome_id as usize))
+                            {
+                                continue;
+                            }
+
+                            if let Some(multiplier) = store
+                                .drug_bacteria
+                                .explicit_era_initiation_multiplier_at_year(
+                                    b_idx,
+                                    drug_idx,
+                                    current_year,
+                                )
+                            {
+                                empiric_history_multiplier =
+                                    empiric_history_multiplier.max(multiplier);
+                            }
+                        }
+                        empiric_multiplier *= empiric_history_multiplier;
                     }
                     score *= empiric_multiplier;
                 }
