@@ -1621,6 +1621,16 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
     365 * 30, // young adult representative
     365 * 80, // elderly representative
 ];
+const RUN_PATHWAY_MULTIPLIER_KEYS: [&str; 8] = [
+    RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
+    RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
+    RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+    RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY,
+];
 
 fn first_or_second_line_drugs(bacteria_name: &str) -> &'static [&'static str] {
     match bacteria_name {
@@ -1819,14 +1829,7 @@ pub struct ParameterKeyCache {
     pub testing_immunosuppressed_multiplier: f64,
     pub testing_sepsis_multiplier: f64,
     pub opat_admission_probability: f64,
-    pub run_pathway_infection_de_novo_multiplier: f64,
-    pub run_pathway_microbiome_de_novo_multiplier: f64,
-    pub run_pathway_hgt_multiplier: f64,
-    pub run_pathway_reversion_rate_multiplier: f64,
-    pub run_pathway_carrier_inheritance_multiplier: f64,
-    pub run_pathway_community_dilution_multiplier: f64,
-    pub run_pathway_microbiome_acquisition_multiplier: f64,
-    pub run_pathway_microbiome_disruption_multiplier: f64,
+    run_pathway_multipliers: [f64; RUN_PATHWAY_MULTIPLIER_KEYS.len()],
     pub bacteria_test_availability_day: Vec<Option<usize>>,
     pub drug_introduction_day: Vec<usize>,
 }
@@ -2027,38 +2030,8 @@ impl ParameterKeyCache {
                 "opat_admission_probability",
             )
             .unwrap_or(0.70),
-            run_pathway_infection_de_novo_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_microbiome_de_novo_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_hgt_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_HGT_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_reversion_rate_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_carrier_inheritance_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_community_dilution_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_microbiome_acquisition_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_microbiome_disruption_multiplier: crate::config::get_global_param(
-                RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
+            run_pathway_multipliers: RUN_PATHWAY_MULTIPLIER_KEYS
+                .map(|key| crate::config::get_global_param(key).unwrap_or(1.0)),
             bacteria_test_availability_day: {
                 let mut bacteria_test_availability_day: Vec<Option<usize>> =
                     Vec::with_capacity(bacteria_count);
@@ -2154,19 +2127,10 @@ pub(crate) fn apply_rules(
         policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
     // Four-axis calibration mode: each retained axis is a single pathway-specific
     // multiplier (no extra global compounding term).
-    let infection_de_novo_multiplier = param_cache.run_pathway_infection_de_novo_multiplier;
-    let microbiome_de_novo_multiplier = param_cache.run_pathway_microbiome_de_novo_multiplier
-        * store.globals.microbiome_de_novo_multiplier;
-    let hgt_multiplier = param_cache.run_pathway_hgt_multiplier;
-    let reversion_rate_sampling_multiplier = param_cache.run_pathway_reversion_rate_multiplier;
-    let carrier_inheritance_sampling_multiplier =
-        param_cache.run_pathway_carrier_inheritance_multiplier;
-    let community_dilution_sampling_multiplier =
-        param_cache.run_pathway_community_dilution_multiplier;
-    let microbiome_acquisition_sampling_multiplier =
-        param_cache.run_pathway_microbiome_acquisition_multiplier;
-    let microbiome_disruption_sampling_multiplier =
-        param_cache.run_pathway_microbiome_disruption_multiplier;
+    let [infection_de_novo_multiplier, reversion_rate_sampling_multiplier, hgt_multiplier, microbiome_acquisition_sampling_multiplier, carrier_inheritance_sampling_multiplier, community_dilution_sampling_multiplier, microbiome_de_novo_multiplier, microbiome_disruption_sampling_multiplier] =
+        param_cache.run_pathway_multipliers;
+    let microbiome_de_novo_multiplier =
+        microbiome_de_novo_multiplier * store.globals.microbiome_de_novo_multiplier;
     // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
     // of setting it to zero in a counterfactual scenario with no resistance
 
