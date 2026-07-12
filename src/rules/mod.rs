@@ -1041,7 +1041,6 @@ fn assess_treatment_failure(
     bacteria_idx: usize,
     bacteria_indices: &HashMap<&'static str, usize>,
     _drug_indices: &HashMap<&'static str, usize>,
-    _cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
 ) -> bool {
@@ -1597,6 +1596,165 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
     365 * 80, // elderly representative
 ];
 
+fn first_or_second_line_drugs(bacteria_name: &str) -> &'static [&'static str] {
+    match bacteria_name {
+        "pseudomonas_aeruginosa" => &[
+            "piperacillin_tazobactam",
+            "meropenem",
+            "imipenem_c",
+            "ceftazidime",
+            "cefepime",
+            "ciprofloxacin",
+            "tobramycin",
+        ],
+        "staphylococcus_aureus" => &[
+            "penicillin_g",
+            "amoxicillin_clavulanate",
+            "ampicillin_sulbactam",
+            "vancomycin",
+            "linezolid",
+            "tedizolid",
+            "clindamycin",
+            "rifampicin",
+        ],
+        "staphylococcus_epidermidis" => &[
+            "vancomycin",
+            "linezolid",
+            "tedizolid",
+            "quinu_dalfo",
+            "trim_sulf",
+        ],
+        "stenotrophomonas_maltophilia" => &[
+            "trim_sulf",
+            "minocycline",
+            "doxycycline",
+            "levofloxacin",
+            "ciprofloxacin",
+        ],
+        "streptococcus_pneumoniae" => &[
+            "penicillin_g",
+            "ampicillin",
+            "amoxicillin",
+            "amoxicillin_clavulanate",
+            "ceftriaxone",
+            "cefuroxime",
+            "azithromycin",
+            "clarithromycin",
+        ],
+        "streptococcus_pyogenes" => &[
+            "penicillin_g",
+            "ampicillin",
+            "amoxicillin",
+            "amoxicillin_clavulanate",
+            "clindamycin",
+            "azithromycin",
+        ],
+        "haemophilus_influenzae" => &[
+            "amoxicillin",
+            "ampicillin",
+            "amoxicillin_clavulanate",
+            "ampicillin_sulbactam",
+            "cefuroxime",
+            "ceftriaxone",
+        ],
+        "neisseria_meningitidis" => &["penicillin_g", "ampicillin", "ceftriaxone", "cefepime"],
+        "escherichia_coli" => &[
+            "ciprofloxacin",
+            "nitrofurantoin",
+            "fosfomycin",
+            "amoxicillin_clavulanate",
+            "ampicillin_sulbactam",
+            "trim_sulf",
+            "ceftriaxone",
+            "ampicillin",
+            "cefuroxime",
+            "gentamicin",
+            "amikacin",
+        ],
+        "klebsiella_pneumoniae" => &[
+            "ceftriaxone",
+            "ceftazidime",
+            "cefepime",
+            "piperacillin_tazobactam",
+            "amoxicillin_clavulanate",
+            "ciprofloxacin",
+            "gentamicin",
+            "amikacin",
+            "meropenem",
+            "imipenem_c",
+            "ertapenem",
+        ],
+        "enterococcus_faecalis" => &["ampicillin", "vancomycin", "linezolid", "tedizolid"],
+        "enterococcus_faecium" => &["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"],
+        "acinetobacter_baumannii" => &[
+            "meropenem",
+            "imipenem_c",
+            "colistin",
+            "ampicillin_sulbactam",
+            "minocycline",
+            "rifampicin",
+        ],
+        "enterobacter_spp."
+        | "enterobacter_cloacae"
+        | "citrobacter_spp."
+        | "serratia_spp."
+        | "morganella_spp." => &[
+            "cefepime",
+            "ceftriaxone",
+            "meropenem",
+            "ertapenem",
+            "ciprofloxacin",
+            "levofloxacin",
+        ],
+        "proteus_spp." => &[
+            "ampicillin",
+            "amoxicillin",
+            "ceftriaxone",
+            "ciprofloxacin",
+            "trim_sulf",
+        ],
+        "mdr_mycobacterium_tuberculosis" => &[
+            "levofloxacin",
+            "moxifloxacin",
+            "linezolid",
+            "ciprofloxacin",
+            "ofloxacin",
+            "amikacin",
+        ],
+        "neisseria_gonorrhoeae" => &[
+            "ceftriaxone",
+            "cefixime",
+            "azithromycin",
+            "doxycycline",
+            "tetracycline",
+            "ciprofloxacin",
+            "ofloxacin",
+            "penicillin_g",
+            "amoxicillin",
+            "gentamicin",
+            "trim_sulf",
+            "chloramphenicol",
+            "sulfanilamide",
+        ],
+        "shigella_spp." => &[
+            "ciprofloxacin",
+            "ofloxacin",
+            "levofloxacin",
+            "azithromycin",
+            "ceftriaxone",
+            "ampicillin",
+            "trim_sulf",
+            "tetracycline",
+            "doxycycline",
+            "chloramphenicol",
+            "nalidixic_acid",
+            "sulfanilamide",
+            "gentamicin",
+        ],
+        _ => &[],
+    }
+}
+
 /// Pre-computed parameter keys to avoid string allocation during simulation
 #[allow(dead_code)]
 pub struct ParameterKeyCache {
@@ -1608,6 +1766,7 @@ pub struct ParameterKeyCache {
     /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
     /// Value of 1.0 means no preference adjustment (default)
     clinical_preference_multipliers: Vec<f64>,
+    first_or_second_line: Vec<bool>,
     pub microbiome_majority_threshold: f64,
     pub majority_r_evolution_rate: f64,
     pub max_resistance_level: f64,
@@ -1720,6 +1879,18 @@ impl ParameterKeyCache {
             }
         }
 
+        let mut first_or_second_line = vec![false; bacteria_count * drug_count];
+        for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+            for &drug_name in first_or_second_line_drugs(bacteria_name) {
+                let drug_idx = DRUG_INDEX_BY_NAME.get(drug_name).copied().unwrap_or_else(|| {
+                    panic!(
+                        "first/second-line treatment for {bacteria_name} references unknown drug {drug_name}"
+                    )
+                });
+                first_or_second_line[b_idx * drug_count + drug_idx] = true;
+            }
+        }
+
         ParameterKeyCache {
             drug_count,
             bacteria_count,
@@ -1727,6 +1898,7 @@ impl ParameterKeyCache {
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
             clinical_preference_multipliers,
+            first_or_second_line,
             microbiome_majority_threshold: crate::config::get_global_param(
                 "microbiome_majority_threshold",
             )
@@ -1880,6 +2052,11 @@ impl ParameterKeyCache {
         let offset = bacteria_idx * self.drug_count + drug_idx;
         self.clinical_preference_multipliers[offset]
     }
+
+    #[inline]
+    pub fn is_first_or_second_line(&self, bacteria_idx: usize, drug_idx: usize) -> bool {
+        self.first_or_second_line[bacteria_idx * self.drug_count + drug_idx]
+    }
 }
 
 /// applies model rules to an individual for one time step.
@@ -1890,8 +2067,8 @@ pub(crate) fn apply_rules(
     mechanism_cache: &MechanismCache,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
-    cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
-    param_cache: &ParameterKeyCache,                           // New parameter cache
+    cross_resistance_groups: &[Vec<Vec<usize>>],
+    param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
 ) {
     let store = parameter_store();
@@ -3497,181 +3674,7 @@ pub(crate) fn apply_rules(
                     // This creates realistic clinical concentration patterns
                     let mut is_first_or_second_line = false;
                     for &b_idx in identified_bacteria {
-                        let bacteria_name = BACTERIA_LIST[b_idx];
-                        let first_second_line_drugs = match bacteria_name {
-                            "pseudomonas_aeruginosa" => vec![
-                                "piperacillin_tazobactam",
-                                "meropenem",
-                                "imipenem_c",
-                                "ceftazidime",
-                                "cefepime",
-                                "ciprofloxacin",
-                                "tobramycin",
-                            ],
-                            "staphylococcus_aureus" => vec![
-                                "penicillin_g",
-                                "amoxicillin_clavulanate",
-                                "ampicillin_sulbactam",
-                                "vancomycin",
-                                "linezolid",
-                                "tedizolid",
-                                "clindamycin",
-                                "rifampicin", // combination partner for MRSA prosthetic joint, biofilm, decolonisation (DAIR protocols)
-                            ],
-                            "staphylococcus_epidermidis" => vec![
-                                "vancomycin",
-                                "linezolid",
-                                "tedizolid",
-                                "quinu_dalfo",
-                                "trim_sulf",
-                            ],
-                            "stenotrophomonas_maltophilia" => vec![
-                                "trim_sulf",
-                                "minocycline",
-                                "doxycycline",
-                                "levofloxacin",
-                                "ciprofloxacin",
-                            ],
-                            "streptococcus_pneumoniae" => vec![
-                                "penicillin_g",
-                                "ampicillin",
-                                "amoxicillin",
-                                "amoxicillin_clavulanate",
-                                "ceftriaxone",
-                                "cefuroxime",
-                                "azithromycin",
-                                "clarithromycin",
-                            ],
-                            "streptococcus_pyogenes" => vec![
-                                "penicillin_g",
-                                "ampicillin",
-                                "amoxicillin",
-                                "amoxicillin_clavulanate",
-                                "clindamycin",
-                                "azithromycin",
-                            ],
-                            "haemophilus_influenzae" => vec![
-                                "amoxicillin",
-                                "ampicillin",
-                                "amoxicillin_clavulanate",
-                                "ampicillin_sulbactam",
-                                "cefuroxime",
-                                "ceftriaxone",
-                            ],
-                            "neisseria_meningitidis" => {
-                                vec!["penicillin_g", "ampicillin", "ceftriaxone", "cefepime"]
-                            }
-                            "escherichia_coli" => vec![
-                                "ciprofloxacin",
-                                "nitrofurantoin",
-                                "fosfomycin",
-                                "amoxicillin_clavulanate",
-                                "ampicillin_sulbactam",
-                                "trim_sulf",
-                                "ceftriaxone",
-                                "ampicillin",
-                                "cefuroxime",
-                                "gentamicin",
-                                "amikacin",
-                            ],
-                            "klebsiella_pneumoniae" => vec![
-                                "ceftriaxone",
-                                "ceftazidime",
-                                "cefepime",
-                                "piperacillin_tazobactam",
-                                "amoxicillin_clavulanate",
-                                "ciprofloxacin",
-                                "gentamicin",
-                                "amikacin",
-                                "meropenem",
-                                "imipenem_c",
-                                "ertapenem",
-                            ],
-                            "enterococcus_faecalis" => {
-                                vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
-                            }
-                            "enterococcus_faecium" => {
-                                vec!["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"]
-                            }
-                            "acinetobacter_baumannii" => vec![
-                                "meropenem",
-                                "imipenem_c",
-                                "colistin",
-                                "ampicillin_sulbactam",
-                                "minocycline",
-                                "rifampicin", // MDR/XDR combination regimens (colistin+rifampicin, sulbactam+rifampicin)
-                            ],
-                            "enterobacter_spp."
-                            | "enterobacter_cloacae"
-                            | "citrobacter_spp."
-                            | "serratia_spp."
-                            | "morganella_spp." => vec![
-                                "cefepime",
-                                "ceftriaxone",
-                                "meropenem",
-                                "ertapenem",
-                                "ciprofloxacin",
-                                "levofloxacin",
-                            ],
-                            "proteus_spp." => vec![
-                                "ampicillin",
-                                "amoxicillin",
-                                "ceftriaxone",
-                                "ciprofloxacin",
-                                "trim_sulf",
-                            ],
-                            "mdr_mycobacterium_tuberculosis" => vec![
-                                "levofloxacin",
-                                "moxifloxacin",
-                                "linezolid",
-                                "ciprofloxacin",
-                                "ofloxacin",
-                                "amikacin",
-                            ],
-                            // N. gonorrhoeae — all guideline-appropriate drugs across all eras.
-                            // Initiation_multipliers handle era-specific preferences (cipro 1987-2007,
-                            // ceftriaxone post-2007). Listing all legitimate options ensures only
-                            // truly inappropriate drugs (carbapenems, glycopeptides, etc.) receive
-                            // the off-guideline ×0.15 penalty during targeted GC selection.
-                            "neisseria_gonorrhoeae" => vec![
-                                "ceftriaxone",     // 2007+: WHO/CDC sole first-line (500 mg IM)
-                                "cefixime",        // Oral 3GC alternative (some guidelines)
-                                "azithromycin", // Dual-therapy partner / single-dose (until 2020s)
-                                "doxycycline",  // Chlamydia co-treatment; pre-1987 alternative
-                                "tetracycline", // Historical (1950s–1987)
-                                "ciprofloxacin", // 1987–2007: sole first-line in high-income settings
-                                "ofloxacin",     // 1990–2007: co-first-line FQ option
-                                "penicillin_g",  // pre-1987: dominant first-line
-                                "amoxicillin",   // Oral penicillin alternative
-                                "gentamicin",    // WHO-recommended single-dose alternative
-                                "trim_sulf",     // 1968–1990: TMP-SMX
-                                "chloramphenicol", // Historical pre-penicillin era
-                                "sulfanilamide", // 1937–1965: original sulfonamide era
-                            ],
-                            // Shigella spp. — all era-appropriate guideline drugs across eras.
-                            // Initiation_multipliers drive era-specific preferences; listing all
-                            // legitimate options prevents truly inappropriate drugs (carbapenems,
-                            // vancomycin, daptomycin, etc.) from getting the ×0.15 off-guideline penalty.
-                            "shigella_spp." => vec![
-                                "ciprofloxacin",   // 1990–2010: dominant first-line
-                                "ofloxacin",       // 1990+: widely used in Asia/Africa
-                                "levofloxacin",    // 1997+: alternative FQ
-                                "azithromycin",    // 2010+: preferred for FQ-resistant strains
-                                "ceftriaxone",     // 2010+: hospital second-line
-                                "ampicillin",      // 1961–2000: historical first-line
-                                "trim_sulf",       // 1968–2000: historical first-line (TMP-SMX)
-                                "tetracycline",    // 1948–1990: historical first-line
-                                "doxycycline",     // 1967–2010: preferred tetracycline alternative
-                                "chloramphenicol", // 1949–1975: historical dominant first-line
-                                "nalidixic_acid", // 1963–1990: first LMIC FQ-class; drove gyrA mutations
-                                "sulfanilamide",  // 1938–1968: sole pre-antibiotic-era first-line
-                                "gentamicin",     // Severe/hospital cases (IV)
-                                "pivmecillinam",  // Some European/LMIC guidelines
-                            ],
-                            _ => vec![], // For other bacteria, no specific restriction
-                        };
-
-                        if first_second_line_drugs.contains(&drug_name) {
+                        if param_cache.is_first_or_second_line(b_idx, drug_idx) {
                             is_first_or_second_line = true;
                             break;
                         }
@@ -4475,7 +4478,6 @@ pub(crate) fn apply_rules(
                     bacteria_idx,
                     bacteria_indices,
                     drug_indices,
-                    cross_resistance_groups,
                     param_cache,
                     rng,
                 );
@@ -6763,35 +6765,22 @@ pub(crate) fn apply_rules(
 fn apply_cross_resistance(
     individual: &mut Individual,
     b_idx: usize,
-    cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
+    cross_resistance_groups: &[Vec<Vec<usize>>],
 ) {
-    // Check if there are any cross-resistance groups defined for this bacterium
-    if let Some(groups) = cross_resistance_groups.get(&b_idx) {
-        for group in groups {
-            // Find the maximum any_r value in the current group
-            let mut max_any_r = 0.0;
-            for &d_idx in group {
-                if let Some(resistance_data) =
-                    individual.resistances.get(b_idx).and_then(|r| r.get(d_idx))
-                {
-                    let any_r = load_float(resistance_data.any_r);
-                    if any_r > max_any_r {
-                        max_any_r = any_r;
-                    }
-                }
+    let groups = &cross_resistance_groups[b_idx];
+    let resistances = &mut individual.resistances[b_idx];
+    for group in groups {
+        let mut max_any_r = 0.0;
+        for &d_idx in group {
+            let any_r = load_float(resistances[d_idx].any_r);
+            if any_r > max_any_r {
+                max_any_r = any_r;
             }
+        }
 
-            // If there's any resistance in the group, update all drugs in the group to the max value
-            if max_any_r > 0.0 {
-                for &d_idx in group {
-                    if let Some(resistance_data) = individual
-                        .resistances
-                        .get_mut(b_idx)
-                        .and_then(|r| r.get_mut(d_idx))
-                    {
-                        resistance_data.any_r = store_float(max_any_r);
-                    }
-                }
+        if max_any_r > 0.0 {
+            for &d_idx in group {
+                resistances[d_idx].any_r = store_float(max_any_r);
             }
         }
     }

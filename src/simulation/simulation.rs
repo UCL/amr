@@ -2383,8 +2383,8 @@ pub struct Simulation {
     pub bacteria_indices: HashMap<&'static str, usize>,
     /// Maps drug names to their indices in arrays.
     pub drug_indices: HashMap<&'static str, usize>,
-    /// Maps bacteria index to cross-resistance groups (each group is a Vec of drug indices).
-    pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>,
+    /// Cross-resistance groups indexed directly by bacteria index.
+    pub cross_resistance_groups: Vec<Vec<Vec<usize>>>,
     /// Unified mechanism resistance cache (replaces old majority_r, mechanism_prevalence, mechanism_profile caches).
     pub mechanism_cache: MechanismCache,
     /// Efficient storage for summary data at each time step.
@@ -2458,7 +2458,7 @@ impl Simulation {
             drug_indices.insert(drug, i);
         }
         // Load and process cross-resistance groups
-        let mut cross_resistance_groups = HashMap::new();
+        let mut cross_resistance_groups = vec![Vec::new(); BACTERIA_LIST.len()];
         let raw_groups = config::get_cross_resistance_groups();
         for (bacteria_name, groups) in raw_groups.iter() {
             if let Some(&b_idx) = bacteria_indices.get(bacteria_name) {
@@ -2467,11 +2467,17 @@ impl Simulation {
                     .map(|group| {
                         group
                             .iter()
-                            .filter_map(|drug_name| drug_indices.get(drug_name).copied())
+                            .map(|drug_name| {
+                                drug_indices.get(drug_name).copied().unwrap_or_else(|| {
+                                    panic!(
+                                        "cross-resistance group for {bacteria_name} references unknown drug {drug_name}"
+                                    )
+                                })
+                            })
                             .collect()
                     })
                     .collect();
-                cross_resistance_groups.insert(b_idx, indexed_groups);
+                cross_resistance_groups[b_idx] = indexed_groups;
             }
         }
 

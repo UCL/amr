@@ -496,16 +496,17 @@ fn simulation_constructor_preserves_lookup_and_flat_matrix_dimensions() {
         }
     }
 
-    for (bacteria_idx, groups) in &simulation.cross_resistance_groups {
-        assert!(
-            *bacteria_idx < bacteria,
-            "cross_resistance_groups contains out-of-range bacteria index {bacteria_idx}"
-        );
+    assert_len(
+        "cross_resistance_groups",
+        simulation.cross_resistance_groups.len(),
+        bacteria,
+    );
+    for (bacteria_idx, groups) in simulation.cross_resistance_groups.iter().enumerate() {
         for group in groups {
             for drug_idx in group {
                 assert!(
                     *drug_idx < drugs,
-                    "cross_resistance_groups contains out-of-range drug index {drug_idx}"
+                    "cross_resistance_groups[{bacteria_idx}] contains out-of-range drug index {drug_idx}"
                 );
             }
         }
