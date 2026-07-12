@@ -1,0 +1,66 @@
+schema_version = 1
+recorded_date = "2026-07-12"
+baseline_revision = "6d9dd50df8c851374c3f0b5023454389f446d4ae"
+optimized_runtime_revision = "60699a9608a40b4db5cfeedac5d7cbbe206339ec"
+source_repository = "https://github.com/UCL/amr.git"
+
+[environment]
+host = "compute72a"
+operating_system = "Linux 6.12.73+deb13-amd64 x86_64"
+processor = "Intel(R) Xeon(R) 6960P"
+rustc = "1.97.0 (2d8144b78 2026-07-07)"
+cargo = "1.97.0 (c980f4866 2026-06-30)"
+rustflags = "-C target-cpu=native"
+
+[full_horizon.scenario]
+population_size = 5000
+time_steps = 35040
+calibration_mode = "full"
+rng_seed = 4242424242
+rayon_threads = 72
+cpus = "0-71"
+memory_nodes = "0-2"
+configuration_validation = "strict"
+
+[full_horizon.artifact]
+filename = "simulation_summary_014471.csv"
+size_bytes = 112515100
+sha256 = "6bb2f1d7f958824a3a41d7993c1c08fef90ad05d313eef68773814c9fa42b231"
+byte_identical = true
+
+[full_horizon.baseline]
+elapsed_seconds = 1118.056216
+max_rss_kib = 566324
+
+[full_horizon.optimized]
+elapsed_seconds = 975.646737
+max_rss_kib = 571448
+
+[full_horizon.comparison]
+speedup_percent = 12.737238
+max_rss_change_percent = 0.904782
+
+[short_horizon.scenario]
+population_size = 500
+time_steps = 3650
+calibration_mode = "partial"
+rng_seed = 4242424242
+rayon_threads = 72
+configuration_validation = "strict"
+
+[short_horizon.artifact]
+size_bytes = 256421536
+sha256 = "b9a3a218ff0a431bb9eed0e78d95d7082132d8f7ae9f671151c1294a2b3f5589"
+byte_identical = true
+
+[short_horizon.baseline]
+elapsed_seconds = 13.431980
+max_rss_kib = 1012408
+
+[short_horizon.optimized]
+elapsed_seconds = 9.124936
+max_rss_kib = 1020472
+
+[short_horizon.comparison]
+speedup_percent = 32.065593
+max_rss_change_percent = 0.796517

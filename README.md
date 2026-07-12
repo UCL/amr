@@ -43,6 +43,10 @@ For the same source, configuration, and seed, fixed-seed summary output should b
 
 The checked-in Rayon worker stack default is 4 MiB. Population updates use deterministic chunks and boxed chunk totals so Rayon worker stacks do not carry the large `LocalTotals` accumulator by value.
 
+### Hot-Path Optimization Validation
+
+The current hot-path optimization work is validated against corrected upstream main with fixed-seed, byte-identical output. See [model_description/HOTPATH_OPTIMIZATION.md](model_description/HOTPATH_OPTIMIZATION.md) for scope and results, and [model_description/hotpath-v2-reference.toml](model_description/hotpath-v2-reference.toml) for the machine-readable reference.
+
 ### Limiting CPU Cores
 
 ```powershell
