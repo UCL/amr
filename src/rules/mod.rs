@@ -93,7 +93,7 @@ use crate::config::{
 use crate::simulation::population::{
     self, load_float, store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus,
     ImmunodeficiencyType, Individual, InfectionResolutionType, Region, ResistanceMechanism,
-    BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
+    BACTERIA_COUNT, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_COUNT, DRUG_SHORT_NAMES, INFECTION_EPS,
     MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
@@ -1093,13 +1093,15 @@ fn assess_treatment_failure(
     individual.date_last_drug_failure[bacteria_idx] = time_step as i32;
 
     // Find current drugs being used for this bacteria
-    let current_drugs: Vec<usize> = individual
-        .cur_use_drug
-        .iter()
-        .enumerate()
-        .filter(|(_, &is_taking)| is_taking)
-        .map(|(drug_idx, _)| drug_idx)
-        .collect();
+    let mut current_drugs_buf = [0usize; DRUG_COUNT];
+    let mut current_drugs_len = 0usize;
+    for (drug_idx, &is_taking) in individual.cur_use_drug.iter().enumerate() {
+        if is_taking {
+            current_drugs_buf[current_drugs_len] = drug_idx;
+            current_drugs_len += 1;
+        }
+    }
+    let current_drugs = &current_drugs_buf[..current_drugs_len];
 
     if current_drugs.is_empty() {
         return false; // No current drugs to switch from
@@ -1115,7 +1117,7 @@ fn assess_treatment_failure(
     let no_second_line_prob =
         store.bacteria.treatment_failure_no_second_line_probability[bacteria_idx];
     if no_second_line_prob > 0.0 && rng.gen_bool(no_second_line_prob.clamp(0.0, 1.0)) {
-        for &current_drug_idx in &current_drugs {
+        for &current_drug_idx in current_drugs {
             stop_drug_course(individual, current_drug_idx);
         }
         return false; // Persistent-carrier pathway: no drug switch
@@ -1126,7 +1128,8 @@ fn assess_treatment_failure(
     let failure_memory_days = store.globals.drug_failure_memory_days;
 
     // Build list of available alternative drugs
-    let mut alternative_scores = Vec::new();
+    let mut alternative_scores_buf = [(0usize, 0.0f64); DRUG_COUNT];
+    let mut alternative_scores_len = 0usize;
 
     for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
         // Skip if currently taking this drug
@@ -1179,25 +1182,28 @@ fn assess_treatment_failure(
         }
 
         if score > 0.0 {
-            alternative_scores.push((drug_idx, score));
+            alternative_scores_buf[alternative_scores_len] = (drug_idx, score);
+            alternative_scores_len += 1;
         }
     }
+    let alternative_scores = &alternative_scores_buf[..alternative_scores_len];
 
     // If we found alternatives, select one and switch
     if !alternative_scores.is_empty() {
         // Use same weighted selection as original logic
         // Lower global value here makes the softmax pick higher-scoring drugs more deterministically; higher values spread the randomness.
         let selection_temperature = store.globals.drug_selection_temperature;
-        let weights: Vec<f64> = alternative_scores
-            .iter()
-            .map(|(_, score)| score.powf(1.0 / selection_temperature))
-            .collect();
+        let mut weights_buf = [0.0f64; DRUG_COUNT];
+        for (idx, (_, score)) in alternative_scores.iter().enumerate() {
+            weights_buf[idx] = score.powf(1.0 / selection_temperature);
+        }
+        let weights = &weights_buf[..alternative_scores.len()];
 
-        if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
+        if let Some(chosen_idx) = sample_weighted_index(weights, rng) {
             let new_drug_idx = alternative_scores[chosen_idx].0;
 
             // Stop current drugs
-            for &current_drug_idx in &current_drugs {
+            for &current_drug_idx in current_drugs {
                 stop_drug_course(individual, current_drug_idx);
             }
 
@@ -1496,7 +1502,8 @@ fn start_restart_treatment(
     // If we can't restart the previous drug, use standard drug selection with preference bonus
 
     // Build list of available drugs for restart treatment
-    let mut drug_scores = Vec::new();
+    let mut drug_scores_buf = [(0usize, 0.0f64); DRUG_COUNT];
+    let mut drug_scores_len = 0usize;
 
     for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
         // Skip if currently taking this drug
@@ -1542,20 +1549,23 @@ fn start_restart_treatment(
         }
 
         if score > 0.0 {
-            drug_scores.push((drug_idx, score));
+            drug_scores_buf[drug_scores_len] = (drug_idx, score);
+            drug_scores_len += 1;
         }
     }
+    let drug_scores = &drug_scores_buf[..drug_scores_len];
 
     // Select and start restart treatment
     if !drug_scores.is_empty() {
         // Lower global value here makes the softmax emphasize high scores; higher values keep choices more random.
         let selection_temperature = store.globals.drug_selection_temperature;
-        let weights: Vec<f64> = drug_scores
-            .iter()
-            .map(|(_, score)| score.powf(1.0 / selection_temperature))
-            .collect();
+        let mut weights_buf = [0.0f64; DRUG_COUNT];
+        for (idx, (_, score)) in drug_scores.iter().enumerate() {
+            weights_buf[idx] = score.powf(1.0 / selection_temperature);
+        }
+        let weights = &weights_buf[..drug_scores.len()];
 
-        if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
+        if let Some(chosen_idx) = sample_weighted_index(weights, rng) {
             let new_drug_idx = drug_scores[chosen_idx].0;
 
             // Start restart treatment
@@ -2771,7 +2781,7 @@ pub(crate) fn apply_rules(
     // Stage 1: Decide whether to start any antibiotic
     let region_cur_str = individual.region_cur_in.as_str();
     let region_liv_str = individual.region_living.as_str();
-    let mut available_drugs_buf = [0usize; 70];
+    let mut available_drugs_buf = [0usize; DRUG_COUNT];
     let mut available_drugs_len = 0;
     for (idx, &name) in DRUG_SHORT_NAMES.iter().enumerate() {
         if is_drug_available(
@@ -2913,10 +2923,10 @@ pub(crate) fn apply_rules(
                 !symptomatic_infection_present && individual.immunodeficiency_type.is_some();
             let misdiagnosed_symptom_start =
                 !symptomatic_infection_present && !prophylaxis_candidate;
-            let mut drug_scores_buf = [(0usize, 0.0f64); 70];
+            let mut drug_scores_buf = [(0usize, 0.0f64); DRUG_COUNT];
             let mut drug_scores_len = 0;
             let targeted_selection = has_any_identified_infection;
-            let mut identified_bacteria_buf = [0usize; 70];
+            let mut identified_bacteria_buf = [0usize; BACTERIA_COUNT];
             let mut identified_bacteria_len = 0;
             if targeted_selection {
                 for b_idx in 0..BACTERIA_LIST.len() {
@@ -4154,7 +4164,7 @@ pub(crate) fn apply_rules(
                 // Add stochasticity parameter to control randomness vs determinism
                 // Apply randomness scaling: lower value = more deterministic (clinically realistic)
                 // Value of 0.5 = strongly favor best drugs, 1.0 = moderate, 2.0+ = random
-                let mut weights_buf = [0.0f64; 70];
+                let mut weights_buf = [0.0f64; DRUG_COUNT];
                 for i in 0..drug_scores.len() {
                     let score = drug_scores[i].1;
                     weights_buf[i] = score.powf(1.0 / selection_temperature);
@@ -5846,7 +5856,7 @@ pub(crate) fn apply_rules(
                         let sigma = 0.2_f64;
                         let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
                         let num_drugs = DRUG_SHORT_NAMES.len();
-                        let mut emergence_drug_factors: Vec<f64> = Vec::with_capacity(num_drugs);
+                        let mut emergence_drug_factors = [0.0f64; DRUG_COUNT];
                         for d_i in 0..num_drugs {
                             let d_level = individual.cur_level_drug[d_i];
                             if d_level > 0.0 {
@@ -5855,10 +5865,8 @@ pub(crate) fn apply_rules(
                                 let effective_site = d_level * penetration;
                                 let norm = (effective_site / d_initial).clamp(0.0, 10.0);
                                 let gauss_exp = -((norm - peak_x).powi(2)) / (2.0 * sigma * sigma);
-                                emergence_drug_factors
-                                    .push((0.01 + 0.99 * gauss_exp.fast_exp()).clamp(0.0, 1.0));
-                            } else {
-                                emergence_drug_factors.push(0.0);
+                                emergence_drug_factors[d_i] =
+                                    (0.01 + 0.99 * gauss_exp.fast_exp()).clamp(0.0, 1.0);
                             }
                         }
 
@@ -6550,10 +6558,12 @@ pub(crate) fn apply_rules(
     // ADDITIONAL OPTIMIZATION: We first identify which bacteria have any presence AND any resistance,
     // then only check HGT pairs involving those bacteria as donors.
     {
-        let mut potential_donors: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
-        let mut potential_recipients: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
-        let mut compartment_masks = vec![0u32; BACTERIA_LIST.len()];
-        let mut infection_presence = vec![false; BACTERIA_LIST.len()];
+        let mut potential_donors = [0usize; BACTERIA_COUNT];
+        let mut potential_donor_count = 0usize;
+        let mut potential_recipients = [0usize; BACTERIA_COUNT];
+        let mut potential_recipient_count = 0usize;
+        let mut compartment_masks = [0u32; BACTERIA_COUNT];
+        let mut infection_presence = [false; BACTERIA_COUNT];
 
         for b_idx in 0..BACTERIA_LIST.len() {
             // Skip TB from HGT entirely
@@ -6579,26 +6589,28 @@ pub(crate) fn apply_rules(
                     .any(|r| load_float(r.any_r) > 0.0);
 
                 if has_any_resistance {
-                    potential_donors.push(b_idx);
+                    potential_donors[potential_donor_count] = b_idx;
+                    potential_donor_count += 1;
                 }
 
-                potential_recipients.push(b_idx);
+                potential_recipients[potential_recipient_count] = b_idx;
+                potential_recipient_count += 1;
             }
         }
 
         // Only process HGT if there are potential donors AND recipients
         // note that "donors" and "recipients" are bacteria present in the same person
-        if !potential_donors.is_empty() && potential_recipients.len() > 1 {
+        if potential_donor_count > 0 && potential_recipient_count > 1 {
             let is_hospitalized = individual.hospital_status.is_hospitalized();
 
-            for &donor_idx in &potential_donors {
+            for &donor_idx in &potential_donors[..potential_donor_count] {
                 let donor_mask = compartment_masks[donor_idx];
                 if donor_mask == 0 {
                     continue;
                 }
                 let donor_has_infection = infection_presence[donor_idx];
 
-                for &recipient_idx in &potential_recipients {
+                for &recipient_idx in &potential_recipients[..potential_recipient_count] {
                     if recipient_idx == donor_idx {
                         continue;
                     }

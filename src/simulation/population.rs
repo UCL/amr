@@ -1003,6 +1003,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "cefixime",
     "nalidixic_acid", // First-generation quinolone (1963); proxy for nalidixic acid era GyrA selection (1963–~1990)
 ];
+pub const DRUG_COUNT: usize = DRUG_SHORT_NAMES.len();
 
 /// Drug classes for mechanism-drug-class specific enhancement multipliers.
 /// Each drug in DRUG_SHORT_NAMES maps to exactly one class.

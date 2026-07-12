@@ -17,8 +17,8 @@ use crate::rules::{apply_rules, serious_resistance_marker_drugs};
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
     load_float, store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel,
-    Population, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
-    MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT,
+    Population, Region, ResistanceMechanism, BACTERIA_COUNT, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use crate::simulation::rng::{
     model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
@@ -4418,8 +4418,8 @@ impl Simulation {
                         }
                     }
 
-                    let mut pre_acquisition_carrier_at_risk = vec![false; num_bacteria];
-                    let mut pre_acquisition_non_carrier_at_risk = vec![false; num_bacteria];
+                    let mut pre_acquisition_carrier_at_risk = [false; BACTERIA_COUNT];
+                    let mut pre_acquisition_non_carrier_at_risk = [false; BACTERIA_COUNT];
                     if individual.date_of_death.is_none() && individual.age >= 0 {
                         for b_idx in 0..num_bacteria {
                             if individual.level[b_idx] <= INFECTION_EPS {
