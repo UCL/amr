@@ -1802,6 +1802,15 @@ pub struct ParameterKeyCache {
     pub resistance_testing_hospital_multiplier: f64,
     pub testing_immunosuppressed_multiplier: f64,
     pub testing_sepsis_multiplier: f64,
+    pub opat_admission_probability: f64,
+    pub run_pathway_infection_de_novo_multiplier: f64,
+    pub run_pathway_microbiome_de_novo_multiplier: f64,
+    pub run_pathway_hgt_multiplier: f64,
+    pub run_pathway_reversion_rate_multiplier: f64,
+    pub run_pathway_carrier_inheritance_multiplier: f64,
+    pub run_pathway_community_dilution_multiplier: f64,
+    pub run_pathway_microbiome_acquisition_multiplier: f64,
+    pub run_pathway_microbiome_disruption_multiplier: f64,
     pub bacteria_test_availability_day: Vec<Option<usize>>,
     pub drug_introduction_day: Vec<usize>,
 }
@@ -1998,6 +2007,42 @@ impl ParameterKeyCache {
             .unwrap_or(2.5),
             testing_sepsis_multiplier: crate::config::get_global_param("testing_sepsis_multiplier")
                 .unwrap_or(4.0),
+            opat_admission_probability: crate::config::get_global_param(
+                "opat_admission_probability",
+            )
+            .unwrap_or(0.70),
+            run_pathway_infection_de_novo_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_microbiome_de_novo_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_hgt_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_reversion_rate_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_carrier_inheritance_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_community_dilution_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_microbiome_acquisition_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
+            run_pathway_microbiome_disruption_multiplier: crate::config::get_global_param(
+                RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY,
+            )
+            .unwrap_or(1.0),
             bacteria_test_availability_day: {
                 let mut bacteria_test_availability_day: Vec<Option<usize>> =
                     Vec::with_capacity(bacteria_count);
@@ -2093,22 +2138,19 @@ pub(crate) fn apply_rules(
         policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
     // Four-axis calibration mode: each retained axis is a single pathway-specific
     // multiplier (no extra global compounding term).
-    let infection_de_novo_multiplier =
-        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
-    let microbiome_de_novo_multiplier =
-        get_global_param(RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0)
-            * store.globals.microbiome_de_novo_multiplier;
-    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0);
-    let reversion_rate_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY).unwrap_or(1.0);
+    let infection_de_novo_multiplier = param_cache.run_pathway_infection_de_novo_multiplier;
+    let microbiome_de_novo_multiplier = param_cache.run_pathway_microbiome_de_novo_multiplier
+        * store.globals.microbiome_de_novo_multiplier;
+    let hgt_multiplier = param_cache.run_pathway_hgt_multiplier;
+    let reversion_rate_sampling_multiplier = param_cache.run_pathway_reversion_rate_multiplier;
     let carrier_inheritance_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY).unwrap_or(1.0);
+        param_cache.run_pathway_carrier_inheritance_multiplier;
     let community_dilution_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY).unwrap_or(1.0);
+        param_cache.run_pathway_community_dilution_multiplier;
     let microbiome_acquisition_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
+        param_cache.run_pathway_microbiome_acquisition_multiplier;
     let microbiome_disruption_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY).unwrap_or(1.0);
+        param_cache.run_pathway_microbiome_disruption_multiplier;
     // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
     // of setting it to zero in a counterfactual scenario with no resistance
 
@@ -4186,8 +4228,7 @@ pub(crate) fn apply_rules(
                         let should_admit = if requires_hospital_management(drug_name) {
                             true
                         } else if is_opat_eligible_drug(drug_name) {
-                            let opat_admit_p =
-                                get_global_param("opat_admission_probability").unwrap_or(0.70);
+                            let opat_admit_p = param_cache.opat_admission_probability;
                             rng.gen::<f64>() < opat_admit_p
                         } else {
                             false
@@ -6803,16 +6844,16 @@ fn calculate_testing_probability(
     individual: &Individual,
     time_step: usize,
     testing_available_from_day: usize,
-    _param_cache: &ParameterKeyCache,
+    param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
     is_bacterial_testing: bool,
 ) -> f64 {
     let store = parameter_store();
     // Get base parameters
     let base_rate_raw = if is_bacterial_testing {
-        get_global_param("bacterial_testing_base_rate_per_day").unwrap_or(0.15)
+        param_cache.bacterial_testing_base_rate_per_day
     } else {
-        get_global_param("resistance_testing_base_rate_per_day").unwrap_or(0.95)
+        param_cache.resistance_testing_base_rate_per_day
     };
 
     let policy_multiplier = if is_bacterial_testing {
@@ -6826,13 +6867,13 @@ fn calculate_testing_probability(
     let years_since_availability = (time_step - testing_available_from_day) as f64 / 365.0;
     let (initial_rate, max_multiplier) = if is_bacterial_testing {
         (
-            get_global_param("bacterial_testing_initial_adoption_rate").unwrap_or(0.1),
-            get_global_param("bacterial_testing_max_temporal_multiplier").unwrap_or(1.0),
+            param_cache.bacterial_testing_initial_adoption_rate,
+            param_cache.bacterial_testing_max_temporal_multiplier,
         )
     } else {
         (
-            get_global_param("resistance_testing_initial_adoption_rate").unwrap_or(0.05),
-            get_global_param("resistance_testing_max_temporal_multiplier").unwrap_or(1.0),
+            param_cache.resistance_testing_initial_adoption_rate,
+            param_cache.resistance_testing_max_temporal_multiplier,
         )
     };
 
@@ -6849,9 +6890,9 @@ fn calculate_testing_probability(
     // Hospital status multiplier
     let hospital_multiplier = if individual.hospital_status.is_hospitalized() {
         if is_bacterial_testing {
-            get_global_param("bacterial_testing_hospital_multiplier").unwrap_or(8.0)
+            param_cache.bacterial_testing_hospital_multiplier
         } else {
-            get_global_param("resistance_testing_hospital_multiplier").unwrap_or(5.0)
+            param_cache.resistance_testing_hospital_multiplier
         }
     } else {
         1.0
@@ -6867,14 +6908,14 @@ fn calculate_testing_probability(
 
     // Immunosuppression multiplier
     let immunosuppression_multiplier = if individual.immunodeficiency_type.is_some() {
-        get_global_param("testing_immunosuppressed_multiplier").unwrap_or(2.5)
+        param_cache.testing_immunosuppressed_multiplier
     } else {
         1.0
     };
 
     // Sepsis multiplier
     let sepsis_multiplier = if individual.sepsis.iter().any(|&s| s) {
-        get_global_param("testing_sepsis_multiplier").unwrap_or(4.0)
+        param_cache.testing_sepsis_multiplier
     } else {
         1.0
     };
