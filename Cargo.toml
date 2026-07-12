@@ -34,3 +34,7 @@ env_logger = "0.11"
 fast-math = "0.1.1"
 sha2 = "0.10"
 half = { version = "2.4", features = ["serde"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
