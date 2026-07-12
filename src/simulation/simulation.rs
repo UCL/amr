@@ -4235,8 +4235,8 @@ impl Simulation {
             let sim_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
             let need_full_summary = match calibration_mode {
                 CalibrationMode::FullMinimal | CalibrationMode::Full => {
-                    sim_year >= CALIBRATION_SUMMARY_WINDOW_START
-                        && sim_year < CALIBRATION_SUMMARY_WINDOW_END
+                    (CALIBRATION_SUMMARY_WINDOW_START..CALIBRATION_SUMMARY_WINDOW_END)
+                        .contains(&sim_year)
                 }
                 CalibrationMode::Partial | CalibrationMode::None => true,
             };
@@ -6033,8 +6033,8 @@ impl Simulation {
             let keep_row = match self.calibration_mode {
                 CalibrationMode::FullMinimal | CalibrationMode::Full => {
                     let simulation_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
-                    simulation_year >= CALIBRATION_SUMMARY_WINDOW_START
-                        && simulation_year < CALIBRATION_SUMMARY_WINDOW_END
+                    (CALIBRATION_SUMMARY_WINDOW_START..CALIBRATION_SUMMARY_WINDOW_END)
+                        .contains(&simulation_year)
                 }
                 CalibrationMode::Partial | CalibrationMode::None => true,
             };
