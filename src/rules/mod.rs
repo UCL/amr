@@ -96,6 +96,7 @@ use crate::simulation::population::{
     BACTERIA_COUNT, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_COUNT, DRUG_SHORT_NAMES, INFECTION_EPS,
     MICROBIOME_MAJORITY_THRESHOLD,
 };
+use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
 
 use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
@@ -117,18 +118,36 @@ fn sample_weighted_index(weights: &[f64], rng: &mut impl Rng) -> Option<usize> {
         return None;
     }
 
-    let total_weight: f64 = weights.iter().sum();
+    let mut cumulative_weights = [0.0f64; DRUG_COUNT];
+    let mut total_weight = weights[0];
+    if !(total_weight >= 0.0) {
+        log::warn!("skipping invalid weighted selection: invalid weight");
+        return None;
+    }
+    for (idx, &weight) in weights.iter().enumerate().skip(1) {
+        if !(weight >= 0.0) {
+            log::warn!("skipping invalid weighted selection: invalid weight");
+            return None;
+        }
+        cumulative_weights[idx - 1] = total_weight;
+        total_weight += weight;
+    }
     if !(total_weight > 0.0 && total_weight.is_finite()) {
         return None;
     }
 
-    match WeightedIndex::new(weights) {
-        Ok(dist) => Some(dist.sample(rng)),
-        Err(err) => {
-            log::warn!("skipping invalid weighted selection: {}", err);
-            None
-        }
-    }
+    let chosen_weight = Uniform::new(0.0, total_weight).sample(rng);
+    Some(
+        cumulative_weights[..weights.len() - 1]
+            .binary_search_by(|weight| {
+                if *weight <= chosen_weight {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Greater
+                }
+            })
+            .unwrap_err(),
+    )
 }
 
 // =====================================================================================
@@ -373,9 +392,6 @@ fn update_drug_counter(individual: &mut Individual) {
     individual.current_number_of_drugs =
         individual.cur_use_drug.iter().filter(|&&on| on).count() as i32;
 }
-
-use rand::distributions::Distribution;
-use rand::distributions::WeightedIndex;
 
 /// Propagate mechanism-based resistance to `any_r` (and optionally `microbiome_r`)
 /// for ALL drugs an organism's active mechanisms apply to.
@@ -7206,8 +7222,11 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         ],
     };
 
-    let weights: Vec<f64> = syndrome_probs.iter().map(|&(_, p)| p).collect();
-    if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
+    let mut weights = [0.0f64; 10];
+    for (idx, &(_, probability)) in syndrome_probs.iter().enumerate() {
+        weights[idx] = probability;
+    }
+    if let Some(chosen_idx) = sample_weighted_index(&weights[..syndrome_probs.len()], rng) {
         syndrome_probs[chosen_idx].0
     } else {
         syndrome_probs[0].0
@@ -7228,5 +7247,35 @@ impl FastMath for f64 {
     #[inline(always)]
     fn fast_ln(self) -> Self {
         fast_math::log2(self as f32) as f64 * std::f64::consts::LN_2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::distributions::WeightedIndex;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+
+    #[test]
+    fn stack_weighted_sampler_matches_rand_weighted_index() {
+        let cases: &[&[f64]] = &[
+            &[1.0],
+            &[0.0, 1.0],
+            &[1.0, 2.0, 3.0, 4.0],
+            &[0.01, 0.0, 12.5, 1.0, 0.4, 90.0],
+        ];
+
+        for &weights in cases {
+            let expected_distribution = WeightedIndex::new(weights).unwrap();
+            let mut expected_rng = ChaCha12Rng::seed_from_u64(9_876_543_210);
+            let mut actual_rng = ChaCha12Rng::seed_from_u64(9_876_543_210);
+            for _ in 0..1_000 {
+                assert_eq!(
+                    sample_weighted_index(weights, &mut actual_rng),
+                    Some(expected_distribution.sample(&mut expected_rng))
+                );
+            }
+        }
     }
 }
