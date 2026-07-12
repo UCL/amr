@@ -984,8 +984,6 @@ fn assess_treatment_failure(
     individual: &mut Individual,
     time_step: usize,
     bacteria_idx: usize,
-    bacteria_indices: &HashMap<&'static str, usize>,
-    _drug_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
     store: &ParameterStore,
@@ -1107,12 +1105,7 @@ fn assess_treatment_failure(
         let mut score = 0.0;
 
         // Base potency score
-        let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
-            continue;
-        };
-        let potency = store
-            .drug_bacteria
-            .potency(bacteria_idx_for_cache, drug_idx);
+        let potency = store.drug_bacteria.potency(bacteria_idx, drug_idx);
         if potency >= store.globals.minimal_potency_threshold_for_drug_selection {
             score += potency;
         }
@@ -1120,7 +1113,7 @@ fn assess_treatment_failure(
         // Apply clinical multipliers (same as original logic)
         // Use pre-computed clinical preference multiplier from cache
         let preference_multiplier =
-            param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
+            param_cache.clinical_preference_multiplier(bacteria_idx, drug_idx);
         if preference_multiplier != 1.0 {
             score *= preference_multiplier;
         }
@@ -1185,7 +1178,7 @@ fn treatment_failure_assessment_day_for(
     // Rapid infection syndromes: respiratory (3), bloodstream (4), intra-abdominal (5), CNS (6)
     let fast_track_syndromes = [3, 4, 5, 6];
     if fast_track_syndromes.contains(&syndrome_id) {
-        final_day = final_day.min(3).max(2);
+        final_day = final_day.clamp(2, 3);
     }
 
     // Chronic or slow pathogens: TB and indolent infections get longer assessment windows
@@ -1298,7 +1291,6 @@ fn assess_restart_window(
     individual: &mut Individual,
     time_step: usize,
     bacteria_idx: usize,
-    bacteria_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
     store: &ParameterStore,
@@ -1362,7 +1354,6 @@ fn assess_restart_window(
                                 time_step,
                                 bacteria_idx,
                                 stopped_drug_idx,
-                                bacteria_indices,
                                 param_cache,
                                 rng,
                                 store,
@@ -1390,12 +1381,10 @@ fn start_restart_treatment(
     time_step: usize,
     bacteria_idx: usize,
     stopped_drug_idx: Option<usize>,
-    bacteria_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
     store: &ParameterStore,
 ) -> bool {
-    let bacteria_name = BACTERIA_LIST[bacteria_idx];
     let minimal_potency_threshold = store.globals.minimal_potency_threshold_for_drug_selection;
 
     // Check if we can restart the previously effective drug
@@ -1414,12 +1403,7 @@ fn start_restart_treatment(
 
         if drug_avail && !individual.cur_use_drug[prev_drug_idx] {
             // Check if drug has adequate potency (basic safety check)
-            let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
-                return false;
-            };
-            let potency = store
-                .drug_bacteria
-                .potency(bacteria_idx_for_cache, prev_drug_idx);
+            let potency = store.drug_bacteria.potency(bacteria_idx, prev_drug_idx);
             if potency >= minimal_potency_threshold {
                 // Restart the previously effective drug!
                 let course_context = active_infection_course_context(individual, bacteria_idx);
@@ -1478,19 +1462,14 @@ fn start_restart_treatment(
         let mut score = 0.0;
 
         // Base potency score
-        let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
-            continue;
-        };
-        let potency = store
-            .drug_bacteria
-            .potency(bacteria_idx_for_cache, drug_idx);
+        let potency = store.drug_bacteria.potency(bacteria_idx, drug_idx);
         if potency >= minimal_potency_threshold {
             score += potency;
         }
 
         // Apply clinical preference multipliers using cached values
         let preference_multiplier =
-            param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
+            param_cache.clinical_preference_multiplier(bacteria_idx, drug_idx);
         if preference_multiplier != 1.0 {
             score *= preference_multiplier;
         }
@@ -1766,6 +1745,12 @@ pub struct ParameterKeyCache {
     pub drug_introduction_day: Vec<usize>,
 }
 
+impl Default for ParameterKeyCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ParameterKeyCache {
     pub fn new() -> Self {
         Self::from_parameter_map(parameter_store(), &crate::config::PARAMETERS)
@@ -1851,10 +1836,7 @@ impl ParameterKeyCache {
         for &bacteria_name in BACTERIA_LIST.iter() {
             let bacteria_slug = bacteria_name.replace(" ", "_");
             for &drug_name in DRUG_SHORT_NAMES.iter() {
-                let key = format!(
-                    "{}_{}_clinical_preference_multiplier",
-                    bacteria_slug, drug_name
-                );
+                let key = format!("{bacteria_slug}_{drug_name}_clinical_preference_multiplier");
                 let multiplier = parameter(&key).unwrap_or(1.0);
                 clinical_preference_multipliers.push(multiplier);
             }
@@ -1960,7 +1942,7 @@ impl ParameterKeyCache {
                 for &bacteria_name in BACTERIA_LIST.iter() {
                     let bacteria_param_name = bacteria_name.to_lowercase().replace(" ", "_");
                     let bacteria_test_availability_param =
-                        format!("{}_test_availability_year", bacteria_param_name);
+                        format!("{bacteria_param_name}_test_availability_year");
                     let day = parameter(&bacteria_test_availability_param)
                         .map(|year| ((year - 1930.0) * 365.25) as usize);
                     bacteria_test_availability_day.push(day);
@@ -2029,8 +2011,6 @@ impl ParameterKeyCache {
 pub(crate) struct RuleContext<'a> {
     pub(crate) parameters: &'a ParameterStore,
     pub(crate) mechanism_cache: &'a MechanismCache,
-    pub(crate) bacteria_indices: &'a HashMap<&'static str, usize>,
-    pub(crate) drug_indices: &'a HashMap<&'static str, usize>,
     pub(crate) cross_resistance_groups: &'a [Vec<Vec<usize>>],
     pub(crate) parameter_cache: &'a ParameterKeyCache,
     pub(crate) policy: &'a PolicyAdjustments,
@@ -2045,8 +2025,6 @@ pub(crate) fn apply_rules(
 ) {
     let store = context.parameters;
     let mechanism_cache = context.mechanism_cache;
-    let bacteria_indices = context.bacteria_indices;
-    let drug_indices = context.drug_indices;
     let cross_resistance_groups = context.cross_resistance_groups;
     let param_cache = context.parameter_cache;
     let policy = context.policy;
@@ -2273,15 +2251,9 @@ pub(crate) fn apply_rules(
                     requires_hospital_management(DRUG_SHORT_NAMES[idx])
                 });
 
-        let can_discharge = if prevent_discharge_with_sepsis && has_sepsis {
-            false // Cannot discharge if patient has sepsis
-        } else if has_active_infection {
-            false // Cannot discharge while any active infection remains above the model threshold
-        } else if is_on_discharge_blocking_drug {
-            false // Cannot discharge if on Tier 1 / reserve IV drug
-        } else {
-            true // Can otherwise discharge (includes OPAT-eligible Tier 2 drugs)
-        };
+        let can_discharge = !((prevent_discharge_with_sepsis && has_sepsis)
+            || has_active_infection
+            || is_on_discharge_blocking_drug);
 
         // Potentially recover from hospitalization (only if discharge is allowed)
         if can_discharge && rng.gen::<f64>() < recovery_rate {
@@ -2314,70 +2286,53 @@ pub(crate) fn apply_rules(
             // Initiate travel: select a random new region different from their living region
             // We pre-define standard travel matrix probabilities.
             // Notice: it no longer uses dynamic vectors!
-            let (raw_destinations, len) = match individual.region_living {
-                Region::NorthAmerica | Region::Europe | Region::Oceania => (
-                    [
-                        (Region::Europe, 0.35),
-                        (Region::Asia, 0.25),
-                        (Region::NorthAmerica, 0.15),
-                        (Region::Oceania, 0.10),
-                        (Region::SouthAmerica, 0.10),
-                        (Region::Africa, 0.05),
-                    ],
-                    6,
-                ),
-                Region::Asia => (
-                    [
-                        (Region::Asia, 0.40),
-                        (Region::Europe, 0.20),
-                        (Region::NorthAmerica, 0.15),
-                        (Region::Oceania, 0.10),
-                        (Region::Africa, 0.08),
-                        (Region::SouthAmerica, 0.07),
-                    ],
-                    6,
-                ),
-                Region::SouthAmerica => (
-                    [
-                        (Region::SouthAmerica, 0.40),
-                        (Region::NorthAmerica, 0.25),
-                        (Region::Europe, 0.15),
-                        (Region::Asia, 0.10),
-                        (Region::Africa, 0.05),
-                        (Region::Oceania, 0.05),
-                    ],
-                    6,
-                ),
-                Region::Africa => (
-                    [
-                        (Region::Africa, 0.50),
-                        (Region::Europe, 0.20),
-                        (Region::Asia, 0.15),
-                        (Region::NorthAmerica, 0.08),
-                        (Region::SouthAmerica, 0.04),
-                        (Region::Oceania, 0.03),
-                    ],
-                    6,
-                ),
-                Region::Home => (
-                    [
-                        (Region::Asia, 0.167),
-                        (Region::Africa, 0.167),
-                        (Region::Europe, 0.166),
-                        (Region::NorthAmerica, 0.167),
-                        (Region::SouthAmerica, 0.166),
-                        (Region::Oceania, 0.167),
-                    ],
-                    6,
-                ),
+            let raw_destinations = match individual.region_living {
+                Region::NorthAmerica | Region::Europe | Region::Oceania => [
+                    (Region::Europe, 0.35),
+                    (Region::Asia, 0.25),
+                    (Region::NorthAmerica, 0.15),
+                    (Region::Oceania, 0.10),
+                    (Region::SouthAmerica, 0.10),
+                    (Region::Africa, 0.05),
+                ],
+                Region::Asia => [
+                    (Region::Asia, 0.40),
+                    (Region::Europe, 0.20),
+                    (Region::NorthAmerica, 0.15),
+                    (Region::Oceania, 0.10),
+                    (Region::Africa, 0.08),
+                    (Region::SouthAmerica, 0.07),
+                ],
+                Region::SouthAmerica => [
+                    (Region::SouthAmerica, 0.40),
+                    (Region::NorthAmerica, 0.25),
+                    (Region::Europe, 0.15),
+                    (Region::Asia, 0.10),
+                    (Region::Africa, 0.05),
+                    (Region::Oceania, 0.05),
+                ],
+                Region::Africa => [
+                    (Region::Africa, 0.50),
+                    (Region::Europe, 0.20),
+                    (Region::Asia, 0.15),
+                    (Region::NorthAmerica, 0.08),
+                    (Region::SouthAmerica, 0.04),
+                    (Region::Oceania, 0.03),
+                ],
+                Region::Home => [
+                    (Region::Asia, 0.167),
+                    (Region::Africa, 0.167),
+                    (Region::Europe, 0.166),
+                    (Region::NorthAmerica, 0.167),
+                    (Region::SouthAmerica, 0.166),
+                    (Region::Oceania, 0.167),
+                ],
             };
 
             let mut valid_destinations = [(Region::Home, 0.0); 6];
             let mut dest_count = 0;
             let mut total_weight = 0.0;
-            for i in 0..len {
-                let dest = raw_destinations[i].0;
-                let weight = raw_destinations[i].1;
+            for &(dest, weight) in &raw_destinations {
                 if dest != individual.region_living {
                     valid_destinations[dest_count] = (dest, weight);
                     total_weight += weight;
@@ -2387,12 +2342,12 @@ pub(crate) fn apply_rules(
 
             let mut rand_val = rng.gen::<f64>() * total_weight;
             let mut new_region = valid_destinations[dest_count - 1].0; // Default to last
-            for i in 0..dest_count {
-                if rand_val < valid_destinations[i].1 {
-                    new_region = valid_destinations[i].0;
+            for &(destination, weight) in valid_destinations.iter().take(dest_count) {
+                if rand_val < weight {
+                    new_region = destination;
                     break;
                 }
-                rand_val -= valid_destinations[i].1;
+                rand_val -= weight;
             }
 
             individual.region_cur_in = new_region;
@@ -2963,7 +2918,7 @@ pub(crate) fn apply_rules(
                 }
 
                 if individual.perceived_penicillin_allergy
-                    && PENICILLIN_CLASS_DRUGS.iter().any(|&name| name == drug_name)
+                    && PENICILLIN_CLASS_DRUGS.contains(&drug_name)
                 {
                     continue;
                 }
@@ -3591,8 +3546,8 @@ pub(crate) fn apply_rules(
 
                         // --- Stewardship: Promote Narrow Spectrum Beta-Lactams ---
                         // Favor Penicillins for Streptococcus, Enterococcus, Syphilis, Neisseria when susceptible
-                        if matches!(drug_name, "penicillin_g" | "ampicillin" | "amoxicillin") {
-                            if matches!(
+                        if matches!(drug_name, "penicillin_g" | "ampicillin" | "amoxicillin")
+                            && matches!(
                                 bacteria_name,
                                 "streptococcus_pneumoniae"
                                     | "streptococcus_pyogenes"
@@ -3600,9 +3555,9 @@ pub(crate) fn apply_rules(
                                     | "enterococcus_faecalis"
                                     | "treponema_pallidum"
                                     | "neisseria_meningitidis"
-                            ) {
-                                score *= 15.0; // STRENGTHENED: Strong preference for appropriate narrow spectrum (was 3.0)
-                            }
+                            )
+                        {
+                            score *= 15.0; // STRENGTHENED: Strong preference for appropriate narrow spectrum (was 3.0)
                         }
 
                         if matches!(
@@ -4442,8 +4397,6 @@ pub(crate) fn apply_rules(
                     individual,
                     time_step,
                     bacteria_idx,
-                    bacteria_indices,
-                    drug_indices,
                     param_cache,
                     rng,
                     store,
@@ -4461,15 +4414,7 @@ pub(crate) fn apply_rules(
         }
 
         // Assess restart window (independent of current infection status)
-        assess_restart_window(
-            individual,
-            time_step,
-            bacteria_idx,
-            bacteria_indices,
-            param_cache,
-            rng,
-            store,
-        );
+        assess_restart_window(individual, time_step, bacteria_idx, param_cache, rng, store);
     }
 
     // --- death
@@ -5865,7 +5810,9 @@ pub(crate) fn apply_rules(
                             // where this mechanism is applicable — represents the strongest selective pressure
                             let mut max_emergence_drug_factor = 0.0_f64;
                             let mut mechanism_applicable_to_any_drug = false;
-                            for d_i in 0..num_drugs {
+                            for (d_i, &emergence_drug_factor) in
+                                emergence_drug_factors.iter().enumerate().take(num_drugs)
+                            {
                                 if individual.cur_level_drug[d_i] > 0.0
                                     && param_cache.mechanism_applicable(
                                         mechanism_idx,
@@ -5874,8 +5821,8 @@ pub(crate) fn apply_rules(
                                     )
                                 {
                                     mechanism_applicable_to_any_drug = true;
-                                    if emergence_drug_factors[d_i] > max_emergence_drug_factor {
-                                        max_emergence_drug_factor = emergence_drug_factors[d_i];
+                                    if emergence_drug_factor > max_emergence_drug_factor {
+                                        max_emergence_drug_factor = emergence_drug_factor;
                                     }
                                 }
                             }
@@ -5967,10 +5914,9 @@ pub(crate) fn apply_rules(
                                     bacteria_full_idx,
                                     drug_index,
                                 )
+                                && rng.gen_bool(majority_r_evolution_rate)
                             {
-                                if rng.gen_bool(majority_r_evolution_rate) {
-                                    individual.set_majority_mechanism(bacteria_full_idx, m_idx);
-                                }
+                                individual.set_majority_mechanism(bacteria_full_idx, m_idx);
                             }
                         }
                     }
@@ -6425,12 +6371,11 @@ pub(crate) fn apply_rules(
                         resolution_type,
                         InfectionResolutionType::DrugAssistedClearance
                     ) && individual.presence_microbiome[b_idx]
+                        && rng.gen_bool(cached_microbiome_clearance_on_drug_treatment)
                     {
-                        if rng.gen_bool(cached_microbiome_clearance_on_drug_treatment) {
-                            individual.presence_microbiome[b_idx] = false;
-                            individual.microbiome_cleared_today[b_idx] = true;
-                            individual.clear_microbiome_mechanisms(b_idx);
-                        }
+                        individual.presence_microbiome[b_idx] = false;
+                        individual.microbiome_cleared_today[b_idx] = true;
+                        individual.clear_microbiome_mechanisms(b_idx);
                     }
                 }
 

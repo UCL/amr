@@ -33,17 +33,38 @@ struct ResolvedRunSeed {
     source: &'static str,
 }
 
+struct RunMetadataContext<'a> {
+    source_hash: &'a str,
+    seed: ResolvedRunSeed,
+    population_size: usize,
+    time_steps: usize,
+    calibration_mode: CalibrationMode,
+    active_policies: &'a [u8],
+    config_validation_mode: &'a str,
+    config_validation_status: &'a str,
+    config_validation_errors: usize,
+    config_validation_warnings: usize,
+    config_validation_report_path: Option<&'a std::path::Path>,
+}
+
+struct RunMetadataState<'a> {
+    status: &'a str,
+    run_id: Option<u32>,
+    csv_path: Option<&'a std::path::Path>,
+    duration_secs: Option<f64>,
+    summary_hash: Option<&'a str>,
+    failure_class: &'a str,
+    last_timestep: Option<usize>,
+}
+
 fn configure_rayon_worker_stack() {
     rayon::ThreadPoolBuilder::new()
         .stack_size(RAYON_WORKER_STACK_BYTES)
-        .thread_name(|idx| format!("amr-rayon-{}", idx))
+        .thread_name(|idx| format!("amr-rayon-{idx}"))
         .build_global()
         .expect("failed to configure global Rayon thread pool before first use");
 
-    eprintln!(
-        "[startup] configured global Rayon worker stack: {} bytes",
-        RAYON_WORKER_STACK_BYTES
-    );
+    eprintln!("[startup] configured global Rayon worker stack: {RAYON_WORKER_STACK_BYTES} bytes");
 }
 
 fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunSeed {
@@ -51,7 +72,7 @@ fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunS
         let parsed = value
             .parse::<u64>()
             .expect("AMR_RNG_SEED must parse as a u64");
-        eprintln!("[startup] AMR_RNG_SEED={} source=env", parsed);
+        eprintln!("[startup] AMR_RNG_SEED={parsed} source=env");
         return ResolvedRunSeed {
             value: parsed,
             source: "env",
@@ -59,10 +80,7 @@ fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunS
     }
 
     if use_fixed_seed {
-        eprintln!(
-            "[startup] AMR_RNG_SEED={} source=fixed_seed_value",
-            fixed_seed_value
-        );
+        eprintln!("[startup] AMR_RNG_SEED={fixed_seed_value} source=fixed_seed_value");
         return ResolvedRunSeed {
             value: fixed_seed_value,
             source: "fixed_seed_value",
@@ -70,7 +88,7 @@ fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunS
     }
 
     let generated = rand::random::<u64>();
-    eprintln!("[startup] AMR_RNG_SEED={} source=generated", generated);
+    eprintln!("[startup] AMR_RNG_SEED={generated} source=generated");
     ResolvedRunSeed {
         value: generated,
         source: "generated",
@@ -118,24 +136,8 @@ fn classify_panic(payload: &str, location: &str) -> &'static str {
 
 fn write_run_metadata(
     path: &std::path::Path,
-    status: &str,
-    source_hash: &str,
-    seed: ResolvedRunSeed,
-    population_size: usize,
-    time_steps: usize,
-    calibration_mode: CalibrationMode,
-    active_policies: &[u8],
-    run_id: Option<u32>,
-    csv_path: Option<&std::path::Path>,
-    duration_secs: Option<f64>,
-    summary_hash: Option<&str>,
-    failure_class: &str,
-    last_timestep: Option<usize>,
-    config_validation_mode: &str,
-    config_validation_status: &str,
-    config_validation_errors: usize,
-    config_validation_warnings: usize,
-    config_validation_report_path: Option<&std::path::Path>,
+    context: &RunMetadataContext<'_>,
+    state: RunMetadataState<'_>,
 ) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
         .create(true)
@@ -143,74 +145,86 @@ fn write_run_metadata(
         .truncate(true)
         .open(path)?;
 
-    writeln!(file, "status={}", status)?;
+    writeln!(file, "status={}", state.status)?;
     writeln!(
         file,
         "updated_utc={}",
         Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
     )?;
-    writeln!(file, "source_hash={}", source_hash)?;
-    writeln!(file, "rng_seed={}", seed.value)?;
-    writeln!(file, "rng_seed_source={}", seed.source)?;
+    writeln!(file, "source_hash={}", context.source_hash)?;
+    writeln!(file, "rng_seed={}", context.seed.value)?;
+    writeln!(file, "rng_seed_source={}", context.seed.source)?;
     writeln!(
         file,
         "run_id={}",
-        run_id.map_or_else(|| "pending".to_string(), |id| id.to_string())
+        state
+            .run_id
+            .map_or_else(|| "pending".to_string(), |id| id.to_string())
     )?;
-    writeln!(file, "population_size={}", population_size)?;
-    writeln!(file, "time_steps={}", time_steps)?;
-    writeln!(file, "calibration_mode={}", calibration_mode)?;
-    writeln!(file, "active_policies={:?}", active_policies)?;
+    writeln!(file, "population_size={}", context.population_size)?;
+    writeln!(file, "time_steps={}", context.time_steps)?;
+    writeln!(file, "calibration_mode={}", context.calibration_mode)?;
+    writeln!(file, "active_policies={:?}", context.active_policies)?;
     writeln!(
         file,
         "last_timestep={}",
-        last_timestep.map_or_else(|| "pending".to_string(), |step| step.to_string())
+        state
+            .last_timestep
+            .map_or_else(|| "pending".to_string(), |step| step.to_string())
     )?;
     let rayon_threads = rayon::current_num_threads();
-    writeln!(file, "rayon_threads={}", rayon_threads)?;
+    writeln!(file, "rayon_threads={rayon_threads}")?;
+    writeln!(file, "rayon_worker_stack_bytes={RAYON_WORKER_STACK_BYTES}")?;
     writeln!(
         file,
-        "rayon_worker_stack_bytes={}",
-        RAYON_WORKER_STACK_BYTES
+        "config_validation_mode={}",
+        context.config_validation_mode
     )?;
-    writeln!(file, "config_validation_mode={}", config_validation_mode)?;
     writeln!(
         file,
         "config_validation_status={}",
-        config_validation_status
+        context.config_validation_status
     )?;
     writeln!(
         file,
         "config_validation_errors={}",
-        config_validation_errors
+        context.config_validation_errors
     )?;
     writeln!(
         file,
         "config_validation_warnings={}",
-        config_validation_warnings
+        context.config_validation_warnings
     )?;
     writeln!(
         file,
         "config_validation_report={}",
-        config_validation_report_path
+        context
+            .config_validation_report_path
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "pending".to_string())
     )?;
     writeln!(
         file,
         "duration_seconds={}",
-        duration_secs.map_or_else(|| "pending".to_string(), |secs| format!("{:.3}", secs))
+        state
+            .duration_secs
+            .map_or_else(|| "pending".to_string(), |secs| format!("{secs:.3}"))
     )?;
     writeln!(
         file,
         "summary_csv={}",
-        csv_path
+        state
+            .csv_path
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "pending".to_string())
     )?;
-    writeln!(file, "summary_hash={}", summary_hash.unwrap_or("pending"))?;
-    writeln!(file, "failure_class={}", failure_class)?;
-    writeln!(file, "replay_env=AMR_RNG_SEED={}", seed.value)?;
+    writeln!(
+        file,
+        "summary_hash={}",
+        state.summary_hash.unwrap_or("pending")
+    )?;
+    writeln!(file, "failure_class={}", state.failure_class)?;
+    writeln!(file, "replay_env=AMR_RNG_SEED={}", context.seed.value)?;
 
     Ok(())
 }
@@ -254,7 +268,7 @@ fn main() {
     std::env::set_var("AMR_RNG_SEED", resolved_run_seed.value.to_string());
     let seed_override = Some(resolved_run_seed.value);
     let source_hash = resolve_source_hash();
-    eprintln!("[startup] source_hash={}", source_hash);
+    eprintln!("[startup] source_hash={source_hash}");
 
     // ── Policy branch selection ────────────────────────────────────────────────
     // Only active when calibration_mode == CalibrationMode::None (full run).
@@ -278,10 +292,7 @@ fn main() {
 
     let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
     if let Err(err) = std::fs::create_dir_all(output_dir) {
-        eprintln!(
-            "Warning: unable to create output directory {:?}: {}",
-            output_dir, err
-        );
+        eprintln!("Warning: unable to create output directory {output_dir:?}: {err}");
     }
 
     let metadata_stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
@@ -293,15 +304,15 @@ fn main() {
     let config_validation_mode = match ConfigValidationMode::from_env() {
         Ok(mode) => mode,
         Err(err) => {
-            eprintln!("[config-validation] FAILED: {}", err);
+            eprintln!("[config-validation] FAILED: {err}");
             std::process::exit(2);
         }
     };
     let config_validation_report = validate_parameter_map(&PARAMETERS);
     let rendered_config_validation = config_validation_report.render(config_validation_mode);
-    eprint!("{}", rendered_config_validation);
+    eprint!("{rendered_config_validation}");
     let config_validation_report_path =
-        output_dir.join(format!("config_validation_{}.txt", metadata_stamp));
+        output_dir.join(format!("config_validation_{metadata_stamp}.txt"));
     let config_validation_report_for_metadata = match File::create(&config_validation_report_path)
         .and_then(|mut file| file.write_all(rendered_config_validation.as_bytes()))
     {
@@ -315,28 +326,34 @@ fn main() {
             None
         }
     };
+    let config_validation_mode_name = config_validation_mode.to_string();
+    let metadata_context = RunMetadataContext {
+        source_hash: &source_hash,
+        seed: resolved_run_seed,
+        population_size,
+        time_steps,
+        calibration_mode,
+        active_policies,
+        config_validation_mode: &config_validation_mode_name,
+        config_validation_status: config_validation_report.status(),
+        config_validation_errors: config_validation_report.error_count(),
+        config_validation_warnings: config_validation_report.warning_count(),
+        config_validation_report_path: config_validation_report_for_metadata,
+    };
 
     if config_validation_report.has_errors() && config_validation_mode.blocks_on_errors() {
         if let Err(err) = write_run_metadata(
             &metadata_path,
-            "config_validation_failed",
-            &source_hash,
-            resolved_run_seed,
-            population_size,
-            time_steps,
-            calibration_mode,
-            active_policies,
-            None,
-            None,
-            None,
-            None,
-            "config_validation_failed",
-            None,
-            &config_validation_mode.to_string(),
-            config_validation_report.status(),
-            config_validation_report.error_count(),
-            config_validation_report.warning_count(),
-            config_validation_report_for_metadata,
+            &metadata_context,
+            RunMetadataState {
+                status: "config_validation_failed",
+                run_id: None,
+                csv_path: None,
+                duration_secs: None,
+                summary_hash: None,
+                failure_class: "config_validation_failed",
+                last_timestep: None,
+            },
         ) {
             eprintln!(
                 "Warning: unable to write failed run metadata {}: {}",
@@ -360,24 +377,16 @@ fn main() {
 
     if let Err(err) = write_run_metadata(
         &metadata_path,
-        "started",
-        &source_hash,
-        resolved_run_seed,
-        population_size,
-        time_steps,
-        calibration_mode,
-        active_policies,
-        None,
-        None,
-        None,
-        None,
-        "running",
-        None,
-        &config_validation_mode.to_string(),
-        config_validation_report.status(),
-        config_validation_report.error_count(),
-        config_validation_report.warning_count(),
-        config_validation_report_for_metadata,
+        &metadata_context,
+        RunMetadataState {
+            status: "started",
+            run_id: None,
+            csv_path: None,
+            duration_secs: None,
+            summary_hash: None,
+            failure_class: "running",
+            last_timestep: None,
+        },
     ) {
         eprintln!(
             "Warning: unable to write run metadata {}: {}",
@@ -431,7 +440,7 @@ fn main() {
     // Use the simulation's run_id in the filename so Python post-processing can join one
     // summary CSV to one set of sampled parameters and one run-log entry without collisions.
     let run_id = simulation.run_id;
-    let csv_basename = format!("simulation_summary_{:06}.csv", run_id);
+    let csv_basename = format!("simulation_summary_{run_id:06}.csv");
     let csv_path = output_dir.join(&csv_basename);
 
     // The summary CSV is the primary handoff to the Python analysis scripts.
@@ -456,7 +465,7 @@ fn main() {
                 }
             }
             Err(err) => {
-                println!("Error exporting CSV: {}", err);
+                println!("Error exporting CSV: {err}");
                 (None, "csv_export_failed", "csv_export_failed")
             }
         };
@@ -464,24 +473,16 @@ fn main() {
 
     if let Err(err) = write_run_metadata(
         &metadata_path,
-        final_status,
-        &source_hash,
-        resolved_run_seed,
-        population_size,
-        time_steps,
-        calibration_mode,
-        active_policies,
-        Some(run_id),
-        Some(&csv_path),
-        Some(duration.as_secs_f64()),
-        summary_hash.as_deref(),
-        failure_class,
-        last_timestep,
-        &config_validation_mode.to_string(),
-        config_validation_report.status(),
-        config_validation_report.error_count(),
-        config_validation_report.warning_count(),
-        config_validation_report_for_metadata,
+        &metadata_context,
+        RunMetadataState {
+            status: final_status,
+            run_id: Some(run_id),
+            csv_path: Some(&csv_path),
+            duration_secs: Some(duration.as_secs_f64()),
+            summary_hash: summary_hash.as_deref(),
+            failure_class,
+            last_timestep,
+        },
     ) {
         eprintln!(
             "Warning: unable to update run metadata {}: {}",
@@ -508,7 +509,7 @@ fn main() {
 
     // Log the simulation run details
     if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
-        eprintln!("Error logging simulation run: {}", e);
+        eprintln!("Error logging simulation run: {e}");
     }
 
     println!("\n--- simulation ended ---");
@@ -557,7 +558,7 @@ fn install_panic_log_hook() {
             Backtrace::force_capture()
         );
 
-        eprintln!("{}", report);
+        eprintln!("{report}");
 
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
@@ -608,7 +609,7 @@ fn log_simulation_run(
     // Write the log entry
     file.write_all(log_entry.as_bytes())?;
 
-    println!("Simulation run logged to {}", log_path);
+    println!("Simulation run logged to {log_path}");
 
     Ok(())
 }
@@ -622,7 +623,7 @@ fn validate_bacteria_configuration() {
     let num_bacteria = BACTERIA_LIST.len();
 
     println!("=== BACTERIA CONFIGURATION VALIDATION ===");
-    println!("Number of bacteria in simulation: {}", num_bacteria);
+    println!("Number of bacteria in simulation: {num_bacteria}");
 
     if num_bacteria == 0 {
         panic!("ERROR: BACTERIA_LIST cannot be empty!");
@@ -647,7 +648,7 @@ fn validate_bacteria_configuration() {
         for bacteria in BACTERIA_LIST.iter() {
             for other in BACTERIA_LIST.iter() {
                 if bacteria != other {
-                    let hgt_param_name = format!("hgt_prob_{}_to_{}", bacteria, other);
+                    let hgt_param_name = format!("hgt_prob_{bacteria}_to_{other}");
                     if let Some(hgt_prob) = get_global_param(&hgt_param_name) {
                         if hgt_prob > 0.0 {
                             println!("⚠️  HGT parameters configured but only 1 bacteria present - HGT will not occur");

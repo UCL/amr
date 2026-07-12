@@ -50,16 +50,16 @@ fn format_value(v: f64) -> String {
         return "0".to_string();
     }
     let abs = v.abs();
-    if abs >= 0.001 && abs < 1_000_000.0 {
-        let s = format!("{:.10}", v);
+    if (0.001..1_000_000.0).contains(&abs) {
+        let s = format!("{v:.10}");
         s.trim_end_matches('0').trim_end_matches('.').to_string()
     } else {
         // Scientific notation: trim trailing zeros in the coefficient only
-        let s = format!("{:.6e}", v);
+        let s = format!("{v:.6e}");
         if let Some(e_pos) = s.find('e') {
             let (coeff, exp) = s.split_at(e_pos);
             let coeff = coeff.trim_end_matches('0').trim_end_matches('.');
-            format!("{}{}", coeff, exp)
+            format!("{coeff}{exp}")
         } else {
             s
         }
@@ -71,7 +71,7 @@ fn md_table(headers: &[&str], rows: &[Vec<String>]) {
     // Header
     print!("|");
     for h in headers {
-        print!(" {} |", h);
+        print!(" {h} |");
     }
     println!();
     // Separator — right-align numeric columns (all except the first)
@@ -88,7 +88,7 @@ fn md_table(headers: &[&str], rows: &[Vec<String>]) {
     for row in rows {
         print!("|");
         for cell in row {
-            print!(" {} |", cell);
+            print!(" {cell} |");
         }
         println!();
     }
@@ -798,7 +798,7 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
 }
 
 fn print_scalar_group(title: &str, items: &[(&str, f64)]) {
-    println!("#### {}", title);
+    println!("#### {title}");
     println!();
     let rows: Vec<Vec<String>> = items
         .iter()
@@ -1158,12 +1158,12 @@ fn print_syndrome_parameters(store: &amr_project::config::ParameterStore) {
     println!("#### Syndrome Empiric Drug Scores");
     println!();
     let mut rows = Vec::new();
-    for syndrome_id in 1..=10 {
+    for (syndrome_id, syndrome_name) in SYNDROME_NAMES.iter().enumerate().skip(1) {
         for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             let score = store.syndrome.empiric_drug_score(syndrome_id, d_idx);
             if (score - 0.01).abs() > 1e-6 {
                 rows.push(vec![
-                    SYNDROME_NAMES[syndrome_id].to_string(),
+                    syndrome_name.to_string(),
                     drug.to_string(),
                     format_value(score),
                 ]);
@@ -1176,12 +1176,12 @@ fn print_syndrome_parameters(store: &amr_project::config::ParameterStore) {
     println!("#### Syndrome Drug Penetration");
     println!();
     let mut rows = Vec::new();
-    for syndrome_id in 1..=10 {
+    for (syndrome_id, syndrome_name) in SYNDROME_NAMES.iter().enumerate().skip(1) {
         for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             let pen = store.syndrome.drug_penetration(syndrome_id, d_idx);
             if (pen - 1.0).abs() > 1e-6 {
                 rows.push(vec![
-                    SYNDROME_NAMES[syndrome_id].to_string(),
+                    syndrome_name.to_string(),
                     drug.to_string(),
                     format_value(pen),
                 ]);

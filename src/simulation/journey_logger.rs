@@ -214,6 +214,17 @@ pub struct ActiveJourney {
     pub drug_supported_clearance: bool,
 }
 
+struct SnapshotContext<'a> {
+    journey_id: u32,
+    time_step: usize,
+    day_of_journey: u32,
+    primary_bacteria_idx: usize,
+    resolution_type: Option<String>,
+    has_de_novo_resistance: bool,
+    treatment_failures_count: u32,
+    previous_snapshot: Option<&'a InfectionJourneySnapshot>,
+}
+
 pub struct JourneyLogger {
     // Configuration
     pub enabled: bool,
@@ -293,7 +304,7 @@ impl JourneyLogger {
         let output_dir = Path::new("infection_journeys");
         std::fs::create_dir_all(output_dir)?;
         self.output_path = if let Some(ref filter) = self.bacteria_filter {
-            output_dir.join(format!("infection_journeys_{}.csv", filter))
+            output_dir.join(format!("infection_journeys_{filter}.csv"))
         } else {
             output_dir.join("infection_journeys.csv")
         };
@@ -386,14 +397,16 @@ impl JourneyLogger {
         // Create initial snapshot
         let snapshot = JourneyLogger::create_snapshot(
             individual,
-            journey_id,
-            time_step,
-            1,
-            primary_bacteria_idx,
-            None,
-            initial_de_novo,
-            0,
-            None,
+            SnapshotContext {
+                journey_id,
+                time_step,
+                day_of_journey: 1,
+                primary_bacteria_idx,
+                resolution_type: None,
+                has_de_novo_resistance: initial_de_novo,
+                treatment_failures_count: 0,
+                previous_snapshot: None,
+            },
         );
 
         let current_failure_day = individual.date_last_drug_failure[primary_bacteria_idx];
@@ -426,7 +439,7 @@ impl JourneyLogger {
                 if let Some(snapshot) = journey.snapshots.last() {
                     if let Err(e) = writeln!(writer, "{}", JourneyLogger::snapshot_to_csv(snapshot))
                     {
-                        eprintln!("Error writing snapshot: {}", e);
+                        eprintln!("Error writing snapshot: {e}");
                     } else {
                         self.total_snapshots_logged += 1;
                     }
@@ -454,23 +467,25 @@ impl JourneyLogger {
             let previous_snapshot = journey.snapshots.last().cloned();
             let snapshot = JourneyLogger::create_snapshot(
                 individual,
-                journey.journey_id,
-                time_step,
-                journey.day_count,
-                journey.primary_bacteria_idx,
-                None,
-                journey.has_de_novo_resistance,
-                journey.treatment_failures_count,
-                previous_snapshot.as_ref(),
+                SnapshotContext {
+                    journey_id: journey.journey_id,
+                    time_step,
+                    day_of_journey: journey.day_count,
+                    primary_bacteria_idx: journey.primary_bacteria_idx,
+                    resolution_type: None,
+                    has_de_novo_resistance: journey.has_de_novo_resistance,
+                    treatment_failures_count: journey.treatment_failures_count,
+                    previous_snapshot: previous_snapshot.as_ref(),
+                },
             );
 
-            if !journey.drug_supported_clearance {
-                if JourneyLogger::detect_drug_supported_clearance(
+            if !journey.drug_supported_clearance
+                && JourneyLogger::detect_drug_supported_clearance(
                     previous_snapshot.as_ref(),
                     &snapshot,
-                ) {
-                    journey.drug_supported_clearance = true;
-                }
+                )
+            {
+                journey.drug_supported_clearance = true;
             }
 
             journey.snapshots.push(snapshot);
@@ -480,7 +495,7 @@ impl JourneyLogger {
                 if let Some(snapshot) = journey.snapshots.last() {
                     if let Err(e) = writeln!(writer, "{}", JourneyLogger::snapshot_to_csv(snapshot))
                     {
-                        eprintln!("Error writing update snapshot: {}", e);
+                        eprintln!("Error writing update snapshot: {e}");
                     } else {
                         self.total_snapshots_logged += 1;
                     }
@@ -529,23 +544,25 @@ impl JourneyLogger {
             let previous_snapshot = journey.snapshots.last().cloned();
             let final_snapshot = JourneyLogger::create_snapshot(
                 individual,
-                journey.journey_id,
-                time_step,
-                journey.day_count,
-                journey.primary_bacteria_idx,
-                Some(resolution_type.clone()),
-                journey.has_de_novo_resistance,
-                journey.treatment_failures_count,
-                previous_snapshot.as_ref(),
+                SnapshotContext {
+                    journey_id: journey.journey_id,
+                    time_step,
+                    day_of_journey: journey.day_count,
+                    primary_bacteria_idx: journey.primary_bacteria_idx,
+                    resolution_type: Some(resolution_type.clone()),
+                    has_de_novo_resistance: journey.has_de_novo_resistance,
+                    treatment_failures_count: journey.treatment_failures_count,
+                    previous_snapshot: previous_snapshot.as_ref(),
+                },
             );
 
-            if !journey.drug_supported_clearance {
-                if JourneyLogger::detect_drug_supported_clearance(
+            if !journey.drug_supported_clearance
+                && JourneyLogger::detect_drug_supported_clearance(
                     previous_snapshot.as_ref(),
                     &final_snapshot,
-                ) {
-                    journey.drug_supported_clearance = true;
-                }
+                )
+            {
+                journey.drug_supported_clearance = true;
             }
 
             journey.snapshots.push(final_snapshot);
@@ -564,15 +581,18 @@ impl JourneyLogger {
 
     fn create_snapshot(
         individual: &Individual,
-        journey_id: u32,
-        time_step: usize,
-        day_of_journey: u32,
-        primary_bacteria_idx: usize,
-        resolution_type: Option<String>,
-        has_de_novo_resistance: bool,
-        treatment_failures_count: u32,
-        previous_snapshot: Option<&InfectionJourneySnapshot>,
+        context: SnapshotContext<'_>,
     ) -> InfectionJourneySnapshot {
+        let SnapshotContext {
+            journey_id,
+            time_step,
+            day_of_journey,
+            primary_bacteria_idx,
+            resolution_type,
+            has_de_novo_resistance,
+            treatment_failures_count,
+            previous_snapshot,
+        } = context;
         let previous_primary_level = previous_snapshot
             .map(|snapshot| snapshot.primary_bacteria_level)
             .unwrap_or(0.0);
@@ -790,13 +810,11 @@ impl JourneyLogger {
                     .iter()
                     .enumerate()
                     .filter_map(|(idx, &drug_name)| {
-                        if let Some(acquisition_type) =
-                            &individual.how_resistance_acquired[primary_bacteria_idx][idx]
-                        {
-                            Some((drug_name.to_string(), acquisition_type.as_str().to_string()))
-                        } else {
-                            None
-                        }
+                        individual.how_resistance_acquired[primary_bacteria_idx][idx]
+                            .as_ref()
+                            .map(|acquisition_type| {
+                                (drug_name.to_string(), acquisition_type.as_str().to_string())
+                            })
                     })
                     .collect()
             } else {
@@ -906,17 +924,15 @@ impl JourneyLogger {
             } else {
                 "DeathFromBackground".to_string()
             }
+        } else if journey.drug_supported_clearance {
+            "DrugAssistedClearance".to_string()
         } else {
-            if journey.drug_supported_clearance {
+            // Fallback: if drugs are still active at resolution, classify as drug-assisted
+            let has_active_drugs = individual.cur_use_drug.iter().any(|&taking| taking);
+            if has_active_drugs {
                 "DrugAssistedClearance".to_string()
             } else {
-                // Fallback: if drugs are still active at resolution, classify as drug-assisted
-                let has_active_drugs = individual.cur_use_drug.iter().any(|&taking| taking);
-                if has_active_drugs {
-                    "DrugAssistedClearance".to_string()
-                } else {
-                    "ImmuneClearance".to_string()
-                }
+                "ImmuneClearance".to_string()
             }
         }
     }
@@ -958,26 +974,27 @@ impl JourneyLogger {
             let current_level = current.primary_bacteria_level;
 
             // Clearance to (or below) detection threshold while drug present
-            if prev_level > INFECTION_EPS && current_level <= INFECTION_EPS {
-                if !current.current_drugs.is_empty()
-                    && current
-                        .resistance_activity_r
-                        .iter()
-                        .any(|(_, value)| *value > 0.0)
-                {
-                    return true;
-                }
+            if prev_level > INFECTION_EPS
+                && current_level <= INFECTION_EPS
+                && !current.current_drugs.is_empty()
+                && current
+                    .resistance_activity_r
+                    .iter()
+                    .any(|(_, value)| *value > 0.0)
+            {
+                return true;
             }
 
             // New drug started with immediate notable decline
-            if prev_snapshot.current_drugs.is_empty() && !current.current_drugs.is_empty() {
-                if prev_level > INFECTION_EPS {
-                    let level_drop = prev_level - current_level;
-                    if level_drop > 0.0 {
-                        let relative_drop = level_drop / prev_level;
-                        if relative_drop >= 0.1 || current_level <= INFECTION_EPS {
-                            return true;
-                        }
+            if prev_snapshot.current_drugs.is_empty()
+                && !current.current_drugs.is_empty()
+                && prev_level > INFECTION_EPS
+            {
+                let level_drop = prev_level - current_level;
+                if level_drop > 0.0 {
+                    let relative_drop = level_drop / prev_level;
+                    if relative_drop >= 0.1 || current_level <= INFECTION_EPS {
+                        return true;
                     }
                 }
             }
@@ -1012,56 +1029,56 @@ impl JourneyLogger {
         let all_bacteria_str = snapshot
             .all_bacteria_levels
             .iter()
-            .map(|(name, level)| format!("{}:{:.6}", name, level))
+            .map(|(name, level)| format!("{name}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let current_drugs_str = snapshot
             .current_drugs
             .iter()
-            .map(|(name, level)| format!("{}:{:.6}", name, level))
+            .map(|(name, level)| format!("{name}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let resistance_any_r_str = snapshot
             .resistance_any_r
             .iter()
-            .map(|(drug, level)| format!("{}:{:.6}", drug, level))
+            .map(|(drug, level)| format!("{drug}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let resistance_activity_r_str = snapshot
             .resistance_activity_r
             .iter()
-            .map(|(drug, level)| format!("{}:{:.6}", drug, level))
+            .map(|(drug, level)| format!("{drug}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let resistances_microbiome_r_str = snapshot
             .resistances_microbiome_r
             .iter()
-            .map(|(drug, level)| format!("{}:{:.6}", drug, level))
+            .map(|(drug, level)| format!("{drug}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let microbiome_resistance_minor_str = snapshot
             .microbiome_resistance_minor
             .iter()
-            .map(|(name, level)| format!("{}:{:.6}", name, level))
+            .map(|(name, level)| format!("{name}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let microbiome_resistance_major_str = snapshot
             .microbiome_resistance_major
             .iter()
-            .map(|(name, level)| format!("{}:{:.6}", name, level))
+            .map(|(name, level)| format!("{name}:{level:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
         let presence_microbiome_str = snapshot
             .presence_microbiome
             .iter()
-            .map(|(name, present)| format!("{}:{}", name, present))
+            .map(|(name, present)| format!("{name}:{present}"))
             .collect::<Vec<_>>()
             .join(";");
 
@@ -1076,7 +1093,7 @@ impl JourneyLogger {
         let drug_selection_scores_str = snapshot
             .drug_selection_scores
             .iter()
-            .map(|(drug, score)| format!("{}:{:.6}", drug, score))
+            .map(|(drug, score)| format!("{drug}:{score:.6}"))
             .collect::<Vec<_>>()
             .join(";");
 
@@ -1095,7 +1112,7 @@ impl JourneyLogger {
         let resistance_sources_str = snapshot
             .resistance_sources
             .iter()
-            .map(|(drug, source)| format!("{}:{}", drug, source))
+            .map(|(drug, source)| format!("{drug}:{source}"))
             .collect::<Vec<_>>()
             .join(";");
 
@@ -1114,21 +1131,21 @@ impl JourneyLogger {
         columns.push(snapshot.syndrome.to_string());
         columns.push(snapshot.sepsis.to_string());
         columns.push(snapshot.hospital_acquired.to_string());
-        columns.push(format!("\"{}\"", all_bacteria_str));
-        columns.push(format!("\"{}\"", current_drugs_str));
+        columns.push(format!("\"{all_bacteria_str}\""));
+        columns.push(format!("\"{current_drugs_str}\""));
         columns.push(snapshot.days_on_current_treatment.to_string());
         columns.push(snapshot.treatment_failures_count.to_string());
-        columns.push(format!("\"{}\"", resistance_any_r_str));
-        columns.push(format!("\"{}\"", resistance_activity_r_str));
-        columns.push(format!("\"{}\"", resistances_microbiome_r_str));
-        columns.push(format!("\"{}\"", microbiome_resistance_minor_str));
-        columns.push(format!("\"{}\"", microbiome_resistance_major_str));
-        columns.push(format!("\"{}\"", presence_microbiome_str));
-        columns.push(format!("\"{}\"", mechanisms_str));
+        columns.push(format!("\"{resistance_any_r_str}\""));
+        columns.push(format!("\"{resistance_activity_r_str}\""));
+        columns.push(format!("\"{resistances_microbiome_r_str}\""));
+        columns.push(format!("\"{microbiome_resistance_minor_str}\""));
+        columns.push(format!("\"{microbiome_resistance_major_str}\""));
+        columns.push(format!("\"{presence_microbiome_str}\""));
+        columns.push(format!("\"{mechanisms_str}\""));
         columns.push(snapshot.perceived_penicillin_allergy.to_string());
-        columns.push(format!("\"{}\"", drug_selection_bacteria_str));
-        columns.push(format!("\"{}\"", drug_selection_scores_str));
-        columns.push(format!("\"{}\"", selected_drug_str));
+        columns.push(format!("\"{drug_selection_bacteria_str}\""));
+        columns.push(format!("\"{drug_selection_scores_str}\""));
+        columns.push(format!("\"{selected_drug_str}\""));
         columns.push(snapshot.hospital_status.clone());
         columns.push(format!("{:.6}", snapshot.clearance_hazard));
         columns.push(format!("{:.6}", snapshot.toxicity_level));
@@ -1136,9 +1153,9 @@ impl JourneyLogger {
         columns.push(snapshot.infection_identified.to_string());
         columns.push(snapshot.infection_has_caused_symptoms.to_string());
         columns.push(snapshot.resistance_testing_done.to_string());
-        columns.push(format!("\"{}\"", resolution_str));
+        columns.push(format!("\"{resolution_str}\""));
         columns.push(snapshot.has_de_novo_resistance.to_string());
-        columns.push(format!("\"{}\"", resistance_sources_str));
+        columns.push(format!("\"{resistance_sources_str}\""));
 
         columns.join(",")
     }

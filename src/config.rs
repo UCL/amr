@@ -74,8 +74,7 @@ pub fn canonicalize_bacteria_slug<'a>(name: &'a str) -> Cow<'a, str> {
     }
 
     panic!(
-        "Unknown bacteria name '{name}'. Use canonical slugs from BACTERIA_LIST (e.g., acinetobacter_baumannii)",
-        name = name
+        "Unknown bacteria name '{name}'. Use canonical slugs from BACTERIA_LIST (e.g., acinetobacter_baumannii)"
     );
 }
 
@@ -1141,36 +1140,30 @@ impl RegionParameters {
         for (idx, region) in REGION_VARIANTS.iter().enumerate() {
             let key_prefix = region.to_string();
             travel_multiplier[idx] =
-                get_or_default(map, &format!("{}_travel_multiplier", key_prefix), 1.0);
+                get_or_default(map, &format!("{key_prefix}_travel_multiplier"), 1.0);
             cessation_multiplier[idx] =
-                get_or_default(map, &format!("{}_cessation_multiplier", key_prefix), 1.0);
-            mortality_log_odds[idx] = get_or_default(
-                map,
-                &format!("log_odds_mortality_region_{}", key_prefix),
-                0.0,
-            );
+                get_or_default(map, &format!("{key_prefix}_cessation_multiplier"), 1.0);
+            mortality_log_odds[idx] =
+                get_or_default(map, &format!("log_odds_mortality_region_{key_prefix}"), 0.0);
             sepsis_recovery_log_odds[idx] = get_or_default(
                 map,
-                &format!("sepsis_recovery_log_odds_region_{}", key_prefix),
+                &format!("sepsis_recovery_log_odds_region_{key_prefix}"),
                 0.0,
             );
             sepsis_mortality_multiplier[idx] = get_or_default(
                 map,
-                &format!("{}_sepsis_mortality_multiplier", key_prefix),
+                &format!("{key_prefix}_sepsis_mortality_multiplier"),
                 1.0,
             );
             testing_multiplier[idx] =
-                get_or_default(map, &format!("{}_testing_multiplier", key_prefix), 1.0);
+                get_or_default(map, &format!("{key_prefix}_testing_multiplier"), 1.0);
             antibiotic_initiation_log_odds[idx] = get_or_default(
                 map,
-                &format!("{}_antibiotic_initiation_log_odds", key_prefix),
+                &format!("{key_prefix}_antibiotic_initiation_log_odds"),
                 0.0,
             );
-            hospitalization_log_odds[idx] = get_or_default(
-                map,
-                &format!("{}_hospitalization_log_odds", key_prefix),
-                0.0,
-            );
+            hospitalization_log_odds[idx] =
+                get_or_default(map, &format!("{key_prefix}_hospitalization_log_odds"), 0.0);
         }
 
         RegionParameters {
@@ -1283,14 +1276,14 @@ impl VaccinationParameters {
         let mut rollout_years = vec![0.0; Self::VACCINES.len()];
 
         for (vaccine_idx, &vaccine) in Self::VACCINES.iter().enumerate() {
-            let availability_key = format!("vaccine_{}_availability_year", vaccine);
+            let availability_key = format!("vaccine_{vaccine}_availability_year");
             availability_years[vaccine_idx] = get_or_default(map, &availability_key, 2100.0);
 
-            let birth_coverage_key = format!("vaccine_{}_birth_coverage_target", vaccine);
+            let birth_coverage_key = format!("vaccine_{vaccine}_birth_coverage_target");
             birth_coverage_targets[vaccine_idx] =
                 get_or_default(map, &birth_coverage_key, 0.0).clamp(0.0, 1.0);
 
-            let rollout_years_key = format!("vaccine_{}_rollout_years", vaccine);
+            let rollout_years_key = format!("vaccine_{vaccine}_rollout_years");
             rollout_years[vaccine_idx] = get_or_default(map, &rollout_years_key, 0.0).max(0.0);
         }
 
@@ -1402,36 +1395,30 @@ impl SyndromeParameters {
         Self::initialize_drug_penetration_defaults(&mut drug_penetration);
 
         for syndrome_id in 1..=Self::MAX_SYNDROME_ID {
-            sepsis_log_odds[syndrome_id] = get_or_default(
-                map,
-                &format!("log_odds_syndrome_{}_sepsis", syndrome_id),
-                0.0,
-            );
+            sepsis_log_odds[syndrome_id] =
+                get_or_default(map, &format!("log_odds_syndrome_{syndrome_id}_sepsis"), 0.0);
             initiation_multiplier[syndrome_id] = get_or_default(
                 map,
-                &format!("syndrome_{}_initiation_multiplier", syndrome_id),
+                &format!("syndrome_{syndrome_id}_initiation_multiplier"),
                 1.0,
             );
             non_sepsis_mortality_log_odds[syndrome_id] = get_or_default(
                 map,
-                &format!(
-                    "syndrome_{}_non_sepsis_infection_death_log_odds",
-                    syndrome_id
-                ),
+                &format!("syndrome_{syndrome_id}_non_sepsis_infection_death_log_odds"),
                 0.0,
             );
             bacteria_growth_multiplier[syndrome_id] = get_or_default(
                 map,
-                &format!("syndrome_{}_bacteria_growth_multiplier", syndrome_id),
+                &format!("syndrome_{syndrome_id}_bacteria_growth_multiplier"),
                 1.0,
             );
 
             for (drug_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
-                let key = format!("syndrome_{}_empiric_drug_{}_score", syndrome_id, drug);
+                let key = format!("syndrome_{syndrome_id}_empiric_drug_{drug}_score");
                 empiric_drug_scores[syndrome_id][drug_idx] = get_or_default(map, &key, 0.01);
 
                 // Override drug penetration from config if specified
-                let penetration_key = format!("syndrome_{}_drug_{}_penetration", syndrome_id, drug);
+                let penetration_key = format!("syndrome_{syndrome_id}_drug_{drug}_penetration");
                 drug_penetration[syndrome_id][drug_idx] = get_or_default(
                     map,
                     &penetration_key,
@@ -1445,7 +1432,7 @@ impl SyndromeParameters {
         // and are kept <= 1.0 so this pathway is not treated as a positive
         // syndrome-specific empiric signal by the drug-selection code.
         for (drug_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
-            let key = format!("syndrome_0_empiric_drug_{}_score", drug);
+            let key = format!("syndrome_0_empiric_drug_{drug}_score");
             empiric_drug_scores[0][drug_idx] = get_or_default(map, &key, 0.01);
         }
 
@@ -1497,7 +1484,7 @@ impl SyndromeParameters {
 
     /// Initialize drug penetration defaults based on pharmacokinetic properties
     /// Values represent fraction of serum concentration achieved at infection site
-    fn initialize_drug_penetration_defaults(drug_penetration: &mut Vec<Vec<f64>>) {
+    fn initialize_drug_penetration_defaults(drug_penetration: &mut [Vec<f64>]) {
         // Drug indices (from DRUG_SHORT_NAMES):
         // 0=sulfanilamide, 1=penicillin_g, 2=ampicillin, 3=amoxicillin, 4=piperacillin, 5=ticarcillin
         // 6=cephalexin, 7=cefazolin, 8=cefuroxime, 9=ceftriaxone, 10=ceftazidime, 11=cefepime
@@ -2132,30 +2119,30 @@ impl DrugParameters {
         let mut microbiome_disruption_log_odds = Vec::with_capacity(num_drugs);
 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            let prefix = format!("drug_{}", drug);
+            let prefix = format!("drug_{drug}");
             initial_level.push(get_or_default(
                 map,
-                &format!("{}_initial_level", prefix),
+                &format!("{prefix}_initial_level"),
                 10.0,
             ));
             double_dose_multiplier.push(get_or_default(
                 map,
-                &format!("{}_double_dose_multiplier", prefix),
+                &format!("{prefix}_double_dose_multiplier"),
                 2.0,
             ));
             spectrum_breadth.push(get_or_default(
                 map,
-                &format!("{}_spectrum_breadth", prefix),
+                &format!("{prefix}_spectrum_breadth"),
                 3.0,
             ));
             half_life_days.push(get_or_default(
                 map,
-                &format!("{}_half_life_days", prefix),
+                &format!("{prefix}_half_life_days"),
                 0.25,
             ));
             let hazard = get_or_default(
                 map,
-                &format!("{}_toxicity_death_hazard_per_unit_level", prefix),
+                &format!("{prefix}_toxicity_death_hazard_per_unit_level"),
                 get_or_default(
                     map,
                     "default_drug_toxicity_death_hazard_per_unit_level",
@@ -2165,13 +2152,13 @@ impl DrugParameters {
             toxicity_death_hazard_per_unit_level.push(hazard.max(0.0));
             let half_life = get_or_default(
                 map,
-                &format!("{}_toxicity_reservoir_half_life_days", prefix),
+                &format!("{prefix}_toxicity_reservoir_half_life_days"),
                 get_or_default(map, "default_toxicity_reservoir_half_life_days", 1.5),
             );
             toxicity_reservoir_half_life_days.push(half_life.max(0.0));
             microbiome_disruption_log_odds.push(get_or_default(
                 map,
-                &format!("{}_microbiome_disruption_log_odds", prefix),
+                &format!("{prefix}_microbiome_disruption_log_odds"),
                 get_or_default(map, "default_microbiome_disruption_log_odds", 0.0),
             ));
         }
@@ -2331,27 +2318,27 @@ impl BacteriaParameters {
             let prefix = bacteria;
             acquisition_log_odds_baseline.push(get_or_default(
                 map,
-                &format!("{}_acquisition_log_odds_baseline", prefix),
+                &format!("{prefix}_acquisition_log_odds_baseline"),
                 get_or_default(map, "acquisition_log_odds_baseline", -30.0),
             ));
             log_odds_vaccinated.push(get_or_default(
                 map,
-                &format!("{}_log_odds_vaccinated", prefix),
+                &format!("{prefix}_log_odds_vaccinated"),
                 get_or_default(map, "log_odds_vaccinated", 0.0),
             ));
             log_odds_microbiome_present.push(get_or_default(
                 map,
-                &format!("{}_log_odds_microbiome_present", prefix),
+                &format!("{prefix}_log_odds_microbiome_present"),
                 get_or_default(map, "log_odds_microbiome_present", 0.0),
             ));
             log_odds_hospital_acquired.push(get_or_default(
                 map,
-                &format!("{}_log_odds_hospital_acquired", prefix),
+                &format!("{prefix}_log_odds_hospital_acquired"),
                 get_or_default(map, "log_odds_hospital_acquired", 0.0),
             ));
             microbiome_clearance_probability_per_day.push(get_or_default(
                 map,
-                &format!("{}_microbiome_clearance_probability_per_day", prefix),
+                &format!("{prefix}_microbiome_clearance_probability_per_day"),
                 get_or_default(
                     map,
                     "default_microbiome_clearance_probability_per_day",
@@ -2360,106 +2347,106 @@ impl BacteriaParameters {
             ));
             initial_infection_level.push(get_or_default(
                 map,
-                &format!("{}_initial_infection_level", prefix),
+                &format!("{prefix}_initial_infection_level"),
                 0.01,
             ));
             base_bacteria_level_change.push(get_or_default(
                 map,
-                &format!("{}_base_bacteria_level_change", prefix),
+                &format!("{prefix}_base_bacteria_level_change"),
                 0.5,
             ));
-            max_level.push(get_or_default(map, &format!("{}_max_level", prefix), 5.0));
+            max_level.push(get_or_default(map, &format!("{prefix}_max_level"), 5.0));
             // Symptom onset logistic parameters
             // Default base log-odds: log(0.15/0.85) =  -1.73 (equivalent to 15% daily probability)
             symptom_onset_base_log_odds.push(get_or_default(
                 map,
-                &format!("{}_symptom_onset_base_log_odds", prefix),
+                &format!("{prefix}_symptom_onset_base_log_odds"),
                 -1.73,
             ));
             symptom_onset_threshold_level.push(get_or_default(
                 map,
-                &format!("{}_symptom_onset_threshold_level", prefix),
+                &format!("{prefix}_symptom_onset_threshold_level"),
                 0.5,
             ));
             symptom_onset_delay_days.push(get_or_default(
                 map,
-                &format!("{}_symptom_onset_delay_days", prefix),
+                &format!("{prefix}_symptom_onset_delay_days"),
                 1.0,
             ));
             // Log-odds increase per unit of bacteria level above threshold
             symptom_onset_log_odds_per_level_unit.push(get_or_default(
                 map,
-                &format!("{}_symptom_onset_log_odds_per_level_unit", prefix),
+                &format!("{prefix}_symptom_onset_log_odds_per_level_unit"),
                 0.5, // Each unit above threshold adds 0.5 log-odds (~1.6x odds multiplier)
             ));
             mechanismless_resistance_reversion_rate.push(get_or_default(
                 map,
-                &format!("{}_mechanismless_resistance_reversion_rate", prefix),
+                &format!("{prefix}_mechanismless_resistance_reversion_rate"),
                 get_or_default(map, "mechanismless_resistance_reversion_rate", 0.0004),
             ));
             microbiome_vs_infection_log_odds.push(get_or_default(
                 map,
-                &format!("{}_log_odds_microbiome_vs_infection", prefix),
+                &format!("{prefix}_log_odds_microbiome_vs_infection"),
                 get_or_default(map, "log_odds_microbiome_vs_infection", 3.0),
             ));
             let cessation_key = format!("{}_drug_cessation_probability", prefix.to_lowercase());
             let default_cessation = get_or_default(map, "random_drug_cessation_probability", 0.001);
             drug_cessation_probability.push(get_or_default(map, &cessation_key, default_cessation));
-            let recognition_key = format!("{}_treatment_recognition_year", prefix);
+            let recognition_key = format!("{prefix}_treatment_recognition_year");
             treatment_recognition_year.push(map.get(&recognition_key).copied());
             sepsis_baseline_log_odds.push(get_or_default(
                 map,
-                &format!("{}_sepsis_baseline_log_odds", prefix),
+                &format!("{prefix}_sepsis_baseline_log_odds"),
                 get_or_default(map, "sepsis_baseline_log_odds", -13.0), // -14.0
             ));
             sepsis_log_odds_infection_level.push(get_or_default(
                 map,
-                &format!("{}_log_odds_sepsis_infection_level", prefix),
+                &format!("{prefix}_log_odds_sepsis_infection_level"),
                 get_or_default(map, "log_odds_sepsis_infection_level", 0.1),
             ));
             sepsis_log_odds_infection_duration.push(get_or_default(
                 map,
-                &format!("{}_log_odds_sepsis_infection_duration", prefix),
+                &format!("{prefix}_log_odds_sepsis_infection_duration"),
                 get_or_default(map, "log_odds_sepsis_infection_duration", 0.01),
             ));
             infection_non_sepsis_mortality_log_odds.push(get_or_default(
                 map,
-                &format!("{}_non_sepsis_infection_death_log_odds", prefix),
+                &format!("{prefix}_non_sepsis_infection_death_log_odds"),
                 0.0,
             ));
             sepsis_death_log_odds_override.push(get_or_default(
                 map,
-                &format!("{}_sepsis_death_log_odds_override", prefix),
+                &format!("{prefix}_sepsis_death_log_odds_override"),
                 0.0,
             ));
             hospital_microbiome_r_multiplier.push(get_or_default(
                 map,
-                &format!("{}_hospital_microbiome_r_multiplier", prefix),
+                &format!("{prefix}_hospital_microbiome_r_multiplier"),
                 get_or_default(map, "hospital_microbiome_r_multiplier", 1.0),
             ));
             community_resistance_dilution_factor.push(get_or_default(
                 map,
-                &format!("{}_community_resistance_dilution_factor", prefix),
+                &format!("{prefix}_community_resistance_dilution_factor"),
                 get_or_default(map, "community_resistance_dilution_factor", 0.30),
             ));
             hospital_resistance_concentration_factor.push(get_or_default(
                 map,
-                &format!("{}_hospital_resistance_concentration_factor", prefix),
+                &format!("{prefix}_hospital_resistance_concentration_factor"),
                 get_or_default(map, "hospital_resistance_concentration_factor", 1.0),
             ));
             hospital_resistance_prune_susceptible_percent.push(get_or_default(
                 map,
-                &format!("{}_hospital_resistance_prune_susceptible_percent", prefix),
+                &format!("{prefix}_hospital_resistance_prune_susceptible_percent"),
                 get_or_default(map, "hospital_resistance_prune_susceptible_percent", 0.0),
             ));
             community_mechanism_reversion_multiplier.push(get_or_default(
                 map,
-                &format!("{}_community_mechanism_reversion_multiplier", prefix),
+                &format!("{prefix}_community_mechanism_reversion_multiplier"),
                 get_or_default(map, "community_mechanism_reversion_multiplier", 1.0),
             ));
             treatment_failure_no_second_line_probability.push(get_or_default(
                 map,
-                &format!("{}_treatment_failure_no_second_line_probability", prefix),
+                &format!("{prefix}_treatment_failure_no_second_line_probability"),
                 0.0,
             ));
         }
@@ -2618,13 +2605,13 @@ impl ClearanceParameters {
         let mut per_bacteria_log_odds_adjustment = Vec::with_capacity(num_bacteria);
         for &bacteria in BACTERIA_LIST.iter() {
             per_bacteria_delay_days.push(
-                map.get(&format!("{}_clearance_delay_days", bacteria))
+                map.get(&format!("{bacteria}_clearance_delay_days"))
                     .copied(),
             );
             // Bacteria-specific log-odds adjustment (additive)
             per_bacteria_log_odds_adjustment.push(get_or_default(
                 map,
-                &format!("{}_clearance_log_odds_adjustment", bacteria),
+                &format!("{bacteria}_clearance_log_odds_adjustment"),
                 0.0,
             ));
         }
@@ -2641,7 +2628,7 @@ impl ClearanceParameters {
             _base_delay_days: base_delay_days,
             base_clearance_log_odds,
             _per_bacteria_delay_days: per_bacteria_delay_days,
-            per_bacteria_log_odds_adjustment: per_bacteria_log_odds_adjustment,
+            per_bacteria_log_odds_adjustment,
             age_log_odds_adjustments,
             immunodeficient_log_odds_adjustment,
             level_log_odds_per_unit,
@@ -2745,16 +2732,15 @@ impl DrugBacteriaMatrix {
         for &bacteria in BACTERIA_LIST.iter() {
             for &drug in DRUG_SHORT_NAMES.iter() {
                 // Bacteria names now use underscores consistently
-                let key_prefix = format!("drug_{}_for_bacteria_{}", drug, bacteria);
+                let key_prefix = format!("drug_{drug}_for_bacteria_{bacteria}");
                 // Potency is guaranteed in [0.0, 1.0] by the flat potency table (all values
                 // were capped at 1.0 when the table was generated by dump_potency).
-                let potency =
-                    get_or_default(map, &format!("{}_potency_when_no_r", key_prefix), 0.1)
-                        .clamp(0.0, 1.0);
+                let potency = get_or_default(map, &format!("{key_prefix}_potency_when_no_r"), 0.1)
+                    .clamp(0.0, 1.0);
                 potency_when_no_r.push(potency);
                 initiation_multiplier.push(get_or_default(
                     map,
-                    &format!("{}_initiation_multiplier", key_prefix),
+                    &format!("{key_prefix}_initiation_multiplier"),
                     1.0,
                 ));
                 let threshold = 2.0 * potency - 1.0;
@@ -2868,8 +2854,8 @@ impl RegionBacteriaAcquisition {
             .chain(std::iter::once(&HOME_REGION_NAME))
         {
             for &bacteria in BACTERIA_LIST.iter() {
-                let key = format!("{}_{}_acquisition_log_odds", region, bacteria);
-                let default_key = format!("{}_acquisition_log_odds_default", region);
+                let key = format!("{region}_{bacteria}_acquisition_log_odds");
+                let default_key = format!("{region}_acquisition_log_odds_default");
                 let val = map
                     .get(&key)
                     .copied()
@@ -2927,8 +2913,8 @@ impl AgeTables {
         for &bacteria in BACTERIA_LIST.iter() {
             for &category in AGE_BUCKETS.iter() {
                 let age_slug = category.bucket_slug();
-                let key = format!("{}_log_odds_{}", bacteria, age_slug);
-                let default_key = format!("default_log_odds_{}", age_slug);
+                let key = format!("{bacteria}_log_odds_{age_slug}");
+                let default_key = format!("default_log_odds_{age_slug}");
                 let value = map
                     .get(&key)
                     .copied()
@@ -2943,7 +2929,7 @@ impl AgeTables {
         {
             for &category in AGE_BUCKETS.iter() {
                 let age_slug = category.bucket_slug();
-                let key = format!("{}_log_odds_{}", region, age_slug);
+                let key = format!("{region}_log_odds_{age_slug}");
                 region_age_log_odds.push(get_or_default(map, &key, 0.0));
             }
         }
@@ -3035,7 +3021,7 @@ impl AgeCategoryParameters {
         for region in REGION_VARIANTS.iter() {
             let region_key = region.to_string();
             let region_idx = RegionParameters::region_index(*region);
-            for (_bacteria_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+            for &bacteria in BACTERIA_LIST.iter() {
                 for (age_idx, category) in AGE_BUCKETS.iter().enumerate() {
                     let fallback = region_age_log_odds[region_idx * age_count + age_idx];
                     let key = format!("{}_{}_log_odds_{}", bacteria, region_key, category.label());
@@ -3120,7 +3106,7 @@ impl HgtMatrix {
                     values.push(0.0);
                     continue;
                 }
-                let key = format!("hgt_prob_{}_to_{}", donor, recipient);
+                let key = format!("hgt_prob_{donor}_to_{recipient}");
                 values.push(get_or_default(map, &key, 0.0));
             }
         }
@@ -3253,7 +3239,7 @@ impl ResistanceMechanismParameters {
             // Load the legacy single-value as fallback default
             let legacy_value = get_or_default(
                 map,
-                &format!("resistance_mechanism_{}_enhancement_multiplier", name),
+                &format!("resistance_mechanism_{name}_enhancement_multiplier"),
                 0.0,
             );
 
@@ -3274,7 +3260,7 @@ impl ResistanceMechanismParameters {
 
             reversion_rate.push(get_or_default(
                 map,
-                &format!("resistance_mechanism_{}_reversion_rate", name),
+                &format!("resistance_mechanism_{name}_reversion_rate"),
                 0.0001,
             ));
         }
@@ -3472,7 +3458,7 @@ fn get_or_default(map: &HashMap<String, f64>, key: &str, default: f64) -> f64 {
 fn get_required(map: &HashMap<String, f64>, key: &str) -> f64 {
     map.get(key)
         .copied()
-        .unwrap_or_else(|| panic!("Missing {} in config", key))
+        .unwrap_or_else(|| panic!("Missing {key} in config"))
 }
 
 // --- Global Simulation Parameters ---
@@ -3540,17 +3526,17 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-        map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01 // bacteria level at initial infection
-        map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 // base change in bacteria level per day
-        map.insert(format!("{}_max_level", bacteria), 5.0); // max bacteria level (arbitrary standardized scale)
+        map.insert(format!("{bacteria}_initial_infection_level"), 0.01); // 0.01 // bacteria level at initial infection
+        map.insert(format!("{bacteria}_base_bacteria_level_change"), 0.5); // 0.2 // base change in bacteria level per day
+        map.insert(format!("{bacteria}_max_level"), 5.0); // max bacteria level (arbitrary standardized scale)
 
             // --- Symptom Onset Parameters (Clinical Presentation) ---
-        map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.15); // Default: 15% chance per day of developing symptoms
-        map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.5); // Minimum bacteria level needed for symptom onset
-        map.insert(format!("{}_symptom_onset_delay_days", bacteria), 1.0); // Minimum days infected before symptoms can start
-        map.insert(format!("{}_symptom_onset_level_multiplier", bacteria), 1.0); // How much higher bacteria levels increase symptom probability
+        map.insert(format!("{bacteria}_daily_symptom_onset_probability"), 0.15); // Default: 15% chance per day of developing symptoms
+        map.insert(format!("{bacteria}_symptom_onset_threshold_level"), 0.5); // Minimum bacteria level needed for symptom onset
+        map.insert(format!("{bacteria}_symptom_onset_delay_days"), 1.0); // Minimum days infected before symptoms can start
+        map.insert(format!("{bacteria}_symptom_onset_level_multiplier"), 1.0); // How much higher bacteria levels increase symptom probability
         map.insert(
-                format!("{}_mechanismless_resistance_reversion_rate", bacteria),
+                format!("{bacteria}_mechanismless_resistance_reversion_rate"),
                 0.0004,
             ); // Daily probability of losing resistance when no specific mechanism is present
             // --- Clearance tuning ---
@@ -3559,7 +3545,7 @@ lazy_static! {
             // in template or scenario-specific configurations.
 
             // Age-related bactera-specific infection risk parameters
-        map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
+        map.insert(format!("{bacteria}_age_effect_scaling"), 1.0); // Scale the template effect (1.0 = full effect)
 
             // --- Birth-cohort vaccination rollout parameters for bacterial vaccines only ---
             // Vaccination is assigned once at cohort entry (birth / first day alive), rather than
@@ -3573,12 +3559,12 @@ lazy_static! {
                 ("pertussis", 1948.0, 0.82, 20.0),
             ];
             for (vaccine, availability_year, birth_coverage_target, rollout_years) in &bacterial_vaccines {
-                map.insert(format!("vaccine_{}_availability_year", vaccine), *availability_year);
+                map.insert(format!("vaccine_{vaccine}_availability_year"), *availability_year);
                 map.insert(
-                    format!("vaccine_{}_birth_coverage_target", vaccine),
+                    format!("vaccine_{vaccine}_birth_coverage_target"),
                     *birth_coverage_target,
                 );
-                map.insert(format!("vaccine_{}_rollout_years", vaccine), *rollout_years);
+                map.insert(format!("vaccine_{vaccine}_rollout_years"), *rollout_years);
             }
         }
 
@@ -3594,7 +3580,7 @@ lazy_static! {
 
                 let default_prob = default_hgt_probability(donor_idx, recipient_idx);
             map.insert(
-                    format!("hgt_prob_{}_to_{}", donor, recipient),
+                    format!("hgt_prob_{donor}_to_{recipient}"),
                     default_prob,
                 );
             }
@@ -3958,7 +3944,7 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 // Bacteria names now use underscores consistently
-            map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
+            map.insert(format!("drug_{drug}_for_bacteria_{bacteria}_initiation_multiplier"), 1.0);
             }
         }
 
@@ -3970,8 +3956,7 @@ lazy_static! {
 
         // ^^^^
 
-        let carbapenem_reserve_drugs = vec![
-            "meropenem",
+        let carbapenem_reserve_drugs = ["meropenem",
             "meropenem_vaborbactam",
             "imipenem_c",
             "ertapenem",
@@ -3980,13 +3965,12 @@ lazy_static! {
             "tedizolid",
             "quinu_dalfo",
             "dalbavancin",
-            "ceftazidime_avibactam",
-        ];
+            "ceftazidime_avibactam"];
         for &drug in carbapenem_reserve_drugs.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 // This will be overridden by specific bacteria-drug combinations where appropriate
             map.insert(
-                    format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria),
+                    format!("drug_{drug}_for_bacteria_{bacteria}_initiation_multiplier"),
                     0.5,     // 0.005
                 );
             }
@@ -6694,7 +6678,7 @@ lazy_static! {
         // --- Nalidixic acid initiation multipliers ---
         // Abandoned globally ~1990; set current-era multiplier = 0.0 for all organisms.
         for &bact in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_nalidixic_acid_for_bacteria_{}_initiation_multiplier", bact), 0.0);
+            map.insert(format!("drug_nalidixic_acid_for_bacteria_{bact}_initiation_multiplier"), 0.0);
         }
         // Historical use 1963-~1990: nalidixic acid was the dominant quinolone for Enterobacterales UTI/GI infections.
         // These before_1990 entries drive the 27-year GyrA selection that explains rapid post-1987 FQ resistance emergence.
@@ -6702,7 +6686,7 @@ lazy_static! {
         map.insert("drug_nalidixic_acid_for_bacteria_escherichia_coli_initiation_multiplier_before_1990".to_string(), 7.0);  // 1963-1990: first-line for uncomplicated UTI; seeded GyrA cache
         map.insert("drug_nalidixic_acid_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_1990".to_string(), 8.0); // 1963-1990: gastroenteritis treatment; GyrA Thr86Ile selected before veterinary FQs
         for bact in &["salmonella_enterica_serovar_typhi", "salmonella_enterica_serovar_paratyphi_a", "invasive_non-typhoidal_salmonella_spp."] {
-            map.insert(format!("drug_nalidixic_acid_for_bacteria_{}_initiation_multiplier_before_1990", bact), 8.0); // 1963-1990: first-line enteric fever in South/SE Asia and sub-Saharan Africa
+            map.insert(format!("drug_nalidixic_acid_for_bacteria_{bact}_initiation_multiplier_before_1990"), 8.0); // 1963-1990: first-line enteric fever in South/SE Asia and sub-Saharan Africa
         }
 
         // --- HISTORICAL DRUG-CHOICE ERA OVERRIDES ---
@@ -6711,46 +6695,46 @@ lazy_static! {
         //   1990-2010 : ciprofloxacin first-line globally (WHO/CDC guidelines)
         //   2010+     : ceftriaxone + azithromycin (driven by XDR typhoid emergence)
         for bact in &["salmonella_enterica_serovar_typhi", "salmonella_enterica_serovar_paratyphi_a"] {
-            map.insert(format!("drug_chloramphenicol_for_bacteria_{}_initiation_multiplier", bact), 2.0);               // 2010+: residual LMIC use
-            map.insert(format!("drug_chloramphenicol_for_bacteria_{}_initiation_multiplier_before_2010", bact), 2.0);    // 1990-2010: still used as fallback
-            map.insert(format!("drug_chloramphenicol_for_bacteria_{}_initiation_multiplier_before_1990", bact), 14.0);   // pre-1990: dominant first-line
+            map.insert(format!("drug_chloramphenicol_for_bacteria_{bact}_initiation_multiplier"), 2.0);               // 2010+: residual LMIC use
+            map.insert(format!("drug_chloramphenicol_for_bacteria_{bact}_initiation_multiplier_before_2010"), 2.0);    // 1990-2010: still used as fallback
+            map.insert(format!("drug_chloramphenicol_for_bacteria_{bact}_initiation_multiplier_before_1990"), 14.0);   // pre-1990: dominant first-line
 
-            map.insert(format!("drug_ciprofloxacin_for_bacteria_{}_initiation_multiplier", bact), 2.0);                  // 2010+: declining (resistance)
-            map.insert(format!("drug_ciprofloxacin_for_bacteria_{}_initiation_multiplier_before_2010", bact), 14.0);     // 1990-2010: dominant first-line
+            map.insert(format!("drug_ciprofloxacin_for_bacteria_{bact}_initiation_multiplier"), 2.0);                  // 2010+: declining (resistance)
+            map.insert(format!("drug_ciprofloxacin_for_bacteria_{bact}_initiation_multiplier_before_2010"), 14.0);     // 1990-2010: dominant first-line
             // pre-1990 enteric fever quinolone pressure now carried by nalidixic_acid entries above
 
-            map.insert(format!("drug_ceftriaxone_for_bacteria_{}_initiation_multiplier", bact), 10.0);                   // 2010+: first-line (XDR era)
-            map.insert(format!("drug_ceftriaxone_for_bacteria_{}_initiation_multiplier_before_2010", bact), 3.0);        // 1990-2010: hospital fallback
-            map.insert(format!("drug_ceftriaxone_for_bacteria_{}_initiation_multiplier_before_1990", bact), 1.0);        // pre-1990: rarely used for typhoid
+            map.insert(format!("drug_ceftriaxone_for_bacteria_{bact}_initiation_multiplier"), 10.0);                   // 2010+: first-line (XDR era)
+            map.insert(format!("drug_ceftriaxone_for_bacteria_{bact}_initiation_multiplier_before_2010"), 3.0);        // 1990-2010: hospital fallback
+            map.insert(format!("drug_ceftriaxone_for_bacteria_{bact}_initiation_multiplier_before_1990"), 1.0);        // pre-1990: rarely used for typhoid
 
-            map.insert(format!("drug_azithromycin_for_bacteria_{}_initiation_multiplier", bact), 8.0);                   // 2010+: oral first-line
-            map.insert(format!("drug_azithromycin_for_bacteria_{}_initiation_multiplier_before_2010", bact), 2.0);       // 1990-2010: occasional use
+            map.insert(format!("drug_azithromycin_for_bacteria_{bact}_initiation_multiplier"), 8.0);                   // 2010+: oral first-line
+            map.insert(format!("drug_azithromycin_for_bacteria_{bact}_initiation_multiplier_before_2010"), 2.0);       // 1990-2010: occasional use
             // pre-1991 azithromycin didn't exist; gated by DRUG_INTRODUCTION_DATES automatically
 
-            map.insert(format!("drug_ampicillin_for_bacteria_{}_initiation_multiplier", bact), 1.0);                     // 2010+: rarely used
-            map.insert(format!("drug_ampicillin_for_bacteria_{}_initiation_multiplier_before_2000", bact), 6.0);         // 1961-2000: common oral alternative to chloramphenicol
+            map.insert(format!("drug_ampicillin_for_bacteria_{bact}_initiation_multiplier"), 1.0);                     // 2010+: rarely used
+            map.insert(format!("drug_ampicillin_for_bacteria_{bact}_initiation_multiplier_before_2000"), 6.0);         // 1961-2000: common oral alternative to chloramphenicol
 
-            map.insert(format!("drug_trim_sulf_for_bacteria_{}_initiation_multiplier", bact), 1.0);                      // 2010+: high resistance limits use
-            map.insert(format!("drug_trim_sulf_for_bacteria_{}_initiation_multiplier_before_2000", bact), 7.0);          // 1968-2000: widely used for typhoid
+            map.insert(format!("drug_trim_sulf_for_bacteria_{bact}_initiation_multiplier"), 1.0);                      // 2010+: high resistance limits use
+            map.insert(format!("drug_trim_sulf_for_bacteria_{bact}_initiation_multiplier_before_2000"), 7.0);          // 1968-2000: widely used for typhoid
 
             // Additional historical drug pressure to seed co-selected MDR mechanisms in profile cache.
             // IncHI1 plasmid carries tet+dhfr+sul+blaTEM+aac_aph+16s_rrmt all co-selected by chloramphenicol/ampicillin/TMP-SMX pressure.
             // Tetracyclines: use extended to _before_2000 (LMIC fallback throughout 1980s-90s); doxycycline added.
-            map.insert(format!("drug_tetracycline_for_bacteria_{}_initiation_multiplier_before_2000", bact), 6.0);       // 1948-1999: tetracycline used for mild/moderate typhoid throughout first 5 decades of antibiotic era; tet_m/tet_abc co-selected on IncHI1 MDR plasmid from 1960s
-            map.insert(format!("drug_doxycycline_for_bacteria_{}_initiation_multiplier_before_2000", bact), 5.0);        // 1967-1999: doxycycline preferred tetracycline in adults for enteric fever in LMIC; co-selects same tet_m/efflux_tet_abc plasmid genes
+            map.insert(format!("drug_tetracycline_for_bacteria_{bact}_initiation_multiplier_before_2000"), 6.0);       // 1948-1999: tetracycline used for mild/moderate typhoid throughout first 5 decades of antibiotic era; tet_m/tet_abc co-selected on IncHI1 MDR plasmid from 1960s
+            map.insert(format!("drug_doxycycline_for_bacteria_{bact}_initiation_multiplier_before_2000"), 5.0);        // 1967-1999: doxycycline preferred tetracycline in adults for enteric fever in LMIC; co-selects same tet_m/efflux_tet_abc plasmid genes
             // Chloramphenicol: add a pre-1975 high-pressure epoch - MDR Typhi plasmid (IncHI1) was globally disseminated
             // by the early 1970s epidemic clone; chloramphenicol pressure from 1948 is the primary driver of MDR spread.
-            map.insert(format!("drug_chloramphenicol_for_bacteria_{}_initiation_multiplier_before_1975", bact), 20.0);   // 1948-1974: chloramphenicol sole effective therapy; extreme pressure drove IncHI1 MDR plasmid emergence and global dissemination
+            map.insert(format!("drug_chloramphenicol_for_bacteria_{bact}_initiation_multiplier_before_1975"), 20.0);   // 1948-1974: chloramphenicol sole effective therapy; extreme pressure drove IncHI1 MDR plasmid emergence and global dissemination
             // Aminoglycosides: raise gentamicin and add amikacin - AAC-APH/16S-RRMT plasmid co-carriage means AG
             // resistance accumulates independently of direct AG treatment; higher seeding multipliers reflect MDR plasmid density.
-            map.insert(format!("drug_gentamicin_for_bacteria_{}_initiation_multiplier_before_1990", bact), 8.0);         // 1963-1989: raised 4->8; IV gentamicin for severe typhoid + proxy for streptomycin era; seeds AAC-APH/16S-RRMT cache density
-            map.insert(format!("drug_amikacin_for_bacteria_{}_initiation_multiplier_before_2000", bact), 5.0);           // 1972-1999: amikacin for gentamicin-resistant severe cases; additional 16S-RRMT seeding
+            map.insert(format!("drug_gentamicin_for_bacteria_{bact}_initiation_multiplier_before_1990"), 8.0);         // 1963-1989: raised 4->8; IV gentamicin for severe typhoid + proxy for streptomycin era; seeds AAC-APH/16S-RRMT cache density
+            map.insert(format!("drug_amikacin_for_bacteria_{bact}_initiation_multiplier_before_2000"), 5.0);           // 1972-1999: amikacin for gentamicin-resistant severe cases; additional 16S-RRMT seeding
             // FQ co-selection: ofloxacin/levofloxacin widely used in South/SE Asia for enteric fever alongside ciprofloxacin.
             // GyrA/ParC mutations are shared - additional FQ drug pressure expands resistant cache fraction.
-            map.insert(format!("drug_ofloxacin_for_bacteria_{}_initiation_multiplier_before_2010", bact), 7.0);          // 1990-2010: widely used in India/Bangladesh/Pakistan as ciprofloxacin equivalent; seeds GyrA cache
-            map.insert(format!("drug_ofloxacin_for_bacteria_{}_initiation_multiplier", bact), 2.0);                      // 2010+: continued use in LMIC
-            map.insert(format!("drug_levofloxacin_for_bacteria_{}_initiation_multiplier_before_2010", bact), 4.0);       // 1997-2010: levofloxacin used in South/SE Asia as oral FQ for typhoid
-            map.insert(format!("drug_levofloxacin_for_bacteria_{}_initiation_multiplier", bact), 2.0);                   // 2010+: residual use
+            map.insert(format!("drug_ofloxacin_for_bacteria_{bact}_initiation_multiplier_before_2010"), 7.0);          // 1990-2010: widely used in India/Bangladesh/Pakistan as ciprofloxacin equivalent; seeds GyrA cache
+            map.insert(format!("drug_ofloxacin_for_bacteria_{bact}_initiation_multiplier"), 2.0);                      // 2010+: continued use in LMIC
+            map.insert(format!("drug_levofloxacin_for_bacteria_{bact}_initiation_multiplier_before_2010"), 4.0);       // 1997-2010: levofloxacin used in South/SE Asia as oral FQ for typhoid
+            map.insert(format!("drug_levofloxacin_for_bacteria_{bact}_initiation_multiplier"), 2.0);                   // 2010+: residual use
         }
 
         // Shigella spp.
@@ -7310,8 +7294,8 @@ lazy_static! {
 
         // Beta-lactams irrelevant for Mycoplasma (no cell wall) and Legionella (intracellular; zero potency)
         for &drug in &["penicillin_g", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "ceftriaxone", "meropenem", "ertapenem"] {
-        map.insert(format!("drug_{}_for_bacteria_mycoplasma_pneumoniae_initiation_multiplier", drug), 0.001);
-        map.insert(format!("drug_{}_for_bacteria_legionella_pneumophila_initiation_multiplier", drug), 0.001);
+        map.insert(format!("drug_{drug}_for_bacteria_mycoplasma_pneumoniae_initiation_multiplier"), 0.001);
+        map.insert(format!("drug_{drug}_for_bacteria_legionella_pneumophila_initiation_multiplier"), 0.001);
         }
 
         // Macrolides should not be used for Enterococcus (no macrolide activity; zero potency)
@@ -7362,19 +7346,19 @@ lazy_static! {
         // (gyrA_primary = 50.0, protection_tet_m = 10.0). Ciprofloxacin was heavily used for MSSA
         // pre-2000 (10x initiation multiplier) and is still used post-2000 at 2x for MSSA indications.
         // Fluoroquinolones are bactericidal against susceptible MSSA with good tissue penetration.
-        let sa_fqs = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
+        let sa_fqs = ["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
         for &drug in sa_fqs.iter() {
             if DRUG_SHORT_NAMES.contains(&drug) {
-                map.insert(format!("drug_{}_for_bacteria_staphylococcus_aureus_potency_when_no_r", drug), 0.50);
+                map.insert(format!("drug_{drug}_for_bacteria_staphylococcus_aureus_potency_when_no_r"), 0.50);
             }
         }
         // Tetracyclines: doxycycline and minocycline are used for CA-MRSA SSTI (oral step-down)
         // and for susceptible MSSA. Bacteriostatic but sufficient selection pressure at high usage.
         // Tigecycline excluded: very low prescribing rate for SSTI; reserve for MDR infections.
-        let sa_tets = vec!["doxycycline", "minocycline", "tetracycline"];
+        let sa_tets = ["doxycycline", "minocycline", "tetracycline"];
         for &drug in sa_tets.iter() {
             if DRUG_SHORT_NAMES.contains(&drug) {
-                map.insert(format!("drug_{}_for_bacteria_staphylococcus_aureus_potency_when_no_r", drug), 0.50);
+                map.insert(format!("drug_{drug}_for_bacteria_staphylococcus_aureus_potency_when_no_r"), 0.50);
             }
         }
 
@@ -7395,14 +7379,12 @@ lazy_static! {
 
 
         // Colistin has no activity against gram-positive bacteria (zero potency; no outer LPS membrane target)
-        let gram_positive_bacteria = vec![
-            "staphylococcus_aureus", "streptococcus_pneumoniae", "streptococcus_pyogenes",
+        let gram_positive_bacteria = ["staphylococcus_aureus", "streptococcus_pneumoniae", "streptococcus_pyogenes",
             "streptococcus_agalactiae", "enterococcus_faecalis", "enterococcus_faecium",
-            "staphylococcus_epidermidis", "streptococcus_viridans"
-        ];
+            "staphylococcus_epidermidis", "streptococcus_viridans"];
         for &bacteria in gram_positive_bacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-            map.insert(format!("drug_colistin_for_bacteria_{}_potency_when_no_r", bacteria), 0.0);
+            map.insert(format!("drug_colistin_for_bacteria_{bacteria}_potency_when_no_r"), 0.0);
             }
         }
 
@@ -7414,10 +7396,10 @@ lazy_static! {
         // --- 1. Sulfonamides: global penalty on both sulfanilamide + trim_sulf ---
 
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_sulfanilamide_for_bacteria_{}_initiation_multiplier", bacteria), 0.02);
+            map.insert(format!("drug_sulfanilamide_for_bacteria_{bacteria}_initiation_multiplier"), 0.02);
         }
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_trim_sulf_for_bacteria_{}_initiation_multiplier", bacteria), 0.04);
+            map.insert(format!("drug_trim_sulf_for_bacteria_{bacteria}_initiation_multiplier"), 0.04);
         }
         map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 5.0); // First-line (TMP-SMX or co-trimoxazole)
         map.insert("drug_trim_sulf_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 1.2);   // Oral step-down for susceptible CoNS
@@ -7433,9 +7415,9 @@ lazy_static! {
         // --- 2. Tetracyclines: global 0.25 penalty then restore key indications ---
 
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_tetracycline_for_bacteria_{}_initiation_multiplier", bacteria), 0.25);
-            map.insert(format!("drug_doxycycline_for_bacteria_{}_initiation_multiplier", bacteria), 0.25);
-            map.insert(format!("drug_minocycline_for_bacteria_{}_initiation_multiplier", bacteria), 0.25);
+            map.insert(format!("drug_tetracycline_for_bacteria_{bacteria}_initiation_multiplier"), 0.25);
+            map.insert(format!("drug_doxycycline_for_bacteria_{bacteria}_initiation_multiplier"), 0.25);
+            map.insert(format!("drug_minocycline_for_bacteria_{bacteria}_initiation_multiplier"), 0.25);
         }
         map.insert("drug_doxycycline_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(),   1.5); // First-line (restores earlier)
         map.insert("drug_tetracycline_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(),  2.0);
@@ -7462,8 +7444,8 @@ lazy_static! {
         // --- 3. Monobactams: further tighten - sim 5.01% vs 0.50% target (534713).
 
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_aztreonam_for_bacteria_{}_initiation_multiplier", bacteria), 0.003);
-            map.insert(format!("drug_aztreonam_avibactam_for_bacteria_{}_initiation_multiplier", bacteria), 0.003);
+            map.insert(format!("drug_aztreonam_for_bacteria_{bacteria}_initiation_multiplier"), 0.003);
+            map.insert(format!("drug_aztreonam_avibactam_for_bacteria_{bacteria}_initiation_multiplier"), 0.003);
         }
         map.insert("drug_aztreonam_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.05);      // Pen-allergy anti-pseudomonal (rare)
         map.insert("drug_aztreonam_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.005);
@@ -7473,7 +7455,7 @@ lazy_static! {
 
         // --- 4. Anti-MRSA Cephalosporins (5G):
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_ceftaroline_for_bacteria_{}_initiation_multiplier", bacteria), 0.002);
+            map.insert(format!("drug_ceftaroline_for_bacteria_{bacteria}_initiation_multiplier"), 0.002);
         }
         map.insert("drug_ceftaroline_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 0.005);     // MRSA reserve (rarely over vancomycin/daptomycin)
         map.insert("drug_ceftaroline_for_bacteria_streptococcus_pneumoniae_initiation_multiplier".to_string(), 0.015);  // MDR-CAP last resort
@@ -7488,7 +7470,7 @@ lazy_static! {
             "streptococcus_pyogenes", "streptococcus_agalactiae",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                    map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{}_initiation_multiplier", bacteria), 14.0);
+                    map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{bacteria}_initiation_multiplier"), 14.0);
             }
         }
         for &bacteria in &[
@@ -7496,7 +7478,7 @@ lazy_static! {
             "enterobacter_cloacae", "bacteroides_fragilis", "listeria_monocytogenes",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{}_initiation_multiplier", bacteria), 6.0);
+                map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{bacteria}_initiation_multiplier"), 6.0);
             }
         }
         for &bacteria in &[
@@ -7506,7 +7488,7 @@ lazy_static! {
             "haemophilus_influenzae",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                    map.insert(format!("drug_piperacillin_tazobactam_for_bacteria_{}_initiation_multiplier", bacteria), 10.0);
+                    map.insert(format!("drug_piperacillin_tazobactam_for_bacteria_{bacteria}_initiation_multiplier"), 10.0);
             }
         }
             map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 16.0);
@@ -7521,7 +7503,7 @@ lazy_static! {
             "acinetobacter_baumannii", "proteus_spp.",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_ticarcillin_clavulanate_for_bacteria_{}_initiation_multiplier", bacteria), 3.0);
+                map.insert(format!("drug_ticarcillin_clavulanate_for_bacteria_{bacteria}_initiation_multiplier"), 3.0);
             }
         }
 
@@ -7533,7 +7515,7 @@ lazy_static! {
             "staphylococcus_aureus", "staphylococcus_epidermidis",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_amoxicillin_for_bacteria_{}_initiation_multiplier", bacteria), 6.0);
+                map.insert(format!("drug_amoxicillin_for_bacteria_{bacteria}_initiation_multiplier"), 6.0);
             }
         }
         // Ampicillin is first-line for Listeria, E. faecalis, N. meningitidis
@@ -7543,7 +7525,7 @@ lazy_static! {
             "haemophilus_influenzae",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_ampicillin_for_bacteria_{}_initiation_multiplier", bacteria), 6.0);
+                map.insert(format!("drug_ampicillin_for_bacteria_{bacteria}_initiation_multiplier"), 6.0);
             }
         }
         // Penicillin-G for streptococcal / meningococcal / treponema infections
@@ -7552,7 +7534,7 @@ lazy_static! {
             "neisseria_meningitidis", "treponema_pallidum",
         ] {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_penicillin_g_for_bacteria_{}_initiation_multiplier", bacteria), 6.0);
+                map.insert(format!("drug_penicillin_g_for_bacteria_{bacteria}_initiation_multiplier"), 6.0);
             }
         }
         // Flucloxacillin (anti-staphylococcal penicillin) for MSSA
@@ -7692,9 +7674,9 @@ lazy_static! {
         // --- 14. Cephalosporins 3G: add global penalty - sim 12.90% vs 5.0% target (534713).
         // No prior global penalty; set 0.20 and restore primary indications.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_ceftriaxone_for_bacteria_{}_initiation_multiplier", bacteria), 0.20);
-            map.insert(format!("drug_ceftazidime_for_bacteria_{}_initiation_multiplier", bacteria), 0.20);
-            map.insert(format!("drug_cefixime_for_bacteria_{}_initiation_multiplier", bacteria), 0.20);
+            map.insert(format!("drug_ceftriaxone_for_bacteria_{bacteria}_initiation_multiplier"), 0.20);
+            map.insert(format!("drug_ceftazidime_for_bacteria_{bacteria}_initiation_multiplier"), 0.20);
+            map.insert(format!("drug_cefixime_for_bacteria_{bacteria}_initiation_multiplier"), 0.20);
         }
         // Restore primary indications for ceftriaxone
         map.insert("drug_ceftriaxone_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 6.0);      // First-line gonorrhoea
@@ -7715,9 +7697,9 @@ lazy_static! {
 
         // --- 15. Cephalosporins 1-2G: add global penalty - sim 13.93% vs 10.0% target (534713).
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_cephalexin_for_bacteria_{}_initiation_multiplier", bacteria), 0.30);
-            map.insert(format!("drug_cefazolin_for_bacteria_{}_initiation_multiplier", bacteria), 0.30);
-            map.insert(format!("drug_cefuroxime_for_bacteria_{}_initiation_multiplier", bacteria), 0.30);
+            map.insert(format!("drug_cephalexin_for_bacteria_{bacteria}_initiation_multiplier"), 0.30);
+            map.insert(format!("drug_cefazolin_for_bacteria_{bacteria}_initiation_multiplier"), 0.30);
+            map.insert(format!("drug_cefuroxime_for_bacteria_{bacteria}_initiation_multiplier"), 0.30);
         }
         // Restore MSSA first-line treatment and surgical prophylaxis
         map.insert("drug_cephalexin_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 5.0);       // MSSA SSTI (outpatient)
@@ -7732,7 +7714,7 @@ lazy_static! {
 
         // --- 16. Cephalosporins 4G: slight penalty - sim 3.68% vs 2.0% target (534713).
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("drug_cefepime_for_bacteria_{}_initiation_multiplier", bacteria), 0.35);
+            map.insert(format!("drug_cefepime_for_bacteria_{bacteria}_initiation_multiplier"), 0.35);
         }
         map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 3.0);        // Anti-pseudomonal 4G
         map.insert("drug_cefepime_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 2.0);
@@ -8587,7 +8569,7 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0         ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_escherichia_coli_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_0003        ); // classes: none (currently zeroed)
+        map.insert("bacteria_escherichia_coli_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_3        ); // classes: none (currently zeroed)
         map.insert("bacteria_escherichia_coli_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_1      ); // classes: poly
         map.insert("bacteria_escherichia_coli_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // classes: poly; rate currently 0.0 — pmrAB mutations documented in E. coli; mcr_1 is the modelled polymyxin resistance route
         map.insert("bacteria_escherichia_coli_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0          ); // classes: sulf
@@ -11941,7 +11923,7 @@ lazy_static! {
             for &(drug, score) in *entries {
                 if DRUG_SHORT_NAMES.contains(&drug) {
                     map.insert(
-                        format!("syndrome_{}_empiric_drug_{}_score", syndrome_id, drug),
+                        format!("syndrome_{syndrome_id}_empiric_drug_{drug}_score"),
                         score,
                     );
                 }
@@ -12036,7 +12018,7 @@ lazy_static! {
         for &(drug, score) in &syndrome_0_background_drug_scores {
             if DRUG_SHORT_NAMES.contains(&drug) {
                 map.insert(
-                    format!("syndrome_0_empiric_drug_{}_score", drug),
+                    format!("syndrome_0_empiric_drug_{drug}_score"),
                     score,
                 );
             }
@@ -12125,9 +12107,9 @@ lazy_static! {
 
         // Default Initial Drug Levels and Double Dose Multipliers for ALL Drugs
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_initial_level", drug), 10.0); // Default initial level for each drug
-        map.insert(format!("drug_{}_double_dose_multiplier", drug), 2.0); // Default double dose multiplier
-        map.insert(format!("drug_{}_spectrum_breadth", drug), 3.0); // Default spectrum: 1.0=narrow, 5.0=very broad
+        map.insert(format!("drug_{drug}_initial_level"), 10.0); // Default initial level for each drug
+        map.insert(format!("drug_{drug}_double_dose_multiplier"), 2.0); // Default double dose multiplier
+        map.insert(format!("drug_{drug}_spectrum_breadth"), 3.0); // Default spectrum: 1.0=narrow, 5.0=very broad
         }
 
         // Bacterial Identification Effect Parameters
@@ -12210,7 +12192,7 @@ lazy_static! {
         ];
 
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
-        map.insert(format!("{}_sepsis_baseline_log_odds", bacteria), *log_odds);
+        map.insert(format!("{bacteria}_sepsis_baseline_log_odds"), *log_odds);
         }
 
         // --- PER-ORGANISM SEPSIS CFR ADJUSTMENTS (additive log-odds on top of global sepsis death model) ---
@@ -12846,12 +12828,12 @@ lazy_static! {
 
         // North America - Full access to most antibiotics
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("north_america_drug_{}_availability", drug), 1.0);
+        map.insert(format!("north_america_drug_{drug}_availability"), 1.0);
         }
 
         // Europe - Full access to most antibiotics
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("europe_drug_{}_availability", drug), 1.0);
+        map.insert(format!("europe_drug_{drug}_availability"), 1.0);
         }
 
         // Asia - Good access to most drugs, some newer drugs may be limited
@@ -12863,7 +12845,7 @@ lazy_static! {
                 // TODO: set dalbavancin availability for Asia once launch data added
                 _ => 1.0, // Most other drugs widely available
             };
-        map.insert(format!("asia_drug_{}_availability", drug), availability);
+        map.insert(format!("asia_drug_{drug}_availability"), availability);
         }
 
         // Oceania - Generally good access, similar to developed regions
@@ -12873,7 +12855,7 @@ lazy_static! {
                 // TODO: set dalbavancin availability for Oceania when introduced
                 _ => 1.0,
             };
-        map.insert(format!("oceania_drug_{}_availability", drug), availability);
+        map.insert(format!("oceania_drug_{drug}_availability"), availability);
         }
 
         // South America - Variable access, newer/expensive drugs limited
@@ -12892,7 +12874,7 @@ lazy_static! {
                 // Good access to older, established drugs
                 _ => 1.0,
             };
-        map.insert(format!("south_america_drug_{}_availability", drug), availability);
+        map.insert(format!("south_america_drug_{drug}_availability"), availability);
         }
 
         // Africa - Most limited access, mainly basic antibiotics available
@@ -12937,13 +12919,13 @@ lazy_static! {
                 // Default for any remaining drugs
                 _ => 0.1,
             };
-        map.insert(format!("africa_drug_{}_availability", drug), availability);
+        map.insert(format!("africa_drug_{drug}_availability"), availability);
         }
 
         // Home region - use availability based on region_living
         // This will be handled in the drug initiation logic
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("home_drug_{}_availability", drug), 1.0); // Default fallback
+        map.insert(format!("home_drug_{drug}_availability"), 1.0); // Default fallback
         }
 
         // Ensure you have multipliers for all variants of your `Region` enum,
@@ -13122,7 +13104,7 @@ lazy_static! {
 
         // Default age risk templates for all bacteria
         for &bacteria in BACTERIA_LIST.iter() {
-        map.insert(format!("{}_age_risk_template", bacteria), "respiratory".to_string()); // Default template
+        map.insert(format!("{bacteria}_age_risk_template"), "respiratory".to_string()); // Default template
         }
 
         // Specific bacteria overrides - assign each bacteria to most appropriate template
@@ -13189,7 +13171,7 @@ where
     let bacteria_name = canonical.as_ref();
     let specific_keys: Vec<String> = param_suffixes
         .iter()
-        .map(|suffix| format!("{}_{}", bacteria_name, suffix))
+        .map(|suffix| format!("{bacteria_name}_{suffix}"))
         .collect();
 
     let mut values = Vec::with_capacity(param_suffixes.len());
@@ -13213,7 +13195,7 @@ where
 /// Returns `Some(value)` if found, `None` otherwise.
 #[allow(dead_code)]
 pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
-    let specific_key = format!("drug_{}_{}", drug_name, param_suffix);
+    let specific_key = format!("drug_{drug_name}_{param_suffix}");
     PARAMETERS.get(&specific_key).copied()
 }
 
@@ -13229,7 +13211,7 @@ pub fn get_drug_availability(drug_name: &str, region: &str, region_living: Optio
         region
     };
 
-    let availability_key = format!("{}_drug_{}_availability", effective_region, drug_name);
+    let availability_key = format!("{effective_region}_drug_{drug_name}_availability");
     PARAMETERS.get(&availability_key).copied().unwrap_or(1.0) // Default to available if not specified
 }
 
@@ -13253,10 +13235,10 @@ pub fn get_drug_availability_time_aware(
 
         if simulation_year < 1952.0 {
             return 0.0; // Not yet introduced
-        } else if simulation_year >= 1952.0 && simulation_year < 1970.0 {
+        } else if (1952.0..1970.0).contains(&simulation_year) {
             // Active use period - full availability
             return get_drug_availability(drug_name, region, region_living);
-        } else if simulation_year >= 1970.0 && simulation_year < 1995.0 {
+        } else if (1970.0..1995.0).contains(&simulation_year) {
             // Discontinuation period - very limited availability (research/compassionate use only)
             return get_drug_availability(drug_name, region, region_living) * 0.05;
         // 5% of normal availability
@@ -13712,7 +13694,7 @@ pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
     let age_group_idx = AgeCategory::from_age_days(age_days).order();
 
     // Get the template name for this bacteria
-    let template_key = format!("{}_age_risk_template", bacteria_name);
+    let template_key = format!("{bacteria_name}_age_risk_template");
     let template_name =
         get_string_param(&template_key).unwrap_or_else(|| "respiratory".to_string());
 
@@ -13761,9 +13743,9 @@ pub(crate) fn get_age_dependent_bacteria_sepsis_risk_log_odds_from_map(
         .get("sepsis_age_log_odds_baseline")
         .copied()
         .unwrap_or(0.0);
-    let age_key = format!("sepsis_age_log_odds_{}", age_category);
+    let age_key = format!("sepsis_age_log_odds_{age_category}");
     let age_delta = parameters.get(&age_key).copied().unwrap_or(0.0);
-    let bacteria_age_log_key = format!("{}_{}_sepsis_log_odds", bacteria_name, age_category);
+    let bacteria_age_log_key = format!("{bacteria_name}_{age_category}_sepsis_log_odds");
     let bacteria_age_delta = parameters
         .get(&bacteria_age_log_key)
         .copied()
@@ -13906,7 +13888,7 @@ pub fn sample_age_and_region_from_distribution(
         Region::Oceania,
     ];
 
-    let age_bands = [
+    let age_bands: [(i32, i32); 18] = [
         (-40000, -36000),
         (-36000, -32000),
         (-32000, -28000),
@@ -13944,13 +13926,13 @@ pub fn sample_age_and_region_from_distribution(
                 format!(
                     "demo_{}_age_neg{}_neg{}",
                     region_name,
-                    (*age_min as i32).abs(),
-                    (*age_max as i32).abs()
+                    (*age_min).abs(),
+                    (*age_max).abs()
                 )
             } else if *age_min < 0 && *age_max > 0 {
-                format!("demo_{}_age_neg{}_0", region_name, (*age_min as i32).abs())
+                format!("demo_{}_age_neg{}_0", region_name, (*age_min).abs())
             } else {
-                format!("demo_{}_age_{}_{}", region_name, age_min, age_max)
+                format!("demo_{region_name}_age_{age_min}_{age_max}")
             };
             let prob = get_global_param(&param_name).unwrap_or(0.0);
             running_total += prob;

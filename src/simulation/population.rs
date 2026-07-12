@@ -1397,8 +1397,9 @@ impl MicrobiomeResistanceLevel {
 /// Context in which an antibiotic course was started.
 ///
 /// This is assigned at course start and retained until that drug is stopped.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AntibioticUseContext {
+    #[default]
     None,
     Empiric,
     Targeted,
@@ -1407,12 +1408,6 @@ pub enum AntibioticUseContext {
     Other,
     OtherNoActiveModelledInfection,
     OtherActiveAsymptomaticModelledBacterialInfection,
-}
-
-impl Default for AntibioticUseContext {
-    fn default() -> Self {
-        AntibioticUseContext::None
-    }
 }
 
 /// Represents a single individual in the simulation, with all per-person and per-bacteria/drug state variables.
