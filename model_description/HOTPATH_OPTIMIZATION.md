@@ -66,3 +66,22 @@ supporting evidence and may vary across hosts.
 The complete machine-readable parameters and measurements are in
 `hotpath-v2-reference.toml`. The obsolete v1 benchmark is not valid evidence
 for corrected main and is superseded by this record.
+
+## Workload-Adapter Compatibility
+
+The optimized runtime source was also submitted to the AMR workload launcher
+from job-platform revision `791b63429fbd451e7811192ec6312dd362fa4cb1` on
+`compute72a`. The launcher materialized the staged source, built it with its
+isolated Rust toolchain, and completed a strict fixed-seed 100-person,
+100-step Partial run.
+
+The model-created `simulation_summary_014471.csv` and adapter-stable
+`summary.csv` were both 8,806,730 bytes with SHA-256:
+
+`35ef30dd40226c51e77ab498f1f17a3e36ccc533f42a36fa01e0b9089a636675`
+
+The adapter also produced its run config, completed run manifest, report,
+progress records, and a 103-member `source_used.tar.gz` containing the
+materialized `Cargo.toml` and `src/main.rs` without build output. This is an
+adapter build/run/artifact compatibility proof, not an installed VM resource
+enforcement proof.

@@ -64,3 +64,23 @@ max_rss_kib = 1020472
 [short_horizon.comparison]
 speedup_percent = 32.065593
 max_rss_change_percent = 0.796517
+
+[adapter_compatibility]
+job_platform_revision = "791b63429fbd451e7811192ec6312dd362fa4cb1"
+host = "compute72a"
+execution_mode = "execute_in_current_cgroup"
+build_status = "built_from_source"
+run_status = "completed"
+configuration_validation = "strict"
+population_size = 100
+time_steps = 100
+calibration_mode = "partial"
+rng_seed = 4242424242
+dynamic_summary_filename = "simulation_summary_014471.csv"
+summary_size_bytes = 8806730
+summary_sha256 = "35ef30dd40226c51e77ab498f1f17a3e36ccc533f42a36fa01e0b9089a636675"
+stable_summary_matches_dynamic = true
+source_bundle_size_bytes = 9064553
+source_bundle_members = 103
+source_bundle_contains_manifest_and_main = true
+source_bundle_contains_build_target = false
