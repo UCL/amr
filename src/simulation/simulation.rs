@@ -18,7 +18,7 @@ use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
     load_float, store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel,
     Population, Region, ResistanceMechanism, BACTERIA_COUNT, BACTERIA_LIST, DRUG_SHORT_NAMES,
-    INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT,
+    INFECTION_EPS, MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use crate::simulation::rng::{
     model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
@@ -4205,12 +4205,10 @@ impl Simulation {
             let _ = threads; // suppress unused warning
             let seed_option = self.rng_seed;
             let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
-            let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
-                .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+            let microbiome_majority_threshold = self.param_cache.microbiome_majority_threshold;
             let policy = self.current_policy_adjustments;
             let calibration_mode = self.calibration_mode;
-            let evaluation_days: i32 =
-                get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
+            let evaluation_days = self.param_cache.drug_evaluation_days;
             let potential_activity_potency_threshold = config::parameter_store()
                 .globals
                 .minimal_potency_threshold_for_drug_selection;
@@ -5534,6 +5532,11 @@ impl Simulation {
                         }
                     }
 
+                    // Reset per-timestep state after its counters have been aggregated.
+                    for resolution_counts in &mut individual.infection_resolution_this_timestep {
+                        resolution_counts.fill(0);
+                    }
+                    individual.infection_prevented_by_drug.fill(false);
                     }
 
                     lt
@@ -6069,21 +6072,6 @@ impl Simulation {
                 self.summary_log.push(summary);
             }
 
-            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
-            self.population
-                .individuals
-                .par_iter_mut()
-                .for_each(|individual| {
-                    for b_idx in 0..BACTERIA_LIST.len() {
-                        for res_idx in
-                            0..crate::simulation::population::InfectionResolutionType::all().len()
-                        {
-                            individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
-                        }
-                        // Reset infection prevention flags for next timestep
-                        individual.infection_prevented_by_drug[b_idx] = false;
-                    }
-                });
             if let Some(logger) = self.individual_logger.as_mut() {
                 if !self.branch_active {
                     logger.log_snapshot(t, &self.population);
