@@ -4,9 +4,9 @@
 // and its verification ownership live in model_description/verification-matrix.toml.
 
 use crate::config::{
-    calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
-    get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store, ParameterStore, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+    calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds_from_map,
+    get_drug_availability_time_aware, get_drug_introduction_time_step, parameter_store,
+    ParameterStore, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
     RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
@@ -1768,7 +1768,14 @@ pub struct ParameterKeyCache {
 
 impl ParameterKeyCache {
     pub fn new() -> Self {
-        let store = parameter_store();
+        Self::from_parameter_map(parameter_store(), &crate::config::PARAMETERS)
+    }
+
+    pub(crate) fn from_parameter_map(
+        store: &ParameterStore,
+        parameters: &HashMap<String, f64>,
+    ) -> Self {
+        let parameter = |key: &str| parameters.get(key).copied();
         let drug_count = DRUG_SHORT_NAMES.len();
         let bacteria_count = BACTERIA_LIST.len();
         let mechanism_count = ResistanceMechanism::all().len();
@@ -1787,7 +1794,11 @@ impl ParameterKeyCache {
             let mut per_age_bucket = [0.0f64; SEPSIS_AGE_BUCKET_COUNT];
             for (bucket_idx, &age_days) in SEPSIS_AGE_BUCKET_SAMPLE_DAYS.iter().enumerate() {
                 per_age_bucket[bucket_idx] =
-                    get_age_dependent_bacteria_sepsis_risk_log_odds(bacteria_name, age_days);
+                    get_age_dependent_bacteria_sepsis_risk_log_odds_from_map(
+                        parameters,
+                        bacteria_name,
+                        age_days,
+                    );
             }
             bacteria_age_sepsis_log_odds.push(per_age_bucket);
         }
@@ -1807,13 +1818,13 @@ impl ParameterKeyCache {
                     );
                     let general_override_key =
                         format!("mechanism_{}_applies_to_{}", mechanism.as_str(), drug_name);
-                    let has_specific_override = get_global_param(&specific_override_key).is_some();
-                    let has_general_override = get_global_param(&general_override_key).is_some();
+                    let has_specific_override = parameter(&specific_override_key).is_some();
+                    let has_general_override = parameter(&general_override_key).is_some();
                     let has_explicit_override = has_specific_override || has_general_override;
 
-                    let mut applies = if let Some(val) = get_global_param(&specific_override_key) {
+                    let mut applies = if let Some(val) = parameter(&specific_override_key) {
                         val > 0.5
-                    } else if let Some(val) = get_global_param(&general_override_key) {
+                    } else if let Some(val) = parameter(&general_override_key) {
                         val > 0.5
                     } else {
                         default_applies
@@ -1844,7 +1855,7 @@ impl ParameterKeyCache {
                     "{}_{}_clinical_preference_multiplier",
                     bacteria_slug, drug_name
                 );
-                let multiplier = get_global_param(&key).unwrap_or(1.0);
+                let multiplier = parameter(&key).unwrap_or(1.0);
                 clinical_preference_multipliers.push(multiplier);
             }
         }
@@ -1869,101 +1880,80 @@ impl ParameterKeyCache {
             mechanism_applicability,
             clinical_preference_multipliers,
             first_or_second_line,
-            microbiome_majority_threshold: crate::config::get_global_param(
-                "microbiome_majority_threshold",
-            )
-            .unwrap_or(crate::simulation::population::MICROBIOME_MAJORITY_THRESHOLD),
-            majority_r_evolution_rate: crate::config::get_global_param(
+            microbiome_majority_threshold: parameter("microbiome_majority_threshold")
+                .unwrap_or(crate::simulation::population::MICROBIOME_MAJORITY_THRESHOLD),
+            majority_r_evolution_rate: parameter(
                 "majority_r_evolution_rate_per_day_when_drug_present",
             )
             .unwrap_or(0.0),
-            max_resistance_level: parameter_store().globals.max_resistance_level,
-            test_delay_days: crate::config::get_global_param("test_delay_days").unwrap_or(3.0)
-                as i32,
-            resistance_test_result_delay_days: crate::config::get_global_param(
-                "resistance_test_result_delay_days",
-            )
-            .unwrap_or(2.0) as i32,
-            bacterial_testing_available_from_day: crate::config::get_global_param(
-                "bacterial_testing_available_from_day",
-            )
-            .unwrap_or(5478.0) as i32,
-            test_r_error_prob: crate::config::get_global_param("test_r_error_probability")
-                .unwrap_or(0.02),
-            test_r_error_value: crate::config::get_global_param("test_r_error_value")
-                .unwrap_or(0.25),
-            resistance_testing_available_from_day: crate::config::get_global_param(
+            max_resistance_level: store.globals.max_resistance_level,
+            test_delay_days: parameter("test_delay_days").unwrap_or(3.0) as i32,
+            resistance_test_result_delay_days: parameter("resistance_test_result_delay_days")
+                .unwrap_or(2.0) as i32,
+            bacterial_testing_available_from_day: parameter("bacterial_testing_available_from_day")
+                .unwrap_or(5478.0) as i32,
+            test_r_error_prob: parameter("test_r_error_probability").unwrap_or(0.02),
+            test_r_error_value: parameter("test_r_error_value").unwrap_or(0.25),
+            resistance_testing_available_from_day: parameter(
                 "resistance_testing_available_from_day",
             )
             .unwrap_or(9131.0) as i32,
-            tb_synergy_threshold: crate::config::get_global_param(
+            tb_synergy_threshold: parameter(
                 "mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold",
             )
             .unwrap_or(2.0) as usize,
-            tb_synergy_multiplier: crate::config::get_global_param(
+            tb_synergy_multiplier: parameter(
                 "mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier",
             )
             .unwrap_or(2.5),
-            tb_background_effectiveness: crate::config::get_global_param(
+            tb_background_effectiveness: parameter(
                 "mdr_mycobacterium_tuberculosis_background_drug_effectiveness",
             )
             .unwrap_or(0.8),
-            microbiome_clearance_on_drug_treatment: crate::config::get_global_param(
+            microbiome_clearance_on_drug_treatment: parameter(
                 "microbiome_clearance_probability_on_drug_treatment",
             )
             .unwrap_or(0.8),
-            drug_evaluation_days: crate::config::get_global_param(
-                "drug_evaluation_days_post_infection",
-            )
-            .unwrap_or(7.0) as i32,
-            tb_guaranteed_rifampicin_resistance: crate::config::get_global_param(
+            drug_evaluation_days: parameter("drug_evaluation_days_post_infection").unwrap_or(7.0)
+                as i32,
+            tb_guaranteed_rifampicin_resistance: parameter(
                 "mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance",
             )
             .unwrap_or(0.9),
-            bacterial_testing_base_rate_per_day: crate::config::get_global_param(
-                "bacterial_testing_base_rate_per_day",
-            )
-            .unwrap_or(0.15),
-            bacterial_testing_initial_adoption_rate: crate::config::get_global_param(
+            bacterial_testing_base_rate_per_day: parameter("bacterial_testing_base_rate_per_day")
+                .unwrap_or(0.15),
+            bacterial_testing_initial_adoption_rate: parameter(
                 "bacterial_testing_initial_adoption_rate",
             )
             .unwrap_or(0.1),
-            bacterial_testing_max_temporal_multiplier: crate::config::get_global_param(
+            bacterial_testing_max_temporal_multiplier: parameter(
                 "bacterial_testing_max_temporal_multiplier",
             )
             .unwrap_or(1.0),
-            bacterial_testing_hospital_multiplier: crate::config::get_global_param(
+            bacterial_testing_hospital_multiplier: parameter(
                 "bacterial_testing_hospital_multiplier",
             )
             .unwrap_or(8.0),
-            resistance_testing_base_rate_per_day: crate::config::get_global_param(
-                "resistance_testing_base_rate_per_day",
-            )
-            .unwrap_or(0.95),
-            resistance_testing_initial_adoption_rate: crate::config::get_global_param(
+            resistance_testing_base_rate_per_day: parameter("resistance_testing_base_rate_per_day")
+                .unwrap_or(0.95),
+            resistance_testing_initial_adoption_rate: parameter(
                 "resistance_testing_initial_adoption_rate",
             )
             .unwrap_or(0.05),
-            resistance_testing_max_temporal_multiplier: crate::config::get_global_param(
+            resistance_testing_max_temporal_multiplier: parameter(
                 "resistance_testing_max_temporal_multiplier",
             )
             .unwrap_or(1.0),
-            resistance_testing_hospital_multiplier: crate::config::get_global_param(
+            resistance_testing_hospital_multiplier: parameter(
                 "resistance_testing_hospital_multiplier",
             )
             .unwrap_or(5.0),
-            testing_immunosuppressed_multiplier: crate::config::get_global_param(
-                "testing_immunosuppressed_multiplier",
-            )
-            .unwrap_or(2.5),
-            testing_sepsis_multiplier: crate::config::get_global_param("testing_sepsis_multiplier")
-                .unwrap_or(4.0),
-            opat_admission_probability: crate::config::get_global_param(
-                "opat_admission_probability",
-            )
-            .unwrap_or(0.70),
+            testing_immunosuppressed_multiplier: parameter("testing_immunosuppressed_multiplier")
+                .unwrap_or(2.5),
+            testing_sepsis_multiplier: parameter("testing_sepsis_multiplier").unwrap_or(4.0),
+            opat_admission_probability: parameter("opat_admission_probability").unwrap_or(0.70),
             run_pathway_multipliers: RUN_PATHWAY_MULTIPLIER_KEYS
-                .map(|key| crate::config::get_global_param(key).unwrap_or(1.0)),
+                .map(|key| parameter(key).unwrap_or(1.0)),
             bacteria_test_availability_day: {
                 let mut bacteria_test_availability_day: Vec<Option<usize>> =
                     Vec::with_capacity(bacteria_count);
@@ -1971,7 +1961,7 @@ impl ParameterKeyCache {
                     let bacteria_param_name = bacteria_name.to_lowercase().replace(" ", "_");
                     let bacteria_test_availability_param =
                         format!("{}_test_availability_year", bacteria_param_name);
-                    let day = crate::config::get_global_param(&bacteria_test_availability_param)
+                    let day = parameter(&bacteria_test_availability_param)
                         .map(|year| ((year - 1930.0) * 365.25) as usize);
                     bacteria_test_availability_day.push(day);
                 }
@@ -7228,5 +7218,19 @@ mod tests {
             sample_antibiotic_response_multiplier(&mut rng, &store),
             0.456
         );
+    }
+
+    #[test]
+    fn parameter_cache_uses_the_same_injected_parameter_map() {
+        let mut parameters = PARAMETERS.clone();
+        parameters.insert("microbiome_majority_threshold".to_string(), 0.4321);
+        parameters.insert("test_delay_days".to_string(), 17.0);
+        parameters.insert("bacterial_testing_base_rate_per_day".to_string(), 0.765);
+        let store = ParameterStore::from_parameter_map(&parameters);
+        let cache = ParameterKeyCache::from_parameter_map(&store, &parameters);
+
+        assert_eq!(cache.microbiome_majority_threshold, 0.4321);
+        assert_eq!(cache.test_delay_days, 17);
+        assert_eq!(cache.bacterial_testing_base_rate_per_day, 0.765);
     }
 }

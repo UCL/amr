@@ -13736,6 +13736,14 @@ pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
 /// Gets age-dependent sepsis risk log-odds for a specific bacteria and age.
 /// Accounts for clinically important age-bacteria interactions (e.g., GBS in neonates, pneumococcus in elderly).
 pub fn get_age_dependent_bacteria_sepsis_risk_log_odds(bacteria_name: &str, age_days: u32) -> f64 {
+    get_age_dependent_bacteria_sepsis_risk_log_odds_from_map(&PARAMETERS, bacteria_name, age_days)
+}
+
+pub(crate) fn get_age_dependent_bacteria_sepsis_risk_log_odds_from_map(
+    parameters: &HashMap<String, f64>,
+    bacteria_name: &str,
+    age_days: u32,
+) -> f64 {
     let canonical = canonicalize_bacteria_slug(bacteria_name);
     let bacteria_name = canonical.as_ref();
     // Define age categories
@@ -13749,11 +13757,17 @@ pub fn get_age_dependent_bacteria_sepsis_risk_log_odds(bacteria_name: &str, age_
         "elderly"
     };
 
-    let base = get_global_param("sepsis_age_log_odds_baseline").unwrap_or(0.0);
+    let base = parameters
+        .get("sepsis_age_log_odds_baseline")
+        .copied()
+        .unwrap_or(0.0);
     let age_key = format!("sepsis_age_log_odds_{}", age_category);
-    let age_delta = get_global_param(&age_key).unwrap_or(0.0);
+    let age_delta = parameters.get(&age_key).copied().unwrap_or(0.0);
     let bacteria_age_log_key = format!("{}_{}_sepsis_log_odds", bacteria_name, age_category);
-    let bacteria_age_delta = get_global_param(&bacteria_age_log_key).unwrap_or(0.0);
+    let bacteria_age_delta = parameters
+        .get(&bacteria_age_log_key)
+        .copied()
+        .unwrap_or(0.0);
 
     base + age_delta + bacteria_age_delta
 }
