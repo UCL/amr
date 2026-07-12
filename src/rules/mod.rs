@@ -120,12 +120,18 @@ fn sample_weighted_index(weights: &[f64], rng: &mut impl Rng) -> Option<usize> {
 
     let mut cumulative_weights = [0.0f64; DRUG_COUNT];
     let mut total_weight = weights[0];
-    if !(total_weight >= 0.0) {
+    if matches!(
+        total_weight.partial_cmp(&0.0),
+        None | Some(std::cmp::Ordering::Less)
+    ) {
         log::warn!("skipping invalid weighted selection: invalid weight");
         return None;
     }
     for (idx, &weight) in weights.iter().enumerate().skip(1) {
-        if !(weight >= 0.0) {
+        if matches!(
+            weight.partial_cmp(&0.0),
+            None | Some(std::cmp::Ordering::Less)
+        ) {
             log::warn!("skipping invalid weighted selection: invalid weight");
             return None;
         }
@@ -5878,8 +5884,9 @@ pub(crate) fn apply_rules(
                         let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
                         let num_drugs = DRUG_SHORT_NAMES.len();
                         let mut emergence_drug_factors = [0.0f64; DRUG_COUNT];
-                        for d_i in 0..num_drugs {
-                            let d_level = individual.cur_level_drug[d_i];
+                        for (d_i, &d_level) in
+                            individual.cur_level_drug[..num_drugs].iter().enumerate()
+                        {
                             if d_level > 0.0 {
                                 let d_initial = store.drug.initial_level(d_i);
                                 let penetration = store.syndrome.drug_penetration(syndrome_id, d_i);
