@@ -13,7 +13,7 @@
 
 use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use crate::observability;
-use crate::rules::{apply_rules, serious_resistance_marker_drugs};
+use crate::rules::{apply_rules, serious_resistance_marker_drugs, RuleContext};
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
     load_float, store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel,
@@ -4207,6 +4207,15 @@ impl Simulation {
             let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
             let microbiome_majority_threshold = self.param_cache.microbiome_majority_threshold;
             let policy = self.current_policy_adjustments;
+            let rule_context = RuleContext {
+                parameters: config::parameter_store(),
+                mechanism_cache,
+                bacteria_indices,
+                drug_indices,
+                cross_resistance_groups,
+                parameter_cache: param_cache,
+                policy: &policy,
+            };
             let calibration_mode = self.calibration_mode;
             let evaluation_days = self.param_cache.drug_evaluation_days;
             let potential_activity_potency_threshold = config::parameter_store()
@@ -4464,12 +4473,7 @@ impl Simulation {
                         individual,
                         t,
                         &mut lt.rng,
-                        mechanism_cache,
-                        bacteria_indices,
-                        drug_indices,
-                        cross_resistance_groups,
-                        param_cache,
-                        &policy,
+                        &rule_context,
                     );
 
                     let died_today = individual.date_of_death == Some(t);

@@ -142,7 +142,7 @@ pub struct ParameterStore {
 }
 
 impl ParameterStore {
-    fn from_parameter_map(map: &HashMap<String, f64>) -> Self {
+    pub(crate) fn from_parameter_map(map: &HashMap<String, f64>) -> Self {
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
 

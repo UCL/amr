@@ -1,89 +1,12 @@
-// =====================================================================================
-// src/rules/mod.rs
-// =====================================================================================
-//
-// CORE UPDATE LOGIC FOR AMR SIMULATION
-//
-// This is the largest and most important file in the simulation. It contains all the
-// logic that updates individual state each time step (day).
-//
-// =====================================================================================
-// KEY FUNCTIONS
-// =====================================================================================
-//
-// apply_rules() - Main entry point, called once per individual per day
-//   This function orchestrates all updates in the correct order:
-//   1. Age update
-//   2. Hospitalization updates
-//   3. Infection acquisition (community, hospital, microbiome seeding)
-//   4. Infection progression (level growth, symptoms, sepsis)
-//   5. Drug selection and treatment initiation
-//   6. Drug effects (level decay, activity calculations, toxicity)
-//   7. Infection clearance (immune or drug-assisted)
-//   8. Resistance dynamics (emergence, HGT, reversion, floors)
-//   9. Microbiome dynamics (colonization, clearance)
-//   10. Mortality check
-//
-// =====================================================================================
-// IMPORTANT HELPER FUNCTIONS
-// =====================================================================================
-//
-// Drug Selection:
-//   - select_drug_for_bacteria(): Chooses antibiotic based on scoring algorithm
-//   - calculate_drug_score(): Computes selection score for one drug
-//   - drug_available(): Checks if drug exists in simulated time period
-//
-// Resistance:
-//   - update_resistance_from_drug_use(): De novo emergence during treatment
-//   - apply_hgt(): Horizontal gene transfer between bacteria
-//   - apply_resistance_reversion(): Fitness-cost-driven resistance decay
-//   - apply_resistance_floors(): Maintain minimum resistance for rare bacteria
-//
-// Infection:
-//   - infection_acquisition(): Check for new infections
-//   - infection_progression(): Update infection levels
-//   - check_clearance(): Immune and drug-assisted clearance
-//
-// Drug Effects:
-//   - update_drug_levels(): Pharmacokinetic decay
-//   - calculate_drug_activity(): Compute drug effect on bacteria
-//   - update_toxicity(): Accumulate drug toxicity
-//
-// =====================================================================================
-// UNDERSTANDING THE CODE
-// =====================================================================================
-//
-// ARRAY INDEXING PATTERN:
-//   Most loops iterate over bacteria or drugs by index:
-//     for bacteria_idx in 0..BACTERIA_LIST.len() { ... }
-//     for drug_idx in 0..DRUG_SHORT_NAMES.len() { ... }
-//
-// PARAMETER ACCESS:
-//   Configuration parameters are accessed via parameter_store():
-//     let params = parameter_store();
-//     let value = params.get_bacteria_drug_param(bacteria, drug, "potency");
-//
-// STOCHASTIC EVENTS:
-//   Random events use rng.gen_bool(probability):
-//     if rng.gen_bool(infection_probability) { ... }
-//
-// =====================================================================================
-// DOCUMENTATION REFERENCES
-// =====================================================================================
-// For detailed documentation, see the docs/ folder:
-//   - docs/02_resistance_system.md: Resistance emergence, HGT, mechanisms
-//   - docs/03_drug_treatment.md: Drug selection, pharmacokinetics
-//   - docs/04_infection_dynamics.md: Acquisition, progression, clearance
-//   - docs/07_simulation_flow.md: Daily update sequence
-//
-// =====================================================================================
-
-// for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
+// Daily individual state transitions for the AMR model. `apply_rules` is the
+// production entry point and receives all immutable rule dependencies through
+// `RuleContext`; tests exercise that same path. The ordered conceptual contract
+// and its verification ownership live in model_description/verification-matrix.toml.
 
 use crate::config::{
     calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+    parameter_store, ParameterStore, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
     RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
@@ -418,10 +341,10 @@ fn propagate_mechanism_resistance(
     individual: &mut Individual,
     b_idx: usize,
     param_cache: &ParameterKeyCache,
+    store: &ParameterStore,
     raise_only: bool,
     propagate_microbiome_r: bool,
 ) {
-    let store = parameter_store();
     let max_resistance_level = store.globals.max_resistance_level;
 
     for drug_index in 0..DRUG_SHORT_NAMES.len() {
@@ -504,8 +427,8 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
     mechanism_cache: &MechanismCache,
     is_hospital_acquired: bool,
     rng: &mut R,
+    store: &ParameterStore,
 ) -> bool {
-    let store = parameter_store();
     if !store.globals.staph_aureus_lineage_enrichment_enabled {
         return false;
     }
@@ -1065,9 +988,8 @@ fn assess_treatment_failure(
     _drug_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
+    store: &ParameterStore,
 ) -> bool {
-    let store = parameter_store();
-
     // Check if treatment failure assessment is enabled
     if !store.globals.treatment_failure_enabled {
         return false;
@@ -1241,7 +1163,7 @@ fn assess_treatment_failure(
             individual.cur_level_drug[new_drug_idx] = drug_initial_level;
 
             // Reset treatment failure tracking for this bacteria
-            mark_new_treatment_course(individual, bacteria_idx, current_level, rng);
+            mark_new_treatment_course(individual, bacteria_idx, current_level, rng, store);
 
             return true; // Drug switch occurred
         }
@@ -1277,8 +1199,8 @@ fn treatment_failure_assessment_day_for(
 }
 
 #[inline]
-fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
-    let globals = &parameter_store().globals;
+fn sample_antibiotic_response_multiplier(rng: &mut impl Rng, store: &ParameterStore) -> f64 {
+    let globals = &store.globals;
     let slow_probability = globals
         .drug_activity_slow_clearance_probability
         .clamp(0.0, 1.0);
@@ -1348,19 +1270,22 @@ fn mark_new_treatment_course(
     bacteria_idx: usize,
     starting_level: f64,
     rng: &mut impl Rng,
+    store: &ParameterStore,
 ) {
     individual.bacteria_level_at_drug_start[bacteria_idx] = Some(starting_level);
     individual.days_on_current_treatment[bacteria_idx] = 0;
     individual.treatment_failure_assessed[bacteria_idx] = false;
     individual.drug_activity_response_multiplier[bacteria_idx] =
-        sample_antibiotic_response_multiplier(rng);
+        sample_antibiotic_response_multiplier(rng, store);
 }
 
 #[inline]
-fn clear_treatment_tracking(individual: &mut Individual, bacteria_idx: usize) {
-    let base_multiplier = parameter_store()
-        .globals
-        .drug_activity_to_bacteria_level_multiplier;
+fn clear_treatment_tracking(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    store: &ParameterStore,
+) {
+    let base_multiplier = store.globals.drug_activity_to_bacteria_level_multiplier;
     individual.bacteria_level_at_drug_start[bacteria_idx] = None;
     individual.days_on_current_treatment[bacteria_idx] = -1;
     individual.treatment_failure_assessed[bacteria_idx] = false;
@@ -1376,9 +1301,8 @@ fn assess_restart_window(
     bacteria_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
+    store: &ParameterStore,
 ) -> bool {
-    let store = parameter_store();
-
     // Check if restart window is enabled
     if !store.globals.restart_window_enabled {
         return false;
@@ -1441,6 +1365,7 @@ fn assess_restart_window(
                                 bacteria_indices,
                                 param_cache,
                                 rng,
+                                store,
                             );
                         }
                     }
@@ -1468,9 +1393,8 @@ fn start_restart_treatment(
     bacteria_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
+    store: &ParameterStore,
 ) -> bool {
-    let store = parameter_store();
-
     let bacteria_name = BACTERIA_LIST[bacteria_idx];
     let minimal_potency_threshold = store.globals.minimal_potency_threshold_for_drug_selection;
 
@@ -1514,6 +1438,7 @@ fn start_restart_treatment(
                     bacteria_idx,
                     individual.level[bacteria_idx],
                     rng,
+                    store,
                 );
 
                 return true; // Successfully restarted previously effective drug
@@ -1607,6 +1532,7 @@ fn start_restart_treatment(
                 bacteria_idx,
                 individual.level[bacteria_idx],
                 rng,
+                store,
             );
 
             return true; // Restart treatment started
@@ -2109,19 +2035,31 @@ impl ParameterKeyCache {
     }
 }
 
-/// applies model rules to an individual for one time step.
+/// Immutable dependencies used by one invocation of the daily rule engine.
+pub(crate) struct RuleContext<'a> {
+    pub(crate) parameters: &'a ParameterStore,
+    pub(crate) mechanism_cache: &'a MechanismCache,
+    pub(crate) bacteria_indices: &'a HashMap<&'static str, usize>,
+    pub(crate) drug_indices: &'a HashMap<&'static str, usize>,
+    pub(crate) cross_resistance_groups: &'a [Vec<Vec<usize>>],
+    pub(crate) parameter_cache: &'a ParameterKeyCache,
+    pub(crate) policy: &'a PolicyAdjustments,
+}
+
+/// Applies the ordered model rules to one individual for one simulated day.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
     rng: &mut impl Rng,
-    mechanism_cache: &MechanismCache,
-    bacteria_indices: &HashMap<&'static str, usize>,
-    drug_indices: &HashMap<&'static str, usize>,
-    cross_resistance_groups: &[Vec<Vec<usize>>],
-    param_cache: &ParameterKeyCache,
-    policy: &PolicyAdjustments,
+    context: &RuleContext<'_>,
 ) {
-    let store = parameter_store();
+    let store = context.parameters;
+    let mechanism_cache = context.mechanism_cache;
+    let bacteria_indices = context.bacteria_indices;
+    let drug_indices = context.drug_indices;
+    let cross_resistance_groups = context.cross_resistance_groups;
+    let param_cache = context.parameter_cache;
+    let policy = context.policy;
     // Policy can tighten or loosen randomness when deciding among viable drugs.
     let selection_temperature = policy
         .drug_selection_temperature
@@ -2778,7 +2716,7 @@ pub(crate) fn apply_rules(
 
                     // Reset treatment failure tracking when drug is stopped naturally
                     if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
-                        clear_treatment_tracking(individual, bacteria_idx);
+                        clear_treatment_tracking(individual, bacteria_idx, store);
                     }
                 }
             }
@@ -4348,6 +4286,7 @@ pub(crate) fn apply_rules(
                                 bacteria_idx,
                                 individual.level[bacteria_idx],
                                 rng,
+                                store,
                             );
                         }
                     }
@@ -4493,7 +4432,7 @@ pub(crate) fn apply_rules(
                     individual.restart_window_assessed[bacteria_idx] = false;
                 }
                 if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
-                    clear_treatment_tracking(individual, bacteria_idx);
+                    clear_treatment_tracking(individual, bacteria_idx, store);
                 }
             }
         }
@@ -4517,11 +4456,12 @@ pub(crate) fn apply_rules(
                     drug_indices,
                     param_cache,
                     rng,
+                    store,
                 );
             }
         } else {
             // No active infection - reset all tracking
-            clear_treatment_tracking(individual, bacteria_idx);
+            clear_treatment_tracking(individual, bacteria_idx, store);
 
             // Also clear restart window tracking since infection has resolved
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
@@ -4538,6 +4478,7 @@ pub(crate) fn apply_rules(
             bacteria_indices,
             param_cache,
             rng,
+            store,
         );
     }
 
@@ -5169,6 +5110,7 @@ pub(crate) fn apply_rules(
                             individual,
                             b_idx,
                             param_cache,
+                            store,
                             true, // raise_only: don't lower existing resistance
                             true, // propagate_microbiome_r: this is microbiome context
                         );
@@ -5331,6 +5273,7 @@ pub(crate) fn apply_rules(
                                     individual,
                                     b_idx,
                                     param_cache,
+                                    store,
                                     false, // raise_only=false: reversion resets to mechanism-derived level
                                     true,  // propagate_microbiome_r: this is microbiome context
                                 );
@@ -5386,6 +5329,7 @@ pub(crate) fn apply_rules(
                             individual,
                             b_idx,
                             param_cache,
+                            store,
                             true, // raise_only: don't lower existing resistance
                             true, // propagate_microbiome_r: this is the microbiome context
                         );
@@ -5420,6 +5364,7 @@ pub(crate) fn apply_rules(
                             individual,
                             b_idx,
                             param_cache,
+                            store,
                             true, // raise_only: don't lower existing resistance
                             true, // propagate_microbiome_r: update both compartments
                         );
@@ -5593,6 +5538,7 @@ pub(crate) fn apply_rules(
                             mechanism_cache,
                             is_hospital_acquired,
                             rng,
+                            store,
                         );
                     }
 
@@ -5736,6 +5682,7 @@ pub(crate) fn apply_rules(
                         individual,
                         b_idx,
                         param_cache,
+                        store,
                         false, // raise_only: let mechanism profile determine per-drug resistance
                         false, // propagate_microbiome_r: this is an active infection
                     );
@@ -5778,6 +5725,7 @@ pub(crate) fn apply_rules(
                                 individual,
                                 b_idx,
                                 param_cache,
+                                store,
                                 true,  // raise_only: don't lower existing
                                 false, // propagate_microbiome_r: active infection
                             );
@@ -5816,6 +5764,7 @@ pub(crate) fn apply_rules(
                                     individual,
                                     b_idx,
                                     param_cache,
+                                    store,
                                     true,  // raise_only: don't lower existing resistance
                                     false, // propagate_microbiome_r: this is infection context
                                 );
@@ -6005,6 +5954,7 @@ pub(crate) fn apply_rules(
                         individual,
                         bacteria_full_idx,
                         param_cache,
+                        store,
                         true,  // raise_only: don't lower existing resistance
                         false, // propagate_microbiome_r: this is an active infection
                     );
@@ -6111,6 +6061,7 @@ pub(crate) fn apply_rules(
                 param_cache,
                 policy,
                 true, // is_bacterial_testing
+                store,
             );
 
             if rng.gen_bool(testing_probability.clamp(0.0, 1.0)) {
@@ -6136,6 +6087,7 @@ pub(crate) fn apply_rules(
                     param_cache,
                     policy,
                     false, // is_bacterial_testing
+                    store,
                 );
 
                 if rng.gen_bool(resistance_testing_probability.clamp(0.0, 1.0)) {
@@ -6741,6 +6693,7 @@ pub(crate) fn apply_rules(
                             individual,
                             recipient_idx,
                             param_cache,
+                            store,
                             true, // raise_only — don't lower existing resistance
                             true, // propagate_microbiome_r — update microbiome too
                         );
@@ -6834,8 +6787,8 @@ fn calculate_testing_probability(
     param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
     is_bacterial_testing: bool,
+    store: &ParameterStore,
 ) -> f64 {
-    let store = parameter_store();
     // Get base parameters
     let base_rate_raw = if is_bacterial_testing {
         param_cache.bacterial_testing_base_rate_per_day
@@ -7224,6 +7177,7 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::PARAMETERS;
     use rand::distributions::WeightedIndex;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
@@ -7248,5 +7202,31 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn treatment_response_sampling_uses_injected_parameters() {
+        let mut parameters = PARAMETERS.clone();
+        parameters.insert("drug_activity_slow_clearance_probability".to_string(), 0.0);
+        parameters.insert(
+            "drug_activity_to_bacteria_level_multiplier".to_string(),
+            0.123,
+        );
+        let store = ParameterStore::from_parameter_map(&parameters);
+        let mut rng = ChaCha12Rng::seed_from_u64(123_456);
+
+        assert_eq!(
+            sample_antibiotic_response_multiplier(&mut rng, &store),
+            0.123
+        );
+
+        parameters.insert("drug_activity_slow_clearance_probability".to_string(), 1.0);
+        parameters.insert("drug_activity_slow_clearance_multiplier".to_string(), 0.456);
+        let store = ParameterStore::from_parameter_map(&parameters);
+
+        assert_eq!(
+            sample_antibiotic_response_multiplier(&mut rng, &store),
+            0.456
+        );
     }
 }
