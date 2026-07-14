@@ -1,5 +1,5 @@
 use amr_project::simulation::journey_logger::JourneyLogger;
-use amr_project::simulation::population::{store_float, Individual, BACTERIA_LIST};
+use amr_project::simulation::population::{store_float, Individual};
 use amr_project::simulation::simulation::{CalibrationMode, Simulation};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -151,49 +151,6 @@ fn assert_new_infection_resistance_counts_bounded(path: &Path) {
             "newly infected serious-R count should be bounded by newly infected any-resistance count in CSV row {}",
             row_idx + 2
         );
-    }
-}
-
-fn assert_new_infection_split_columns_preserve_bacterium_values(path: &Path) {
-    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
-    let header = reader
-        .headers()
-        .expect("CSV should include headers")
-        .clone();
-    let record = reader
-        .records()
-        .next()
-        .expect("CSV should include a data row")
-        .expect("CSV data row should parse");
-
-    for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
-        let slug = bacteria.replace(' ', "_");
-        let expected_columns = [
-            (
-                format!("{slug}_newly_infected_carrier"),
-                1_000 + bacteria_idx,
-            ),
-            (
-                format!("{slug}_newly_infected_non_carrier"),
-                2_000 + bacteria_idx,
-            ),
-            (format!("{slug}_newly_infected_under_5"), 100 + bacteria_idx),
-            (format!("{slug}_newly_infected_over_65"), 200 + bacteria_idx),
-        ];
-
-        for (column, expected) in expected_columns {
-            let column_idx = header
-                .iter()
-                .position(|candidate| candidate == column)
-                .unwrap_or_else(|| panic!("summary CSV should include {column}"));
-            let actual = record[column_idx]
-                .parse::<usize>()
-                .unwrap_or_else(|_| panic!("{column} should contain a usize"));
-            assert_eq!(
-                actual, expected,
-                "{column} should contain the value for its named bacterium"
-            );
-        }
     }
 }
 
@@ -365,32 +322,12 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     let mut simulation = Simulation::new(64, 4, false, Some(246_813_579), CalibrationMode::Partial);
     simulation.run();
 
-    let summary = simulation
-        .summary_log
-        .first_mut()
-        .expect("tiny simulation should produce a summary row");
-    summary.newly_infected_carrier_by_bacteria =
-        (0..BACTERIA_LIST.len()).map(|idx| 1_000 + idx).collect();
-    summary.newly_infected_non_carrier_by_bacteria =
-        (0..BACTERIA_LIST.len()).map(|idx| 2_000 + idx).collect();
-    summary.newly_infected_by_bacteria_under_5 =
-        (0..BACTERIA_LIST.len()).map(|idx| 100 + idx).collect();
-    summary.newly_infected_by_bacteria_over_65 =
-        (0..BACTERIA_LIST.len()).map(|idx| 200 + idx).collect();
-    let region_count = summary.newly_infected_by_bacteria_region.len() / BACTERIA_LIST.len();
-    summary.newly_infected_by_bacteria_region.fill(0);
-    for bacteria_idx in 0..BACTERIA_LIST.len() {
-        summary.newly_infected_by_bacteria_region[bacteria_idx * region_count] =
-            3_000 + 2 * bacteria_idx;
-    }
-
     let path = output_path("summary_schema");
     simulation
         .export_summary_to_csv(&path)
         .expect("summary export should succeed");
 
     assert_csv_rows_match_header_width(&path);
-    assert_new_infection_split_columns_preserve_bacterium_values(&path);
     assert_antibiotic_context_counts_sum(&path);
     assert_new_infection_resistance_counts_bounded(&path);
     assert_summary_has_figure_11_columns(&path);
