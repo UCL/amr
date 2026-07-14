@@ -6783,25 +6783,26 @@ impl Simulation {
             }
         }
 
-        // Add per-bacteria newly infected counts split by carrier status
+        // Keep split headers grouped to match the flat vectors written below.
         for bacteria in BACTERIA_LIST.iter() {
-            let slug = bacteria.replace(" ", "_");
             header.push(',');
-            header.push_str(&slug);
+            header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_newly_infected_carrier");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
-            header.push_str(&slug);
+            header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_newly_infected_non_carrier");
         }
 
-        // Add per-bacteria newly infected counts split by age group
         for bacteria in BACTERIA_LIST.iter() {
-            let slug = bacteria.replace(" ", "_");
             header.push(',');
-            header.push_str(&slug);
+            header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_newly_infected_under_5");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
-            header.push_str(&slug);
+            header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_newly_infected_over_65");
         }
 
