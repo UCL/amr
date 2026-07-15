@@ -10,6 +10,7 @@ pub enum RngStream {
     RunId,
     TimestepChunk,
     TimestepMerge,
+    ProfileRetention,
 }
 
 impl RngStream {
@@ -20,6 +21,7 @@ impl RngStream {
             Self::RunId => 0x4f6d_3c51_b572_22c7,
             Self::TimestepChunk => 0x9bc2_7475_3a8f_19e3,
             Self::TimestepMerge => 0xd6e8_58f9_2f0b_c44a,
+            Self::ProfileRetention => 0x5b51_7a2e_c93d_f806,
         }
     }
 }

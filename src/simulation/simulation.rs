@@ -23,7 +23,7 @@ use crate::simulation::population::{
 use crate::simulation::rng::{
     model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
 };
-use rand::Rng;
+use rand::{seq::index, Rng};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1128,6 +1128,133 @@ fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
 /// Maximum mechanism profiles stored per region×bacteria slot.
 const MAX_MECHANISM_PROFILES: usize = 1000;
 
+/// Draw how many members of the left-hand population appear in a uniform sample.
+///
+/// This is an exact hypergeometric draw. It chooses between equivalent formulations so
+/// the number of RNG calls is bounded by the smallest relevant population, and therefore
+/// never exceeds the profile reservoir cap at current call sites.
+fn sample_hypergeometric_left_count<R: Rng + ?Sized>(
+    left_population: u64,
+    right_population: u64,
+    draws: usize,
+    rng: &mut R,
+) -> usize {
+    fn draw_left_by_draws<R: Rng + ?Sized>(
+        mut left: u64,
+        mut right: u64,
+        draws: u64,
+        rng: &mut R,
+    ) -> u64 {
+        let mut selected_left = 0;
+        for completed in 0..draws {
+            if left == 0 {
+                break;
+            }
+            if right == 0 {
+                selected_left += draws - completed;
+                break;
+            }
+
+            if rng.gen_range(0..left + right) < left {
+                selected_left += 1;
+                left -= 1;
+            } else {
+                right -= 1;
+            }
+        }
+        selected_left
+    }
+
+    fn draw_category_by_items<R: Rng + ?Sized>(
+        category_size: u64,
+        total_population: u64,
+        draws: u64,
+        rng: &mut R,
+    ) -> u64 {
+        let mut population_remaining = total_population;
+        let mut draws_remaining = draws;
+        let mut selected = 0;
+
+        for processed in 0..category_size {
+            if draws_remaining == 0 {
+                break;
+            }
+            if draws_remaining == population_remaining {
+                selected += category_size - processed;
+                break;
+            }
+
+            if rng.gen_range(0..population_remaining) < draws_remaining {
+                selected += 1;
+                draws_remaining -= 1;
+            }
+            population_remaining -= 1;
+        }
+        selected
+    }
+
+    let total_population = left_population
+        .checked_add(right_population)
+        .expect("mechanism profile count overflow");
+    let draws = draws as u64;
+    assert!(draws <= total_population);
+
+    let excluded = total_population - draws;
+    let minimum_work = draws
+        .min(excluded)
+        .min(left_population)
+        .min(right_population);
+
+    let selected_left = if minimum_work == draws {
+        draw_left_by_draws(left_population, right_population, draws, rng)
+    } else if minimum_work == excluded {
+        left_population - draw_left_by_draws(left_population, right_population, excluded, rng)
+    } else if minimum_work == left_population {
+        draw_category_by_items(left_population, total_population, draws, rng)
+    } else {
+        draws - draw_category_by_items(right_population, total_population, draws, rng)
+    };
+
+    selected_left as usize
+}
+
+/// Append a uniform sample without replacement, minimizing RNG work when most entries
+/// are selected by sampling the smaller excluded set instead.
+fn append_uniform_profile_sample<R: Rng + ?Sized>(
+    target: &mut Vec<u64>,
+    source: &[u64],
+    amount: usize,
+    rng: &mut R,
+) {
+    assert!(amount <= source.len());
+    if amount == 0 {
+        return;
+    }
+    if amount == source.len() {
+        target.extend_from_slice(source);
+        return;
+    }
+
+    if amount <= source.len() - amount {
+        let sampled = index::sample(rng, source.len(), amount);
+        target.extend(sampled.iter().map(|idx| source[idx]));
+        return;
+    }
+
+    let mut excluded: Vec<usize> = index::sample(rng, source.len(), source.len() - amount)
+        .iter()
+        .collect();
+    excluded.sort_unstable();
+    let mut excluded = excluded.into_iter().peekable();
+    for (idx, &profile) in source.iter().enumerate() {
+        if excluded.peek().copied() == Some(idx) {
+            excluded.next();
+        } else {
+            target.push(profile);
+        }
+    }
+}
+
 /// Cache of *complete* mechanism boolean profiles sampled from currently-infected individuals.
 ///
 /// Unlike `MechanismPrevalenceCache` (which stores marginal per-mechanism counts),
@@ -1280,20 +1407,29 @@ impl MechanismProfileCache {
 
     /// Blend old (retained) profiles with freshly-collected profiles.
     ///
-    /// For each `[region][hosp][bacteria]` slot:
-    /// 1. Keep `floor(retention * old_len)` old profiles (truncated from the end;
-    ///    since reservoir sampling randomises order, truncation ≈ random discard).
-    /// 2. Append new profiles until the slot reaches `MAX_MECHANISM_PROFILES`.
+    /// For each `[region][hosp][bacteria]` slot, every old profile has the configured
+    /// marginal probability of surviving. Vacancies are filled with a uniform sample of
+    /// the freshly collected reservoir up to `MAX_MECHANISM_PROFILES`.
     ///
     /// Uses separate retention rates for hospital (h=1) and community (h=0) pools.
     /// Hospital ecology persists for months (surfaces, devices, HCW colonisation)
     /// while community resistance turns over with acute infections.
-    pub fn blend_with_new(
+    pub fn blend_with_new<R: Rng + ?Sized>(
         &mut self,
         new_profiles: Self,
         community_retention: f64,
         hospital_retention: f64,
+        rng: &mut R,
     ) {
+        assert!(
+            community_retention.is_finite() && (0.0..=1.0).contains(&community_retention),
+            "community profile retention must be between zero and one"
+        );
+        assert!(
+            hospital_retention.is_finite() && (0.0..=1.0).contains(&hospital_retention),
+            "hospital profile retention must be between zero and one"
+        );
+
         for r in 0..self.num_regions {
             for h in 0..2 {
                 let retention = if h == 1 {
@@ -1304,28 +1440,37 @@ impl MechanismProfileCache {
                 for b in 0..self.num_bacteria {
                     let old_slot = &mut self.profiles[r][h][b];
                     let new_slot = &new_profiles.profiles[r][h][b];
-                    // Keep at least one previously-seen resistant hospital profile alive when
-                    // possible so brief stochastic lulls do not collapse the entire nosocomial
-                    // reservoir back to all-susceptible between timesteps.
-                    let preserved_resistant = if h == 1 {
-                        old_slot.iter().copied().find(|&mask| mask != 0)
-                    } else {
-                        None
-                    };
 
-                    // Keep a retention-fraction of old profiles
-                    let keep = (old_slot.len() as f64 * retention).floor() as usize;
-                    old_slot.truncate(keep);
-
-                    // Fill remaining capacity with new profiles
-                    for &mask in new_slot {
-                        if old_slot.len() >= MAX_MECHANISM_PROFILES {
-                            break;
-                        }
-                        old_slot.push(mask);
+                    // Stochastic rounding preserves E[kept] = retention * old_len, including
+                    // when a small slot's expected daily loss is less than one profile.
+                    let expected_keep = old_slot.len() as f64 * retention;
+                    let mut keep = expected_keep.floor() as usize;
+                    let fractional_keep = expected_keep - keep as f64;
+                    if keep < old_slot.len()
+                        && fractional_keep > 0.0
+                        && rng.gen_bool(fractional_keep)
+                    {
+                        keep += 1;
                     }
 
-                    if let Some(resistant_mask) = preserved_resistant {
+                    // Uniform deletion makes survival independent of reservoir position and
+                    // susceptible/resistant status. Remember a randomly ordered removed
+                    // resistant profile solely for the explicit hospital persistence guard.
+                    let mut removed_resistant = None;
+                    while old_slot.len() > keep {
+                        let remove_idx = rng.gen_range(0..old_slot.len());
+                        let removed = old_slot.swap_remove(remove_idx);
+                        if h == 1 && removed != 0 {
+                            removed_resistant = Some(removed);
+                        }
+                    }
+
+                    let fresh_count = (MAX_MECHANISM_PROFILES - old_slot.len()).min(new_slot.len());
+                    append_uniform_profile_sample(old_slot, new_slot, fresh_count, rng);
+
+                    // Keep at least one previously seen resistant hospital profile alive when
+                    // brief stochastic loss would otherwise leave the slot all-susceptible.
+                    if let Some(resistant_mask) = removed_resistant {
                         if !old_slot.iter().any(|&mask| mask != 0) {
                             if let Some(last_mask) = old_slot.last_mut() {
                                 *last_mask = resistant_mask;
@@ -1343,26 +1488,49 @@ impl MechanismProfileCache {
     }
 
     /// Merge profiles from another cache (used for per-thread aggregation).
-    /// Performs reservoir sampling when combined profiles exceed the cap.
-    pub fn merge<R: Rng + ?Sized>(&mut self, other: Self, rng: &mut R) {
+    ///
+    /// The number selected from each local reservoir is an exact hypergeometric draw based
+    /// on the corresponding `total_seen` counts. Sampling uniformly within each reservoir
+    /// then yields a uniform reservoir of the complete combined population, even when thread
+    /// chunks contributed very different numbers of profiles.
+    pub fn merge<R: Rng + ?Sized>(&mut self, mut other: Self, rng: &mut R) {
         for r in 0..self.num_regions {
             for h in 0..2 {
                 for b in 0..self.num_bacteria {
-                    let combined_seen = self.total_seen[r][h][b] + other.total_seen[r][h][b];
-                    let other_profiles = &other.profiles[r][h][b];
-                    let slot = &mut self.profiles[r][h][b];
-
-                    for &mask in other_profiles {
-                        if slot.len() < MAX_MECHANISM_PROFILES {
-                            slot.push(mask);
-                        } else {
-                            // Reservoir sampling with the combined count
-                            let j = rng.gen_range(0..combined_seen) as usize;
-                            if j < MAX_MECHANISM_PROFILES {
-                                slot[j] = mask;
-                            }
-                        }
+                    let left_seen = self.total_seen[r][h][b];
+                    let right_seen = other.total_seen[r][h][b];
+                    if right_seen == 0 {
+                        continue;
                     }
+                    if left_seen == 0 {
+                        self.profiles[r][h][b] = std::mem::take(&mut other.profiles[r][h][b]);
+                        self.total_seen[r][h][b] = right_seen;
+                        continue;
+                    }
+
+                    let combined_seen = left_seen
+                        .checked_add(right_seen)
+                        .expect("mechanism profile count overflow");
+                    if combined_seen <= MAX_MECHANISM_PROFILES as u64 {
+                        self.profiles[r][h][b].extend_from_slice(&other.profiles[r][h][b]);
+                        self.total_seen[r][h][b] = combined_seen;
+                        continue;
+                    }
+
+                    let merged_len = combined_seen.min(MAX_MECHANISM_PROFILES as u64) as usize;
+                    let take_left =
+                        sample_hypergeometric_left_count(left_seen, right_seen, merged_len, rng);
+                    let take_right = merged_len - take_left;
+
+                    let left_profiles = std::mem::take(&mut self.profiles[r][h][b]);
+                    let right_profiles = std::mem::take(&mut other.profiles[r][h][b]);
+                    debug_assert!(take_left <= left_profiles.len());
+                    debug_assert!(take_right <= right_profiles.len());
+
+                    let mut merged = Vec::with_capacity(merged_len);
+                    append_uniform_profile_sample(&mut merged, &left_profiles, take_left, rng);
+                    append_uniform_profile_sample(&mut merged, &right_profiles, take_right, rng);
+                    self.profiles[r][h][b] = merged;
                     self.total_seen[r][h][b] = combined_seen;
                 }
             }
@@ -1449,14 +1617,19 @@ impl MechanismCache {
 
     /// Update the profile cache with freshly-collected profiles from this simulation step.
     /// Uses asymmetric retention: community profiles turn over quickly, hospital profiles persist.
-    pub fn update_profiles(
+    pub fn update_profiles<R: Rng + ?Sized>(
         &mut self,
         community_retention: f64,
         hospital_retention: f64,
         merged_profiles: MechanismProfileCache,
+        rng: &mut R,
     ) {
-        self.profiles
-            .blend_with_new(merged_profiles, community_retention, hospital_retention);
+        self.profiles.blend_with_new(
+            merged_profiles,
+            community_retention,
+            hospital_retention,
+            rng,
+        );
     }
 
     /// Compute the current marginal mechanism prevalence from the profile cache and update
@@ -5729,10 +5902,16 @@ impl Simulation {
                 let hospital_retention = config::parameter_store()
                     .globals
                     .hospital_profile_cache_retention;
+                let mut profile_retention_rng = seed_option
+                    .map(|base| {
+                        model_rng(base, RngStream::ProfileRetention, timestep_stream_id(t, 0))
+                    })
+                    .unwrap_or_else(model_rng_from_entropy);
                 self.mechanism_cache.update_profiles(
                     community_retention,
                     hospital_retention,
                     mechanism_profiles,
+                    &mut profile_retention_rng,
                 );
                 // Update peak marginal prevalences for the ratchet floor mechanism.
                 // Throttled to once per year: the ratchet is an upward-only "memory of peak"
@@ -8120,10 +8299,25 @@ impl Simulation {
 
 #[cfg(test)]
 mod tests {
-    use super::{current_antibiotic_context_priority, MechanismCache};
+    use super::{
+        current_antibiotic_context_priority, sample_hypergeometric_left_count, MechanismCache,
+        MechanismProfileCache, MAX_MECHANISM_PROFILES,
+    };
     use crate::simulation::population::{AntibioticUseContext, Individual};
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
+
+    fn cache_with_slot(
+        profiles: Vec<u64>,
+        total_seen: u64,
+        hospital: bool,
+    ) -> MechanismProfileCache {
+        let mut cache = MechanismProfileCache::new(1, 1, 64);
+        let h = hospital as usize;
+        cache.profiles[0][h][0] = profiles;
+        cache.total_seen[0][h][0] = total_seen;
+        cache
+    }
 
     #[test]
     fn weighted_profile_sampling_rejects_mismatched_or_invalid_weights() {
@@ -8164,5 +8358,215 @@ mod tests {
             current_antibiotic_context_priority(&individual),
             AntibioticUseContext::Other
         );
+    }
+
+    #[test]
+    fn profile_retention_zero_replaces_old_community_profiles() {
+        let mut old = cache_with_slot(vec![101, 102, 103], 3, false);
+        let fresh = cache_with_slot(vec![201, 202], 2, false);
+        let mut rng = SmallRng::seed_from_u64(11);
+
+        old.blend_with_new(fresh, 0.0, 1.0, &mut rng);
+
+        assert_eq!(old.profiles[0][0][0], vec![201, 202]);
+        assert_eq!(old.total_seen[0][0][0], 2);
+    }
+
+    #[test]
+    fn profile_retention_one_keeps_a_full_old_reservoir() {
+        let old_profiles: Vec<u64> = (0..MAX_MECHANISM_PROFILES as u64).collect();
+        let mut old = cache_with_slot(old_profiles.clone(), MAX_MECHANISM_PROFILES as u64, false);
+        let fresh = cache_with_slot(vec![u64::MAX], 1, false);
+        let mut rng = SmallRng::seed_from_u64(12);
+
+        old.blend_with_new(fresh, 1.0, 1.0, &mut rng);
+
+        assert_eq!(old.profiles[0][0][0], old_profiles);
+    }
+
+    #[test]
+    fn profile_retention_is_deterministic_for_a_fixed_seed() {
+        let old_profiles: Vec<u64> = (0..MAX_MECHANISM_PROFILES as u64).collect();
+        let fresh_profiles: Vec<u64> = (10_000..11_000).collect();
+        let mut first = cache_with_slot(old_profiles.clone(), 1_000, false);
+        let mut second = cache_with_slot(old_profiles, 1_000, false);
+        let first_fresh = cache_with_slot(fresh_profiles.clone(), 1_000, false);
+        let second_fresh = cache_with_slot(fresh_profiles, 1_000, false);
+        let mut first_rng = SmallRng::seed_from_u64(13);
+        let mut second_rng = SmallRng::seed_from_u64(13);
+
+        first.blend_with_new(first_fresh, 0.731, 1.0, &mut first_rng);
+        second.blend_with_new(second_fresh, 0.731, 1.0, &mut second_rng);
+
+        assert_eq!(first.profiles, second.profiles);
+        assert_eq!(first.total_seen, second.total_seen);
+    }
+
+    #[test]
+    fn profile_retention_is_independent_of_reservoir_position() {
+        let mut retained_by_position = [0usize; 10];
+        let mut rng = SmallRng::seed_from_u64(14);
+
+        for _ in 0..1_000 {
+            let mut cache = cache_with_slot((0..10).collect(), 10, false);
+            cache.blend_with_new(MechanismProfileCache::new(1, 1, 64), 0.5, 1.0, &mut rng);
+            for &profile in &cache.profiles[0][0][0] {
+                retained_by_position[profile as usize] += 1;
+            }
+        }
+
+        for retained in retained_by_position {
+            assert!(
+                (430..=570).contains(&retained),
+                "position retained {retained} times"
+            );
+        }
+    }
+
+    #[test]
+    fn profile_retention_does_not_favour_resistant_profiles() {
+        let mut rng = SmallRng::seed_from_u64(15);
+        let profiles: Vec<u64> = std::iter::repeat(0)
+            .take(500)
+            .chain(std::iter::repeat(1).take(500))
+            .collect();
+        let mut resistant_retained = 0usize;
+        let mut total_retained = 0usize;
+
+        for _ in 0..400 {
+            let mut cache = cache_with_slot(profiles.clone(), 1_000, false);
+            cache.blend_with_new(MechanismProfileCache::new(1, 1, 64), 0.5, 1.0, &mut rng);
+            resistant_retained += cache.profiles[0][0][0]
+                .iter()
+                .filter(|&&mask| mask != 0)
+                .count();
+            total_retained += cache.profiles[0][0][0].len();
+        }
+
+        let resistant_fraction = resistant_retained as f64 / total_retained as f64;
+        assert!(
+            (0.49..=0.51).contains(&resistant_fraction),
+            "resistant fraction after neutral retention was {resistant_fraction}"
+        );
+    }
+
+    #[test]
+    fn profile_retention_0999_has_the_expected_half_life() {
+        const REPLICATES: usize = 64;
+        const HALF_LIFE_DAYS: usize = 693;
+        let initial_profiles: Vec<u64> = (1..=MAX_MECHANISM_PROFILES as u64).collect();
+        let mut total_survivors = 0usize;
+
+        for replicate in 0..REPLICATES {
+            let mut cache = cache_with_slot(initial_profiles.clone(), 1_000, false);
+            let mut rng = SmallRng::seed_from_u64(20_000 + replicate as u64);
+            for _ in 0..HALF_LIFE_DAYS {
+                cache.blend_with_new(MechanismProfileCache::new(1, 1, 64), 0.999, 1.0, &mut rng);
+            }
+            total_survivors += cache.profiles[0][0][0].len();
+        }
+
+        let mean_survivors = total_survivors as f64 / REPLICATES as f64;
+        assert!(
+            (485.0..=515.0).contains(&mean_survivors),
+            "mean survivors after 693 days was {mean_survivors}"
+        );
+    }
+
+    #[test]
+    fn profile_merge_weights_unequal_thread_reservoirs_by_total_seen() {
+        const REPLICATES: usize = 64;
+        let mut small_profiles_forward = 0usize;
+        let mut small_profiles_reverse = 0usize;
+
+        for replicate in 0..REPLICATES {
+            let mut forward = cache_with_slot(vec![1; 1_000], 1_000, false);
+            let large = cache_with_slot(vec![2; 1_000], 9_000, false);
+            let mut forward_rng = SmallRng::seed_from_u64(30_000 + replicate as u64);
+            forward.merge(large, &mut forward_rng);
+            small_profiles_forward += forward.profiles[0][0][0]
+                .iter()
+                .filter(|&&mask| mask == 1)
+                .count();
+            assert_eq!(forward.total_seen[0][0][0], 10_000);
+
+            let mut reverse = cache_with_slot(vec![2; 1_000], 9_000, false);
+            let small = cache_with_slot(vec![1; 1_000], 1_000, false);
+            let mut reverse_rng = SmallRng::seed_from_u64(40_000 + replicate as u64);
+            reverse.merge(small, &mut reverse_rng);
+            small_profiles_reverse += reverse.profiles[0][0][0]
+                .iter()
+                .filter(|&&mask| mask == 1)
+                .count();
+        }
+
+        let forward_mean = small_profiles_forward as f64 / REPLICATES as f64;
+        let reverse_mean = small_profiles_reverse as f64 / REPLICATES as f64;
+        assert!((90.0..=110.0).contains(&forward_mean));
+        assert!((90.0..=110.0).contains(&reverse_mean));
+        assert!((forward_mean - reverse_mean).abs() <= 8.0);
+    }
+
+    #[test]
+    fn profile_merge_keeps_all_profiles_below_the_cap() {
+        let mut merged = cache_with_slot(vec![1, 2], 2, false);
+        let other = cache_with_slot(vec![3, 4, 5], 3, false);
+        let mut rng = SmallRng::seed_from_u64(18);
+
+        merged.merge(other, &mut rng);
+
+        assert_eq!(merged.profiles[0][0][0], vec![1, 2, 3, 4, 5]);
+        assert_eq!(merged.total_seen[0][0][0], 5);
+    }
+
+    #[test]
+    fn hypergeometric_merge_fast_paths_have_expected_means() {
+        const REPLICATES: usize = 2_000;
+        let scenarios = [
+            (1_000, 9_000, 1_000, 100.0),
+            (1_000, 100, 1_000, 10_000.0 / 11.0),
+            (100, 10_000, 1_000, 1_000.0 / 101.0),
+            (10_000, 100, 1_000, 100_000.0 / 101.0),
+        ];
+
+        for (scenario_idx, &(left, right, draws, expected)) in scenarios.iter().enumerate() {
+            let mut rng = SmallRng::seed_from_u64(50_000 + scenario_idx as u64);
+            let sampled: usize = (0..REPLICATES)
+                .map(|_| sample_hypergeometric_left_count(left, right, draws, &mut rng))
+                .sum();
+            let mean = sampled as f64 / REPLICATES as f64;
+            assert!(
+                (mean - expected).abs() < 1.0,
+                "scenario {scenario_idx}: expected {expected}, observed {mean}"
+            );
+        }
+    }
+
+    #[test]
+    fn profile_merge_is_deterministic_for_a_fixed_seed() {
+        let left = cache_with_slot(vec![1; 1_000], 4_000, false);
+        let right = cache_with_slot(vec![2; 1_000], 6_000, false);
+        let mut first = left.clone();
+        let mut second = left;
+        let mut first_rng = SmallRng::seed_from_u64(16);
+        let mut second_rng = SmallRng::seed_from_u64(16);
+
+        first.merge(right.clone(), &mut first_rng);
+        second.merge(right, &mut second_rng);
+
+        assert_eq!(first.profiles, second.profiles);
+        assert_eq!(first.total_seen, second.total_seen);
+    }
+
+    #[test]
+    fn hospital_resistant_profile_guard_remains_explicit() {
+        let mut old = cache_with_slot(vec![0, 8], 2, true);
+        let fresh = cache_with_slot(vec![0, 0], 2, true);
+        let mut rng = SmallRng::seed_from_u64(17);
+
+        old.blend_with_new(fresh, 1.0, 0.0, &mut rng);
+
+        assert_eq!(old.profiles[0][1][0].len(), 2);
+        assert!(old.profiles[0][1][0].iter().any(|&mask| mask != 0));
     }
 }
