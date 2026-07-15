@@ -3751,7 +3751,6 @@ lazy_static! {
 
 
         // Colistin parameters (grouped with other drugs)
-        map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
         // Regional availability (assume widely available, adjust as needed)
         map.insert("north_america_drug_colistin_availability".to_string(), 1.0);
         map.insert("europe_drug_colistin_availability".to_string(), 1.0);
@@ -4239,7 +4238,7 @@ lazy_static! {
         map.insert("drug_metronidazole_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fidaxomicin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_furazolidone_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.2);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.90);
@@ -4295,14 +4294,14 @@ lazy_static! {
         map.insert("drug_quinu_dalfo_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_trim_sulf_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_chloramphenicol_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_nitrofurantoin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.35);
+        map.insert("drug_nitrofurantoin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_fosfomycin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.45);
         map.insert("drug_retapamulin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fusidic_a_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_metronidazole_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fidaxomicin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_furazolidone_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.2);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.85);
@@ -4757,40 +4756,40 @@ lazy_static! {
 
         // --- stenotrophomonas_maltophilia ---
         map.insert("drug_sulfanilamide_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_penicillin_g_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ampicillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_amoxicillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_piperacillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.20);
-        map.insert("drug_ticarcillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.25);
-        map.insert("drug_cephalexin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefazolin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefuroxime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_penicillin_g_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_ampicillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_amoxicillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_piperacillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_ticarcillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_cephalexin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_cefazolin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_cefuroxime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         map.insert("drug_ceftriaxone_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.35);
-        map.insert("drug_cefepime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_ceftaroline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15);
+        map.insert("drug_cefepime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_ceftaroline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_cefiderocol_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
         map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_aztreonam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_erythromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_azithromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_clarithromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_clindamycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_gentamicin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tobramycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_amikacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ciprofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_aztreonam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_erythromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_azithromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_clarithromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_clindamycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_gentamicin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_tobramycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_amikacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_ciprofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.55);
+        map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.6);
         map.insert("drug_moxifloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_tetracycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.35);
-        map.insert("drug_doxycycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_doxycycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_tigecycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_vancomycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_vancomycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_teicoplanin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_dalbavancin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_linezolid_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
@@ -4799,7 +4798,7 @@ lazy_static! {
         map.insert("drug_quinu_dalfo_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_chloramphenicol_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_nitrofurantoin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_nitrofurantoin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_fosfomycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_retapamulin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_fusidic_a_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
@@ -4807,13 +4806,13 @@ lazy_static! {
         map.insert("drug_fidaxomicin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_furazolidone_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_rifampicin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.20);
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.30);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ticarcillin_clavulanate_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_ceftazidime_avibactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.40);
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_ampicillin_sulbactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_ticarcillin_clavulanate_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_ceftazidime_avibactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_colistin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_colistin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_flucloxacillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         map.insert("drug_aztreonam_avibactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_cefixime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
@@ -4869,7 +4868,7 @@ lazy_static! {
         map.insert("drug_metronidazole_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fidaxomicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_furazolidone_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_rifampicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.4);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.80);
@@ -4883,15 +4882,15 @@ lazy_static! {
 
         // --- staphylococcus_epidermidis ---
         map.insert("drug_sulfanilamide_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_penicillin_g_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_ampicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_amoxicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
+        map.insert("drug_penicillin_g_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_ampicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_amoxicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_piperacillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_ticarcillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_cephalexin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.20);
-        map.insert("drug_cefazolin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.20);
+        map.insert("drug_cefazolin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
         map.insert("drug_cefuroxime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.20);
-        map.insert("drug_ceftriaxone_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.25);
+        map.insert("drug_ceftriaxone_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.1);
         map.insert("drug_ceftazidime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefepime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
         map.insert("drug_ceftaroline_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
@@ -4905,7 +4904,7 @@ lazy_static! {
         map.insert("drug_azithromycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_clarithromycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_clindamycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_gentamicin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_gentamicin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.2);
         map.insert("drug_tobramycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_amikacin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ciprofloxacin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
@@ -4939,7 +4938,7 @@ lazy_static! {
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.25);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_colistin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_colistin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_flucloxacillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_aztreonam_avibactam_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.01);
         map.insert("drug_cefixime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.75);
@@ -5034,8 +5033,8 @@ lazy_static! {
         map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
+        map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
         map.insert("drug_moxifloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_tetracycline_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
@@ -5160,7 +5159,7 @@ lazy_static! {
         map.insert("drug_gentamicin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_levofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
@@ -5223,8 +5222,8 @@ lazy_static! {
         map.insert("drug_gentamicin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_tobramycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_amikacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_levofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_levofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_moxifloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_tetracycline_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
@@ -5324,7 +5323,7 @@ lazy_static! {
 
         // --- streptococcus_pyogenes ---
         map.insert("drug_sulfanilamide_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_penicillin_g_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.00);
+        map.insert("drug_penicillin_g_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ampicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_amoxicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_piperacillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.90);
@@ -5980,8 +5979,8 @@ lazy_static! {
         map.insert("drug_gentamicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_tobramycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amikacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
+        map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
         map.insert("drug_moxifloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_tetracycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
@@ -6081,8 +6080,8 @@ lazy_static! {
 
         // --- yersinia_enterocolitica ---
         map.insert("drug_sulfanilamide_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_penicillin_g_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ampicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_penicillin_g_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02);
+        map.insert("drug_ampicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02);
         map.insert("drug_amoxicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_piperacillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ticarcillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.70);
@@ -6106,12 +6105,12 @@ lazy_static! {
         map.insert("drug_gentamicin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ciprofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_ciprofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.7);
         map.insert("drug_levofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_tetracycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_doxycycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_doxycycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_minocycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tigecycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_vancomycin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
@@ -6121,7 +6120,7 @@ lazy_static! {
         map.insert("drug_tedizolid_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_daptomycin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_quinu_dalfo_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_trim_sulf_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.95);
+        map.insert("drug_trim_sulf_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_chloramphenicol_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_nitrofurantoin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fosfomycin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.10);
@@ -6333,12 +6332,12 @@ lazy_static! {
 
         // --- helicobacter_pylori ---
         map.insert("drug_sulfanilamide_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_penicillin_g_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_penicillin_g_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ampicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_piperacillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ticarcillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_cefazolin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefuroxime_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftriaxone_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.10);
@@ -6410,7 +6409,7 @@ lazy_static! {
         map.insert("drug_ceftaroline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefiderocol_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_meropenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.20);
+        map.insert("drug_meropenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_imipenem_c_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_ertapenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_aztreonam_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.20);
@@ -6418,21 +6417,21 @@ lazy_static! {
         map.insert("drug_azithromycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No TB activity — macrolides not used in TB treatment
         map.insert("drug_clarithromycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No TB activity — macrolides not used in TB treatment
         map.insert("drug_clindamycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No TB activity — lincosamides inactive against mycobacteria
-        map.insert("drug_gentamicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.25);
-        map.insert("drug_tobramycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.25);
-        map.insert("drug_amikacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.30);
-        map.insert("drug_ciprofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.45);
-        map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.45);
-        map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.40);
+        map.insert("drug_gentamicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);
+        map.insert("drug_tobramycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);
+        map.insert("drug_amikacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);
+        map.insert("drug_ciprofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);
+        map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.4);
+        map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.5);
+        map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.35);
         map.insert("drug_tetracycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
         map.insert("drug_doxycycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
         map.insert("drug_minocycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
         map.insert("drug_tigecycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_vancomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_vancomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.08);
         map.insert("drug_teicoplanin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_dalbavancin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.45);
+        map.insert("drug_linezolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);
         map.insert("drug_tedizolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_daptomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_quinu_dalfo_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
@@ -6445,7 +6444,7 @@ lazy_static! {
         map.insert("drug_metronidazole_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fidaxomicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_furazolidone_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_rifampicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.6);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
@@ -6816,13 +6815,9 @@ lazy_static! {
         map.insert("drug_amikacin_for_bacteria_shigella_spp._initiation_multiplier_before_1990".to_string(), 3.0);        // 1972-1989: amikacin for gentamicin-resistant severe cases; seeds 16S-RRMT in hospital reservoir
 
         // Bacteria-specific sepsis risk overrides for organisms that don't cause acute sepsis are defined in the log-odds section below
-        map.insert("helicobacter_pylori_base_bacteria_level_change".to_string(), 0.2); // Slow-growing chronic colonizer
 
         // H. pylori-specific drug selection bonuses when bacteria is identified
-        map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 15.0); // Strong preference for triple therapy
         map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 12.0);   // Strong preference for triple therapy
-        map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 8.0);  // Alternative therapy
-        map.insert("drug_tetracycline_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 6.0);   // Bismuth quadruple therapy
         map.insert("drug_levofloxacin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 5.0);  // Rescue therapy
 
         // N. gonorrhoeae-specific drug selection multipliers (prescribing frequency, not potency)
@@ -6845,7 +6840,6 @@ lazy_static! {
         map.insert("drug_penicillin_g_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.0); // modern: residual use only
         map.insert("drug_penicillin_g_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987".to_string(), 35.0); // pre-1987: dominant first-line
 
-        map.insert("drug_cefixime_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 6.0);    // Oral alternative where ceftriaxone IM unavailable
         map.insert("drug_azithromycin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 12.0); // Dual-therapy partner (used until recent guideline changes)
         map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 4.0);  // 2007+: empiric co-treatment for possible chlamydia co-infection
         map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987".to_string(), 80.0); // 1950s-1987: tetracyclines were a major alternative to penicillin G (penicillin-allergic patients, combination therapy); doxycycline increasingly dominant from ~1967
@@ -6868,71 +6862,54 @@ lazy_static! {
         // N. meningitidis-specific drug selection bonuses - emergency treatment for meningococcal disease
         map.insert("drug_penicillin_g_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 25.0); // First-line for sensitive strains
         map.insert("drug_ampicillin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 22.0);  // Excellent alternative
-        map.insert("drug_ceftriaxone_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 30.0); // Current standard of care
         map.insert("drug_cefotaxime_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 28.0);  // Equivalent 3rd generation
         map.insert("drug_chloramphenicol_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 18.0); // Important alternative historically
         map.insert("drug_ciprofloxacin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 15.0); // Prophylaxis and treatment
         map.insert("drug_rifampicin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 12.0);  // Prophylaxis agent
 
-        map.insert("drug_penicillin_g_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
-        map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not effective
 
         // --- BACTERIA-SPECIFIC SYMPTOM ONSET PARAMETERS (Logistic Model) ---
         // P(symptoms) = 1 / (1 + exp(-log_odds)), log_odds = base + level_effect
         // Converted from probability using: log_odds = ln(p / (1-p))
 
         // H. PYLORI - Usually asymptomatic chronic gastritis
-        map.insert("helicobacter_pylori_symptom_onset_base_log_odds".to_string(), -6.9); // ~0.1% per day - very low symptomatic rate
-        map.insert("helicobacter_pylori_symptom_onset_threshold_level".to_string(), 2.0);     // High threshold for symptoms
         map.insert("helicobacter_pylori_symptom_onset_delay_days".to_string(), 30.0);         // Long delay before symptoms possible
 
         // chlamydia_trachomatis - Often asymptomatic
-        map.insert("chlamydia_trachomatis_symptom_onset_base_log_odds".to_string(), -4.6); // ~1% per day - often asymptomatic
-        map.insert("chlamydia_trachomatis_symptom_onset_threshold_level".to_string(), 1.5);    // Moderate threshold
-        map.insert("chlamydia_trachomatis_base_bacteria_level_change".to_string(), 0.3);       // Slow intracellular replication
 
         // neisseria_meningitidis - Often asymptomatic carriage
         map.insert("neisseria_meningitidis_symptom_onset_base_log_odds".to_string(), -1.1); // ~25% per day - increase clinical visibility
-        map.insert("neisseria_meningitidis_base_bacteria_level_change".to_string(), 0.65);      // Fulminant meningococcemia progression
         map.insert("neisseria_meningitidis_symptom_onset_threshold_level".to_string(), 3.0);    // High threshold for invasive disease
 
         // moraxella_catarrhalis - Often just colonization
         map.insert("moraxella_catarrhalis_symptom_onset_base_log_odds".to_string(), -2.9);  // ~5% per day - often colonizer
         map.insert("moraxella_catarrhalis_symptom_onset_threshold_level".to_string(), 2.0);     // Moderate threshold
-        map.insert("moraxella_catarrhalis_base_bacteria_level_change".to_string(), 0.55);       // Rapid otitis/sinusitis onset in children
 
         // bacteroides_fragilis - intra-abdominal abscesses; symptoms emerge when burden high
         map.insert("bacteroides_fragilis_symptom_onset_base_log_odds".to_string(), -0.2); // ~45% per day
         map.insert("bacteroides_fragilis_symptom_onset_threshold_level".to_string(), 1.2);
         map.insert("bacteroides_fragilis_symptom_onset_delay_days".to_string(), 2.0);
-        map.insert("bacteroides_fragilis_base_bacteria_level_change".to_string(), 0.42);
 
         // p_stuartii - catheter-associated UTI/bacteremia; presents promptly when burdens rise
         map.insert("p_stuartii_symptom_onset_base_log_odds".to_string(), 0.2); // ~55% per day
         map.insert("p_stuartii_symptom_onset_threshold_level".to_string(), 0.75);
-        map.insert("p_stuartii_base_bacteria_level_change".to_string(), 0.5);
 
         // mycoplasma_genitalium - frequently asymptomatic but persistent STI
         map.insert("mycoplasma_genitalium_symptom_onset_base_log_odds".to_string(), -2.0); // ~12% per day
         map.insert("mycoplasma_genitalium_symptom_onset_threshold_level".to_string(), 0.9);
         map.insert("mycoplasma_genitalium_symptom_onset_delay_days".to_string(), 5.0);
-        map.insert("mycoplasma_genitalium_base_bacteria_level_change".to_string(), 0.28);
 
     // pseudomonas_aeruginosa - Clinically apparent when burden high
         map.insert("pseudomonas_aeruginosa_symptom_onset_base_log_odds".to_string(), -1.4);   // ~20% per day - improve detection of invasive disease
         map.insert("pseudomonas_aeruginosa_symptom_onset_threshold_level".to_string(), 0.8);     // Higher burden needed before symptoms manifest
-        map.insert("pseudomonas_aeruginosa_base_bacteria_level_change".to_string(), 0.55);       // Rapid proliferation in ventilated hosts
 
         // ACUTE INFECTIONS - High symptomatic rates
-        map.insert("haemophilus_influenzae_base_bacteria_level_change".to_string(), 0.55);       // Rapid pediatric respiratory progression
         map.insert("streptococcus_pneumoniae_symptom_onset_base_log_odds".to_string(), 1.4); // ~80% per day - usually symptomatic
         map.insert("streptococcus_pyogenes_symptom_onset_base_log_odds".to_string(), 0.85);   // ~70% per day - usually symptomatic
-        map.insert("streptococcus_pyogenes_base_bacteria_level_change".to_string(), 0.6);         // Fast doubling in invasive GAS
         map.insert("staphylococcus_aureus_symptom_onset_base_log_odds".to_string(), 0.4);    // ~60% per day - usually symptomatic
         map.insert("staphylococcus_epidermidis_symptom_onset_base_log_odds".to_string(), -1.4); // ~20% per day - device-associated pathogen often subacute
         map.insert("staphylococcus_epidermidis_symptom_onset_threshold_level".to_string(), 1.0);   // Needs higher burden for symptoms
         map.insert("staphylococcus_epidermidis_symptom_onset_delay_days".to_string(), 3.0);        // Slight delay before clinical detection
-        map.insert("staphylococcus_epidermidis_base_bacteria_level_change".to_string(), 0.35);     // Slower growth kinetics than S. aureus
         map.insert("staphylococcus_epidermidis_max_level".to_string(), 4.0);                        // Lower peak burden due to biofilm focus
         map.insert("staphylococcus_epidermidis_microbiome_clearance_probability_per_day".to_string(), 0.015); // Chronic colonizer of skin/devices
         map.insert("staphylococcus_epidermidis_log_odds_sepsis_infection_level".to_string(), 0.04); // Slight level effect on sepsis risk
@@ -6942,7 +6919,6 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_symptom_onset_base_log_odds".to_string(), -0.6); // ~35% per day - clinically apparent in ventilated hosts
         map.insert("stenotrophomonas_maltophilia_symptom_onset_threshold_level".to_string(), 0.9);      // Moderate burden before symptoms
         map.insert("stenotrophomonas_maltophilia_symptom_onset_delay_days".to_string(), 2.5);          // Early signs once established
-        map.insert("stenotrophomonas_maltophilia_base_bacteria_level_change".to_string(), 0.45);       // Moderate growth rate
         map.insert("stenotrophomonas_maltophilia_max_level".to_string(), 5.0);                          // Can reach high burdens in lungs
         map.insert("stenotrophomonas_maltophilia_microbiome_clearance_probability_per_day".to_string(), 0.06); // Persistent colonizer in ICU settings
         map.insert("stenotrophomonas_maltophilia_log_odds_sepsis_infection_level".to_string(), 0.08);   // Rising burden increases risk notably
@@ -6970,30 +6946,22 @@ lazy_static! {
 
         // ENTERIC PATHOGENS - Moderate to high symptomatic rates
         map.insert("salmonella_enterica_serovar_typhi_symptom_onset_base_log_odds".to_string(), -0.4);       // ~40% per day
-        map.insert("salmonella_enterica_serovar_typhi_base_bacteria_level_change".to_string(), 0.45);          // Longer incubation than typical enterics
         map.insert("salmonella_enterica_serovar_paratyphi_a_symptom_onset_base_log_odds".to_string(), -0.4); // ~40% per day
-        map.insert("salmonella_enterica_serovar_paratyphi_a_base_bacteria_level_change".to_string(), 0.45);     // Similar incubation to typhi
         map.insert("shigella_spp._symptom_onset_base_log_odds".to_string(), 0.4);                           // ~60% per day
-        map.insert("shigella_spp._base_bacteria_level_change".to_string(), 0.55);                               // Short incubation dysentery
         map.insert("vibrio_cholerae_symptom_onset_base_log_odds".to_string(), 0.0);                         // ~50% per day
-        map.insert("vibrio_cholerae_base_bacteria_level_change".to_string(), 0.6);                              // Profuse cholera within 1-2 days
         map.insert("campylobacter_jejuni_symptom_onset_base_log_odds".to_string(), 0.0);                    // ~50% per day
-        map.insert("campylobacter_jejuni_base_bacteria_level_change".to_string(), 0.52);                        // Incubation typically 2-4 days
 
         // CHRONIC/SLOW-ONSET PATHOGENS - Evidence-based symptom presentation rates
         // chlamydia_trachomatis - Most infections asymptomatic (~70-80% in women, ~50% in men)
         map.insert("chlamydia_trachomatis_symptom_onset_base_log_odds".to_string(), -3.5);  // Only ~3% daily -> ~20-30% ever become symptomatic
-        map.insert("chlamydia_trachomatis_base_bacteria_level_change".to_string(), 0.25);       // Slow intracellular replication
         map.insert("chlamydia_trachomatis_symptom_onset_threshold_level".to_string(), 0.8);     // Higher threshold before symptoms
 
         // treponema_pallidum - Syphilis has defined stages with variable presentation
         map.insert("treponema_pallidum_symptom_onset_base_log_odds".to_string(), -2.4);     // ~8% per day - Primary chancre develops in ~3-4 weeks
-        map.insert("treponema_pallidum_base_bacteria_level_change".to_string(), 0.15);          // Very slow spirochete replication (33-hour doubling)
         map.insert("treponema_pallidum_symptom_onset_threshold_level".to_string(), 0.6);        // Moderate threshold
 
         // bordetella_pertussis - Catarrhal stage followed by paroxysmal cough
         map.insert("bordetella_pertussis_symptom_onset_base_log_odds".to_string(), -0.6);   // ~35% per day - 1-2 week incubation
-        map.insert("bordetella_pertussis_base_bacteria_level_change".to_string(), 0.42);        // Moderate growth during catarrhal phase
 
         // helicobacter_pylori - Most infections (~80%) are asymptomatic
         map.insert("helicobacter_pylori_symptom_onset_base_log_odds".to_string(), -5.3);   // Only ~0.5% daily -> ~20% develop symptomatic disease
@@ -7001,12 +6969,10 @@ lazy_static! {
 
         // MDR-TB - Slow progression; most latent infections never reactivate
         map.insert("mdr_mycobacterium_tuberculosis_symptom_onset_base_log_odds".to_string(), -6.9); // ~0.1% daily -> ~5-10% lifetime reactivation risk
-        map.insert("mdr_mycobacterium_tuberculosis_base_bacteria_level_change".to_string(), 0.08);       // Very slow mycobacterial growth
         map.insert("mdr_mycobacterium_tuberculosis_symptom_onset_threshold_level".to_string(), 2.0);     // High threshold for active disease
 
         // neisseria_gonorrhoeae - Variable symptoms (~10-20% asymptomatic in men, ~50% in women)
         map.insert("neisseria_gonorrhoeae_symptom_onset_base_log_odds".to_string(), -1.1);  // ~25% daily - Most symptomatic within 2-7 days
-        map.insert("neisseria_gonorrhoeae_base_bacteria_level_change".to_string(), 0.55);       // Rapid mucosal colonization
 
         // --- COMPREHENSIVE BACTERIA GROWTH RATE OVERRIDES ---
         // Base level change per day reflects in vivo growth kinetics, NOT lab doubling times
@@ -7025,7 +6991,6 @@ lazy_static! {
         map.insert("pseudomonas_aeruginosa_base_bacteria_level_change".to_string(), 0.55);      // Rapid proliferation in ventilated/immunocompromised hosts
         map.insert("haemophilus_influenzae_base_bacteria_level_change".to_string(), 0.55);      // Rapid otitis/meningitis in children
         map.insert("shigella_spp._base_bacteria_level_change".to_string(), 0.55);               // Dysentery within 1-3 days, low infectious dose
-        map.insert("clostridioides_difficile_base_bacteria_level_change".to_string(), 0.55);    // Rapid toxin-mediated colitis after microbiome disruption
         map.insert("moraxella_catarrhalis_base_bacteria_level_change".to_string(), 0.55);       // Rapid otitis/sinusitis onset
         map.insert("neisseria_gonorrhoeae_base_bacteria_level_change".to_string(), 0.55);       // Rapid urethritis/cervicitis (2-7 days)
         map.insert("klebsiella_pneumoniae_base_bacteria_level_change".to_string(), 0.52);       // Rapid progression in pneumonia, can be necrotizing
@@ -7058,72 +7023,38 @@ lazy_static! {
         map.insert("staphylococcus_epidermidis_base_bacteria_level_change".to_string(), 0.35);  // Biofilm-associated, indolent
         map.insert("mycoplasma_genitalium_base_bacteria_level_change".to_string(), 0.28);       // Slow-growing, persistent
         map.insert("chlamydia_trachomatis_base_bacteria_level_change".to_string(), 0.25);       // Obligate intracellular, 48-72h cycle
-        map.insert("listeria_monocytogenes_base_bacteria_level_change".to_string(), 0.25);      // Long incubation despite fast lab growth (intracellular)
 
         // VERY SLOW PROGRESSORS (chronic infections)
         map.insert("helicobacter_pylori_base_bacteria_level_change".to_string(), 0.2);          // Chronic colonizer, years to decades
-        map.insert("treponema_pallidum_base_bacteria_level_change".to_string(), 0.18);          // 30+ hour doubling time, stages over weeks-months
-        map.insert("mdr_mycobacterium_tuberculosis_base_bacteria_level_change".to_string(), 0.15); // 18-24 hour doubling, months to years progression
 
         // yersinia_enterocolitica - Address inherent penicillin non-susceptibility (zero potency correction)
         // Reduce penicillins (inherently not susceptible; zero potency)
-        map.insert("drug_penicillin_g_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02); // Inherently not susceptible (zero potency)
-        map.insert("drug_ampicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02);  // Inherently not susceptible (zero potency)
         // Boost appropriate drugs modestly
-        map.insert("drug_doxycycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.75); // Good activity
-        map.insert("drug_ciprofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.7); // Good activity
-        map.insert("drug_trim_sulf_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.65);    // Good activity
 
         // streptococcus_pyogenes - Ensure penicillin remains preferred (no resistance ever develops)
         // S. pyogenes has never developed penicillin resistance - boost slightly to counter any drift
-        map.insert("drug_penicillin_g_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95); // Excellent and consistent activity
 
         // ENTERIC PATHOGENS - Modest fluoroquinolone boost for appropriate cases
         // Salmonella - boost fluoroquinolones for invasive disease (conservative increase)
-        map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
-        map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
-        map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
 
         // Shigella - boost fluoroquinolones modestly (first-line for severe cases)
-        map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_levofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
 
         // Campylobacter - ensure fluoroquinolones are recognized as first-line
-        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
-        map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
 
         // --- CLINICALLY APPROPRIATE DRUG-BACTERIA INITIATION MULTIPLIER OVERRIDES ---
         // Based on analysis of drug usage patterns, boost initiation probability for clinically appropriate combinations
         // Higher values = more likely to be selected as first-line therapy
 
         // ANTI-MRSA AGENTS FOR staphylococcus_aureus
-        map.insert("drug_vancomycin_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 5.0); // First-line for MRSA
-        map.insert("drug_linezolid_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 4.0); // Alternative for MRSA
-        map.insert("drug_teicoplanin_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 4.0); // Alternative for MRSA
-        map.insert("drug_vancomycin_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 6.0); // CoNS device infections rely on glycopeptides
         map.insert("drug_linezolid_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 5.0); // Linezolid as IV/oral bridge
-        map.insert("drug_teicoplanin_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 5.0); // Teicoplanin effective for CoNS
         map.insert("drug_quinu_dalfo_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 4.0); // Reserved for resistant CoNS
-        map.insert("drug_trim_sulf_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 2.5); // Occasionally used oral step-down
 
-        map.insert("drug_penicillin_g_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05); // Widespread beta-lactam resistance
-        map.insert("drug_ampicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_amoxicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefazolin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_ceftriaxone_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.1);
-        map.insert("drug_gentamicin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.2); // Synergy only
         map.insert("drug_vancomycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.05);
-        map.insert("drug_linezolid_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_tedizolid_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_colistin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.0);
 
         // ANTI-PSEUDOMONAL AGENTS FOR pseudomonas_aeruginosa
-        map.insert("drug_piperacillin_tazobactam_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 7.5); // First-line anti-pseudomonal
         map.insert("drug_ceftazidime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.5); // Good anti-pseudomonal activity
         map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.5); // Good anti-pseudomonal activity
         // CALIBRATION: Reduced carbapenem/reserve multipliers for stewardship - target <10% reserve drug usage
-        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.20); // Carbapenem - reserve agent, strong stewardship
-        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.20); // Carbapenem - reserve agent, strong stewardship
         map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.02); // Last resort - very restricted
 
         // MACROLIDES FOR RESPIRATORY PATHOGENS
@@ -7133,7 +7064,6 @@ lazy_static! {
         //               macrolides retained for mild/outpatient; growing FQ resistance by 2010
         //   2010+     : azithromycin preferred over ciprofloxacin (high FQ resistance); erythromycin retained
         map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 5.0); // 2010+: retained first-line macrolide
-        map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 5.0); // 2010+: preferred over FQ
         map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010".to_string(), 3.0); // 1991-2010: less favoured than cipro
 
         map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 2.0);              // 2010+: still used but resistance limiting
@@ -7154,10 +7084,8 @@ lazy_static! {
         map.insert("drug_clarithromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 1.0); // Lower than azithromycin in contemporary practice
 
         if BACTERIA_LIST.contains(&"mycoplasma_genitalium") {
-        map.insert("drug_azithromycin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 8.0); // Azithro first-line for M. genitalium
         map.insert("drug_moxifloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 10.0); // Moxifloxacin is THE specific rescue FQ for macrolide-resistant M. genitalium; with >40% macrolide R, very high fraction of cases now receive moxifloxacin as second/third-line; raised from 4.0
         map.insert("drug_levofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 2.5); // Secondary FQ option when moxi unavailable
-        map.insert("drug_doxycycline_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 1.5); // Doxycycline used for debulking per guidelines
         map.insert("drug_moxifloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2005".to_string(), 0.75); // pre-2005: predates routine rescue-therapy role for macrolide-resistant M. genitalium
         map.insert("drug_levofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2000".to_string(), 0.5); // pre-2000: little specific STI use before broad FQ adoption
         map.insert("drug_ciprofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2007".to_string(), 2.0); // 1991-2007: legacy FQ occasionally used for persistent NGU/cervicitis before resistance concerns curtailed use
@@ -7167,9 +7095,6 @@ lazy_static! {
         }
 
         // stenotrophomonas_maltophilia - prefer TMP-SMX or minocycline, avoid carbapenems
-        map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 7.0); // TMP-SMX first line
-        map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 6.0); // Alternative therapy
-        map.insert("drug_doxycycline_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 4.5); // Doxy as related option
         map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 3.5); // Fluoroquinolone rescue
         map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05); // Not susceptible (low potency; L1/L2 beta-lactamases constitutive)
         map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.1);
@@ -7177,23 +7102,10 @@ lazy_static! {
         map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01);
 
         map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.05);
-        map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_doxycycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.6);
-        map.insert("drug_ciprofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_tobramycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_gentamicin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
-        map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_colistin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_vancomycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         // Stenotrophomonas has zero potency against nitrofurantoin (as do essentially all
         // non-fermenting Gram-negatives). The global default of 0.1 was incorrectly implying
         // minor activity; nitrofurantoin is never used for Stenotrophomonas infections.
         if DRUG_SHORT_NAMES.contains(&"nitrofurantoin") {
-        map.insert("drug_nitrofurantoin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         }
 
         // -----------------------------------------------------------------------
@@ -7205,41 +7117,14 @@ lazy_static! {
         //   (b) no spurious acquired-resistance signal accumulates in the EWMA cache.
         //
         // Penicillins (L1/L2 beta-lactamases confer broad-spectrum intrinsic hydrolysis):
-        map.insert("drug_penicillin_g_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_ampicillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_amoxicillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_piperacillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_ticarcillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_flucloxacillin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         // BLI combinations - clavulanate/sulbactam do not meaningfully inhibit L1/L2:
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_ticarcillin_clavulanate_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         // 1st/2nd-generation cephalosporins (hydrolysed by L1; not used for Steno):
-        map.insert("drug_cephalexin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_cefazolin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_cefuroxime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         // 3rd/4th-generation cephalosporins (partial L2 susceptibility; mostly inactive):
-        map.insert("drug_ceftriaxone_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefepime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ceftaroline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02); // anti-MRSA ceph; no meaningful Gram-neg non-fermenter coverage
-        map.insert("drug_ceftolozane_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefiderocol_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15); // siderophore ceph; some activity retained
-        map.insert("drug_ceftazidime_avibactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05); // avibactam does not inhibit L1 metalloenzyme
-        map.insert("drug_aztreonam_avibactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefixime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         // Ertapenem (Group 1 carbapenem; same L1 metalloenzyme as meropenem/imipenem):
-        map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
         // Aztreonam (monobactam; Steno has zero potency):
-        map.insert("drug_aztreonam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         // Amikacin (same efflux/AAC resistance as tobramycin/gentamicin already set to 0.05):
-        map.insert("drug_amikacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         // Macrolides (constitutive SmeDEF/SmeABC efflux; essentially no clinical activity):
-        map.insert("drug_erythromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_azithromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
-        map.insert("drug_clarithromycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         // Clindamycin (Gram-negatives have zero potency via outer membrane exclusion):
-        map.insert("drug_clindamycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
         // Initiation multipliers for constitutively inactive drug classes (zero potency) — clinicians do not
         // prescribe these for confirmed or suspected Steno infections:
         map.insert("drug_penicillin_g_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05);
@@ -7259,13 +7144,10 @@ lazy_static! {
         // Vancomycin was licensed 1958 but abandoned 1960s-70s due to early nephrotoxic formulations.
         // Reintroduced as MRSA treatment ~1985; VRE first reported 1986-88.
         // Applying high vancomycin pressure to enterococci before 1985 would be historically inaccurate.
-        map.insert("drug_vancomycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 4.0); // 1985+: routine use for ampicillin-R or MRSA cover
         map.insert("drug_vancomycin_for_bacteria_enterococcus_faecalis_initiation_multiplier_before_1985".to_string(), 0.3); // pre-1985: rarely used (nephrotoxic era)
         map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 3.5); // 1985+: E. faecium often ampicillin-R, hence glycopeptide
         map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier_before_1985".to_string(), 0.3); // pre-1985: rarely used
         // CALIBRATION: Linezolid is reserve agent - reduced for stewardship
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 0.25); // Reserve - only for VRE
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 0.3); // Reserve - VRE E. faecium
 
         // C. DIFFICILE SPECIFIC AGENTS
         // 1977-2017 : metronidazole was strongly dominant first-line (IDSA/SHEA guidelines)
@@ -7278,27 +7160,15 @@ lazy_static! {
         map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_initiation_multiplier_before_2017".to_string(), 4.0);    // 1977-2017: severe/refractory only
 
         // INTRACELLULAR PATHOGENS (tetracyclines, macrolides)
-        map.insert("drug_doxycycline_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 5.0); // First-line for Chlamydia
-        map.insert("drug_tetracycline_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 4.5); // Alternative for Chlamydia
-        map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 4.0); // Alternative for Chlamydia
 
         // CARBAPENEMS FOR ESBL PRODUCERS - reserve agents with strong stewardship
         // CALIBRATION: Reduced to target <10% reserve drug usage; carbapenems reserved for confirmed ESBL
         // ^^^^
-        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0 ); // 0.20  Reserve - ESBL Klebsiella only
-        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0 ); // 0.20 Reserve - ESBL Klebsiella only
-        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0 ); // 0.25 Reserve - outpatient ESBL option
-        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 5.0 ); // 0.20 Reserve - ESBL E. coli only
-        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 5.0 ); // 0.25 Reserve - outpatient ESBL option
 
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 8.0); // Common BLI for community and mixed-source E. coli infections
-        map.insert("drug_piperacillin_tazobactam_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 6.0); // Hospital BLI escalation for E. coli
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 5.0); // BLI retained for susceptible Klebsiella
-        map.insert("drug_piperacillin_tazobactam_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 7.0); // Major hospital BLI for Klebsiella
         map.insert("drug_ampicillin_sulbactam_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.5); // Amp/sulbactam is a realistic BLI option in many hospitals
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 3.0); // Common BLI for respiratory disease
         map.insert("drug_ampicillin_sulbactam_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 2.5); // IV respiratory BLI coverage
-        map.insert("drug_piperacillin_tazobactam_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 8.5); // Keep pip-tazo dominant for Pseudomonas while reserving carbapenems
 
         // REDUCE INAPPROPRIATE COMBINATIONS
         // Penicillins should not be used for gram-negatives with zero penicillin potency
@@ -7328,33 +7198,16 @@ lazy_static! {
         // MDR-TB represents established drug-resistant strains with guaranteed rifampicin resistance
 
         // FIRST-LINE TB DRUGS (high potency despite resistance)
-        map.insert("drug_rifampicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.6); // Primary first-line TB drug
 
         // SECOND-LINE TB DRUGS (moderate potency)
-        map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.4);  // Good FQ for TB
-        map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.5);  // Best FQ for TB
-        map.insert("drug_amikacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);     // Injectable second-line
-        map.insert("drug_linezolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);    // Oral second-line
 
         // OTHER FLUOROQUINOLONES (lower potency)
-        map.insert("drug_ciprofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3); // Less active than newer FQs
-        map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.35);    // Moderate activity
 
         // OTHER AMINOGLYCOSIDES (limited activity)
-        map.insert("drug_gentamicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);   // Poor TB activity
-        map.insert("drug_tobramycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);   // Poor TB activity
 
         // STANDARD ANTIBIOTICS (poor TB activity - thick cell wall barrier)
-        map.insert("drug_penicillin_g_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);  // No TB activity
-        map.insert("drug_ampicillin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);   // No TB activity
-        map.insert("drug_vancomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.08);   // Minimal TB activity
-        map.insert("drug_ceftriaxone_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);  // No TB activity
-        map.insert("drug_meropenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);    // Minimal TB activity
 
         // RIFAMPICIN POTENCIES FOR OTHER BACTERIA (occasional use for severe staph infections)
-        map.insert("drug_rifampicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.4);         // Good anti-staph activity
-        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.2);         // Limited activity
-        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.2);          // Limited activity
         // Most other bacteria: rifampicin has minimal activity (default 0.1 will apply)
 
         // STAPHYLOCOCCUS AUREUS - fluoroquinolone potency.
@@ -7385,12 +7238,10 @@ lazy_static! {
         // Nitrofurantoin: good urinary bactericidal activity against susceptible E. faecium
         // (MIC typically 32-64 mg/L; well below urinary concentrations of ~200 mg/L).
         if DRUG_SHORT_NAMES.contains(&"nitrofurantoin") && BACTERIA_LIST.contains(&"enterococcus_faecium") {
-            map.insert("drug_nitrofurantoin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.60);
         }
         // Fosfomycin: moderate activity against susceptible E. faecium; lower than Gram-negatives
         // due to reduced uptake, but clinically meaningful for UTI monotherapy.
         if DRUG_SHORT_NAMES.contains(&"fosfomycin") && BACTERIA_LIST.contains(&"enterococcus_faecium") {
-            map.insert("drug_fosfomycin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.45);
         }
 
 
@@ -11062,11 +10913,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_bli".to_string(), 0.25);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_bli_anti_pseudomonal".to_string(), 0.25);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_bli_sulbactam".to_string(), 0.25);
-        map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_bli_anti_pseudomonal".to_string(), 0.25);
-        map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_bli_sulbactam".to_string(), 0.25);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_c1_2g".to_string(), 0.90);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_c3g".to_string(), 0.85);
-        map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_c3g_bli".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_c3g_bli".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_c4g".to_string(), 0.35);
         map.insert("resistance_mechanism_enzyme_esbl_ctx_m_enhancement_anti_mrsa_ceph".to_string(), 0.35);
@@ -11083,11 +10931,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_bli".to_string(), 0.20);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_bli_anti_pseudomonal".to_string(), 0.20);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_bli_sulbactam".to_string(), 0.20);
-        map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_bli_anti_pseudomonal".to_string(), 0.20);
-        map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_bli_sulbactam".to_string(), 0.20);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_c1_2g".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_c3g".to_string(), 0.65);
-        map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_c3g_bli".to_string(), 0.65);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_c3g_bli".to_string(), 0.65);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_c4g".to_string(), 0.25);
         map.insert("resistance_mechanism_enzyme_esbl_tem_enhancement_anti_mrsa_ceph".to_string(), 0.25);
@@ -11104,11 +10949,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_bli".to_string(), 0.20);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_bli_anti_pseudomonal".to_string(), 0.20);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_bli_sulbactam".to_string(), 0.20);
-        map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_bli_anti_pseudomonal".to_string(), 0.20);
-        map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_bli_sulbactam".to_string(), 0.20);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_c1_2g".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_c3g".to_string(), 0.65);
-        map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_c3g_bli".to_string(), 0.65);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_c3g_bli".to_string(), 0.65);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_c4g".to_string(), 0.30);
         map.insert("resistance_mechanism_enzyme_esbl_shv_enhancement_anti_mrsa_ceph".to_string(), 0.30);
@@ -11125,11 +10967,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_bli".to_string(), 0.60);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_bli_anti_pseudomonal".to_string(), 0.60);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_bli_sulbactam".to_string(), 0.60);
-        map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_bli_anti_pseudomonal".to_string(), 0.60);
-        map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_bli_sulbactam".to_string(), 0.60);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_c1_2g".to_string(), 0.80);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_c3g".to_string(), 0.80);
-        map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_c3g_bli".to_string(), 0.80);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_c3g_bli".to_string(), 0.80);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_c4g".to_string(), 0.15);
         map.insert("resistance_mechanism_enzyme_ampc_cmy_enhancement_anti_mrsa_ceph".to_string(), 0.15);
@@ -11146,11 +10985,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_bli".to_string(), 0.55);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_bli_anti_pseudomonal".to_string(), 0.55);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_bli_sulbactam".to_string(), 0.55);
-        map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_bli_anti_pseudomonal".to_string(), 0.55);
-        map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_bli_sulbactam".to_string(), 0.55);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_c1_2g".to_string(), 0.75);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_c3g".to_string(), 0.75);
-        map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_c3g_bli".to_string(), 0.75);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_c3g_bli".to_string(), 0.75);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_c4g".to_string(), 0.15);
         map.insert("resistance_mechanism_enzyme_ampc_dha_enhancement_anti_mrsa_ceph".to_string(), 0.15);
@@ -11167,11 +11003,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_bli".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_bli_anti_pseudomonal".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_bli_sulbactam".to_string(), 0.85);
-        map.insert("resistance_mechanism_enzyme_kpc_enhancement_bli_anti_pseudomonal".to_string(), 0.85);
-        map.insert("resistance_mechanism_enzyme_kpc_enhancement_bli_sulbactam".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_c1_2g".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_c3g".to_string(), 0.95);
-        map.insert("resistance_mechanism_enzyme_kpc_enhancement_c3g_bli".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_c3g_bli".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_c4g".to_string(), 0.85);
         map.insert("resistance_mechanism_enzyme_kpc_enhancement_anti_mrsa_ceph".to_string(), 0.85);
@@ -11188,11 +11021,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_bli".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_bli_anti_pseudomonal".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_bli_sulbactam".to_string(), 0.95);
-        map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_bli_anti_pseudomonal".to_string(), 0.95);
-        map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_bli_sulbactam".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_c1_2g".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_c3g".to_string(), 0.95);
-        map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_c3g_bli".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_c3g_bli".to_string(), 0.95);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_c4g".to_string(), 0.90);
         map.insert("resistance_mechanism_enzyme_ndm_vim_enhancement_anti_mrsa_ceph".to_string(), 0.90);
@@ -11209,11 +11039,8 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_bli".to_string(), 0.50);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_bli_anti_pseudomonal".to_string(), 0.50);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_bli_sulbactam".to_string(), 0.50);
-        map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_bli_anti_pseudomonal".to_string(), 0.50);
-        map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_bli_sulbactam".to_string(), 0.50);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_c1_2g".to_string(), 0.40);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_c3g".to_string(), 0.15);
-        map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_c3g_bli".to_string(), 0.15);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_c3g_bli".to_string(), 0.15);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_c4g".to_string(), 0.10);
         map.insert("resistance_mechanism_enzyme_oxa_48_enhancement_anti_mrsa_ceph".to_string(), 0.10);
@@ -11230,11 +11057,8 @@ lazy_static! {
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_bli".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_bli_anti_pseudomonal".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_bli_sulbactam".to_string(), 0.99);
-        map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_bli_anti_pseudomonal".to_string(), 0.99);
-        map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_bli_sulbactam".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_c1_2g".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_c3g".to_string(), 0.99);
-        map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_c3g_bli".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_c3g_bli".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_c4g".to_string(), 0.70);
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_anti_mrsa_ceph".to_string(), 0.70);
@@ -11248,11 +11072,9 @@ lazy_static! {
         // VanA: All glycopeptides resistant
         map.insert("resistance_mechanism_target_site_van_a_enhancement_glyc".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_van_a_enhancement_lipoglycopeptides".to_string(), 0.99);
-        map.insert("resistance_mechanism_target_site_van_a_enhancement_lipoglycopeptides".to_string(), 0.99);
 
         // VanB: Vancomycin resistant, teicoplanin active -> blended class value
         map.insert("resistance_mechanism_target_site_van_b_enhancement_glyc".to_string(), 0.70);
-        map.insert("resistance_mechanism_target_site_van_b_enhancement_lipoglycopeptides".to_string(), 0.70);
         map.insert("resistance_mechanism_target_site_van_b_enhancement_lipoglycopeptides".to_string(), 0.70);
 
         // GyrA primary: Low-level FQ resistance
@@ -11264,12 +11086,10 @@ lazy_static! {
         // ErmB: MLS resistance
         map.insert("resistance_mechanism_target_site_erm_b_enhancement_mls".to_string(), 0.90);
         map.insert("resistance_mechanism_target_site_erm_b_enhancement_lincosamides".to_string(), 0.90);
-        map.insert("resistance_mechanism_target_site_erm_b_enhancement_lincosamides".to_string(), 0.90);
 
         // Cfr: PhLOPSA phenotype - linezolid, MLS cross-resistance, chloramphenicol
         map.insert("resistance_mechanism_target_site_cfr_enhancement_oxa".to_string(), 0.90);
         map.insert("resistance_mechanism_target_site_cfr_enhancement_mls".to_string(), 0.70);
-        map.insert("resistance_mechanism_target_site_cfr_enhancement_lincosamides".to_string(), 0.70);
         map.insert("resistance_mechanism_target_site_cfr_enhancement_lincosamides".to_string(), 0.70);
         map.insert("resistance_mechanism_target_site_cfr_enhancement_chl".to_string(), 0.70);
 
@@ -11297,10 +11117,7 @@ lazy_static! {
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_bli_sulbactam".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_bli_sulbactam".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_c3g".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_c4g".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_anti_mrsa_ceph".to_string(), 0.0);
@@ -11310,9 +11127,7 @@ lazy_static! {
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_ag_group2".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_mls".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_lincosamides".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_lincosamides".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_tet".to_string(), 0.25);
-        map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_glycylcyclines".to_string(), 0.25);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_glycylcyclines".to_string(), 0.25);
         map.insert("resistance_mechanism_efflux_acrab_tolc_enhancement_chl".to_string(), 0.20);
 
@@ -11331,10 +11146,7 @@ lazy_static! {
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_bli".to_string(), 0.40);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_bli_anti_pseudomonal".to_string(), 0.40);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_bli_sulbactam".to_string(), 0.40);
-        map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_bli_anti_pseudomonal".to_string(), 0.40);
-        map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_bli_sulbactam".to_string(), 0.40);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_c3g".to_string(), 0.40);
-        map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_c3g_bli".to_string(), 0.40);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_c3g_bli".to_string(), 0.40);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_c4g".to_string(), 0.30);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_enhancement_anti_mrsa_ceph".to_string(), 0.30);
@@ -11357,10 +11169,7 @@ lazy_static! {
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_bli_sulbactam".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_efflux_pump_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_efflux_pump_enhancement_bli_sulbactam".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_c3g".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_efflux_pump_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_c4g".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_anti_mrsa_ceph".to_string(), 0.0);
@@ -11370,9 +11179,7 @@ lazy_static! {
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_ag_group2".to_string(), 0.0);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_mls".to_string(), 0.10);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_lincosamides".to_string(), 0.10);
-        map.insert("resistance_mechanism_global_efflux_pump_enhancement_lincosamides".to_string(), 0.10);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_tet".to_string(), 0.15);
-        map.insert("resistance_mechanism_global_efflux_pump_enhancement_glycylcyclines".to_string(), 0.15);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_glycylcyclines".to_string(), 0.15);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_chl".to_string(), 0.15);
 
@@ -11381,10 +11188,7 @@ lazy_static! {
         map.insert("resistance_mechanism_global_porin_loss_enhancement_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_global_porin_loss_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
         map.insert("resistance_mechanism_global_porin_loss_enhancement_bli_sulbactam".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_bli_sulbactam".to_string(), 0.0);
         map.insert("resistance_mechanism_global_porin_loss_enhancement_c3g".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_global_porin_loss_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_global_porin_loss_enhancement_c4g".to_string(), 0.0);
         map.insert("resistance_mechanism_global_porin_loss_enhancement_anti_mrsa_ceph".to_string(), 0.0);
@@ -11443,11 +11247,8 @@ lazy_static! {
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_bli".to_string(), 0.7);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_bli_anti_pseudomonal".to_string(), 0.7);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_bli_sulbactam".to_string(), 0.7);
-        map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_bli_anti_pseudomonal".to_string(), 0.7);
-        map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_bli_sulbactam".to_string(), 0.7);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_c1_2g".to_string(), 0.6);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_c3g".to_string(), 0.3);
-        map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_c3g_bli".to_string(), 0.3);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_c3g_bli".to_string(), 0.3);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_c4g".to_string(), 0.15);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_anti_mrsa_ceph".to_string(), 0.15);
@@ -11463,12 +11264,9 @@ lazy_static! {
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_ag_group2".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_mls".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_lincosamides".to_string(), 0.0);
-        map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_lincosamides".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_glyc".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_lipoglycopeptides".to_string(), 0.0);
-        map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_lipoglycopeptides".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_tet".to_string(), 0.0);
-        map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_glycylcyclines".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_glycylcyclines".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_poly".to_string(), 0.0);
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_oxa".to_string(), 0.0);
@@ -11482,11 +11280,8 @@ lazy_static! {
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_bli_sulbactam".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_bli_sulbactam".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_c1_2g".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_c3g".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_c3g_bli".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_c4g".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_anti_mrsa_ceph".to_string(), 0.0);
@@ -11502,12 +11297,9 @@ lazy_static! {
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_ag_group2".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_mls".to_string(), 0.5);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_lincosamides".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_lincosamides".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_glyc".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_lipoglycopeptides".to_string(), 0.0);
-        map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_lipoglycopeptides".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_tet".to_string(), 0.4);
-        map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_glycylcyclines".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_glycylcyclines".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_poly".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_oxa".to_string(), 0.0);
@@ -11520,11 +11312,8 @@ lazy_static! {
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli_anti_pseudomonal".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli_sulbactam".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli_anti_pseudomonal".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli_sulbactam".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_c1_2g".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_c3g".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_c3g_bli".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_c3g_bli".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_c4g".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_anti_mrsa_ceph".to_string(), 0.5);
@@ -11540,12 +11329,9 @@ lazy_static! {
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_ag_group2".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_mls".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_lincosamides".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_lincosamides".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_glyc".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_lipoglycopeptides".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_lipoglycopeptides".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_tet".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_glycylcyclines".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_glycylcyclines".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_poly".to_string(), 0.5);
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_oxa".to_string(), 0.5);
