@@ -1,4 +1,5 @@
-use amr_project::config::PARAMETERS;
+use amr_project::config::{parameter_store, PARAMETERS};
+use amr_project::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES};
 use std::collections::{BTreeMap, HashSet};
 
 const CONFIG_RS: &str = include_str!("../src/config.rs");
@@ -316,4 +317,47 @@ fn approved_duplicate_final_values_match_effective_parameter_map() {
         mismatches.is_empty(),
         "final duplicate insertions should be the effective runtime values: {mismatches:#?}"
     );
+}
+
+#[test]
+fn reviewed_above_unit_raw_potencies_are_clamped_in_the_typed_matrix() {
+    let store = parameter_store();
+    let cases = [
+        (
+            "drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r",
+            "stenotrophomonas_maltophilia",
+            "trim_sulf",
+        ),
+        (
+            "drug_vancomycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r",
+            "staphylococcus_epidermidis",
+            "vancomycin",
+        ),
+    ];
+
+    for (key, bacteria, drug) in cases {
+        assert_eq!(
+            PARAMETERS.get(key).map(|value| value.to_bits()),
+            Some(1.05_f64.to_bits()),
+            "{key} should preserve the reviewed raw calibration input"
+        );
+
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|candidate| *candidate == bacteria)
+            .unwrap_or_else(|| panic!("unknown bacteria {bacteria}"));
+        let drug_idx = DRUG_SHORT_NAMES
+            .iter()
+            .position(|candidate| *candidate == drug)
+            .unwrap_or_else(|| panic!("unknown drug {drug}"));
+
+        assert_eq!(
+            store
+                .drug_bacteria
+                .potency(bacteria_idx, drug_idx)
+                .to_bits(),
+            1.0_f64.to_bits(),
+            "{key} should be clamped before simulation use"
+        );
+    }
 }
