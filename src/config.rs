@@ -5260,7 +5260,7 @@ lazy_static! {
         map.insert("drug_cefixime_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
 
         // --- neisseria_gonorrhoeae ---
-        map.insert("drug_sulfanilamide_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.65); // Sulfanilamide WAS genuinely active against susceptible GC (80-90% cure when introduced 1937); raised from 0.10 (which fell below minimal_potency_threshold_for_drug_selection=0.15 and silenced 31 years of sulfonamide pressure)
+        map.insert("drug_sulfanilamide_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.70); // Sulfonamides were genuinely active against susceptible GC in the 1937-1940s era; keep well above minimal_potency_threshold_for_drug_selection=0.15 without making them modern high-potency agents.
         map.insert("drug_penicillin_g_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ampicillin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_amoxicillin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.85);
@@ -5301,7 +5301,7 @@ lazy_static! {
         map.insert("drug_tedizolid_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_daptomycin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_quinu_dalfo_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_trim_sulf_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_trim_sulf_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_chloramphenicol_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_nitrofurantoin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fosfomycin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.10);
@@ -11954,16 +11954,22 @@ lazy_static! {
         // complementing organism-specific N. gonorrhoeae targeted multipliers below.
         // Drug introduction gates still apply, so a pre-cutoff score cannot make a drug
         // available before its real introduction year.
-        map.insert("syndrome_8_empiric_drug_sulfanilamide_score_before_1945".to_string(), 120.0); // 1937-1945: sulfonamides as primary gonorrhoea therapy
-        map.insert("syndrome_8_empiric_drug_sulfanilamide_score_before_1965".to_string(), 80.0);  // 1945-1965: declining but still substantial use
+        map.insert("syndrome_8_empiric_drug_sulfanilamide_score_before_1945".to_string(), 200.0); // 1937-1945: sulfonamides as primary gonorrhoea therapy
+        map.insert("syndrome_8_empiric_drug_sulfanilamide_score_before_1965".to_string(), 160.0); // 1945-1965: declining but still substantial use
         map.insert("syndrome_8_empiric_drug_penicillin_g_score_before_1987".to_string(), 35.0);   // pre-FQ era dominant empiric genital-discharge therapy
         map.insert("syndrome_8_empiric_drug_ampicillin_score_before_1987".to_string(), 25.0);     // oral aminopenicillin alternative
         map.insert("syndrome_8_empiric_drug_amoxicillin_score_before_1987".to_string(), 25.0);    // oral aminopenicillin alternative
-        map.insert("syndrome_8_empiric_drug_tetracycline_score_before_1987".to_string(), 60.0);   // NGU/chlamydia co-treatment before modern testing
-        map.insert("syndrome_8_empiric_drug_doxycycline_score_before_1987".to_string(), 60.0);    // NGU/chlamydia co-treatment before modern testing
-        map.insert("syndrome_8_empiric_drug_trim_sulf_score_before_1990".to_string(), 80.0);      // TMP-SMX/sulfonamide-class genital empiric pressure
-        map.insert("syndrome_8_empiric_drug_ciprofloxacin_score_before_2007".to_string(), 80.0);  // 1987-2007: FQ era empiric gonorrhoea therapy
-        map.insert("syndrome_8_empiric_drug_ofloxacin_score_before_2007".to_string(), 50.0);      // 1990-2007: older FQ genital regimen
+        map.insert("syndrome_8_empiric_drug_tetracycline_score_before_1987".to_string(), 120.0);  // NGU/chlamydia co-treatment before modern testing
+        map.insert("syndrome_8_empiric_drug_tetracycline_score_before_2000".to_string(), 20.0);   // continued LMIC/legacy genital empiric use after guideline retreat
+        map.insert("syndrome_8_empiric_drug_doxycycline_score_before_1987".to_string(), 120.0);   // NGU/chlamydia co-treatment before modern testing
+        map.insert("syndrome_8_empiric_drug_doxycycline_score_before_2020".to_string(), 25.0);    // persistent syndromic STI/chlamydia co-treatment pressure
+        map.insert("syndrome_8_empiric_drug_trim_sulf_score_before_1990".to_string(), 220.0);     // TMP-SMX/sulfonamide-class genital empiric pressure
+        map.insert("syndrome_8_empiric_drug_trim_sulf_score_before_2000".to_string(), 40.0);      // continued low-resource legacy use after formal GC retreat
+        map.insert("syndrome_8_empiric_drug_ciprofloxacin_score_before_2007".to_string(), 200.0); // 1987-2007: FQ era empiric gonorrhoea therapy
+        map.insert("syndrome_8_empiric_drug_ciprofloxacin_score_before_2012".to_string(), 35.0);  // continued legacy/regional use after guideline retreat
+        map.insert("syndrome_8_empiric_drug_ofloxacin_score_before_2007".to_string(), 120.0);     // 1990-2007: older FQ genital regimen
+        map.insert("syndrome_8_empiric_drug_ofloxacin_score_before_2012".to_string(), 20.0);      // continued legacy/regional FQ use after guideline retreat
+        map.insert("syndrome_8_empiric_drug_chloramphenicol_score_before_1970".to_string(), 20.0); // older broad-spectrum fallback pressure before toxicity-driven decline
         map.insert("syndrome_8_empiric_drug_ceftriaxone_score_before_2007".to_string(), 2.0);    // pre-2007 fallback before becoming dominant
         map.insert("syndrome_8_empiric_drug_cefixime_score_before_2007".to_string(), 3.0);       // oral 3GC fallback before ceftriaxone dominance
         map.insert("syndrome_8_empiric_drug_azithromycin_score_before_2020".to_string(), 12.0);  // dual-therapy/single-dose STI era before retreat
