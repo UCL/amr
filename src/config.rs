@@ -6827,11 +6827,9 @@ lazy_static! {
         //   1987-2007  -> ciprofloxacin sole first-line in most high-income guidelines
         //   2007+      -> ceftriaxone IM first-line (rising FQ resistance forced the switch)
         //
-        // Base values reflect the current (post-2007) era; _before_YYYY overrides handle earlier periods.
-        map.insert("drug_ceftriaxone_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 12.0); // 2007+: current WHO/CDC first-line
+        // Current-era base values are defined in the canonical calibration block below.
         map.insert("drug_ceftriaxone_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007".to_string(), 2.0); // pre-2007: rarely prescribed
 
-        map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.0); // 2007+: resistance-limited residual use
         map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007".to_string(), 120.0); // 1987-2007: sole first-line in high-income settings
         map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987".to_string(), 0.5); // pre-1987: drug not yet in use for gonorrhoea
         // Ofloxacin was co-first-line alongside ciprofloxacin for GC in many European/Asian guidelines 1990-2007
@@ -7050,8 +7048,6 @@ lazy_static! {
         map.insert("drug_quinu_dalfo_for_bacteria_staphylococcus_epidermidis_initiation_multiplier".to_string(), 4.0); // Reserved for resistant CoNS
 
         // ANTI-PSEUDOMONAL AGENTS FOR pseudomonas_aeruginosa
-        map.insert("drug_ceftazidime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.5); // Good anti-pseudomonal activity
-        map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.5); // Good anti-pseudomonal activity
         // CALIBRATION: Reduced carbapenem/reserve multipliers for stewardship - target <10% reserve drug usage
         map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.02); // Last resort - very restricted
 
@@ -7064,7 +7060,6 @@ lazy_static! {
         map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 5.0); // 2010+: retained first-line macrolide
         map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010".to_string(), 3.0); // 1991-2010: less favoured than cipro
 
-        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 2.0);              // 2010+: still used but resistance limiting
         map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010".to_string(), 10.0); // 1990-2010: widely used first-line
         // pre-1990 Campylobacter quinolone pressure now carried by nalidixic_acid entries above
 
@@ -7077,10 +7072,6 @@ lazy_static! {
         map.insert("drug_ofloxacin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010".to_string(), 6.0);     // 1990-2010: widely co-used with ciprofloxacin in Asia; GyrA Thr86Ile confers cross-resistance - seeding expands FQ-resistant cache fraction
         map.insert("drug_trim_sulf_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 2.0);                  // 2000+: residual use in LMIC / empiric diarrhoea
         map.insert("drug_trim_sulf_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2000".to_string(), 7.0);      // pre-2000: widely used for enteric infections before FQ era; seeds folate_pathway cache
-        map.insert("drug_erythromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 0.5); // Reserve for beta-lactam allergy/atypical overlap rather than routine use
-        map.insert("drug_azithromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 1.5); // Some residual respiratory use, but not routine first-line therapy
-        map.insert("drug_clarithromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 1.0); // Lower than azithromycin in contemporary practice
-
         if BACTERIA_LIST.contains(&"mycoplasma_genitalium") {
         map.insert("drug_moxifloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 10.0); // Moxifloxacin is THE specific rescue FQ for macrolide-resistant M. genitalium; with >40% macrolide R, very high fraction of cases now receive moxifloxacin as second/third-line; raised from 4.0
         map.insert("drug_levofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier".to_string(), 2.5); // Secondary FQ option when moxi unavailable
@@ -7137,23 +7128,17 @@ lazy_static! {
         // ^^^^
         map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 1.00);   // 0.01
 
-        // ANTI-VRE AGENTS FOR ENTEROCOCCI
+        // GLYCOPEPTIDE ERA OVERRIDES FOR ENTEROCOCCI
         // Vancomycin was licensed 1958 but abandoned 1960s-70s due to early nephrotoxic formulations.
         // Reintroduced as MRSA treatment ~1985; VRE first reported 1986-88.
         // Applying high vancomycin pressure to enterococci before 1985 would be historically inaccurate.
         map.insert("drug_vancomycin_for_bacteria_enterococcus_faecalis_initiation_multiplier_before_1985".to_string(), 0.3); // pre-1985: rarely used (nephrotoxic era)
-        map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 3.5); // 1985+: E. faecium often ampicillin-R, hence glycopeptide
         map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier_before_1985".to_string(), 0.3); // pre-1985: rarely used
         // CALIBRATION: Linezolid is reserve agent - reduced for stewardship
 
         // C. DIFFICILE SPECIFIC AGENTS
-        // 1977-2017 : metronidazole was strongly dominant first-line (IDSA/SHEA guidelines)
-        //             oral vancomycin reserved for severe/refractory cases only
-        // 2017+     : IDSA/SHEA shifted to vancomycin as universal first-line;
-        //             metronidazole relegated to mild cases only
-        map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 4.0);             // 2017+: mild cases only
         map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_initiation_multiplier_before_2017".to_string(), 12.0); // 1977-2017: dominant first-line
-        map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 10.0);               // 2017+: universal first-line (oral)
+        map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 10.0);
         map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_initiation_multiplier_before_2017".to_string(), 4.0);    // 1977-2017: severe/refractory only
 
         // INTRACELLULAR PATHOGENS (tetracyclines, macrolides)
@@ -7514,7 +7499,7 @@ lazy_static! {
         map.insert("drug_vancomycin_for_bacteria_streptococcus_pyogenes_initiation_multiplier".to_string(), 2.0);
         map.insert("drug_vancomycin_for_bacteria_streptococcus_agalactiae_initiation_multiplier".to_string(), 2.0);
         map.insert("drug_vancomycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 4.0);
-        map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 5.0);        // VRE first-line alternative
+        map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 5.0);
         map.insert("drug_linezolid_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 5.0);
         map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 3.0);
         map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 2.0);
@@ -7536,7 +7521,7 @@ lazy_static! {
         map.insert("drug_metronidazole_for_bacteria_bacteroides_fragilis_initiation_multiplier".to_string(), 15.0);   // First-line anaerobic coverage
         map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 10.0);    // Triple/quadruple therapy component
         map.insert("drug_furazolidone_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 6.0);      // Quadruple therapy fallback
-        map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 5.0); // C. diff mild/moderate disease
+        map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 5.0);
 
         // --- 14. Cephalosporins 3G: add global penalty - sim 12.90% vs 5.0% target (534713).
         // No prior global penalty; set 0.20 and restore primary indications.

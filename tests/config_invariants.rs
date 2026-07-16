@@ -6,8 +6,6 @@ const CONFIG_RS: &str = include_str!("../src/config.rs");
 const MAIN_RS: &str = include_str!("../src/main.rs");
 const RULES_RS: &str = include_str!("../src/rules/mod.rs");
 const SIMULATION_RS: &str = include_str!("../src/simulation/simulation.rs");
-const APPROVED_PARAMETER_DUPLICATES: &str =
-    include_str!("fixtures/approved_parameter_duplicates.tsv");
 
 fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
     let bytes = source.as_bytes();
@@ -150,46 +148,6 @@ fn duplicate_literal_parameter_values(source: &str) -> BTreeMap<String, Vec<f64>
         .collect()
 }
 
-fn parse_approved_parameter_duplicates(source: &str) -> BTreeMap<String, Vec<f64>> {
-    let mut approved = BTreeMap::new();
-
-    for (line_idx, line) in source.lines().enumerate() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        let (key, serialized_values) = line.split_once('\t').unwrap_or_else(|| {
-            panic!(
-                "approved duplicate inventory line {} should be tab-separated",
-                line_idx + 1
-            )
-        });
-        let values = serialized_values
-            .split(',')
-            .map(|value| {
-                value.parse::<f64>().unwrap_or_else(|_| {
-                    panic!(
-                        "approved duplicate inventory line {} has invalid value {value}",
-                        line_idx + 1
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
-
-        assert!(
-            values.len() > 1,
-            "approved duplicate inventory entry {key} must contain at least two values"
-        );
-        assert!(
-            approved.insert(key.to_string(), values).is_none(),
-            "approved duplicate inventory contains {key} more than once"
-        );
-    }
-
-    approved
-}
-
 fn collect_get_or_default_literal_keys(source: &str) -> HashSet<String> {
     let mut values = HashSet::new();
     let mut offset = 0;
@@ -262,60 +220,12 @@ fn literal_get_or_default_keys_exist_in_parameters() {
 }
 
 #[test]
-fn literal_parameter_duplicates_match_approved_inventory() {
-    let actual = duplicate_literal_parameter_values(CONFIG_RS);
-    let approved = parse_approved_parameter_duplicates(APPROVED_PARAMETER_DUPLICATES);
-
-    let unexpected = actual
-        .keys()
-        .filter(|key| !approved.contains_key(*key))
-        .collect::<Vec<_>>();
-    let missing = approved
-        .keys()
-        .filter(|key| !actual.contains_key(*key))
-        .collect::<Vec<_>>();
-    let changed = actual
-        .iter()
-        .filter_map(|(key, values)| {
-            approved
-                .get(key)
-                .filter(|approved_values| *approved_values != values)
-                .map(|approved_values| {
-                    format!("{key}: approved={approved_values:?}, actual={values:?}")
-                })
-        })
-        .collect::<Vec<_>>();
-
-    assert!(
-        unexpected.is_empty() && missing.is_empty() && changed.is_empty(),
-        "literal PARAMETERS duplicates changed without explicit review\n\
-         unexpected keys: {unexpected:?}\n\
-         missing keys: {missing:?}\n\
-         changed value sequences: {changed:#?}"
-    );
-}
-
-#[test]
-fn approved_duplicate_final_values_match_effective_parameter_map() {
+fn parameters_initializer_has_no_duplicate_literal_keys() {
     let duplicates = duplicate_literal_parameter_values(CONFIG_RS);
-    let mismatches = duplicates
-        .iter()
-        .filter_map(|(key, values)| {
-            let final_source_value = values.last().expect("duplicate should have values");
-            let effective_value = PARAMETERS.get(key);
-
-            (effective_value.map(|value| value.to_bits()) != Some(final_source_value.to_bits()))
-                .then(|| {
-                    format!(
-                        "{key}: final source value={final_source_value}, effective={effective_value:?}"
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
 
     assert!(
-        mismatches.is_empty(),
-        "final duplicate insertions should be the effective runtime values: {mismatches:#?}"
+        duplicates.is_empty(),
+        "literal duplicate keys are forbidden in the PARAMETERS initializer: {duplicates:#?}"
     );
 }
 
