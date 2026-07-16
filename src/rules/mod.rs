@@ -2141,6 +2141,70 @@ fn not_under_medical_care_log_odds(under_medical_care: bool, configured_log_odds
     }
 }
 
+fn collect_active_symptomatic_syndromes<'a>(
+    individual: &Individual,
+    buffer: &'a mut [usize; 10],
+) -> &'a [usize] {
+    let mut len = 0;
+    for b_idx in 0..BACTERIA_LIST.len() {
+        if individual.level[b_idx] <= INFECTION_EPS
+            || !individual.infection_has_caused_symptoms[b_idx]
+        {
+            continue;
+        }
+
+        let syndrome_id = individual.infectious_syndrome[b_idx];
+        if !(1..=10).contains(&syndrome_id) {
+            continue;
+        }
+
+        let syndrome_id = syndrome_id as usize;
+        if !buffer[..len].contains(&syndrome_id) {
+            buffer[len] = syndrome_id;
+            len += 1;
+        }
+    }
+    &buffer[..len]
+}
+
+#[inline]
+fn bacterium_is_plausible_for_any_syndrome(bacteria_idx: usize, syndrome_ids: &[usize]) -> bool {
+    let bacteria = BACTERIA_LIST[bacteria_idx];
+    syndrome_probabilities_for_bacterium(bacteria)
+        .iter()
+        .any(|&(syndrome_id, probability)| {
+            probability > 0.0 && syndrome_ids.contains(&(syndrome_id as usize))
+        })
+}
+
+fn collect_regional_surveillance_bacteria<'a>(
+    targeted_selection: bool,
+    symptomatic_infection_present: bool,
+    identified_bacteria: &[usize],
+    active_syndrome_ids: &[usize],
+    buffer: &'a mut [usize; 64],
+) -> &'a [usize] {
+    let mut len = 0;
+
+    if targeted_selection {
+        for &b_idx in identified_bacteria {
+            if !buffer[..len].contains(&b_idx) {
+                buffer[len] = b_idx;
+                len += 1;
+            }
+        }
+    } else if symptomatic_infection_present {
+        for b_idx in 0..BACTERIA_LIST.len() {
+            if bacterium_is_plausible_for_any_syndrome(b_idx, active_syndrome_ids) {
+                buffer[len] = b_idx;
+                len += 1;
+            }
+        }
+    }
+
+    &buffer[..len]
+}
+
 /// applies model rules to an individual for one time step.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
@@ -2655,12 +2719,11 @@ pub(crate) fn apply_rules(
     // --- end sepsis updates ---
 
     // --- drug updates---
-    // Only count infections that have caused symptoms for treatment initiation decisions
-    let symptomatic_infection_present = individual
-        .level
-        .iter()
-        .enumerate()
-        .any(|(b_idx, &level)| level > 0.0 && individual.infection_has_caused_symptoms[b_idx]);
+    // Empiric prescribing can use only syndromes that are clinically visible now.
+    let mut active_syndrome_ids_buf = [0usize; 10];
+    let active_syndrome_ids =
+        collect_active_symptomatic_syndromes(individual, &mut active_syndrome_ids_buf);
+    let symptomatic_infection_present = !active_syndrome_ids.is_empty();
     let active_modelled_bacterial_infection_present =
         individual.level.iter().any(|&level| level > INFECTION_EPS);
     let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
@@ -2675,11 +2738,9 @@ pub(crate) fn apply_rules(
     let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
 
     let mut syndrome_administration_multiplier: f64 = 1.0;
-    for &syndrome_id in individual.infectious_syndrome.iter() {
-        if syndrome_id > 0 {
-            let multiplier = store.syndrome.initiation_multiplier(syndrome_id as usize);
-            syndrome_administration_multiplier = syndrome_administration_multiplier.max(multiplier);
-        }
+    for &syndrome_id in active_syndrome_ids {
+        let multiplier = store.syndrome.initiation_multiplier(syndrome_id);
+        syndrome_administration_multiplier = syndrome_administration_multiplier.max(multiplier);
     }
 
     let mut drugs_initiated_this_time_step: usize = 0;
@@ -2956,15 +3017,6 @@ pub(crate) fn apply_rules(
             // 3. Implementing TB-specific simultaneous multi-drug initiation would require substantial
             //    modification to this single-drug selection framework
             // 4. Clinical TB programs often start with sequential drug addition anyway due to tolerance testing
-            let mut active_syndrome_ids_buf = [0usize; 64];
-            let mut active_syndrome_ids_len = 0;
-            for &sid in &individual.infectious_syndrome {
-                if sid > 0 {
-                    active_syndrome_ids_buf[active_syndrome_ids_len] = sid as usize;
-                    active_syndrome_ids_len += 1;
-                }
-            }
-            let active_syndrome_ids = &active_syndrome_ids_buf[..active_syndrome_ids_len];
             let prophylaxis_candidate =
                 !symptomatic_infection_present && individual.immunodeficiency_type.is_some();
             let misdiagnosed_symptom_start =
@@ -2987,6 +3039,14 @@ pub(crate) fn apply_rules(
             let identified_bacteria = &identified_bacteria_buf[..identified_bacteria_len];
             let identified_ast_results_ready =
                 identified_resistance_results_ready(individual, identified_bacteria);
+            let mut regional_surveillance_bacteria_buf = [0usize; 64];
+            let regional_surveillance_bacteria = collect_regional_surveillance_bacteria(
+                targeted_selection,
+                symptomatic_infection_present,
+                identified_bacteria,
+                active_syndrome_ids,
+                &mut regional_surveillance_bacteria_buf,
+            );
             let severe_hospital_context = individual.hospital_status.is_hospitalized()
                 && (individual.sepsis.iter().any(|&s| s)
                     || active_syndrome_ids
@@ -3982,7 +4042,8 @@ pub(crate) fn apply_rules(
                             false
                         };
 
-                        if !mechanism_cache.is_empty() {
+                        if !regional_surveillance_bacteria.is_empty() && !mechanism_cache.is_empty()
+                        {
                             let region_idx = match individual.region_cur_in {
                                 Region::Home => individual.region_living as usize,
                                 r => r as usize,
@@ -4001,14 +4062,9 @@ pub(crate) fn apply_rules(
                             let moderate_penalty =
                                 store.globals.regional_resistance_penalty_moderate;
 
-                            // Start with all bacteria if empirical (unknown source)
-                            // If targeted (known source), only check surveillance for the identified pathogens
-                            for b_idx in 0..BACTERIA_LIST.len() {
-                                if has_any_identified_infection
-                                    && !identified_bacteria.contains(&b_idx)
-                                {
-                                    continue;
-                                }
+                            // Empiric choices use resistance among syndrome-plausible organisms;
+                            // identified choices use only organisms known to be present.
+                            for &b_idx in regional_surveillance_bacteria {
                                 let resistance_prevalence = mechanism_cache.prevalence(
                                     region_idx,
                                     hospital_status,
@@ -4195,7 +4251,9 @@ pub(crate) fn apply_rules(
                                 score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
                             } else {
                                 let mut high_resistance_observed = false;
-                                if !mechanism_cache.is_empty() {
+                                if !regional_surveillance_bacteria.is_empty()
+                                    && !mechanism_cache.is_empty()
+                                {
                                     let region_idx = match individual.region_cur_in {
                                         Region::Home => individual.region_living as usize,
                                         r => r as usize,
@@ -4205,7 +4263,7 @@ pub(crate) fn apply_rules(
                                     let high_threshold =
                                         store.globals.regional_resistance_threshold_high;
 
-                                    for b_idx in 0..BACTERIA_LIST.len() {
+                                    for &b_idx in regional_surveillance_bacteria {
                                         let prevalence = mechanism_cache.prevalence(
                                             region_idx,
                                             hospital_status,
@@ -7037,13 +7095,13 @@ fn calculate_testing_probability(
     final_probability.min(1.0)
 }
 
-/// Helper function to probabilistically assign a syndrome for a given bacteria.
-fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
-    // Define syndrome probabilities for each bacteria based on clinical epidemiology.
-    // Each entry: (syndrome_id, probability)
+/// Configured clinical presentations for a bacterium.
+fn syndrome_probabilities_for_bacterium(bacteria: &str) -> &'static [(u32, f64)] {
+    // Each entry is (syndrome_id, P(syndrome | bacterium)). These probabilities can
+    // define empiric plausibility, but are not P(bacterium | syndrome) weights.
     // Syndromes: 1=UTI, 2=Skin/soft tissue, 3=Respiratory, 4=Bloodstream, 5=Intra-abdominal,
     //           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
-    let syndrome_probs: &[(u32, f64)] = match bacteria {
+    match bacteria {
         // Gram-positive cocci
         "staphylococcus_aureus" => &[
             (2, 0.35),
@@ -7309,7 +7367,12 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (9, 0.1),
             (10, 0.1),
         ],
-    };
+    }
+}
+
+/// Helper function to probabilistically assign a syndrome for a given bacterium.
+fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
+    let syndrome_probs = syndrome_probabilities_for_bacterium(bacteria);
 
     let weights: Vec<f64> = syndrome_probs.iter().map(|&(_, p)| p).collect();
     if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
@@ -7339,6 +7402,7 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
+        collect_active_symptomatic_syndromes, collect_regional_surveillance_bacteria,
         complete_resistance_test_if_ready, existing_therapy_prevents_incoming_infection,
         has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
         hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
@@ -7359,6 +7423,87 @@ mod tests {
         let mut rng = SmallRng::seed_from_u64(seed);
         let individual = Individual::new(1, 30 * 365, "female".to_string(), &mut rng);
         (individual, rng)
+    }
+
+    fn bacteria_idx(name: &str) -> usize {
+        BACTERIA_LIST
+            .iter()
+            .position(|&candidate| candidate == name)
+            .unwrap_or_else(|| panic!("missing bacterium {name}"))
+    }
+
+    #[test]
+    fn visible_syndromes_are_active_symptomatic_and_unique() {
+        let (mut individual, _rng) = individual_with_seed(19);
+        let ecoli_idx = bacteria_idx("escherichia_coli");
+        let klebsiella_idx = bacteria_idx("klebsiella_pneumoniae");
+        let gonorrhoea_idx = bacteria_idx("neisseria_gonorrhoeae");
+
+        individual.level[ecoli_idx] = 1.0;
+        individual.infection_has_caused_symptoms[ecoli_idx] = true;
+        individual.infectious_syndrome[ecoli_idx] = 1;
+
+        individual.level[klebsiella_idx] = 1.0;
+        individual.infection_has_caused_symptoms[klebsiella_idx] = true;
+        individual.infectious_syndrome[klebsiella_idx] = 1;
+
+        individual.level[gonorrhoea_idx] = 1.0;
+        individual.infectious_syndrome[gonorrhoea_idx] = 8;
+
+        let mut buffer = [0usize; 10];
+        assert_eq!(
+            collect_active_symptomatic_syndromes(&individual, &mut buffer),
+            &[1]
+        );
+
+        individual.infection_has_caused_symptoms[gonorrhoea_idx] = true;
+        let mut buffer = [0usize; 10];
+        assert_eq!(
+            collect_active_symptomatic_syndromes(&individual, &mut buffer),
+            &[1, 8]
+        );
+    }
+
+    #[test]
+    fn empiric_surveillance_uses_syndrome_plausible_bacteria() {
+        let ecoli_idx = bacteria_idx("escherichia_coli");
+        let gonorrhoea_idx = bacteria_idx("neisseria_gonorrhoeae");
+        let chlamydia_idx = bacteria_idx("chlamydia_trachomatis");
+        let mut buffer = [0usize; 64];
+
+        let genital_bacteria =
+            collect_regional_surveillance_bacteria(false, true, &[], &[8], &mut buffer);
+
+        assert!(genital_bacteria.contains(&gonorrhoea_idx));
+        assert!(genital_bacteria.contains(&chlamydia_idx));
+        assert!(!genital_bacteria.contains(&ecoli_idx));
+
+        let mut buffer = [0usize; 64];
+        let combined_bacteria =
+            collect_regional_surveillance_bacteria(false, true, &[], &[1, 8], &mut buffer);
+        assert!(combined_bacteria.contains(&ecoli_idx));
+        assert!(combined_bacteria.contains(&gonorrhoea_idx));
+    }
+
+    #[test]
+    fn targeted_surveillance_uses_identified_bacteria_not_syndrome_prior() {
+        let ecoli_idx = bacteria_idx("escherichia_coli");
+        let gonorrhoea_idx = bacteria_idx("neisseria_gonorrhoeae");
+        let mut buffer = [0usize; 64];
+
+        let bacteria =
+            collect_regional_surveillance_bacteria(true, true, &[ecoli_idx], &[8], &mut buffer);
+
+        assert_eq!(bacteria, &[ecoli_idx]);
+        assert!(!bacteria.contains(&gonorrhoea_idx));
+    }
+
+    #[test]
+    fn non_syndromic_selection_has_no_regional_surveillance_bacteria() {
+        let mut buffer = [0usize; 64];
+        let bacteria = collect_regional_surveillance_bacteria(false, false, &[], &[8], &mut buffer);
+
+        assert!(bacteria.is_empty());
     }
 
     fn incoming_resistance_prevention_case(
