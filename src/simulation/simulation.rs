@@ -1547,8 +1547,8 @@ impl MechanismProfileCache {
 ///   (bacteria, mechanism) pair across all regions and both strata.  Used by the
 ///   ratchet-floor mechanism to prevent reversion of low-fitness-cost resistance.
 ///
-/// Resistance prevalence for prescribing decisions is computed on-the-fly from the
-/// profile reservoir rather than maintained as a separate EWMA.
+/// - `drug_resistance_prevalence`: exact prevalence derived from the current profile
+///   reservoir after each daily refresh, for constant-time prescribing lookups.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MechanismCache {
     /// Profile reservoir for profile-based acquisition sampling.
@@ -1559,6 +1559,9 @@ pub struct MechanismCache {
     /// Used by the ratchet floor: low-fitness-cost mechanisms that have reached X%
     /// are prevented from falling below X% in the exogenous acquisition pool.
     pub peak_mechanism_prevalence: Vec<Vec<f64>>,
+    /// Exact resistance prevalence for each `[region x hospital/community x bacteria x drug]`
+    /// slot, rebuilt whenever the profile reservoir changes.
+    drug_resistance_prevalence: Vec<f64>,
     pub num_regions: usize,
     pub num_bacteria: usize,
     pub num_mechanisms: usize,
@@ -1569,6 +1572,10 @@ impl MechanismCache {
         Self {
             profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
             peak_mechanism_prevalence: vec![vec![0.0_f64; num_mechanisms]; num_bacteria],
+            drug_resistance_prevalence: vec![
+                0.0;
+                num_regions * 2 * num_bacteria * DRUG_SHORT_NAMES.len()
+            ],
             num_regions,
             num_bacteria,
             num_mechanisms,
@@ -1612,6 +1619,7 @@ impl MechanismCache {
             }
         }
 
+        self.rebuild_drug_resistance_prevalence(param_cache);
         seeded_slots
     }
 
@@ -1622,6 +1630,7 @@ impl MechanismCache {
         community_retention: f64,
         hospital_retention: f64,
         merged_profiles: MechanismProfileCache,
+        param_cache: &crate::rules::ParameterKeyCache,
         rng: &mut R,
     ) {
         self.profiles.blend_with_new(
@@ -1630,6 +1639,44 @@ impl MechanismCache {
             hospital_retention,
             rng,
         );
+        self.rebuild_drug_resistance_prevalence(param_cache);
+    }
+
+    fn rebuild_drug_resistance_prevalence(
+        &mut self,
+        param_cache: &crate::rules::ParameterKeyCache,
+    ) {
+        self.drug_resistance_prevalence.fill(0.0);
+        let num_drugs = DRUG_SHORT_NAMES.len();
+
+        for region_idx in 0..self.num_regions {
+            for hospital_idx in 0..2 {
+                for bacteria_idx in 0..self.num_bacteria {
+                    let slot = &self.profiles.profiles[region_idx][hospital_idx][bacteria_idx];
+                    if slot.is_empty() {
+                        continue;
+                    }
+
+                    let base_idx = ((region_idx * 2 + hospital_idx) * self.num_bacteria
+                        + bacteria_idx)
+                        * num_drugs;
+                    for drug_idx in 0..num_drugs {
+                        let applicable_mask =
+                            param_cache.mechanism_applicability_mask(bacteria_idx, drug_idx);
+                        if applicable_mask == 0 {
+                            continue;
+                        }
+
+                        let resistant_count = slot
+                            .iter()
+                            .filter(|&&profile| profile & applicable_mask != 0)
+                            .count();
+                        self.drug_resistance_prevalence[base_idx + drug_idx] =
+                            resistant_count as f64 / slot.len() as f64;
+                    }
+                }
+            }
+        }
     }
 
     /// Compute the current marginal mechanism prevalence from the profile cache and update
@@ -1873,12 +1920,7 @@ impl MechanismCache {
         Self::sample_from_slot(candidate_slot, Some(&weights), rng)
     }
 
-    /// Estimate resistance prevalence for a (region, hospital, bacteria, drug) slot
-    /// by scanning the profile reservoir directly.
-    ///
-    /// For each stored profile, checks whether any mechanism bit that is applicable to
-    /// `drug_idx` for `bacteria_idx` is set.  Returns the fraction of profiles carrying
-    /// at least one such mechanism.
+    /// Return the exact prevalence derived from the current profile reservoir.
     #[inline]
     pub fn prevalence(
         &self,
@@ -1886,19 +1928,31 @@ impl MechanismCache {
         hospital: bool,
         bacteria_idx: usize,
         drug_idx: usize,
+    ) -> f64 {
+        let idx = ((region_idx * 2 + hospital as usize) * self.num_bacteria + bacteria_idx)
+            * DRUG_SHORT_NAMES.len()
+            + drug_idx;
+        self.drug_resistance_prevalence[idx]
+    }
+
+    #[cfg(test)]
+    fn direct_prevalence(
+        &self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        drug_idx: usize,
         param_cache: &crate::rules::ParameterKeyCache,
     ) -> f64 {
-        let h = hospital as usize;
-        let slot = &self.profiles.profiles[region_idx][h][bacteria_idx];
+        let slot = &self.profiles.profiles[region_idx][hospital as usize][bacteria_idx];
         if slot.is_empty() {
             return 0.0;
         }
 
-        // Build a bitmask of all mechanisms applicable to this bacteria×drug
-        let mut applicable_mask: u64 = 0;
-        for m in 0..self.num_mechanisms {
-            if param_cache.mechanism_applicable(m, bacteria_idx, drug_idx) {
-                applicable_mask |= 1 << m;
+        let mut applicable_mask = 0u64;
+        for mechanism_idx in 0..self.num_mechanisms {
+            if param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx) {
+                applicable_mask |= 1u64 << mechanism_idx;
             }
         }
         if applicable_mask == 0 {
@@ -1907,7 +1961,7 @@ impl MechanismCache {
 
         let resistant_count = slot
             .iter()
-            .filter(|&&profile| (profile & applicable_mask) != 0)
+            .filter(|&&profile| profile & applicable_mask != 0)
             .count();
         resistant_count as f64 / slot.len() as f64
     }
@@ -5911,6 +5965,7 @@ impl Simulation {
                     community_retention,
                     hospital_retention,
                     mechanism_profiles,
+                    &self.param_cache,
                     &mut profile_retention_rng,
                 );
                 // Update peak marginal prevalences for the ratchet floor mechanism.
@@ -8303,7 +8358,10 @@ mod tests {
         current_antibiotic_context_priority, sample_hypergeometric_left_count, MechanismCache,
         MechanismProfileCache, MAX_MECHANISM_PROFILES,
     };
-    use crate::simulation::population::{AntibioticUseContext, Individual};
+    use crate::rules::ParameterKeyCache;
+    use crate::simulation::population::{
+        AntibioticUseContext, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    };
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
 
@@ -8317,6 +8375,104 @@ mod tests {
         cache.profiles[0][h][0] = profiles;
         cache.total_seen[0][h][0] = total_seen;
         cache
+    }
+
+    #[test]
+    fn mechanism_applicability_masks_match_boolean_cache() {
+        let param_cache = ParameterKeyCache::new();
+        let num_mechanisms = ResistanceMechanism::all().len();
+        assert!(num_mechanisms <= u64::BITS as usize);
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                let mask = param_cache.mechanism_applicability_mask(bacteria_idx, drug_idx);
+                for mechanism_idx in 0..num_mechanisms {
+                    assert_eq!(
+                        mask & (1u64 << mechanism_idx) != 0,
+                        param_cache.mechanism_applicable(
+                            mechanism_idx,
+                            bacteria_idx,
+                            drug_idx
+                        ),
+                        "applicability mismatch for mechanism {mechanism_idx}, bacteria {bacteria_idx}, drug {drug_idx}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cached_drug_resistance_prevalence_matches_direct_profile_scan() {
+        let param_cache = ParameterKeyCache::new();
+        let num_mechanisms = ResistanceMechanism::all().len();
+        assert!(num_mechanisms > 0 && num_mechanisms <= u64::BITS as usize);
+        let all_mechanisms = if num_mechanisms == u64::BITS as usize {
+            u64::MAX
+        } else {
+            (1u64 << num_mechanisms) - 1
+        };
+        let even_mechanisms = (0..num_mechanisms)
+            .step_by(2)
+            .fold(0u64, |mask, mechanism_idx| mask | (1u64 << mechanism_idx));
+        let odd_mechanisms = all_mechanisms & !even_mechanisms;
+        let mut cache = MechanismCache::new(2, BACTERIA_LIST.len(), num_mechanisms);
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            cache.profiles.profiles[0][0][bacteria_idx] =
+                vec![0, all_mechanisms, even_mechanisms, odd_mechanisms];
+            cache.profiles.total_seen[0][0][bacteria_idx] = 4;
+            cache.profiles.profiles[0][1][bacteria_idx] =
+                vec![0, 1u64 << (bacteria_idx % num_mechanisms)];
+            cache.profiles.total_seen[0][1][bacteria_idx] = 2;
+        }
+
+        cache.rebuild_drug_resistance_prevalence(&param_cache);
+
+        for region_idx in 0..2 {
+            for hospital in [false, true] {
+                for bacteria_idx in 0..BACTERIA_LIST.len() {
+                    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                        let cached = cache.prevalence(region_idx, hospital, bacteria_idx, drug_idx);
+                        let direct = cache.direct_prevalence(
+                            region_idx,
+                            hospital,
+                            bacteria_idx,
+                            drug_idx,
+                            &param_cache,
+                        );
+                        assert_eq!(
+                            cached.to_bits(),
+                            direct.to_bits(),
+                            "prevalence mismatch for region {region_idx}, hospital {hospital}, bacteria {bacteria_idx}, drug {drug_idx}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn profile_refresh_rebuilds_cached_drug_resistance_prevalence() {
+        let param_cache = ParameterKeyCache::new();
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let (bacteria_idx, drug_idx, applicable_mask) = (0..BACTERIA_LIST.len())
+            .find_map(|bacteria_idx| {
+                (0..DRUG_SHORT_NAMES.len()).find_map(|drug_idx| {
+                    let mask = param_cache.mechanism_applicability_mask(bacteria_idx, drug_idx);
+                    (mask != 0).then_some((bacteria_idx, drug_idx, mask))
+                })
+            })
+            .expect("at least one bacterium-drug pair must have an applicable mechanism");
+        let mechanism_bit = 1u64 << applicable_mask.trailing_zeros();
+        let mut cache = MechanismCache::new(1, BACTERIA_LIST.len(), num_mechanisms);
+        let mut fresh = MechanismProfileCache::new(1, BACTERIA_LIST.len(), num_mechanisms);
+        fresh.profiles[0][0][bacteria_idx] = vec![0, mechanism_bit, mechanism_bit, 0];
+        fresh.total_seen[0][0][bacteria_idx] = 4;
+        let mut rng = SmallRng::seed_from_u64(91);
+
+        cache.update_profiles(0.0, 0.0, fresh, &param_cache, &mut rng);
+
+        assert_eq!(cache.prevalence(0, false, bacteria_idx, drug_idx), 0.5);
     }
 
     #[test]

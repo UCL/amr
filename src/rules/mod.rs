@@ -1791,6 +1791,7 @@ pub struct ParameterKeyCache {
     drug_bacteria_potency: Vec<f64>,
     bacteria_age_sepsis_log_odds: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
     mechanism_applicability: Vec<bool>,
+    mechanism_applicability_masks: Vec<u64>,
     /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
     /// Value of 1.0 means no preference adjustment (default)
     clinical_preference_multipliers: Vec<f64>,
@@ -1834,6 +1835,7 @@ impl ParameterKeyCache {
         let mut bacteria_age_sepsis_log_odds = Vec::with_capacity(BACTERIA_LIST.len());
         let mut mechanism_applicability =
             Vec::with_capacity(mechanism_count * bacteria_count * drug_count);
+        let mut mechanism_applicability_masks = vec![0u64; bacteria_count * drug_count];
 
         // Pre-compute all drug/bacteria combinations
         for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
@@ -1849,7 +1851,7 @@ impl ParameterKeyCache {
             bacteria_age_sepsis_log_odds.push(per_age_bucket);
         }
 
-        for mechanism in ResistanceMechanism::all().iter() {
+        for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
             for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                 for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                     let default_applies =
@@ -1888,6 +1890,10 @@ impl ParameterKeyCache {
                     }
 
                     mechanism_applicability.push(applies);
+                    if applies {
+                        mechanism_applicability_masks[b_idx * drug_count + d_idx] |=
+                            1u64 << mechanism_idx;
+                    }
                 }
             }
         }
@@ -1912,6 +1918,7 @@ impl ParameterKeyCache {
             drug_bacteria_potency,
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
+            mechanism_applicability_masks,
             clinical_preference_multipliers,
             microbiome_majority_threshold: crate::config::get_global_param(
                 "microbiome_majority_threshold",
@@ -2057,6 +2064,11 @@ impl ParameterKeyCache {
         let offset =
             ((mechanism_idx * self.bacteria_count) + bacteria_idx) * self.drug_count + drug_idx;
         self.mechanism_applicability[offset]
+    }
+
+    #[inline]
+    pub fn mechanism_applicability_mask(&self, bacteria_idx: usize, drug_idx: usize) -> u64 {
+        self.mechanism_applicability_masks[bacteria_idx * self.drug_count + drug_idx]
     }
 
     /// Get the pre-computed clinical preference multiplier for a bacteria-drug pair.
@@ -4042,8 +4054,7 @@ pub(crate) fn apply_rules(
                             false
                         };
 
-                        if !regional_surveillance_bacteria.is_empty() && !mechanism_cache.is_empty()
-                        {
+                        if !regional_surveillance_bacteria.is_empty() {
                             let region_idx = match individual.region_cur_in {
                                 Region::Home => individual.region_living as usize,
                                 r => r as usize,
@@ -4070,7 +4081,6 @@ pub(crate) fn apply_rules(
                                     hospital_status,
                                     b_idx,
                                     drug_idx,
-                                    param_cache,
                                 );
 
                                 if resistance_prevalence <= 0.0 {
@@ -4251,9 +4261,7 @@ pub(crate) fn apply_rules(
                                 score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
                             } else {
                                 let mut high_resistance_observed = false;
-                                if !regional_surveillance_bacteria.is_empty()
-                                    && !mechanism_cache.is_empty()
-                                {
+                                if !regional_surveillance_bacteria.is_empty() {
                                     let region_idx = match individual.region_cur_in {
                                         Region::Home => individual.region_living as usize,
                                         r => r as usize,
@@ -4269,7 +4277,6 @@ pub(crate) fn apply_rules(
                                             hospital_status,
                                             b_idx,
                                             drug_idx,
-                                            param_cache,
                                         );
 
                                         if prevalence >= high_threshold {
