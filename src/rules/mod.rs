@@ -2120,6 +2120,27 @@ fn vaccination_acquisition_log_odds(
     }
 }
 
+/// Person-level proxy for nonspecific medical and supportive care.
+#[inline]
+fn is_under_medical_care(individual: &Individual) -> bool {
+    individual.hospital_status.is_hospitalized()
+        || individual.cur_use_drug.iter().any(|&on| on)
+        || individual
+            .level
+            .iter()
+            .zip(&individual.test_identified_infection)
+            .any(|(&level, &identified)| level > INFECTION_EPS && identified)
+}
+
+#[inline]
+fn not_under_medical_care_log_odds(under_medical_care: bool, configured_log_odds: f64) -> f64 {
+    if under_medical_care {
+        0.0
+    } else {
+        configured_log_odds
+    }
+}
+
 /// applies model rules to an individual for one time step.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
@@ -2505,6 +2526,7 @@ pub(crate) fn apply_rules(
     // --- end region travel updates ---
 
     // ---  sepsis risk  ---
+    let mut under_medical_care_at_sepsis_onset = None;
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         let current_level = individual.level[b_idx];
 
@@ -2568,14 +2590,14 @@ pub(crate) fn apply_rules(
                     0.0
                 };
 
-                // Check if patient is "under care" - have they started any drug for this infection?
-                // Not under care = higher sepsis risk due to delayed treatment
-                let under_care = individual.cur_use_drug.iter().any(|&on| on);
-                let not_under_care_log_odds = if !under_care {
-                    store.globals.log_odds_sepsis_onset_not_under_care
-                } else {
-                    0.0
-                };
+                // Nonspecific medical care can reduce progression independently of whether an
+                // active antibiotic covers this particular bacterium.
+                let under_medical_care = *under_medical_care_at_sepsis_onset
+                    .get_or_insert_with(|| is_under_medical_care(individual));
+                let not_under_care_log_odds = not_under_medical_care_log_odds(
+                    under_medical_care,
+                    store.globals.log_odds_sepsis_onset_not_under_care,
+                );
 
                 // COMPREHENSIVE SEPSIS RISK CALCULATION
                 // Integrates: bacteria risk, age interactions, syndrome site, regional factors,
@@ -4893,11 +4915,11 @@ pub(crate) fn apply_rules(
                 log_odds += days_after_early * store.globals.sepsis_death_log_odds_duration;
             }
 
-            // Treatment effect - patients not receiving care have much worse outcomes
-            let under_care = individual.cur_use_drug.iter().any(|&on| on);
-            if !under_care {
-                log_odds += store.globals.sepsis_death_log_odds_not_under_care;
-            }
+            // Supportive medical care can improve survival independently of antimicrobial activity.
+            log_odds += not_under_medical_care_log_odds(
+                is_under_medical_care(individual),
+                store.globals.sepsis_death_log_odds_not_under_care,
+            );
 
             // Per-organism CFR adjustment (e.g. meningococcal purpura fulminans, S. aureus endocarditis).
             // Take the maximum override among all septic bacteria (worst-case organism drives outcome).
@@ -7319,14 +7341,15 @@ mod tests {
     use super::{
         complete_resistance_test_if_ready, existing_therapy_prevents_incoming_infection,
         has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
-        hgt_donor_mechanism_multiplier, identified_resistance_results_ready,
-        mechanism_resistance_level_for_mask, prepare_individual_for_active_day,
-        record_hgt_mechanism_in_present_compartments, reset_resistance_test_state,
-        vaccination_acquisition_log_odds, ParameterKeyCache,
+        hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
+        mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
+        prepare_individual_for_active_day, record_hgt_mechanism_in_present_compartments,
+        reset_resistance_test_state, vaccination_acquisition_log_odds, ParameterKeyCache,
     };
     use crate::config::parameter_store;
     use crate::simulation::population::{
-        load_float, store_float, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
+        load_float, store_float, HospitalStatus, Individual, ResistanceMechanism, BACTERIA_LIST,
+        DRUG_SHORT_NAMES,
     };
     use crate::simulation::simulation::MechanismCache;
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -7482,6 +7505,58 @@ mod tests {
             probability(baseline_log_odds + non_target_effect),
             baseline_probability
         );
+    }
+
+    #[test]
+    fn no_medical_care_preserves_configured_sepsis_penalties() {
+        let (individual, _rng) = individual_with_seed(15);
+        let globals = &parameter_store().globals;
+        let onset_penalty = globals.log_odds_sepsis_onset_not_under_care;
+        let mortality_penalty = globals.sepsis_death_log_odds_not_under_care;
+
+        assert!(!is_under_medical_care(&individual));
+        assert_eq!(
+            not_under_medical_care_log_odds(false, onset_penalty),
+            onset_penalty
+        );
+        assert_eq!(
+            not_under_medical_care_log_odds(false, mortality_penalty),
+            mortality_penalty
+        );
+    }
+
+    #[test]
+    fn antibiotic_or_hospitalization_counts_as_medical_care() {
+        let (mut individual, _rng) = individual_with_seed(16);
+        let onset_penalty = parameter_store()
+            .globals
+            .log_odds_sepsis_onset_not_under_care;
+
+        individual.cur_use_drug[0] = true;
+        assert!(is_under_medical_care(&individual));
+        assert_eq!(not_under_medical_care_log_odds(true, onset_penalty), 0.0);
+
+        individual.cur_use_drug[0] = false;
+        individual.hospital_status = HospitalStatus::InHospital;
+        assert!(is_under_medical_care(&individual));
+    }
+
+    #[test]
+    fn identified_active_infection_counts_as_medical_care() {
+        let (mut individual, _rng) = individual_with_seed(17);
+        individual.level[0] = 1.0;
+        individual.test_identified_infection[0] = true;
+
+        assert!(is_under_medical_care(&individual));
+    }
+
+    #[test]
+    fn stale_identification_without_active_infection_does_not_count_as_care() {
+        let (mut individual, _rng) = individual_with_seed(18);
+        individual.level[0] = 0.0;
+        individual.test_identified_infection[0] = true;
+
+        assert!(!is_under_medical_care(&individual));
     }
 
     #[test]
