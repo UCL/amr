@@ -304,7 +304,7 @@ Each day, the model evaluates each of the 42 bacterial species separately. A per
 
 #### Vaccination
 
-Vaccination is implemented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person therefore has a yes/no vaccination record (`vaccination_status` in the code) for every bacterium. Vaccination is assigned once, at cohort entry: on the first simulated day that a newborn individual becomes alive in the model, the code checks the historically available vaccines and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress at that calendar year. Once that record is set to `true`, it remains on for the rest of the simulation; there is currently no waning, revaccination, booster logic, or catch-up campaign.
+Vaccination is implemented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person therefore has a yes/no vaccination record (`vaccination_status` in the code) for every bacterium. Vaccination is assigned once, at cohort entry: at the start of the first active day, while a newborn's age is zero and before the daily age increment, the code checks the historically available vaccines and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress at that calendar year. Once that record is set to `true`, it remains on for the rest of the simulation; there is currently no waning, revaccination, booster logic, or catch-up campaign.
 
 The vaccine layer currently supports four bacterial vaccines:
 

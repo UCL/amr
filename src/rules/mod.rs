@@ -2068,6 +2068,58 @@ impl ParameterKeyCache {
     }
 }
 
+/// Advances unborn individuals toward birth and prepares living individuals for an active day.
+/// Vaccination must run while a newborn's age is still zero, before the ordinary daily increment.
+#[inline]
+fn prepare_individual_for_active_day(
+    individual: &mut Individual,
+    simulation_year: f64,
+    vaccination: &crate::config::VaccinationParameters,
+    rng: &mut impl Rng,
+) -> bool {
+    if individual.age < 0 {
+        individual.age += 1;
+        return false;
+    }
+
+    if individual.date_of_death.is_some() {
+        return false;
+    }
+
+    if individual.age == 0 {
+        for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+            if individual.vaccination_status[bacteria_idx] {
+                continue;
+            }
+
+            if let Some(vaccine_idx) =
+                crate::config::VaccinationParameters::vaccine_index_for_bacteria(bacteria)
+            {
+                let birth_coverage =
+                    vaccination.birth_coverage_probability(vaccine_idx, simulation_year);
+                if birth_coverage > 0.0 && rng.gen::<f64>() < birth_coverage {
+                    individual.vaccination_status[bacteria_idx] = true;
+                }
+            }
+        }
+    }
+
+    true
+}
+
+#[inline]
+fn vaccination_acquisition_log_odds(
+    individual: &Individual,
+    bacteria_idx: usize,
+    vaccinated_log_odds: f64,
+) -> f64 {
+    if individual.vaccination_status[bacteria_idx] {
+        vaccinated_log_odds
+    } else {
+        0.0
+    }
+}
+
 /// applies model rules to an individual for one time step.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
@@ -2118,13 +2170,9 @@ pub(crate) fn apply_rules(
     // Policy 4: equal global access — override per-region multipliers with high-income (NA) reference values
     let equalize_regional_access = policy.equalize_regional_access;
 
-    if individual.age < 0 {
-        individual.age += 1; // Only advance age by 1 day
-        return; // Exit the function if unborn
-    }
-
-    if individual.date_of_death.is_some() {
-        return; // Exit the function if dead
+    let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+    if !prepare_individual_for_active_day(individual, simulation_year, &store.vaccination, rng) {
+        return;
     }
 
     // Reset microbiome acquisition flags ahead of this timestep's updates
@@ -2583,30 +2631,6 @@ pub(crate) fn apply_rules(
         }
     }
     // --- end sepsis updates ---
-
-    // Update vaccination status using birth-cohort rollout rather than a daily all-age hazard.
-    // New cohorts are vaccinated on their first simulated day alive according to the vaccine's
-    // rollout progress at that calendar year.
-    let simulation_year = 1930.0 + (time_step as f64 / 365.0);
-
-    if individual.age == 0 {
-        for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
-            if individual.vaccination_status[b_idx] {
-                continue;
-            }
-
-            if let Some(vaccine_idx) =
-                crate::config::VaccinationParameters::vaccine_index_for_bacteria(bacteria)
-            {
-                let birth_coverage = store
-                    .vaccination
-                    .birth_coverage_probability(vaccine_idx, simulation_year);
-                if birth_coverage > 0.0 && rng.gen::<f64>() < birth_coverage {
-                    individual.vaccination_status[b_idx] = true;
-                }
-            }
-        }
-    }
 
     // --- drug updates---
     // Only count infections that have caused symptoms for treatment initiation decisions
@@ -5061,13 +5085,11 @@ pub(crate) fn apply_rules(
 
             log_odds += sanitation_log_odds;
 
-            // Vaccination status (binary effect)
-            let vaccination_log_odds = if individual.vaccination_status[b_idx] {
-                store.bacteria.log_odds_vaccinated[b_idx]
-            } else {
-                0.0
-            };
-            log_odds += vaccination_log_odds;
+            log_odds += vaccination_acquisition_log_odds(
+                individual,
+                b_idx,
+                store.bacteria.log_odds_vaccinated[b_idx],
+            );
 
             // Microbiome presence effect
             let microbiome_log_odds = if allows_microbiome && individual.presence_microbiome[b_idx]
@@ -5139,10 +5161,11 @@ pub(crate) fn apply_rules(
 
                     log_odds += sanitation_log_odds;
 
-                    // Vaccination status (binary effect)
-                    if individual.vaccination_status[b_idx] {
-                        log_odds += store.bacteria.log_odds_vaccinated[b_idx];
-                    }
+                    log_odds += vaccination_acquisition_log_odds(
+                        individual,
+                        b_idx,
+                        store.bacteria.log_odds_vaccinated[b_idx],
+                    );
 
                     // Hospital-acquired effect
                     if individual.hospital_status.is_hospitalized() {
@@ -7297,15 +7320,16 @@ mod tests {
         complete_resistance_test_if_ready, existing_therapy_prevents_incoming_infection,
         has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
         hgt_donor_mechanism_multiplier, identified_resistance_results_ready,
-        mechanism_resistance_level_for_mask, record_hgt_mechanism_in_present_compartments,
-        reset_resistance_test_state, ParameterKeyCache,
+        mechanism_resistance_level_for_mask, prepare_individual_for_active_day,
+        record_hgt_mechanism_in_present_compartments, reset_resistance_test_state,
+        vaccination_acquisition_log_odds, ParameterKeyCache,
     };
     use crate::config::parameter_store;
     use crate::simulation::population::{
         load_float, store_float, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
     };
     use crate::simulation::simulation::MechanismCache;
-    use rand::rngs::SmallRng;
+    use rand::rngs::{mock::StepRng, SmallRng};
     use rand::SeedableRng;
 
     fn individual_with_seed(seed: u64) -> (Individual, SmallRng) {
@@ -7361,6 +7385,103 @@ mod tests {
                     && crate::simulation::population::mechanism_is_hgt_transferable(mechanism)
             })
             .expect("at least one HGT-transferable mechanism")
+    }
+
+    fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {
+        for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+            let is_supported_target =
+                crate::config::VaccinationParameters::vaccine_index_for_bacteria(bacteria)
+                    .is_some();
+            assert_eq!(
+                individual.vaccination_status[bacteria_idx], is_supported_target,
+                "unexpected vaccination state for {bacteria}"
+            );
+        }
+    }
+
+    #[test]
+    fn newborn_is_vaccinated_on_first_active_day() {
+        let (mut individual, _rng) = individual_with_seed(12);
+        let mut vaccination_rng = StepRng::new(0, 0);
+        individual.age = -1;
+
+        assert!(!prepare_individual_for_active_day(
+            &mut individual,
+            2025.0,
+            &parameter_store().vaccination,
+            &mut vaccination_rng,
+        ));
+        assert_eq!(individual.age, 0);
+        assert!(individual.vaccination_status.iter().all(|&status| !status));
+
+        assert!(prepare_individual_for_active_day(
+            &mut individual,
+            2025.0 + 1.0 / 365.0,
+            &parameter_store().vaccination,
+            &mut vaccination_rng,
+        ));
+        assert_only_supported_vaccine_targets_are_vaccinated(&individual);
+    }
+
+    #[test]
+    fn individual_initialized_at_age_zero_receives_birth_cohort_vaccination() {
+        let (mut individual, _rng) = individual_with_seed(13);
+        let mut vaccination_rng = StepRng::new(0, 0);
+        individual.age = 0;
+
+        assert!(prepare_individual_for_active_day(
+            &mut individual,
+            2025.0,
+            &parameter_store().vaccination,
+            &mut vaccination_rng,
+        ));
+        assert_eq!(individual.age, 0);
+        assert_only_supported_vaccine_targets_are_vaccinated(&individual);
+    }
+
+    #[test]
+    fn vaccination_reduces_acquisition_only_for_targeted_bacterium() {
+        let (mut individual, _rng) = individual_with_seed(14);
+        let mut vaccination_rng = StepRng::new(0, 0);
+        individual.age = 0;
+        prepare_individual_for_active_day(
+            &mut individual,
+            2025.0,
+            &parameter_store().vaccination,
+            &mut vaccination_rng,
+        );
+
+        let target_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "streptococcus_pneumoniae")
+            .expect("pneumococcal vaccine target");
+        let non_target_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("non-vaccine comparator");
+        let target_effect = vaccination_acquisition_log_odds(
+            &individual,
+            target_idx,
+            parameter_store().bacteria.log_odds_vaccinated[target_idx],
+        );
+        let non_target_effect = vaccination_acquisition_log_odds(
+            &individual,
+            non_target_idx,
+            parameter_store().bacteria.log_odds_vaccinated[non_target_idx],
+        );
+
+        let baseline_log_odds: f64 = -4.0;
+        let probability = |log_odds: f64| 1.0 / (1.0 + (-log_odds).exp());
+        let baseline_probability = probability(baseline_log_odds);
+        assert!(individual.vaccination_status[target_idx]);
+        assert!(!individual.vaccination_status[non_target_idx]);
+        assert!(target_effect < 0.0);
+        assert_eq!(non_target_effect, 0.0);
+        assert!(probability(baseline_log_odds + target_effect) < baseline_probability);
+        assert_eq!(
+            probability(baseline_log_odds + non_target_effect),
+            baseline_probability
+        );
     }
 
     #[test]
