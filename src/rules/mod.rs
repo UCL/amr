@@ -306,7 +306,7 @@ pub(crate) fn serious_resistance_marker_drugs(bacteria_name: &str) -> &'static [
 #[inline]
 fn has_serious_resistance_test_positive(individual: &Individual) -> bool {
     for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-        if individual.level[b_idx] <= INFECTION_EPS {
+        if individual.level[b_idx] <= INFECTION_EPS || !individual.test_for_resistance[b_idx] {
             continue;
         }
 
@@ -320,6 +320,64 @@ fn has_serious_resistance_test_positive(individual: &Individual) -> bool {
     }
 
     false
+}
+
+#[inline]
+fn identified_resistance_results_ready(
+    individual: &Individual,
+    identified_bacteria: &[usize],
+) -> bool {
+    !identified_bacteria.is_empty()
+        && identified_bacteria
+            .iter()
+            .all(|&b_idx| individual.test_for_resistance[b_idx])
+}
+
+#[inline]
+fn complete_resistance_test_if_ready(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    time_step: usize,
+    result_delay_days: i32,
+    error_probability: f64,
+    error_value: f64,
+    rng: &mut impl Rng,
+) -> bool {
+    if individual.test_for_resistance[bacteria_idx] {
+        return false;
+    }
+
+    let initiated_day = individual.resistance_test_initiated_day[bacteria_idx];
+    let ready_day = i64::from(initiated_day) + i64::from(result_delay_days.max(0));
+    if initiated_day < 0 || (time_step as i64) < ready_day {
+        return false;
+    }
+
+    for resistance in &mut individual.resistances[bacteria_idx] {
+        let actual_resistance = load_float(resistance.any_r);
+        let reported_resistance = if rng.gen_bool(error_probability) {
+            if actual_resistance < INFECTION_EPS {
+                error_value
+            } else {
+                0.0
+            }
+        } else {
+            actual_resistance
+        };
+        resistance.test_r = store_float(reported_resistance);
+    }
+
+    individual.test_for_resistance[bacteria_idx] = true;
+    true
+}
+
+#[inline]
+fn reset_resistance_test_state(individual: &mut Individual, bacteria_idx: usize) {
+    individual.test_for_resistance[bacteria_idx] = false;
+    individual.resistance_test_initiated_day[bacteria_idx] = -1;
+    for resistance in &mut individual.resistances[bacteria_idx] {
+        resistance.test_r = store_float(0.0);
+    }
 }
 
 // =====================================================================================
@@ -2753,6 +2811,8 @@ pub(crate) fn apply_rules(
                 }
             }
             let identified_bacteria = &identified_bacteria_buf[..identified_bacteria_len];
+            let identified_ast_results_ready =
+                identified_resistance_results_ready(individual, identified_bacteria);
             let severe_hospital_context = individual.hospital_status.is_hospitalized()
                 && (individual.sepsis.iter().any(|&s| s)
                     || active_syndrome_ids
@@ -2794,28 +2854,11 @@ pub(crate) fn apply_rules(
                 } else {
                     0.0
                 };
-                // Restriction: only block this drug when resistance was detected for an active infection
-                let mut resistance_detected = false;
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] <= INFECTION_EPS {
-                        continue;
-                    }
-                    if !individual.test_for_resistance[b_idx] {
-                        continue;
-                    }
-                    let initiated_day = individual.resistance_test_initiated_day[b_idx];
-                    if initiated_day == -1 {
-                        continue;
-                    }
-                    if (time_step as i32) < initiated_day + resistance_test_result_delay_days {
-                        continue;
-                    }
-                    if load_float(individual.resistances[b_idx][drug_idx].test_r) <= 0.0 {
-                        continue;
-                    }
-                    resistance_detected = true;
-                    break;
-                }
+                // A ready positive AST result excludes the drug for any active infection.
+                let resistance_detected = identified_bacteria.iter().any(|&b_idx| {
+                    individual.test_for_resistance[b_idx]
+                        && load_float(individual.resistances[b_idx][drug_idx].test_r) > 0.0
+                });
                 if resistance_detected {
                     continue;
                 }
@@ -3718,14 +3761,9 @@ pub(crate) fn apply_rules(
                     score *= max_bacteria_specific_multiplier;
                 }
 
-                // Apply regional resistance surveillance penalty for BOTH empirical therapy and "blind" targeted therapy
-                // Even if we have identified the species (targeted), we must still consider population resistance
-                // if we don't have a specific sensitivity test result confirming susceptibility.
-                let sensitivity_result_available = identified_bacteria
-                    .iter()
-                    .any(|&b_idx| load_float(individual.resistances[b_idx][drug_idx].test_r) > 0.0);
-
-                if !sensitivity_result_available {
+                // A candidate with a positive ready result was excluded above. If every identified
+                // infection has a ready panel, the remaining zero results confirm susceptibility.
+                if !identified_ast_results_ready {
                     let mut regional_resistance_penalty = 1.0_f64;
 
                     // Override resistance penalty for penicillins treating Strep species
@@ -6105,44 +6143,23 @@ pub(crate) fn apply_rules(
                 );
 
                 if rng.gen_bool(resistance_testing_probability.clamp(0.0, 1.0)) {
-                    // Set the flag indicating resistance testing was initiated
-                    individual.test_for_resistance[b_idx] = true;
                     individual.resistance_test_initiated_day[b_idx] = time_step as i32;
                 }
             }
 
-            // Check if resistance test results should be available yet
-            let test_initiated_day = individual.resistance_test_initiated_day[b_idx];
-            if test_initiated_day != -1
-                && (time_step as i32) >= (test_initiated_day + resistance_test_result_delay_days)
-            {
-                let test_r_already_set = individual.resistances[b_idx]
-                    .iter()
-                    .any(|r| load_float(r.test_r) > 0.0);
-                if !test_r_already_set {
-                    for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                        // Use any_r to model standard clinical microbiologic phenotypic testing.
-                        // (majority_r removed — any_r is the primary resistance measure)
-                        let major_r = load_float(individual.resistances[b_idx][d_idx].any_r);
-                        let error = rng.gen_bool(test_r_error_prob);
-                        let test_r = if error {
-                            if major_r < INFECTION_EPS {
-                                test_r_error_value
-                            } else {
-                                0.0
-                            }
-                        } else {
-                            major_r
-                        };
-                        individual.resistances[b_idx][d_idx].test_r = store_float(test_r);
-                    }
-                }
-            }
-        } else {
-            // Reset resistance test results if bacterial identification test is negative
-            for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                individual.resistances[b_idx][d_idx].test_r = store_float(0.0);
-            }
+            complete_resistance_test_if_ready(
+                individual,
+                b_idx,
+                time_step,
+                resistance_test_result_delay_days,
+                test_r_error_prob,
+                test_r_error_value,
+                rng,
+            );
+        } else if individual.resistance_test_initiated_day[b_idx] != -1
+            || individual.test_for_resistance[b_idx]
+        {
+            reset_resistance_test_state(individual, b_idx);
         }
 
         // bacteria level change (growth/decay)
@@ -6271,9 +6288,8 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // Mechanismless reversion guardrail: if no mechanisms remain in any compartment
-                // but resistance floats persist, wipe everything. This should be rare after the
-                // mechanism closure refactor — log if it fires during validation.
+                // Mechanismless reversion guardrail: if no mechanisms remain in any compartment,
+                // clear current resistance state while retaining any already reported AST snapshot.
                 let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
                 if !on_any_drug {
                     let has_active_mechanism = individual.any_mechanism_mask(b_idx) != 0
@@ -6295,7 +6311,6 @@ pub(crate) fn apply_rules(
                                 let resistance_data =
                                     &mut individual.resistances[b_idx][drug_index];
                                 resistance_data.microbiome_r = store_float(0.0);
-                                resistance_data.test_r = store_float(0.0);
                                 resistance_data.activity_r = store_float(0.0);
                                 resistance_data.any_r = store_float(0.0);
                                 // Provenance bookkeeping disabled for memory-saving runs.
@@ -6478,8 +6493,7 @@ pub(crate) fn apply_rules(
                 individual.sepsis[b_idx] = false;
                 individual.infection_hospital_acquired[b_idx] = false;
                 individual.test_identified_infection[b_idx] = false;
-                individual.test_for_resistance[b_idx] = false;
-                individual.resistance_test_initiated_day[b_idx] = -1;
+                reset_resistance_test_state(individual, b_idx);
                 individual.infection_has_caused_symptoms[b_idx] = false; // Reset symptom status when infection clears
             } else {
                 // Update level for infections that are continuing
@@ -7190,5 +7204,170 @@ impl FastMath for f64 {
     #[inline(always)]
     fn fast_ln(self) -> Self {
         fast_math::log2(self as f32) as f64 * std::f64::consts::LN_2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        complete_resistance_test_if_ready, has_serious_resistance_test_positive,
+        identified_resistance_results_ready, reset_resistance_test_state,
+    };
+    use crate::simulation::population::{
+        load_float, store_float, Individual, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    };
+    use rand::rngs::SmallRng;
+    use rand::SeedableRng;
+
+    fn individual_with_seed(seed: u64) -> (Individual, SmallRng) {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        let individual = Individual::new(1, 30 * 365, "female".to_string(), &mut rng);
+        (individual, rng)
+    }
+
+    #[test]
+    fn resistance_test_stays_pending_until_result_day() {
+        let (mut individual, mut rng) = individual_with_seed(1);
+        individual.resistance_test_initiated_day[0] = 10;
+
+        assert!(!complete_resistance_test_if_ready(
+            &mut individual,
+            0,
+            11,
+            2,
+            0.0,
+            0.25,
+            &mut rng,
+        ));
+        assert!(!individual.test_for_resistance[0]);
+
+        assert!(complete_resistance_test_if_ready(
+            &mut individual,
+            0,
+            12,
+            2,
+            0.0,
+            0.25,
+            &mut rng,
+        ));
+        assert!(individual.test_for_resistance[0]);
+    }
+
+    #[test]
+    fn fully_susceptible_result_is_ready_and_not_regenerated() {
+        let (mut individual, mut rng) = individual_with_seed(2);
+        individual.resistance_test_initiated_day[0] = 10;
+
+        assert!(complete_resistance_test_if_ready(
+            &mut individual,
+            0,
+            12,
+            2,
+            0.0,
+            0.25,
+            &mut rng,
+        ));
+        assert!(individual.test_for_resistance[0]);
+        assert!(individual.resistances[0]
+            .iter()
+            .all(|resistance| load_float(resistance.test_r) == 0.0));
+
+        individual.resistances[0][0].any_r = store_float(1.0);
+        assert!(!complete_resistance_test_if_ready(
+            &mut individual,
+            0,
+            13,
+            2,
+            0.0,
+            0.25,
+            &mut rng,
+        ));
+        assert_eq!(load_float(individual.resistances[0][0].test_r), 0.0);
+    }
+
+    #[test]
+    fn resistance_test_error_is_applied_only_once() {
+        let (mut individual, mut rng) = individual_with_seed(3);
+        individual.resistance_test_initiated_day[0] = 10;
+
+        assert!(complete_resistance_test_if_ready(
+            &mut individual,
+            0,
+            12,
+            2,
+            1.0,
+            0.25,
+            &mut rng,
+        ));
+        let first_result = load_float(individual.resistances[0][0].test_r);
+        assert!((first_result - 0.25).abs() < 0.001);
+
+        individual.resistances[0][0].any_r = store_float(1.0);
+        assert!(!complete_resistance_test_if_ready(
+            &mut individual,
+            0,
+            13,
+            2,
+            1.0,
+            0.25,
+            &mut rng,
+        ));
+        assert_eq!(
+            load_float(individual.resistances[0][0].test_r),
+            first_result
+        );
+    }
+
+    #[test]
+    fn confirmed_susceptibility_requires_every_identified_panel() {
+        let (mut individual, _rng) = individual_with_seed(4);
+        let identified = [0, 1];
+
+        assert!(!identified_resistance_results_ready(&individual, &[]));
+        individual.test_for_resistance[0] = true;
+        assert!(!identified_resistance_results_ready(
+            &individual,
+            &identified
+        ));
+        individual.test_for_resistance[1] = true;
+        assert!(identified_resistance_results_ready(
+            &individual,
+            &identified
+        ));
+    }
+
+    #[test]
+    fn serious_resistance_requires_a_ready_result() {
+        let (mut individual, _rng) = individual_with_seed(5);
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli index");
+        let drug_idx = DRUG_SHORT_NAMES
+            .iter()
+            .position(|&name| name == "meropenem")
+            .expect("meropenem index");
+        individual.level[bacteria_idx] = 1.0;
+        individual.resistances[bacteria_idx][drug_idx].test_r = store_float(1.0);
+
+        assert!(!has_serious_resistance_test_positive(&individual));
+        individual.test_for_resistance[bacteria_idx] = true;
+        assert!(has_serious_resistance_test_positive(&individual));
+    }
+
+    #[test]
+    fn resetting_resistance_test_clears_all_three_state_components() {
+        let (mut individual, _rng) = individual_with_seed(6);
+        individual.resistance_test_initiated_day[0] = 10;
+        individual.test_for_resistance[0] = true;
+        individual.resistances[0][0].test_r = store_float(1.0);
+
+        reset_resistance_test_state(&mut individual, 0);
+
+        assert_eq!(individual.resistance_test_initiated_day[0], -1);
+        assert!(!individual.test_for_resistance[0]);
+        assert!(individual.resistances[0]
+            .iter()
+            .all(|resistance| load_float(resistance.test_r) == 0.0));
     }
 }

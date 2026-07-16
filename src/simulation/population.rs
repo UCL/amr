@@ -1652,7 +1652,8 @@ pub struct Individual {
     /// True if lab test has identified this bacterial infection.
     pub test_identified_infection: Vec<bool>,
 
-    /// True if resistance testing (susceptibility testing) has been performed.
+    /// True once the antimicrobial susceptibility test result panel is available.
+    /// A non-negative initiation day with this still false means the test is pending.
     pub test_for_resistance: Vec<bool>,
 
     /// Day when resistance testing was initiated. -1 = never initiated.
@@ -1947,8 +1948,8 @@ impl Individual {
         let infection_hospital_acquired = vec![false; num_bacteria];
         let infection_has_caused_symptoms = vec![false; num_bacteria];
         let test_identified_infection = vec![false; num_bacteria];
-        let test_for_resistance = vec![false; num_bacteria]; // NEW: initialize all to false
-        let resistance_test_initiated_day = vec![-1; num_bacteria]; // NEW: initialize all to -1 (never initiated)
+        let test_for_resistance = vec![false; num_bacteria];
+        let resistance_test_initiated_day = vec![-1; num_bacteria];
         let vaccination_status = vec![false; num_bacteria]; // Initialize all as unvaccinated at birth
 
         let mut resistances = Vec::with_capacity(num_bacteria);

@@ -307,7 +307,7 @@ pub struct SummaryContentFlags {
     /// Infection resolution pathway counts (immune clearance, drug-assisted, and death types by bacteria).
     /// Required by Fig 5.
     pub resolution: bool,
-    /// Diagnostic testing coverage (test_identified and test_for_resistance by bacteria).
+    /// Diagnostic coverage (bacterial identification and result-ready AST by bacteria).
     /// Required by Fig 4.
     pub testing: bool,
     /// Day-N drug initiation tracking (evaluations and drug use by bacteria).
@@ -2292,7 +2292,7 @@ pub struct TimeStepSummary {
     pub resistant_infected_hospital_count_by_bacteria: Vec<usize>,
     pub resistant_infected_community_count_by_bacteria: Vec<usize>,
     pub infected_with_test_identified_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_identified_infection = true
-    pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_for_resistance = true
+    pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // infected people with a result-ready AST panel
 
     // Drug failure tracking: day 5 post-drug-initiation events by bacteria and region
     pub drug_failure_events_by_bacteria_region: Vec<usize>, // [bacteria * region] - numerator: day 5, on drug, still infected
