@@ -1121,6 +1121,67 @@ fn bacteria_presence_compartment_mask(individual: &Individual, b_idx: usize) -> 
 }
 
 #[inline]
+fn hgt_donor_mechanism_mask(individual: &Individual, bacteria_idx: usize) -> u64 {
+    let mut mechanism_mask = 0_u64;
+    if individual.level[bacteria_idx] > INFECTION_EPS {
+        mechanism_mask |= individual.any_mechanism_mask(bacteria_idx);
+    }
+    if individual.presence_microbiome[bacteria_idx] {
+        mechanism_mask |= individual.microbiome_mechanism_mask(bacteria_idx);
+    }
+    mechanism_mask
+}
+
+#[inline]
+fn hgt_donor_mechanism_multiplier(
+    individual: &Individual,
+    bacteria_idx: usize,
+    mechanism_idx: usize,
+    minority_multiplier: f64,
+) -> Option<f64> {
+    let infection_has_mechanism = individual.level[bacteria_idx] > INFECTION_EPS
+        && individual.has_any_mechanism(bacteria_idx, mechanism_idx);
+    let microbiome_has_mechanism = individual.presence_microbiome[bacteria_idx]
+        && individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx);
+
+    if !infection_has_mechanism && !microbiome_has_mechanism {
+        return None;
+    }
+
+    let is_infection_majority =
+        infection_has_mechanism && individual.has_majority_mechanism(bacteria_idx, mechanism_idx);
+    Some(if is_infection_majority {
+        1.0
+    } else {
+        minority_multiplier
+    })
+}
+
+#[inline]
+fn record_hgt_mechanism_in_present_compartments(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    mechanism_idx: usize,
+) -> bool {
+    let mut changed = false;
+
+    if individual.level[bacteria_idx] > INFECTION_EPS
+        && !individual.has_any_mechanism(bacteria_idx, mechanism_idx)
+    {
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+        changed = true;
+    }
+    if individual.presence_microbiome[bacteria_idx]
+        && !individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx)
+    {
+        individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+        changed = true;
+    }
+
+    changed
+}
+
+#[inline]
 fn hgt_context_multiplier(
     globals: &crate::config::GlobalScalars,
     is_hospitalized: bool,
@@ -6621,11 +6682,7 @@ pub(crate) fn apply_rules(
                 compartment_masks[b_idx] = mask;
                 infection_presence[b_idx] = has_infection;
 
-                let has_any_resistance = individual.resistances[b_idx]
-                    .iter()
-                    .any(|r| load_float(r.any_r) > 0.0);
-
-                if has_any_resistance {
+                if hgt_donor_mechanism_mask(individual, b_idx) != 0 {
                     potential_donors.push(b_idx);
                 }
 
@@ -6693,20 +6750,18 @@ pub(crate) fn apply_rules(
                             continue;
                         }
 
-                        // Donor must carry the mechanism in ANY strain (not strictly majority)
-                        let has_majority = individual.has_majority_mechanism(donor_idx, mech_idx);
-                        let has_any = individual.has_any_mechanism(donor_idx, mech_idx);
-
-                        if !has_any {
+                        // A present active infection or carriage compartment can donate.
+                        let Some(donor_multiplier) = hgt_donor_mechanism_multiplier(
+                            individual,
+                            donor_idx,
+                            mech_idx,
+                            store.globals.hgt_minority_donor_multiplier,
+                        ) else {
                             continue;
-                        }
+                        };
 
                         // Calculate per-mechanism probability roll
-                        let mut mech_prob = base_effective_prob;
-                        // Apply bottleneck if donor only has it in the minority (e.g., 0.20x penalty)
-                        if !has_majority {
-                            mech_prob *= store.globals.hgt_minority_donor_multiplier;
-                        }
+                        let mut mech_prob = base_effective_prob * donor_multiplier;
 
                         mech_prob = mech_prob.min(1.0);
 
@@ -6727,17 +6782,15 @@ pub(crate) fn apply_rules(
                             continue;
                         }
 
-                        // Recipient already has this mechanism — skip
-                        if individual.has_any_mechanism(recipient_idx, mech_idx) {
+                        // Record the mechanism in each recipient compartment that is present.
+                        if !record_hgt_mechanism_in_present_compartments(
+                            individual,
+                            recipient_idx,
+                            mech_idx,
+                        ) {
                             continue;
                         }
 
-                        // Transfer the mechanism — recipient gains any-strain presence
-                        individual.set_any_mechanism(recipient_idx, mech_idx);
-                        // Also write to mechanism_microbiome if recipient carries this bacterium in gut
-                        if individual.presence_microbiome[recipient_idx] {
-                            individual.set_microbiome_mechanism(recipient_idx, mech_idx);
-                        }
                         any_mechanism_transferred = true;
                     }
 
@@ -7242,8 +7295,10 @@ impl FastMath for f64 {
 mod tests {
     use super::{
         complete_resistance_test_if_ready, existing_therapy_prevents_incoming_infection,
-        has_serious_resistance_test_positive, identified_resistance_results_ready,
-        mechanism_resistance_level_for_mask, reset_resistance_test_state, ParameterKeyCache,
+        has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
+        hgt_donor_mechanism_multiplier, identified_resistance_results_ready,
+        mechanism_resistance_level_for_mask, record_hgt_mechanism_in_present_compartments,
+        reset_resistance_test_state, ParameterKeyCache,
     };
     use crate::config::parameter_store;
     use crate::simulation::population::{
@@ -7296,6 +7351,16 @@ mod tests {
         }
 
         panic!("expected at least one bacterium-drug-mechanism prevention test case");
+    }
+
+    fn transferable_mechanism_idx() -> usize {
+        ResistanceMechanism::all()
+            .iter()
+            .position(|&mechanism| {
+                !mechanism.is_as_yet_unknown()
+                    && crate::simulation::population::mechanism_is_hgt_transferable(mechanism)
+            })
+            .expect("at least one HGT-transferable mechanism")
     }
 
     #[test]
@@ -7374,6 +7439,98 @@ mod tests {
 
         assert!(saw_prevention);
         assert!(saw_breakthrough);
+    }
+
+    #[test]
+    fn carriage_only_hgt_donor_uses_microbiome_mechanisms() {
+        let (mut individual, _rng) = individual_with_seed(10);
+        let bacteria_idx = 0;
+        let mechanism_idx = transferable_mechanism_idx();
+        let mechanism_bit = 1u64 << mechanism_idx;
+        let minority_multiplier = parameter_store().globals.hgt_minority_donor_multiplier;
+        individual.level[bacteria_idx] = 0.0;
+        individual.presence_microbiome[bacteria_idx] = true;
+        individual.clear_infection_mechanisms(bacteria_idx);
+        individual.clear_microbiome_mechanisms(bacteria_idx);
+
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+        assert_eq!(hgt_donor_mechanism_mask(&individual, bacteria_idx), 0);
+        assert_eq!(
+            hgt_donor_mechanism_multiplier(
+                &individual,
+                bacteria_idx,
+                mechanism_idx,
+                minority_multiplier,
+            ),
+            None
+        );
+
+        individual.clear_infection_mechanisms(bacteria_idx);
+        individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+        assert_eq!(
+            hgt_donor_mechanism_mask(&individual, bacteria_idx),
+            mechanism_bit
+        );
+        assert_eq!(
+            hgt_donor_mechanism_multiplier(
+                &individual,
+                bacteria_idx,
+                mechanism_idx,
+                minority_multiplier,
+            ),
+            Some(minority_multiplier)
+        );
+
+        individual.level[bacteria_idx] = 1.0;
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+        individual.set_majority_mechanism(bacteria_idx, mechanism_idx);
+        assert_eq!(
+            hgt_donor_mechanism_multiplier(
+                &individual,
+                bacteria_idx,
+                mechanism_idx,
+                minority_multiplier,
+            ),
+            Some(1.0)
+        );
+    }
+
+    #[test]
+    fn carriage_only_hgt_recipient_records_only_microbiome_state() {
+        let (mut individual, _rng) = individual_with_seed(11);
+        let bacteria_idx = 0;
+        let mechanism_idx = transferable_mechanism_idx();
+        individual.level[bacteria_idx] = 0.0;
+        individual.presence_microbiome[bacteria_idx] = true;
+        individual.clear_infection_mechanisms(bacteria_idx);
+        individual.clear_microbiome_mechanisms(bacteria_idx);
+
+        assert!(record_hgt_mechanism_in_present_compartments(
+            &mut individual,
+            bacteria_idx,
+            mechanism_idx,
+        ));
+        assert!(individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx));
+        assert!(!individual.has_any_mechanism(bacteria_idx, mechanism_idx));
+        assert!(!record_hgt_mechanism_in_present_compartments(
+            &mut individual,
+            bacteria_idx,
+            mechanism_idx,
+        ));
+    }
+
+    #[test]
+    fn hgt_context_distinguishes_active_and_microbiome_only_pairs() {
+        let globals = &parameter_store().globals;
+        let active_pair = hgt_context_multiplier(globals, false, false, true, true, 0);
+        let mixed_pair = hgt_context_multiplier(globals, false, false, true, false, 0);
+        let microbiome_pair = hgt_context_multiplier(globals, false, false, false, false, 0);
+
+        assert_eq!(active_pair, globals.hgt_coinfection_multiplier);
+        assert_eq!(mixed_pair, 1.0);
+        assert_eq!(microbiome_pair, globals.hgt_microbiome_only_penalty);
+        assert!(microbiome_pair < mixed_pair);
+        assert!(mixed_pair < active_pair);
     }
 
     #[test]

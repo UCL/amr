@@ -1046,8 +1046,6 @@ impl GlobalScalars {
                 0.995,
             ),
 
-            // Setting the hospital multiplier to 0.0 effectively disables HGT in practice,
-            // because every downstream transfer calculation includes this context multiplier.
             hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 4.0),
             hgt_antibiotic_pressure_multiplier: get_or_default(
                 map,

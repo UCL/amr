@@ -475,7 +475,7 @@ The model distinguishes three related but different records of resistance: mecha
 | De novo infection emergence | Existing active infection under drug pressure | Adds newly emerged mechanisms to `mechanism_any` | Within-host emergence under selection; majority status can follow later under drug pressure |
 | Majority-strain evolution | Existing active infection with drug pressure against a minority mechanism | Records previously minority mechanisms in `mechanism_majority` | Converts a minority resistant subpopulation into the dominant/circulating strain |
 | Infection-microbiome transfer | Same organism present in both compartments and they contain different mechanisms | Copies mechanisms so `mechanism_any` and `mechanism_microbiome` contain the combined profile | Within-host spillover between active infection and carriage |
-| HGT | After the per-bacterium loop, between co-present bacteria | Adds transferable donor mechanisms to the recipient active infection record, and also to carriage if that organism is present there | Inter-species mechanism transfer, scaled by context and donor majority/minority status |
+| HGT | After the per-bacterium loop, between co-present bacteria | Adds transferable donor mechanisms to each recipient compartment where that organism is present: `mechanism_any` for active infection and `mechanism_microbiome` for carriage | Inter-species mechanism transfer, scaled by context and donor majority/minority status |
 | Mechanism-to-drug propagation | After mechanism changes | Recalculates `any_r` and/or `microbiome_r` from the mechanisms recorded as present | Drug-level resistance is recalculated according to which mechanisms affect which drugs |
 | Cross-resistance propagation | End of each per-bacterium update | Equalises `any_r` within configured drug groups | Phenotype bundling across related drugs; no mechanism bits are added or removed |
 
@@ -1682,9 +1682,9 @@ These values are effective within-model hazards and their purpose is to preserve
 
 ### 9.2 The HGT process
 
-Each day, after the per-bacterium updates, the model evaluates potential gene transfer events among bacteria present in the same person, whether as active infection, asymptomatic carriage, or both. The model evaluates HGT separately for each resistance mechanism, allowing different plasmids or chromosomal determinants (for example KPC and *mcr-1*) to transfer independently rather than as a single all-or-nothing package. Bacteria do not restrict donation only to the dominant strain; minority resistant subpopulations can also donate, but they do so less efficiently.
+Each day, after the per-bacterium updates, the model evaluates potential gene transfer events among bacteria present in the same person, whether as active infection, asymptomatic carriage, or both. The model evaluates HGT separately for each resistance mechanism, allowing different plasmids or chromosomal determinants (for example KPC and *mcr-1*) to transfer independently rather than as a single all-or-nothing package. Donor eligibility is determined from the compartments in which the organism is actually present: `mechanism_any` supplies active-infection mechanisms and `mechanism_microbiome` supplies carriage mechanisms. Bacteria do not restrict donation only to the dominant active-infection strain; minority active-infection mechanisms and carriage mechanisms can also donate, but they receive the configured minority-donor multiplier because carriage has no separate majority-mechanism flag.
 
-When an HGT event occurs, the transferred mechanism is recorded as present in the recipient bacterium's active infection (`mechanism_any`). If that same recipient bacterium is also present in asymptomatic carriage, the mechanism is simultaneously recorded in `mechanism_microbiome`, so the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by the run-level `run_pathway_hgt_multiplier` (default 1.0) and by `counterfactual_resistance_multiplier`.
+When an HGT event occurs, the transferred mechanism is recorded in each compartment where the recipient organism is present: `mechanism_any` for an active infection and `mechanism_microbiome` for asymptomatic carriage. If the recipient is present in both, both records are updated. A carriage-only transfer does not create phantom active-infection mechanism state. All HGT rates are scaled by the run-level `run_pathway_hgt_multiplier` (default 1.0) and by `counterfactual_resistance_multiplier`.
 
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
@@ -1695,7 +1695,7 @@ When an HGT event occurs, the transferred mechanism is recorded as present in th
 | Co-infection baseline | hgt_coinfection_multiplier | 1.25 (×1.25) | Active multi-pathogen infections slightly increase the probability of genetic collision. |
 | Microbiome-only penalty | hgt_microbiome_only_penalty | 0.65 (×0.65) | Asymptomatic carriage interactions are less frequent than active infection environments. |
 | Gut compartment boost | hgt_gut_compartment_multiplier | 2.0 (×2.0) | The gut has higher bacterial density and provides more conjugation opportunities compared to skin or respiratory tracts. |
-| Minority donor penalty | hgt_minority_donor_multiplier | 0.20 (×0.20) | If a donor bacterium carries resistance as a minority strain (sub-dominant), its probability of successful conjugation is penalized by 80%. |
+| Minority donor penalty | hgt_minority_donor_multiplier | 0.20 (×0.20) | If an active-infection donor carries the mechanism outside its dominant strain, or if the mechanism is supplied only by carriage where no majority flag exists, its probability of successful conjugation is penalized by 80%. |
 
 `microbiome_resistance_transfer_probability_per_day` is a separate parameter used for within-host infection↔microbiome mechanism exchange (Section 8.2), not for inter-species HGT.
 
