@@ -92,8 +92,8 @@ use crate::config::{
 };
 use crate::simulation::population::{
     self, load_float, store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus,
-    ImmunodeficiencyType, Individual, InfectionResolutionType, Region, ResistanceMechanism,
-    BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
+    ImmunodeficiencyType, Individual, InfectionResolutionType, Region, ResistanceAcquisitionType,
+    ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
     MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
@@ -380,6 +380,76 @@ fn reset_resistance_test_state(individual: &mut Individual, bacteria_idx: usize)
     }
 }
 
+#[inline]
+fn mechanism_resistance_level_for_mask(
+    mechanism_mask: u64,
+    bacteria_idx: usize,
+    drug_idx: usize,
+    param_cache: &ParameterKeyCache,
+) -> f64 {
+    let store = parameter_store();
+    let mut susceptibility = 1.0_f64;
+    let mechanism_count = ResistanceMechanism::all().len();
+    let mut remaining_mechanisms = mechanism_mask;
+
+    while remaining_mechanisms != 0 {
+        let mechanism_idx = remaining_mechanisms.trailing_zeros() as usize;
+        remaining_mechanisms &= remaining_mechanisms - 1;
+        if mechanism_idx >= mechanism_count
+            || !param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+        {
+            continue;
+        }
+
+        let enhancement = store
+            .resistance_mechanism
+            .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_idx]);
+        susceptibility *= 1.0 - enhancement;
+    }
+
+    ((1.0 - susceptibility) * store.globals.max_resistance_level)
+        .clamp(0.0, store.globals.max_resistance_level)
+}
+
+#[inline]
+fn existing_therapy_prevents_incoming_infection(
+    individual: &Individual,
+    bacteria_idx: usize,
+    incoming_mechanism_mask: u64,
+    param_cache: &ParameterKeyCache,
+    prevention_efficacy: f64,
+    rng: &mut impl Rng,
+) -> bool {
+    let max_resistance_level = parameter_store().globals.max_resistance_level;
+
+    for (drug_idx, &is_taking_drug) in individual.cur_use_drug.iter().enumerate() {
+        if !is_taking_drug {
+            continue;
+        }
+
+        let normalized_resistance = if max_resistance_level <= f64::EPSILON {
+            1.0
+        } else {
+            (mechanism_resistance_level_for_mask(
+                incoming_mechanism_mask,
+                bacteria_idx,
+                drug_idx,
+                param_cache,
+            ) / max_resistance_level)
+                .clamp(0.0, 1.0)
+        };
+        let effective_activity = param_cache.potency(bacteria_idx, drug_idx)
+            * individual.cur_level_drug[drug_idx]
+            * (1.0 - normalized_resistance);
+
+        if effective_activity > 0.5 && rng.gen_bool(prevention_efficacy.clamp(0.0, 1.0)) {
+            return true;
+        }
+    }
+
+    false
+}
+
 // =====================================================================================
 // HELPER FUNCTIONS
 // =====================================================================================
@@ -535,7 +605,7 @@ fn mechanism_idx(target: ResistanceMechanism) -> usize {
 }
 
 fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
-    individual: &mut Individual,
+    mechanism_mask: &mut u64,
     b_idx: usize,
     mechanism_cache: &MechanismCache,
     is_hospital_acquired: bool,
@@ -550,7 +620,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
     }
 
     let mec_a_idx = mechanism_idx(ResistanceMechanism::TargetSitePbp2aMecA);
-    if !individual.has_any_mechanism(b_idx, mec_a_idx) {
+    if *mechanism_mask & (1u64 << mec_a_idx) == 0 {
         return false;
     }
 
@@ -563,14 +633,15 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         1.0
     };
 
-    let maybe_add = |individual: &mut Individual,
+    let maybe_add = |mechanism_mask: &mut u64,
                      mechanism_cache: &MechanismCache,
                      mechanism: ResistanceMechanism,
                      base_probability: f64,
                      rng: &mut R|
      -> bool {
         let mech_idx = mechanism_idx(mechanism);
-        if individual.has_any_mechanism(b_idx, mech_idx) {
+        let mechanism_bit = 1u64 << mech_idx;
+        if *mechanism_mask & mechanism_bit != 0 {
             return false;
         }
         if !mechanism_cache.mechanism_has_ever_emerged_globally(b_idx, mech_idx) {
@@ -580,14 +651,13 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         if probability <= 0.0 || !rng.gen_bool(probability) {
             return false;
         }
-        individual.set_any_mechanism(b_idx, mech_idx);
-        individual.set_majority_mechanism(b_idx, mech_idx);
+        *mechanism_mask |= mechanism_bit;
         true
     };
 
     let mut enriched = false;
     enriched |= maybe_add(
-        individual,
+        mechanism_mask,
         mechanism_cache,
         ResistanceMechanism::EnzymeBlaZ,
         store
@@ -596,7 +666,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         rng,
     );
     enriched |= maybe_add(
-        individual,
+        mechanism_mask,
         mechanism_cache,
         ResistanceMechanism::TargetSiteErmB,
         store
@@ -605,7 +675,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         rng,
     );
     enriched |= maybe_add(
-        individual,
+        mechanism_mask,
         mechanism_cache,
         ResistanceMechanism::EnzymeAacAph,
         store
@@ -614,7 +684,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         rng,
     );
     enriched |= maybe_add(
-        individual,
+        mechanism_mask,
         mechanism_cache,
         ResistanceMechanism::MutationGyrAPrimary,
         store
@@ -622,12 +692,9 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
             .staph_aureus_lineage_enrichment_gyra_primary_probability,
         rng,
     );
-    if individual.has_any_mechanism(
-        b_idx,
-        mechanism_idx(ResistanceMechanism::MutationGyrAPrimary),
-    ) {
+    if *mechanism_mask & (1u64 << mechanism_idx(ResistanceMechanism::MutationGyrAPrimary)) != 0 {
         enriched |= maybe_add(
-            individual,
+            mechanism_mask,
             mechanism_cache,
             ResistanceMechanism::MutationGyrAParCSecondary,
             store
@@ -637,7 +704,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         );
     }
     enriched |= maybe_add(
-        individual,
+        mechanism_mask,
         mechanism_cache,
         ResistanceMechanism::ProtectionTetM,
         store
@@ -646,7 +713,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         rng,
     );
     enriched |= maybe_add(
-        individual,
+        mechanism_mask,
         mechanism_cache,
         ResistanceMechanism::ProtectionFusB,
         store
@@ -5441,57 +5508,16 @@ pub(crate) fn apply_rules(
             // See the HGT block after the main bacteria loop ends.
 
             if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
-                // Check if existing antibiotic therapy prevents this infection
-                let mut infection_prevented = false;
-                let prevention_efficacy = store.globals.antibiotic_infection_prevention_efficacy;
-
-                // Check each drug the person is currently taking
-                for (drug_idx, &is_taking_drug) in individual.cur_use_drug.iter().enumerate() {
-                    if is_taking_drug {
-                        // Calculate effective activity using the same method as activity_r calculation
-                        let base_potency = param_cache.potency(b_idx, drug_idx);
-                        let drug_current_level = individual.cur_level_drug[drug_idx];
-                        let max_resistance_level = store.globals.max_resistance_level;
-                        let resistance_level =
-                            load_float(individual.resistances[b_idx][drug_idx].any_r);
-                        let normalized_any_r = resistance_level / max_resistance_level;
-                        let effective_activity =
-                            base_potency * drug_current_level * (1.0 - normalized_any_r);
-
-                        // If drug has effective activity, it can prevent infection
-                        if effective_activity > 0.5 {
-                            // Threshold for effective prevention
-                            if rng.gen_bool(prevention_efficacy) {
-                                infection_prevented = true;
-                                individual.infection_prevented_by_drug[b_idx] = true; // Track prevention event
-                                break; // One effective drug is enough
-                            }
-                        }
-                    }
-                }
-
-                // Only proceed with infection if not prevented by existing antibiotics
-                if !infection_prevented {
-                    let bacteria_initial_level = store.bacteria.initial_infection_level(b_idx);
-                    individual.level[b_idx] = bacteria_initial_level;
-                    individual.date_last_infected[b_idx] = time_step as i32;
-                    individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
-
-                    // Initialize clearance immediately so hazard applies on Day 1
-                    individual.clearance_ready_day[b_idx] = time_step as i32;
-
-                    // Allow growth/clearance logic to run this same timestep
-                    is_infected = true;
-
-                    // --- probabilistic syndrome assignment ---
-                    let syndrome_id = assign_syndrome_for_bacteria(bacteria, rng);
-                    individual.infectious_syndrome[b_idx] = syndrome_id as i32;
-
-                    individual.infection_hospital_acquired[b_idx] =
-                        individual.hospital_status.is_hospitalized();
-
-                    // --- any_r and mechanism_majority setting logic on new infection acquisition ---
+                // Keep the prospective infection local until existing therapy has been
+                // evaluated against its finalized incoming resistance profile.
+                {
                     let max_resistance_level = store.globals.max_resistance_level;
+                    let mut incoming_any_mask = 0_u64;
+                    let mut incoming_majority_mask = 0_u64;
+                    let mut community_acquired_mask = 0_u64;
+                    let mut floor_acquired_drug_mask = 0_u64;
+                    let mut tb_acquired_mask = 0_u64;
+                    let mut inherited_mask = 0_u64;
 
                     // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
                     let is_tb = bacteria == "mdr_mycobacterium_tuberculosis";
@@ -5505,7 +5531,7 @@ pub(crate) fn apply_rules(
                         0.0
                     };
 
-                    let is_hospital_acquired = individual.infection_hospital_acquired[b_idx];
+                    let is_hospital_acquired = individual.hospital_status.is_hospitalized();
 
                     let region_idx = match individual.region_cur_in {
                         Region::Home => individual.region_living as usize,
@@ -5572,8 +5598,9 @@ pub(crate) fn apply_rules(
                                             continue;
                                         }
                                         // Mark as any-strain AND majority-strain (established circulating strain)
-                                        individual.set_any_mechanism(b_idx, m_idx);
-                                        individual.set_majority_mechanism(b_idx, m_idx);
+                                        let mechanism_bit = 1u64 << m_idx;
+                                        incoming_any_mask |= mechanism_bit;
+                                        incoming_majority_mask |= mechanism_bit;
                                     }
                                 }
                             }
@@ -5590,14 +5617,17 @@ pub(crate) fn apply_rules(
                     // co-resistance package. This is cache-gated, so linked mechanisms can only
                     // be added if they have already emerged somewhere in circulating S. aureus.
                     if from_human_reservoir && profile_sampled {
+                        let mask_before_enrichment = incoming_any_mask;
                         apply_staph_aureus_lineage_enrichment(
-                            individual,
+                            &mut incoming_any_mask,
                             b_idx,
                             mechanism_cache,
                             is_hospital_acquired,
                             rng,
                         );
+                        incoming_majority_mask |= incoming_any_mask & !mask_before_enrichment;
                     }
+                    community_acquired_mask |= incoming_any_mask;
 
                     // --- Environmental / agricultural floor (exogenous draw only) ---
                     // When the infection was drawn from the non-cache reservoir (from_human_reservoir
@@ -5652,33 +5682,10 @@ pub(crate) fn apply_rules(
                             };
                             let floor = static_floor.max(ratchet_floor);
                             if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
-                                individual.set_any_mechanism(b_idx, m_idx);
-                                individual.set_majority_mechanism(b_idx, m_idx);
-                            }
-                        }
-                    }
-
-                    // In the new mechanism-centric architecture, any_r is derived exclusively
-                    // from mechanism state via propagate_mechanism_resistance below.
-                    // We only set how_resistance_acquired based on whether a mechanism was sampled.
-                    // The resistance floor is handled by propagate_mechanism_resistance using the
-                    // mechanism enhancement multipliers.
-                    let _ = profile_sampled; // used for documentation; propagation handles everything
-
-                    // Provenance bookkeeping disabled for memory-saving runs: keep the
-                    // underlying biology, but do not store dense per-drug source labels.
-                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-                        for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                            // Check if any mechanism applicable to this drug is now set
-                            let has_any_relevant_mechanism =
-                                ResistanceMechanism::all().iter().enumerate().any(|(m, _)| {
-                                    individual.has_any_mechanism(b_idx, m)
-                                        && param_cache.mechanism_applicable(m, b_idx, d_idx)
-                                });
-                            if has_any_relevant_mechanism {
-                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
-                                );
+                                let mechanism_bit = 1u64 << m_idx;
+                                incoming_any_mask |= mechanism_bit;
+                                incoming_majority_mask |= mechanism_bit;
+                                community_acquired_mask |= mechanism_bit;
                             }
                         }
                     }
@@ -5719,29 +5726,15 @@ pub(crate) fn apply_rules(
                                     continue;
                                 }
                                 if rng.gen_bool(mechanism_prob) {
-                                    individual.set_any_mechanism(b_idx, mech_idx);
-                                    individual.set_majority_mechanism(b_idx, mech_idx);
-                                    // Provenance bookkeeping disabled for memory-saving runs.
-                                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-                                        individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                            crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
-                                        );
-                                    }
+                                    let mechanism_bit = 1u64 << mech_idx;
+                                    incoming_any_mask |= mechanism_bit;
+                                    incoming_majority_mask |= mechanism_bit;
+                                    floor_acquired_drug_mask |= 1u64 << d_idx;
                                     break; // one mechanism sufficient for floor
                                 }
                             }
                         }
                     }
-
-                    // Cross-resistance propagation at infection start:
-                    // Derive any_r for all drugs from the mechanism state.
-                    propagate_mechanism_resistance(
-                        individual,
-                        b_idx,
-                        param_cache,
-                        false, // raise_only: let mechanism profile determine per-drug resistance
-                        false, // propagate_microbiome_r: this is an active infection
-                    );
 
                     // --- TB-specific guaranteed rifampicin resistance ---
                     // Per R4: seed MutationRpoB mechanism at probability 1.0 for MDR-TB
@@ -5769,21 +5762,11 @@ pub(crate) fn apply_rules(
                                 }
 
                                 // At TB acquisition (MDR era), guarantee mechanism is present
-                                individual.set_any_mechanism(b_idx, mech_idx);
-                                individual.set_majority_mechanism(b_idx, mech_idx);
+                                let mechanism_bit = 1u64 << mech_idx;
+                                incoming_any_mask |= mechanism_bit;
+                                incoming_majority_mask |= mechanism_bit;
+                                tb_acquired_mask |= mechanism_bit;
                             }
-                            // Provenance bookkeeping disabled for memory-saving runs.
-                            if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-                                individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
-                            }
-                            // Re-derive any_r from the newly set mechanisms
-                            propagate_mechanism_resistance(
-                                individual,
-                                b_idx,
-                                param_cache,
-                                true,  // raise_only: don't lower existing
-                                false, // propagate_microbiome_r: active infection
-                            );
                         }
                     }
 
@@ -5800,46 +5783,94 @@ pub(crate) fn apply_rules(
                                 .min(1.0);
                         if rng.gen_bool(inheritance_prob) {
                             let dampening = store.globals.infection_from_microbiome_dampening;
-                            let mut any_mechanism_inherited = false;
                             let num_mechanisms = ResistanceMechanism::all().len();
                             for m_idx in 0..num_mechanisms {
+                                let mechanism_bit = 1u64 << m_idx;
                                 if individual.has_microbiome_mechanism(b_idx, m_idx)
-                                    && !individual.has_any_mechanism(b_idx, m_idx)
+                                    && incoming_any_mask & mechanism_bit == 0
                                 {
                                     // Per-mechanism transfer probability = dampening parameter
                                     if rng.gen_bool(dampening.clamp(0.0, 1.0)) {
-                                        individual.set_any_mechanism(b_idx, m_idx);
-                                        any_mechanism_inherited = true;
-                                    }
-                                }
-                            }
-                            if any_mechanism_inherited {
-                                // Re-derive any_r from the updated mechanism_any state
-                                propagate_mechanism_resistance(
-                                    individual,
-                                    b_idx,
-                                    param_cache,
-                                    true,  // raise_only: don't lower existing resistance
-                                    false, // propagate_microbiome_r: this is infection context
-                                );
-                                // Provenance bookkeeping disabled for memory-saving runs.
-                                if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-                                    for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                        if load_float(individual.resistances[b_idx][d_idx].any_r) > 0.0
-                                            && individual.how_resistance_acquired[b_idx][d_idx].is_none()
-                                        {
-                                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                                crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR,
-                                            );
-                                        }
+                                        incoming_any_mask |= mechanism_bit;
+                                        inherited_mask |= mechanism_bit;
                                     }
                                 }
                             }
                         }
                     }
 
-                    // --- end generalized any_r setting logic ---
-                } // End if !infection_prevented block
+                    let infection_prevented = existing_therapy_prevents_incoming_infection(
+                        individual,
+                        b_idx,
+                        incoming_any_mask,
+                        param_cache,
+                        store.globals.antibiotic_infection_prevention_efficacy,
+                        rng,
+                    );
+                    if infection_prevented {
+                        individual.infection_prevented_by_drug[b_idx] = true;
+                    } else {
+                        individual.level[b_idx] = store.bacteria.initial_infection_level(b_idx);
+                        individual.date_last_infected[b_idx] = time_step as i32;
+                        individual.date_last_infected_keep[b_idx] = time_step as i32;
+                        individual.clearance_ready_day[b_idx] = time_step as i32;
+                        individual.infectious_syndrome[b_idx] =
+                            assign_syndrome_for_bacteria(bacteria, rng) as i32;
+                        individual.infection_hospital_acquired[b_idx] = is_hospital_acquired;
+                        individual.mechanism_any[b_idx] = incoming_any_mask;
+                        individual.mechanism_majority[b_idx] = incoming_majority_mask;
+
+                        propagate_mechanism_resistance(
+                            individual,
+                            b_idx,
+                            param_cache,
+                            false,
+                            false,
+                        );
+
+                        if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                            for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                let has_community_mechanism = ResistanceMechanism::all()
+                                    .iter()
+                                    .enumerate()
+                                    .any(|(m_idx, _)| {
+                                        community_acquired_mask & (1u64 << m_idx) != 0
+                                            && param_cache.mechanism_applicable(m_idx, b_idx, d_idx)
+                                    });
+                                let acquired_from_floor =
+                                    floor_acquired_drug_mask & (1u64 << d_idx) != 0;
+                                if has_community_mechanism || acquired_from_floor {
+                                    individual.how_resistance_acquired[b_idx][d_idx] =
+                                        Some(ResistanceAcquisitionType::AtInfectionCommunity);
+                                }
+                            }
+
+                            if tb_acquired_mask != 0 {
+                                if let Some(rifampicin_idx) = DRUG_SHORT_NAMES
+                                    .iter()
+                                    .position(|&name| name == "rifampicin")
+                                {
+                                    individual.how_resistance_acquired[b_idx][rifampicin_idx] =
+                                        Some(ResistanceAcquisitionType::AtInfectionTB);
+                                }
+                            }
+
+                            if inherited_mask != 0 {
+                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                    if load_float(individual.resistances[b_idx][d_idx].any_r) > 0.0
+                                        && individual.how_resistance_acquired[b_idx][d_idx]
+                                            .is_none()
+                                    {
+                                        individual.how_resistance_acquired[b_idx][d_idx] =
+                                            Some(ResistanceAcquisitionType::FromMicrobiomeR);
+                                    }
+                                }
+                            }
+                        }
+
+                        is_infected = true;
+                    }
+                }
             }
         } else {
             // Bacteria is already present (infection progression)
@@ -7210,12 +7241,15 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        complete_resistance_test_if_ready, has_serious_resistance_test_positive,
-        identified_resistance_results_ready, reset_resistance_test_state,
+        complete_resistance_test_if_ready, existing_therapy_prevents_incoming_infection,
+        has_serious_resistance_test_positive, identified_resistance_results_ready,
+        mechanism_resistance_level_for_mask, reset_resistance_test_state, ParameterKeyCache,
     };
+    use crate::config::parameter_store;
     use crate::simulation::population::{
-        load_float, store_float, Individual, BACTERIA_LIST, DRUG_SHORT_NAMES,
+        load_float, store_float, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
     };
+    use crate::simulation::simulation::MechanismCache;
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
 
@@ -7223,6 +7257,123 @@ mod tests {
         let mut rng = SmallRng::seed_from_u64(seed);
         let individual = Individual::new(1, 30 * 365, "female".to_string(), &mut rng);
         (individual, rng)
+    }
+
+    fn incoming_resistance_prevention_case(
+        param_cache: &ParameterKeyCache,
+    ) -> (usize, usize, u64, f64) {
+        let max_resistance_level = parameter_store().globals.max_resistance_level;
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                let potency = param_cache.potency(bacteria_idx, drug_idx);
+                if potency <= f64::EPSILON {
+                    continue;
+                }
+                let drug_level = 0.55 / potency;
+
+                for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                    if mechanism.is_as_yet_unknown()
+                        || !param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                    {
+                        continue;
+                    }
+
+                    let mechanism_mask = 1u64 << mechanism_idx;
+                    let resistance = mechanism_resistance_level_for_mask(
+                        mechanism_mask,
+                        bacteria_idx,
+                        drug_idx,
+                        param_cache,
+                    );
+                    let resistant_activity =
+                        potency * drug_level * (1.0 - resistance / max_resistance_level);
+                    if resistant_activity <= 0.5 {
+                        return (bacteria_idx, drug_idx, mechanism_mask, drug_level);
+                    }
+                }
+            }
+        }
+
+        panic!("expected at least one bacterium-drug-mechanism prevention test case");
+    }
+
+    #[test]
+    fn susceptible_incoming_profile_can_be_prevented_by_active_therapy() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, drug_idx, _, drug_level) =
+            incoming_resistance_prevention_case(&param_cache);
+        let (mut individual, mut rng) = individual_with_seed(7);
+        individual.cur_use_drug[drug_idx] = true;
+        individual.cur_level_drug[drug_idx] = drug_level;
+
+        assert!(existing_therapy_prevents_incoming_infection(
+            &individual,
+            bacteria_idx,
+            0,
+            &param_cache,
+            1.0,
+            &mut rng,
+        ));
+    }
+
+    #[test]
+    fn resistant_incoming_profile_breaks_through_active_therapy() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, drug_idx, mechanism_mask, drug_level) =
+            incoming_resistance_prevention_case(&param_cache);
+        let (mut individual, mut rng) = individual_with_seed(8);
+        individual.cur_use_drug[drug_idx] = true;
+        individual.cur_level_drug[drug_idx] = drug_level;
+
+        assert!(!existing_therapy_prevents_incoming_infection(
+            &individual,
+            bacteria_idx,
+            mechanism_mask,
+            &param_cache,
+            1.0,
+            &mut rng,
+        ));
+    }
+
+    #[test]
+    fn mixed_profile_reservoir_preserves_both_prevention_outcomes() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, drug_idx, resistant_mask, drug_level) =
+            incoming_resistance_prevention_case(&param_cache);
+        let mut mechanism_cache =
+            MechanismCache::new(1, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
+        mechanism_cache
+            .profiles
+            .seed_mask(0, bacteria_idx, false, 0);
+        mechanism_cache
+            .profiles
+            .seed_mask(0, bacteria_idx, false, resistant_mask);
+
+        let (mut individual, mut rng) = individual_with_seed(9);
+        individual.cur_use_drug[drug_idx] = true;
+        individual.cur_level_drug[drug_idx] = drug_level;
+        let mut saw_prevention = false;
+        let mut saw_breakthrough = false;
+
+        for _ in 0..256 {
+            let incoming_mask = mechanism_cache
+                .sample_profile(0, bacteria_idx, false, &mut rng)
+                .expect("seeded regional profile");
+            let prevented = existing_therapy_prevents_incoming_infection(
+                &individual,
+                bacteria_idx,
+                incoming_mask,
+                &param_cache,
+                1.0,
+                &mut rng,
+            );
+            saw_prevention |= incoming_mask == 0 && prevented;
+            saw_breakthrough |= incoming_mask == resistant_mask && !prevented;
+        }
+
+        assert!(saw_prevention);
+        assert!(saw_breakthrough);
     }
 
     #[test]
