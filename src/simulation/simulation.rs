@@ -4,7 +4,7 @@
 // Contains:
 //   - TimeStepSummary: struct for per-timestep summary statistics
 //   - Simulation: struct and methods for running the simulation, managing population, and logging
-//   - Initialization of lookup tables for bacteria, drugs, and cross-resistance
+//   - Initialization of lookup tables for bacteria, drugs, and resistance mechanisms
 //   - Debug/print blocks for individual and population state
 //
 
@@ -2608,7 +2608,7 @@ pub struct PolicyBranchSummary {
 // Main simulation struct: holds population, time steps, and lookup tables.
 //
 // Encapsulates the state and configuration of a simulation run, including population, time steps,
-// and lookup tables for bacteria, drugs, and cross-resistance groups.
+// and lookup tables for bacteria, drugs, and resistance mechanisms.
 pub struct Simulation {
     pub population: Population,
     pub time_steps: usize,
@@ -2617,8 +2617,6 @@ pub struct Simulation {
     pub bacteria_indices: HashMap<&'static str, usize>,
     /// Maps drug names to their indices in arrays.
     pub drug_indices: HashMap<&'static str, usize>,
-    /// Maps bacteria index to cross-resistance groups (each group is a Vec of drug indices).
-    pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>,
     /// Unified mechanism resistance cache (replaces old majority_r, mechanism_prevalence, mechanism_profile caches).
     pub mechanism_cache: MechanismCache,
     /// Efficient storage for summary data at each time step.
@@ -2662,7 +2660,7 @@ pub struct Simulation {
 impl Simulation {
     /// Create a new Simulation instance with initialized population and lookup tables.
     ///
-    /// Initializes population, bacteria/drug indices, and cross-resistance groups.
+    /// Initializes population and bacteria/drug lookup tables.
     pub fn new(
         population_size: usize,
         time_steps: usize,
@@ -2691,24 +2689,6 @@ impl Simulation {
         for (i, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             drug_indices.insert(drug, i);
         }
-        // Load and process cross-resistance groups
-        let mut cross_resistance_groups = HashMap::new();
-        let raw_groups = config::get_cross_resistance_groups();
-        for (bacteria_name, groups) in raw_groups.iter() {
-            if let Some(&b_idx) = bacteria_indices.get(bacteria_name) {
-                let indexed_groups: Vec<Vec<usize>> = groups
-                    .iter()
-                    .map(|group| {
-                        group
-                            .iter()
-                            .filter_map(|drug_name| drug_indices.get(drug_name).copied())
-                            .collect()
-                    })
-                    .collect();
-                cross_resistance_groups.insert(b_idx, indexed_groups);
-            }
-        }
-
         let journey_logger_seed = seed
             .map(|seed_value| model_stream_seed(seed_value, RngStream::JourneyLogger, 0))
             .unwrap_or_else(|| initialization_rng.gen::<u64>());
@@ -2782,7 +2762,6 @@ impl Simulation {
             individual_logger,
             bacteria_indices,
             drug_indices,
-            cross_resistance_groups,
             mechanism_cache,
             summary_log: Vec::new(), // Initialize empty log
             policy_branch_summary_log: Vec::new(),
@@ -4426,7 +4405,6 @@ impl Simulation {
             let potency_matrix = &self.potency_matrix;
             let bacteria_indices = &self.bacteria_indices;
             let drug_indices = &self.drug_indices;
-            let cross_resistance_groups = &self.cross_resistance_groups;
             let param_cache = &self.param_cache;
             let _relevant_drugs_by_bacteria = &self.relevant_drugs_by_bacteria;
             let threads = rayon::current_num_threads().max(1);
@@ -4697,7 +4675,6 @@ impl Simulation {
                         mechanism_cache,
                         bacteria_indices,
                         drug_indices,
-                        cross_resistance_groups,
                         param_cache,
                         &policy,
                     );

@@ -509,10 +509,9 @@ use rand::distributions::WeightedIndex;
 /// Propagate mechanism-based resistance to `any_r` (and optionally `microbiome_r`)
 /// for ALL drugs an organism's active mechanisms apply to.
 ///
-/// This is the cross-resistance propagation fix: when a mechanism like ESBL CTX-M
-/// is acquired under amoxicillin pressure, ticarcillin/ceftazidime/etc. should
-/// immediately reflect the resistance because the mechanism is on the *bacterium*,
-/// not on the drug.
+/// When a mechanism like ESBL CTX-M is acquired under amoxicillin pressure,
+/// every drug affected by that mechanism immediately reflects the resistance
+/// because the mechanism is on the bacterium, not on the selecting drug.
 ///
 /// When `raise_only` is true, `any_r` is only increased (never lowered) — used after
 /// mechanism acquisition. When false, `any_r` is reset to the mechanism-derived level
@@ -1408,7 +1407,6 @@ fn assess_treatment_failure(
     bacteria_idx: usize,
     bacteria_indices: &HashMap<&'static str, usize>,
     _drug_indices: &HashMap<&'static str, usize>,
-    _cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
     param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
 ) -> bool {
@@ -2406,8 +2404,7 @@ pub(crate) fn apply_rules(
     mechanism_cache: &MechanismCache,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
-    cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
-    param_cache: &ParameterKeyCache,                           // New parameter cache
+    param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
 ) {
     let store = parameter_store();
@@ -4936,7 +4933,6 @@ pub(crate) fn apply_rules(
                     bacteria_idx,
                     bacteria_indices,
                     drug_indices,
-                    cross_resistance_groups,
                     param_cache,
                     rng,
                 );
@@ -5705,9 +5701,8 @@ pub(crate) fn apply_rules(
                         rng,
                     );
 
-                    // Cross-resistance propagation: ensure mechanism-based resistance
-                    // is reflected in any_r/microbiome_r for ALL drugs the organism's
-                    // mechanisms apply to, not just the selecting drug.
+                    // Project mechanism-based resistance onto every affected drug,
+                    // not just the selecting drug.
                     if microbiome_mechanism_changed {
                         propagate_mechanism_resistance(
                             individual,
@@ -6285,9 +6280,8 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // Cross-resistance propagation: after de novo mechanism emergence,
-                // ensure any_r for ALL drugs the mechanism applies to
-                // are updated — not just the drug under selection pressure.
+                // After de novo mechanism emergence, project resistance onto every
+                // drug affected by the mechanism, not just the selecting drug.
                 if infection_mechanism_changed {
                     propagate_mechanism_resistance(
                         individual,
@@ -6754,10 +6748,6 @@ pub(crate) fn apply_rules(
             individual.infection_has_caused_symptoms[b_idx] = false;
         }
 
-        // --- Apply cross-resistance logic ---
-        apply_cross_resistance(individual, b_idx, cross_resistance_groups);
-        // --- END NEW ---
-
         // Clearance dynamics: arm hazard once infection persists, reset when cleared
         if is_infected {
             if individual.clearance_ready_day[b_idx] == -1 {
@@ -7014,44 +7004,6 @@ pub(crate) fn apply_rules(
 
     // Update the current number of drugs counter at the end of each timestep
     update_drug_counter(individual);
-}
-
-/// New helper function to apply cross-resistance within drug groups for a specific bacteria.
-fn apply_cross_resistance(
-    individual: &mut Individual,
-    b_idx: usize,
-    cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
-) {
-    // Check if there are any cross-resistance groups defined for this bacterium
-    if let Some(groups) = cross_resistance_groups.get(&b_idx) {
-        for group in groups {
-            // Find the maximum any_r value in the current group
-            let mut max_any_r = 0.0;
-            for &d_idx in group {
-                if let Some(resistance_data) =
-                    individual.resistances.get(b_idx).and_then(|r| r.get(d_idx))
-                {
-                    let any_r = load_float(resistance_data.any_r);
-                    if any_r > max_any_r {
-                        max_any_r = any_r;
-                    }
-                }
-            }
-
-            // If there's any resistance in the group, update all drugs in the group to the max value
-            if max_any_r > 0.0 {
-                for &d_idx in group {
-                    if let Some(resistance_data) = individual
-                        .resistances
-                        .get_mut(b_idx)
-                        .and_then(|r| r.get_mut(d_idx))
-                    {
-                        resistance_data.any_r = store_float(max_any_r);
-                    }
-                }
-            }
-        }
-    }
 }
 
 /// Calculate comprehensive testing probability based on multiple factors
@@ -7487,6 +7439,149 @@ mod tests {
             .iter()
             .position(|&candidate| candidate == name)
             .unwrap_or_else(|| panic!("missing bacterium {name}"))
+    }
+
+    fn drug_idx(name: &str) -> usize {
+        DRUG_SHORT_NAMES
+            .iter()
+            .position(|&candidate| candidate == name)
+            .unwrap_or_else(|| panic!("missing drug {name}"))
+    }
+
+    #[test]
+    fn mechanism_projection_matches_the_applicability_matrix() {
+        let param_cache = ParameterKeyCache::new();
+        let (mut individual, _rng) = individual_with_seed(18);
+        let mechanism_mask = ResistanceMechanism::all()
+            .iter()
+            .enumerate()
+            .filter(|(_, mechanism)| !mechanism.is_as_yet_unknown())
+            .fold(0u64, |mask, (mechanism_idx, _)| {
+                mask | (1u64 << mechanism_idx)
+            });
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for mechanism_idx in 0..ResistanceMechanism::all().len() {
+                if mechanism_mask & (1u64 << mechanism_idx) != 0 {
+                    individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+                }
+            }
+
+            propagate_mechanism_resistance(
+                &mut individual,
+                bacteria_idx,
+                &param_cache,
+                false,
+                false,
+            );
+
+            for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                let expected = mechanism_resistance_level_for_mask(
+                    mechanism_mask,
+                    bacteria_idx,
+                    drug_idx,
+                    &param_cache,
+                );
+                let actual = load_float(individual.resistances[bacteria_idx][drug_idx].any_r);
+                assert!(
+                    (actual - expected).abs() < 1.0e-5,
+                    "mechanism projection mismatch for {} / {}: expected {expected}, got {actual}",
+                    BACTERIA_LIST[bacteria_idx],
+                    DRUG_SHORT_NAMES[drug_idx]
+                );
+            }
+
+            individual.clear_infection_mechanisms(bacteria_idx);
+        }
+    }
+
+    #[test]
+    fn mechanism_projection_respects_drug_specific_exceptions() {
+        let param_cache = ParameterKeyCache::new();
+        let cases: &[(ResistanceMechanism, &str, &[&str], &[&str])] = &[
+            (
+                ResistanceMechanism::TargetSiteVanB,
+                "enterococcus_faecium",
+                &["vancomycin"],
+                &["teicoplanin", "dalbavancin"],
+            ),
+            (
+                ResistanceMechanism::MutationGyrAPrimary,
+                "neisseria_gonorrhoeae",
+                &["ciprofloxacin", "ofloxacin"],
+                &["levofloxacin", "moxifloxacin"],
+            ),
+            (
+                ResistanceMechanism::EffluxTetAbc,
+                "stenotrophomonas_maltophilia",
+                &["tetracycline", "doxycycline"],
+                &["minocycline"],
+            ),
+            (
+                ResistanceMechanism::TargetSiteCfr,
+                "staphylococcus_aureus",
+                &["linezolid", "chloramphenicol", "clindamycin"],
+                &["erythromycin", "azithromycin", "clarithromycin"],
+            ),
+        ];
+
+        for &(mechanism, bacterium, affected_drugs, unaffected_drugs) in cases {
+            let bacteria_idx = bacteria_idx(bacterium);
+            let mechanism_idx = super::mechanism_idx(mechanism);
+            let (mut individual, _rng) = individual_with_seed(17);
+            individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+
+            propagate_mechanism_resistance(
+                &mut individual,
+                bacteria_idx,
+                &param_cache,
+                false,
+                false,
+            );
+
+            for &drug in affected_drugs {
+                let drug_idx = drug_idx(drug);
+                assert!(
+                    param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx),
+                    "{mechanism:?} should affect {drug} in {bacterium}"
+                );
+                assert!(
+                    load_float(individual.resistances[bacteria_idx][drug_idx].any_r) > 0.0,
+                    "{mechanism:?} should produce resistance to {drug} in {bacterium}"
+                );
+            }
+
+            for &drug in unaffected_drugs {
+                let drug_idx = drug_idx(drug);
+                assert!(
+                    !param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx),
+                    "{mechanism:?} should not affect {drug} in {bacterium}"
+                );
+                assert_eq!(
+                    load_float(individual.resistances[bacteria_idx][drug_idx].any_r),
+                    0.0,
+                    "{mechanism:?} must not create resistance to {drug} in {bacterium}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mechanism_projection_preserves_cephalosporin_specific_magnitudes() {
+        let param_cache = ParameterKeyCache::new();
+        let bacteria_idx = bacteria_idx("enterobacter_cloacae");
+        let mechanism_idx = super::mechanism_idx(ResistanceMechanism::EnzymeEsblCtxM);
+        let ceftriaxone_idx = drug_idx("ceftriaxone");
+        let cefepime_idx = drug_idx("cefepime");
+        let (mut individual, _rng) = individual_with_seed(16);
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+
+        propagate_mechanism_resistance(&mut individual, bacteria_idx, &param_cache, false, false);
+
+        let ceftriaxone_r = load_float(individual.resistances[bacteria_idx][ceftriaxone_idx].any_r);
+        let cefepime_r = load_float(individual.resistances[bacteria_idx][cefepime_idx].any_r);
+        assert!(ceftriaxone_r > cefepime_r);
+        assert!(cefepime_r > 0.0);
     }
 
     #[test]

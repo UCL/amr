@@ -495,21 +495,6 @@ fn simulation_constructor_preserves_lookup_and_flat_matrix_dimensions() {
             );
         }
     }
-
-    for (bacteria_idx, groups) in &simulation.cross_resistance_groups {
-        assert!(
-            *bacteria_idx < bacteria,
-            "cross_resistance_groups contains out-of-range bacteria index {bacteria_idx}"
-        );
-        for group in groups {
-            for drug_idx in group {
-                assert!(
-                    *drug_idx < drugs,
-                    "cross_resistance_groups contains out-of-range drug index {drug_idx}"
-                );
-            }
-        }
-    }
 }
 
 #[test]

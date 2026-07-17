@@ -2,7 +2,7 @@
 //
 // Contains:
 //   - Initialization of global, bacteria-specific, and drug-specific parameters
-//   - Functions for parameter lookup and cross-resistance group management
+//   - Functions for parameter lookup and typed parameter access
 //   - Age-specific vaccination, HGT, and other model parameters
 //   - Reference for template and override logic
 //
@@ -28,7 +28,7 @@
 //   6) Drug parameter blocks (reader structs) .......................... ~1096
 //   7) Bacteria-level readers & microbiome logic ....................... ~1210
 //   8) Clearance, acquisition, and age readers ......................... ~1466
-//   9) Drug-bacteria matrices & cross-resistance readers ............... ~4385
+//   9) Drug-bacteria matrices .......................................... ~4385
 //  10) Regional drug availability & introduction lookups ............... ~6837
 //  11) Demographic distribution readers ................................ ~6953
 //  12) Helper lookups (drug intro, availability, etc.) ................. ~7125
@@ -3931,7 +3931,7 @@ lazy_static! {
         // entries when ingesting empirical potency tables.
 
 
-    // ---------------- 9) Drug-bacteria potency & cross-resistance mappings ----------------
+    // ---------------- 9) Drug-bacteria potency mappings ----------------
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
         // Clinically relevant potency categories (all values in [0.0, 1.0]):
         // 1.00 = Excellent potency (first-line therapy)
@@ -8422,7 +8422,7 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 30.0     ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.3           ); // classes: ag // reduced 0.7->0.3: AG resistance in community E. coli is 5-15% in most surveillance; 0.7 was overdriving to ~17.5%
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.000_001); // E. coli TEM-1 is predominantly inhibitor-SUSCEPTIBLE — model EnzymeTem1 covers BLIs (inhibitor-resistant); rate 0.0 appropriate; plain penicillin linkage via cross-resistance group; BLI resistance via AmpC/ESBL/KPC mechanisms
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.000_001); // Low residual rate; BLI resistance is represented by AmpC/ESBL/KPC mechanisms
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // mphA documented in E. coli; rate 0.0 pending calibration
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.01); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rate currently 0.0; 23S mutations rare but documented in linezolid-resistant E. coli  ***changed: mls->mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
@@ -8523,7 +8523,7 @@ lazy_static! {
       map.insert("bacteria_citrobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.005      ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_1  ); // classes: ag
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; penicillin+BLI cross-resistance group removed — MutationAmpCDerepression mechanism covers pen/BLI/ceph; TEM-1 rate 0.0
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; MutationAmpCDerepression covers penicillins, BLIs, and cephalosporins
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // mphA documented in Citrobacterales; rate 0.0 pending calibration
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -8571,7 +8571,7 @@ lazy_static! {
       map.insert("bacteria_enterobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_005   ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_5  ); // classes: ag
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; penicillin+BLI cross-resistance group removed — MutationAmpCDerepression mechanism covers pen/BLI/ceph; TEM-1 rate 0.0
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; MutationAmpCDerepression covers penicillins, BLIs, and cephalosporins
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // mphA documented in Enterobacter; rate 0.0 pending calibration
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -8621,7 +8621,7 @@ lazy_static! {
     map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.002  ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_3 ); // classes: ag
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.000_002    ); // AmpC-dominated organism; penicillin+BLI cross-resistance group removed — MutationAmpCDerepression mechanism covers pen/BLI/ceph; TEM-1 rate 0.0
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.000_002    ); // Low residual rate in an AmpC-dominated organism; MutationAmpCDerepression covers penicillins, BLIs, and cephalosporins
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.000_002    ); // mphA documented in Enterobacter cloacae;
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -8670,7 +8670,7 @@ lazy_static! {
         map.insert("bacteria_morganella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.01     ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
         map.insert("bacteria_morganella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.002   ); // classes: ag
         map.insert("bacteria_morganella_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; penicillin+BLI cross-resistance group removed — MutationAmpCDerepression mechanism covers pen/BLI/ceph; TEM-1 rate 0.0
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; MutationAmpCDerepression covers penicillins, BLIs, and cephalosporins
         map.insert("bacteria_morganella_spp._mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // mphA documented in Morganella; rate 0.0 pending calibration
         map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -8768,7 +8768,7 @@ lazy_static! {
         map.insert("bacteria_serratia_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.005  ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
         map.insert("bacteria_serratia_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001  ); // classes: ag
         map.insert("bacteria_serratia_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; penicillin+BLI cross-resistance group removed — MutationAmpCDerepression mechanism covers pen/BLI/ceph; TEM-1 rate 0.0
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_tem_1_emergence_rate".to_string(), 0.0); // AmpC-dominated organism; MutationAmpCDerepression covers penicillins, BLIs, and cephalosporins
         map.insert("bacteria_serratia_spp._mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // mphA documented in Serratia; rate 0.0 pending calibration
         map.insert("bacteria_serratia_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -13082,382 +13082,6 @@ lazy_static! {
 }
 
 // ---------------- 13) HGT matrices & resistance mechanism settings ----------------
-// --- CROSS-RESISTANCE CONFIGURATION ---
-// NOTE: These groups are DIFFERENT from the potency drug classes above!
-// Potency classes = therapeutic effectiveness groupings
-// Cross-resistance groups = resistance mechanism groupings (bacteria-specific)
-
-lazy_static! {
-    static ref CROSS_RESISTANCE_GROUPS: HashMap<&'static str, Vec<Vec<&'static str>>> = {
-        let mut m = HashMap::new();
-
-        // E. coli resistance patterns
-        m.insert("escherichia_coli", vec![
-            // TEM-1/narrow penicillinase: plain penicillins only
-            // (model EnzymeTem1 is inhibitor-resistant; E. coli TEM-1 is inhibitor-susceptible, so
-            //  BLI resistance comes from AmpC/ESBL/KPC — not from this cross-resistance group)
-            vec!["penicillin_g", "ampicillin", "amoxicillin"],
-            // ESBL (CTX-M/TEM-ESBL/SHV-ESBL): cephalosporins spread independently of plain penicillinase
-            // (BLI combinations overcome ESBL and are excluded; cefepime spared)
-            vec!["cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
-            // Fluoroquinolone resistance (gyrA/parC mutations affect all FQs)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Aminoglycoside resistance (AMEs and 16S rRNA methylases)
-            vec!["gentamicin", "tobramycin", "amikacin"],
-        ]);
-
-        // acinetobacter_baumannii resistance patterns
-        m.insert("acinetobacter_baumannii", vec![
-            // beta-lactamase affects most beta-lactams (BL/BLI combinations included)
-            vec!["penicillin_g", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime", "amoxicillin_clavulanate", "ampicillin_sulbactam", "piperacillin_tazobactam", "ticarcillin_clavulanate"],
-            // Carbapenemase affects carbapenems (including BL/BLI)
-            vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"],
-            // Fluoroquinolone resistance
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Aminoglycoside resistance
-            vec!["gentamicin", "tobramycin", "amikacin"],
-        ]);
-
-        // klebsiella_pneumoniae resistance patterns
-        m.insert("klebsiella_pneumoniae", vec![
-            // TEM-1/narrow penicillinase: plain penicillins only
-            // (model EnzymeTem1 is inhibitor-resistant; K. pneumoniae TEM-1 is inhibitor-susceptible;
-            //  BLI resistance comes from AmpC/ESBL/KPC, not this group)
-            vec!["penicillin_g", "ampicillin", "amoxicillin"],
-            // ESBL (SHV/CTX-M/TEM-ESBL): cephalosporins (BLIs overcome ESBL)
-            vec!["cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
-            // Carbapenemase (KPC, NDM, etc.)
-            vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"],
-            // Fluoroquinolone resistance (gyrA/parC mutations)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // streptococcus_pneumoniae resistance patterns
-        m.insert("streptococcus_pneumoniae", vec![
-            // Macrolide resistance (erm genes affect all macrolides)
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-            // Penicillin resistance (PBP alterations affect all penicillins including BL/BLI)
-            vec!["penicillin_g", "ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate"],
-        ]);
-
-        // staphylococcus_aureus resistance patterns
-        m.insert("staphylococcus_aureus", vec![
-            // beta-lactamase affects penicillins
-            vec!["penicillin_g", "ampicillin", "amoxicillin"],
-            // MRSA affects most beta-lactams
-            vec!["cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
-            // Macrolide-lincosamide resistance
-            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-        ]);
-
-        m.insert("staphylococcus_epidermidis", vec![
-            // mecA-mediated resistance impacts nearly all beta-lactams
-            vec!["penicillin_g", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
-            // Macrolide/clindamycin cross-resistance common in CoNS
-            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-            // Multidrug efflux impacting fluoroquinolones when acquired
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        m.insert("stenotrophomonas_maltophilia", vec![
-            // Sulfonamide resistance often linked across TMP-SMX components
-            vec!["trim_sulf"],
-            // Efflux-mediated tetracycline resistance (minocycline/doxycycline)
-            vec!["tetracycline", "doxycycline", "minocycline"],
-            // Fluoroquinolone resistance frequently cross-links
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // pseudomonas_aeruginosa resistance patterns
-        m.insert("pseudomonas_aeruginosa", vec![
-            // AmpC/beta-lactamase: pip-tazo, ceftazidime, cefepime;
-            // ceftazidime_avibactam EXCLUDED — avibactam inhibits class C AmpC, CAZ-AVI remains susceptible
-            vec!["piperacillin", "piperacillin_tazobactam", "ceftazidime", "cefepime"],
-            // Carbapenemase
-            vec!["meropenem", "meropenem_vaborbactam", "imipenem_c"],
-            // Fluoroquinolone resistance (gyrA/gyrB mutations)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Aminoglycoside resistance
-            vec!["gentamicin", "tobramycin", "amikacin"],
-        ]);
-
-        // Enterobacter species resistance patterns
-        m.insert("enterobacter_spp.", vec![
-            // penicillin+BLI+early ceph group removed — MutationAmpCDerepression mechanism covers all those drugs
-            // ESBL/AmpC: extended-spectrum cephalosporins
-            vec!["ceftriaxone", "cefixime", "ceftazidime", "cefepime"],
-            // Fluoroquinolone resistance (gyrA/parC mutations)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // MDR Mycobacterium tuberculosis resistance patterns
-        // MDR-TB is defined by resistance to at least rifampicin + isoniazid, with guaranteed rifampicin resistance
-        m.insert("mdr_mycobacterium_tuberculosis", vec![
-            // Fluoroquinolone resistance (gyrA/gyrB mutations commonly affect all FQs)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Aminoglycoside resistance (16S rRNA mutations can affect multiple AGs)
-            vec!["gentamicin", "tobramycin", "amikacin"],
-            // Rifampicin resistance (rpoB mutations - single drug class)
-            vec!["rifampicin"],
-            // Linezolid resistance (rrl gene mutations - single drug currently)
-            vec!["linezolid"],
-        ]);
-
-        // --- ENTEROCOCCI ---
-        // Enterococcus faecalis - typically ampicillin-susceptible, VRE rare
-        m.insert("enterococcus_faecalis", vec![
-            // Penicillin resistance (PBP alterations) - affects all penicillins
-            vec!["penicillin_g", "ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate", "piperacillin", "piperacillin_tazobactam", "ticarcillin", "ticarcillin_clavulanate"],
-            // Macrolide-lincosamide resistance (erm genes) - MLSB phenotype
-            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-            // Fluoroquinolone resistance (gyrA/parC mutations)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Tetracycline resistance (tet genes)
-            vec!["tetracycline", "doxycycline", "minocycline"],
-            // Glycopeptide resistance (VanA/VanB) - vancomycin + teicoplanin
-            vec!["vancomycin", "teicoplanin", "dalbavancin"],
-        ]);
-
-        // Enterococcus faecium - typically ampicillin-resistant, VRE more common
-        m.insert("enterococcus_faecium", vec![
-            // Penicillins — E. faecium is constitutively non-susceptible (zero penicillin potency; PBP5-mediated); groups for acquired resistance tracking
-            vec!["penicillin_g", "ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate", "piperacillin", "piperacillin_tazobactam"],
-            // Macrolide-lincosamide resistance (erm genes)
-            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-            // Fluoroquinolone resistance
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Tetracycline resistance
-            vec!["tetracycline", "doxycycline", "minocycline"],
-            // Glycopeptide resistance (VanA/VanB)
-            vec!["vancomycin", "teicoplanin", "dalbavancin"],
-        ]);
-
-        // --- OTHER ENTEROBACTERALES ---
-        // Citrobacter spp. - AmpC producers like Enterobacter
-        m.insert("citrobacter_spp.", vec![
-            // penicillin+BLI+early ceph group removed — MutationAmpCDerepression mechanism covers all those drugs
-            // Extended-spectrum cephalosporin resistance (AmpC/ESBL)
-            vec!["ceftriaxone", "cefixime", "ceftazidime", "cefepime"],
-            // Fluoroquinolone resistance
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Aminoglycoside resistance
-            vec!["gentamicin", "tobramycin", "amikacin"],
-        ]);
-
-        // Enterobacter cloacae - same as Enterobacter spp.
-        m.insert("enterobacter_cloacae", vec![
-            // penicillin+BLI+early ceph group removed — MutationAmpCDerepression mechanism covers all those drugs
-            vec!["ceftriaxone", "cefixime", "ceftazidime", "cefepime"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // Morganella spp. - chromosomal AmpC beta-lactamase
-        m.insert("morganella_spp.", vec![
-            // penicillin+BLI+early ceph group removed — MutationAmpCDerepression mechanism covers all those drugs
-            vec!["ceftriaxone", "cefixime", "ceftazidime", "cefepime"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // Proteus spp. - intrinsic ampicillin resistance varies
-        m.insert("proteus_spp.", vec![
-            vec!["ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate", "cephalexin", "cefazolin", "cefuroxime"],
-            vec!["ceftriaxone", "cefixime", "ceftazidime"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // Serratia spp. - chromosomal AmpC
-        m.insert("serratia_spp.", vec![
-            // penicillin+BLI+early ceph group removed — MutationAmpCDerepression mechanism covers all those drugs
-            vec!["ceftriaxone", "cefixime", "ceftazidime", "cefepime"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["gentamicin", "tobramycin", "amikacin"],
-        ]);
-
-        // Providencia stuartii
-        m.insert("p_stuartii", vec![
-            vec!["ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate", "cephalexin", "cefazolin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // --- SALMONELLA & ENTERIC PATHOGENS ---
-        // Salmonella Typhi
-        m.insert("salmonella_enterica_serovar_typhi", vec![
-            // Ampicillin resistance + early-gen cephalosporins (MDR strains) - BL/BLI combinations included
-            vec!["ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate", "cephalexin", "cefazolin", "cefuroxime"],
-            // Fluoroquinolone resistance (gyrA mutations)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            // Cephalosporin resistance (ESBL - affects 3rd gen)
-            vec!["ceftriaxone", "cefixime", "ceftazidime"],
-        ]);
-
-        // Salmonella Paratyphi A - similar to Typhi
-        m.insert("salmonella_enterica_serovar_paratyphi_a", vec![
-            vec!["ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["ceftriaxone", "cefixime", "ceftazidime"],
-        ]);
-
-        // Invasive non-typhoidal Salmonella
-        m.insert("invasive_non-typhoidal_salmonella_spp.", vec![
-            vec!["ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["ceftriaxone", "cefixime", "ceftazidime"],
-        ]);
-
-        // Shigella spp. - high FQ resistance in many regions
-        // NOTE: amoxicillin_clavulanate and ampicillin_sulbactam are intentionally EXCLUDED from
-        // the penicillin group — EnzymeTem1 now correctly propagates pen+BLI resistance directly
-        // via mechanism_applies_to_drug (TEM-1 is inhibitor-resistant). Cross-resistance grouping
-        // of BLIs with plain penicillins would incorrectly level up BLIs from ESBL-only resistance.
-        m.insert("shigella_spp.", vec![
-            vec!["ampicillin", "amoxicillin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["ceftriaxone", "cefixime", "ceftazidime"],
-            vec!["tetracycline", "doxycycline"],
-            vec!["azithromycin", "erythromycin", "clarithromycin"], // mphA/23S rRNA: macrolide class
-        ]);
-
-        // Vibrio cholerae
-        m.insert("vibrio_cholerae", vec![
-            vec!["tetracycline", "doxycycline"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-        ]);
-
-        // Campylobacter jejuni - macrolide and FQ resistance
-        m.insert("campylobacter_jejuni", vec![
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["tetracycline", "doxycycline"],
-        ]);
-
-        // Yersinia enterocolitica
-        m.insert("yersinia_enterocolitica", vec![
-            vec!["ampicillin", "amoxicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["tetracycline", "doxycycline"],
-        ]);
-
-        // Helicobacter pylori - clarithromycin and metronidazole resistance key
-        m.insert("helicobacter_pylori", vec![
-            vec!["amoxicillin", "ampicillin", "amoxicillin_clavulanate", "ampicillin_sulbactam"],
-            vec!["clarithromycin", "erythromycin", "azithromycin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["metronidazole"],
-            vec!["tetracycline", "doxycycline"],
-        ]);
-
-        // --- STREPTOCOCCI ---
-        // Streptococcus pyogenes (Group A Strep) - penicillin still universally susceptible
-        m.insert("streptococcus_pyogenes", vec![
-            // Macrolide resistance (erm genes)
-            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-            // Tetracycline resistance
-            vec!["tetracycline", "doxycycline"],
-            // Fluoroquinolone resistance (rare)
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // Streptococcus agalactiae (Group B Strep)
-        m.insert("streptococcus_agalactiae", vec![
-            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-            vec!["tetracycline", "doxycycline"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // --- FASTIDIOUS ORGANISMS ---
-        // H. influenzae TEM-1 is inhibitor-susceptible — amox-clav/amp-sulb restore activity.
-        // BLIs are NOT cross-linked with plain penicillins (BLI resistance comes from PBP or other routes).
-        m.insert("haemophilus_influenzae", vec![
-            vec!["ampicillin", "amoxicillin"],
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-            vec!["ciprofloxacin", "levofloxacin"],
-            vec!["tetracycline", "doxycycline"],
-        ]);
-
-        // Moraxella catarrhalis - nearly all beta-lactamase positive (BRO-1/BRO-2)
-        // Beta-lactamase affects both simple penicillins and BL/BLI combinations
-        m.insert("moraxella_catarrhalis", vec![
-            vec!["ampicillin", "amoxicillin", "penicillin_g", "piperacillin", "ticarcillin",
-                 "amoxicillin_clavulanate", "ampicillin_sulbactam", "piperacillin_tazobactam", "ticarcillin_clavulanate"],
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-        ]);
-
-        // Neisseria gonorrhoeae - critical resistance concern
-        // TEM-1/TEM-135 in GC is inhibitor-susceptible — amox-clav/amp-sulb restore activity;
-        // PBP-mediated resistance (MutationPbpMosaic) covers BLI combos independently.
-        m.insert("neisseria_gonorrhoeae", vec![
-            vec!["penicillin_g", "ampicillin", "amoxicillin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["tetracycline", "doxycycline"],
-            vec!["erythromycin", "azithromycin"],
-            vec!["ceftriaxone", "cefixime"],
-        ]);
-
-        // Neisseria meningitidis - reduced penicillin susceptibility spreading
-        // PBP2 mosaic mutations covered by MutationPbpMosaic (all BLIs included);
-        // BLIs removed from penicillinase group — inhibitor-susceptible.
-        m.insert("neisseria_meningitidis", vec![
-            vec!["penicillin_g", "ampicillin", "amoxicillin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["rifampicin"],
-        ]);
-
-        // --- ANAEROBES & OTHER ---
-        // Clostridioides difficile - limited treatment options
-        m.insert("clostridioides_difficile", vec![
-            vec!["vancomycin"],
-            vec!["metronidazole"],
-        ]);
-
-        // Bacteroides fragilis
-        m.insert("bacteroides_fragilis", vec![
-            vec!["metronidazole"],
-            vec!["clindamycin"],
-            vec!["meropenem", "imipenem_c"],
-        ]);
-
-        // Listeria monocytogenes - intrinsic cephalosporin resistance
-        // Penicillin resistance affects BL/BLI combinations as well
-        m.insert("listeria_monocytogenes", vec![
-            vec!["ampicillin", "amoxicillin", "penicillin_g", "ampicillin_sulbactam", "amoxicillin_clavulanate"],
-            vec!["tetracycline", "doxycycline"],
-        ]);
-
-        // --- ATYPICALS ---
-        // Chlamydia trachomatis - macrolides/tetracyclines
-        m.insert("chlamydia_trachomatis", vec![
-            vec!["azithromycin", "erythromycin", "clarithromycin"],
-            vec!["doxycycline", "tetracycline"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        ]);
-
-        // Mycoplasma genitalium - macrolide resistance emerging
-        m.insert("mycoplasma_genitalium", vec![
-            vec!["azithromycin", "erythromycin", "clarithromycin"],
-            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-            vec!["doxycycline", "tetracycline"],
-        ]);
-
-        // Treponema pallidum - limited options, macrolide resistance emerging
-        m.insert("treponema_pallidum", vec![
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-            vec!["doxycycline", "tetracycline"],
-        ]);
-
-        // Bordetella pertussis
-        m.insert("bordetella_pertussis", vec![
-            vec!["erythromycin", "azithromycin", "clarithromycin"],
-        ]);
-
-        m
-    };
-}
-
-/// Returns the cross-resistance drug groups for each bacterium.
-pub fn get_cross_resistance_groups() -> &'static HashMap<&'static str, Vec<Vec<&'static str>>> {
-    &CROSS_RESISTANCE_GROUPS
-}
 
 /// Retrieves a string parameter (like template names).
 /// Returns `Some(value)` if found, `None` otherwise.

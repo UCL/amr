@@ -479,7 +479,6 @@ The model distinguishes three related but different records of resistance: mecha
 | Infection-microbiome transfer | Same organism present in both compartments and they contain different mechanisms | Copies mechanisms so `mechanism_any` and `mechanism_microbiome` contain the combined profile | Within-host spillover between active infection and carriage |
 | HGT | After the per-bacterium loop, between co-present bacteria | Adds transferable donor mechanisms to each recipient compartment where that organism is present: `mechanism_any` for active infection and `mechanism_microbiome` for carriage | Inter-species mechanism transfer, scaled by context and donor majority/minority status |
 | Mechanism-to-drug propagation | After mechanism changes | Recalculates `any_r` and/or `microbiome_r` from the mechanisms recorded as present | Drug-level resistance is recalculated according to which mechanisms affect which drugs |
-| Cross-resistance propagation | End of each per-bacterium update | Equalises `any_r` within configured drug groups | Phenotype bundling across related drugs; no mechanism bits are added or removed |
 
 ---
 
@@ -1498,27 +1497,13 @@ Enterococcus faecium. VRE clonal lineages (CC17) are globally disseminated hospi
 
 
 
-### 7.6 Cross-resistance groups
+### 7.6 Mechanism-derived cross-drug effects
 
-Section 7.1 describes the primary biological mechanism-to-drug map: when a resistance mechanism is recorded in a bacterium, the model calculates which drugs that mechanism affects. After that mechanism-based calculation, the model applies a smaller, secondary phenotype-harmonisation step for selected bacteria-drug groups.
+The mechanism-to-drug map described in Section 7.1 is the sole source of cross-drug resistance effects. Whenever a mechanism is acquired, inherited, transferred, promoted, or reverted, the model recalculates `any_r` and/or `microbiome_r` for every drug to which that mechanism is applicable. Multiple applicable mechanisms combine on the susceptible fraction, with mechanism- and drug-class-specific enhancement values determining the resulting resistance magnitude.
 
-These cross-resistance groups are used where resistance to closely related drugs is assumed to move together at the level of the observed drug-resistance phenotype. For each configured group, if one drug has a non-zero `any_r`, the model raises the other drugs in that group to the same maximum `any_r` for that bacterium. This changes the drug-level phenotype only. It does not add, remove, or synchronise the underlying recorded resistance mechanisms.
+The model does not subsequently equalise resistance within broad or manually configured drug groups. This preserves clinically important distinctions within a class. Examples include VanB affecting vancomycin but not teicoplanin or dalbavancin; a primary GyrA mutation affecting ciprofloxacin and ofloxacin without automatically conferring the secondary-mutation phenotype for levofloxacin or moxifloxacin; TetA/B/C efflux affecting tetracycline and doxycycline but not automatically minocycline; and ESBL effects differing between third- and fourth-generation cephalosporins. Class-wide effects remain possible where they are explicitly encoded for the responsible mechanism.
 
-The groups are therefore not a second mechanism map and should not be read as one-to-one copies of the "drugs affected" entries in Section 7.1. They are a pragmatic phenotype-coherence layer used after mechanism effects have been calculated. Because `any_r` is used downstream in drug activity calculations and phenotypic resistance testing, this layer can influence model behaviour; it is not merely an output-smoothing step.
-
-Some mechanisms affect several related drugs, but not necessarily an entire therapeutic class. For example, ESBLs commonly affect extended-spectrum cephalosporins and aztreonam, while beta-lactamase inhibitor combinations, cefepime, carbapenems, cefiderocol, ceftazidime-avibactam, aztreonam-avibactam, and newer beta-lactam/beta-lactamase inhibitor agents may require separate handling depending on the organism and mechanism. For that reason, cross-resistance groups are deliberately kept narrower than broad therapeutic classes where clinically important exceptions exist.
-
-The full source of truth is `CROSS_RESISTANCE_GROUPS` in `src/config.rs`, applied by `apply_cross_resistance()` in `src/rules/mod.rs`. The examples below are verified against the current configuration and are intended as a readable guide, not a complete duplicated table:
-
-| Bacterium or group | Phenotype groups in current code | Cautious interpretation / edge cases |
-|--------------------|-------------------------------------------|-------------------------------------|
-| *E. coli* | Plain penicillins (`penicillin_g`, `ampicillin`, `amoxicillin`); early/third-generation cephalosporins (`cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`); fluoroquinolones; aminoglycosides | BL/BLI combinations are excluded from the penicillin and cephalosporin phenotype groups; cefepime, ceftazidime, carbapenems, cefiderocol, and novel BL/BLI agents are not included into the broad cephalosporin group. |
-| *K. pneumoniae* | Penicillins; early/third-generation cephalosporins; carbapenems (`meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam`); fluoroquinolones | BL/BLI combinations are not grouped with the plain penicillins or ESBL cephalosporin group; newer agents require mechanism-specific handling. |
-| *P. aeruginosa* | `piperacillin`, `piperacillin_tazobactam`, `ceftazidime`, and `cefepime`; carbapenems (`meropenem`, `meropenem_vaborbactam`, `imipenem_c`); fluoroquinolones; aminoglycosides | `ceftazidime_avibactam` is explicitly excluded from the AmpC/beta-lactamase group; cefiderocol, ceftolozane-tazobactam, and aztreonam-avibactam are not broad-grouped here. |
-| AmpC-risk Enterobacterales | *Enterobacter*, *Citrobacter*, *E. cloacae*, *Morganella*, and *Serratia* use narrow extended-spectrum cephalosporin phenotype groups plus fluoroquinolone groups; some also have aminoglycoside groups | Penicillin+BLI+early-cephalosporin phenotype groups were removed for several AmpC-dominant organisms; AmpC and ESBL mechanisms handle those drug effects through the primary mechanism map. |
-| *Shigella* spp. | `ampicillin`/`amoxicillin`; fluoroquinolones; `ceftriaxone`/`cefixime`/`ceftazidime`; tetracycline/doxycycline; macrolides (`azithromycin`, `erythromycin`, `clarithromycin`) | BL/BLI combinations are not included in the penicillin group to avoid levelling them up from ESBL-only resistance. |
-| Selected Gram-positive cocci | Staphylococci and enterococci include macrolide-lincosamide groups where appropriate; enterococci include glycopeptide groups; streptococci include narrower macrolide and tetracycline/FQ groupings depending on species | Membership differs by organism. For example, pneumococcal macrolide grouping does not mirror every staphylococcal or enterococcal MLS pattern. |
-| Fastidious respiratory/STI organisms | *H. influenzae*, *N. gonorrhoeae*, and *N. meningitidis* use narrower penicillin/FQ/macrolide/tetracycline or ceftriaxone-cefixime groups depending on organism | Inhibitor combinations are excluded from some penicillin groups where inhibitor-susceptible beta-lactamase biology or PBP-mediated resistance requires separate handling. |
+Drug-level resistance therefore always has a recorded mechanism basis. Potency still controls baseline therapeutic activity, while the filtered applicability map controls whether an acquired mechanism can modify resistance for a bacterium-drug pair.
 
 
 
