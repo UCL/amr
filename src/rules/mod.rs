@@ -7615,6 +7615,29 @@ mod tests {
     }
 
     #[test]
+    fn pneumococcal_birth_coverage_uses_conjugate_vaccine_rollout() {
+        let vaccination = &parameter_store().vaccination;
+        let vaccine_idx = crate::config::VaccinationParameters::vaccine_index("pneumococcal")
+            .expect("pneumococcal vaccine");
+
+        assert_eq!(vaccination.availability_year(vaccine_idx), 2000.0);
+        assert_eq!(vaccination.birth_coverage_target(vaccine_idx), 0.75);
+        assert_eq!(vaccination.rollout_years(vaccine_idx), 20.0);
+        assert_eq!(
+            vaccination.birth_coverage_probability(vaccine_idx, 1999.0),
+            0.0
+        );
+        assert_eq!(
+            vaccination.birth_coverage_probability(vaccine_idx, 2010.0),
+            0.375
+        );
+        assert_eq!(
+            vaccination.birth_coverage_probability(vaccine_idx, 2020.0),
+            0.75
+        );
+    }
+
+    #[test]
     fn vaccination_reduces_acquisition_only_for_targeted_bacterium() {
         let (mut individual, _rng) = individual_with_seed(14);
         let mut vaccination_rng = StepRng::new(0, 0);

@@ -310,7 +310,7 @@ The vaccine layer currently supports four bacterial vaccines:
 
 | Vaccine | Target bacterium | Availability year |
 | --- | --- | ---: |
-| Pneumococcal | *Streptococcus pneumoniae* | 1977 |
+| Pneumococcal | *Streptococcus pneumoniae* | 2000 |
 | Meningococcal | *Neisseria meningitidis* | 1981 |
 | Hib | *Haemophilus influenzae* | 1985 |
 | Pertussis | *Bordetella pertussis* | 1948 |
@@ -6024,7 +6024,7 @@ Under the default parameter map below, vaccination is active. Coverage ramps lin
 
 | Vaccine | Availability year | Target birth-cohort coverage | Rollout years |
 | --- | ---: | ---: | ---: |
-| pneumococcal | 1977 | 0.75 | 20 |
+| pneumococcal | 2000 | 0.75 | 20 |
 | meningococcal | 1981 | 0.55 | 20 |
 | hib | 1985 | 0.85 | 15 |
 | pertussis | 1948 | 0.82 | 20 |

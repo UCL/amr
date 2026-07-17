@@ -3563,10 +3563,10 @@ lazy_static! {
             // --- Birth-cohort vaccination rollout parameters for bacterial vaccines only ---
             // Vaccination is assigned once at cohort entry (birth / first day alive), rather than
             // via a daily all-age hazard. Each vaccine has an availability year, a target birth-
-            // cohort coverage, rollout duration, and a full acquisition-baseline uplift used to
-            // Vaccines are modelled as cohort-based reductions in susceptibility.
+            // cohort coverage, and a rollout duration. Vaccinated cohorts receive the configured
+            // bacterium-specific reduction in acquisition odds.
             let bacterial_vaccines = vec![
-                ("pneumococcal", 1977.0, 0.75, 20.0),
+                ("pneumococcal", 2000.0, 0.75, 20.0),
                 ("meningococcal", 1981.0, 0.55, 20.0),
                 ("hib", 1985.0, 0.85, 15.0),
                 ("pertussis", 1948.0, 0.82, 20.0),
