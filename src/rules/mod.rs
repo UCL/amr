@@ -643,6 +643,48 @@ fn promote_minority_mechanisms_once(
     }
 }
 
+fn emerge_microbiome_mechanisms_once(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    param_cache: &ParameterKeyCache,
+    emergence_multiplier: f64,
+    rng: &mut impl Rng,
+) -> bool {
+    let store = parameter_store();
+    let mut microbiome_mechanism_changed = false;
+
+    let mut considered_mechanism_mask = individual.microbiome_mechanism_mask(bacteria_idx);
+    for drug_idx in 0..individual.cur_level_drug.len() {
+        let level = individual.cur_level_drug[drug_idx];
+        if level <= 0.0 {
+            continue;
+        }
+
+        let applicable_mask = param_cache.mechanism_applicability_mask(bacteria_idx, drug_idx);
+        let mut candidate_mask = applicable_mask & !considered_mechanism_mask;
+        considered_mechanism_mask |= applicable_mask;
+
+        while candidate_mask != 0 {
+            let mechanism_idx = candidate_mask.trailing_zeros() as usize;
+            candidate_mask &= candidate_mask - 1;
+            if ResistanceMechanism::all()[mechanism_idx].is_as_yet_unknown() {
+                continue;
+            }
+
+            let mechanism_emergence_rate = store
+                .bacteria_mechanism_emergence
+                .rate(bacteria_idx, mechanism_idx)
+                * emergence_multiplier;
+            if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
+                individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+                microbiome_mechanism_changed = true;
+            }
+        }
+    }
+
+    microbiome_mechanism_changed
+}
+
 #[inline]
 fn mechanism_idx(target: ResistanceMechanism) -> usize {
     ResistanceMechanism::all()
@@ -5608,43 +5650,15 @@ pub(crate) fn apply_rules(
                     // --- end microbiome mechanism reversion ---
 
                     // --- mechanism emergence in microbiome under drug pressure ---
-                    let mut microbiome_mechanism_changed = false;
-                    for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        let drug_level = individual.cur_level_drug[d_idx];
-                        if drug_level <= 0.0 {
-                            continue;
-                        }
-
-                        for (mechanism_idx, mechanism) in
-                            ResistanceMechanism::all().iter().enumerate()
-                        {
-                            // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                            if mechanism.is_as_yet_unknown() {
-                                continue;
-                            }
-
-                            // Skip if already present in microbiome
-                            if individual.has_microbiome_mechanism(b_idx, mechanism_idx) {
-                                continue;
-                            }
-
-                            if !param_cache.mechanism_applicable(mechanism_idx, b_idx, d_idx) {
-                                continue;
-                            }
-
-                            let mechanism_rate = store
-                                .bacteria_mechanism_emergence
-                                .rate(b_idx, mechanism_idx);
-                            let mechanism_emergence_rate = mechanism_rate
-                                * microbiome_de_novo_multiplier
-                                * counterfactual_resistance_multiplier;
-
-                            if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                individual.set_microbiome_mechanism(b_idx, mechanism_idx);
-                                microbiome_mechanism_changed = true;
-                            }
-                        }
-                    }
+                    // Each absent mechanism receives one daily attempt whenever at least one
+                    // active drug selects for it. Regimen size must not multiply the rate.
+                    let microbiome_mechanism_changed = emerge_microbiome_mechanisms_once(
+                        individual,
+                        b_idx,
+                        param_cache,
+                        microbiome_de_novo_multiplier * counterfactual_resistance_multiplier,
+                        rng,
+                    );
 
                     // Cross-resistance propagation: ensure mechanism-based resistance
                     // is reflected in any_r/microbiome_r for ALL drugs the organism's
@@ -7427,9 +7441,9 @@ mod tests {
     use super::{
         clear_microbiome_compartment, collect_active_symptomatic_syndromes,
         collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
-        existing_therapy_prevents_incoming_infection, has_serious_resistance_test_positive,
-        hgt_context_multiplier, hgt_donor_mechanism_mask, hgt_donor_mechanism_multiplier,
-        identified_resistance_results_ready, is_under_medical_care,
+        emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
+        has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
+        hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
         mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
         prepare_individual_for_active_day, promote_minority_mechanisms_once,
         propagate_mechanism_resistance, record_hgt_mechanism_in_present_compartments,
@@ -7597,6 +7611,55 @@ mod tests {
         panic!("expected a mechanism selected by at least two drugs");
     }
 
+    fn multi_drug_microbiome_emergence_case(
+        param_cache: &ParameterKeyCache,
+    ) -> (usize, usize, [usize; 2], f64) {
+        let store = parameter_store();
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                if mechanism.is_as_yet_unknown() {
+                    continue;
+                }
+
+                let mechanism_rate = store
+                    .bacteria_mechanism_emergence
+                    .rate(bacteria_idx, mechanism_idx);
+                if !mechanism_rate.is_finite() || mechanism_rate <= 0.0 {
+                    continue;
+                }
+
+                let applicable_drugs: Vec<usize> = (0..DRUG_SHORT_NAMES.len())
+                    .filter(|&drug_idx| {
+                        param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                    })
+                    .take(2)
+                    .collect();
+                if applicable_drugs.len() == 2 {
+                    return (
+                        bacteria_idx,
+                        mechanism_idx,
+                        [applicable_drugs[0], applicable_drugs[1]],
+                        mechanism_rate,
+                    );
+                }
+            }
+        }
+
+        panic!("expected a nonzero microbiome mechanism selected by at least two drugs");
+    }
+
+    fn isolate_microbiome_emergence_candidate(
+        individual: &mut Individual,
+        bacteria_idx: usize,
+        candidate_mechanism_idx: usize,
+    ) {
+        for mechanism_idx in 0..ResistanceMechanism::all().len() {
+            if mechanism_idx != candidate_mechanism_idx {
+                individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+            }
+        }
+    }
+
     fn transferable_mechanism_idx() -> usize {
         ResistanceMechanism::all()
             .iter()
@@ -7718,6 +7781,66 @@ mod tests {
             &mut always_succeed_rng,
         );
         assert!(individual.has_majority_mechanism(bacteria_idx, mechanism_idx));
+    }
+
+    #[test]
+    fn microbiome_emergence_rolls_once_with_multiple_selecting_drugs() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, mechanism_idx, drug_indices, mechanism_rate) =
+            multi_drug_microbiome_emergence_case(&param_cache);
+        let (mut individual, _rng) = individual_with_seed(24);
+        individual.presence_microbiome[bacteria_idx] = true;
+        isolate_microbiome_emergence_candidate(&mut individual, bacteria_idx, mechanism_idx);
+        for drug_idx in drug_indices {
+            individual.cur_level_drug[drug_idx] = 1.0;
+        }
+
+        let test_multiplier = 0.18 / mechanism_rate;
+        let mut fail_then_succeed_rng = StepRng::new(u64::MAX, 1);
+        let changed = emerge_microbiome_mechanisms_once(
+            &mut individual,
+            bacteria_idx,
+            &param_cache,
+            test_multiplier,
+            &mut fail_then_succeed_rng,
+        );
+
+        assert!(!changed);
+        assert!(!individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx));
+    }
+
+    #[test]
+    fn microbiome_emergence_requires_any_applicable_drug_pressure() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, mechanism_idx, drug_indices, mechanism_rate) =
+            multi_drug_microbiome_emergence_case(&param_cache);
+        let (mut individual, _rng) = individual_with_seed(25);
+        individual.presence_microbiome[bacteria_idx] = true;
+        isolate_microbiome_emergence_candidate(&mut individual, bacteria_idx, mechanism_idx);
+        let test_multiplier = 0.18 / mechanism_rate;
+        let mut always_succeed_rng = StepRng::new(0, 0);
+
+        let changed_without_pressure = emerge_microbiome_mechanisms_once(
+            &mut individual,
+            bacteria_idx,
+            &param_cache,
+            test_multiplier,
+            &mut always_succeed_rng,
+        );
+        assert!(!changed_without_pressure);
+        assert!(!individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx));
+
+        individual.cur_level_drug[drug_indices[0]] = 0.01;
+        let changed_with_pressure = emerge_microbiome_mechanisms_once(
+            &mut individual,
+            bacteria_idx,
+            &param_cache,
+            test_multiplier,
+            &mut always_succeed_rng,
+        );
+        assert!(changed_with_pressure);
+        assert!(individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx));
+        assert_eq!(individual.any_mechanism_mask(bacteria_idx), 0);
     }
 
     fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {
