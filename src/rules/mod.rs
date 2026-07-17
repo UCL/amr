@@ -613,6 +613,36 @@ fn clear_microbiome_compartment(individual: &mut Individual, b_idx: usize) {
     }
 }
 
+fn promote_minority_mechanisms_once(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    param_cache: &ParameterKeyCache,
+    promotion_rate: f64,
+    rng: &mut impl Rng,
+) {
+    for mechanism_idx in 0..ResistanceMechanism::all().len() {
+        if !individual.has_any_mechanism(bacteria_idx, mechanism_idx)
+            || individual.has_majority_mechanism(bacteria_idx, mechanism_idx)
+        {
+            continue;
+        }
+
+        let selecting_drug_present =
+            individual
+                .cur_level_drug
+                .iter()
+                .enumerate()
+                .any(|(drug_idx, &level)| {
+                    level > 0.0
+                        && param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                });
+
+        if selecting_drug_present && rng.gen_bool(promotion_rate) {
+            individual.set_majority_mechanism(bacteria_idx, mechanism_idx);
+        }
+    }
+}
+
 #[inline]
 fn mechanism_idx(target: ResistanceMechanism) -> usize {
     ResistanceMechanism::all()
@@ -6214,29 +6244,19 @@ pub(crate) fn apply_rules(
                 }
                 // --- end resistance mechanism emergence logic ---
 
+                // Each minority mechanism receives one daily promotion attempt whenever at
+                // least one active drug selects for it. Regimen size must not multiply the
+                // configured per-day transition probability.
+                promote_minority_mechanisms_once(
+                    individual,
+                    bacteria_full_idx,
+                    param_cache,
+                    majority_r_evolution_rate,
+                    rng,
+                );
+
                 for drug_index in 0..individual.cur_use_drug.len() {
                     let drug_current_level = individual.cur_level_drug[drug_index];
-                    let drug_currently_present = drug_current_level > 0.0;
-
-                    // mechanism_majority evolution: when drug pressure is present, minority-strain
-                    // mechanisms (mechanism_any but not mechanism_majority) can evolve to majority.
-                    if drug_currently_present {
-                        let num_mechanisms = ResistanceMechanism::all().len();
-                        for m_idx in 0..num_mechanisms {
-                            if individual.has_any_mechanism(bacteria_full_idx, m_idx)
-                                && !individual.has_majority_mechanism(bacteria_full_idx, m_idx)
-                                && param_cache.mechanism_applicable(
-                                    m_idx,
-                                    bacteria_full_idx,
-                                    drug_index,
-                                )
-                            {
-                                if rng.gen_bool(majority_r_evolution_rate) {
-                                    individual.set_majority_mechanism(bacteria_full_idx, m_idx);
-                                }
-                            }
-                        }
-                    }
 
                     let resistance_data =
                         &mut individual.resistances[bacteria_full_idx][drug_index];
@@ -7411,9 +7431,10 @@ mod tests {
         hgt_context_multiplier, hgt_donor_mechanism_mask, hgt_donor_mechanism_multiplier,
         identified_resistance_results_ready, is_under_medical_care,
         mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
-        prepare_individual_for_active_day, propagate_mechanism_resistance,
-        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
-        reset_resistance_test_state, vaccination_acquisition_log_odds, ParameterKeyCache,
+        prepare_individual_for_active_day, promote_minority_mechanisms_once,
+        propagate_mechanism_resistance, record_hgt_mechanism_in_present_compartments,
+        record_sampled_microbiome_profile, reset_resistance_test_state,
+        vaccination_acquisition_log_odds, ParameterKeyCache,
     };
     use crate::config::parameter_store;
     use crate::simulation::population::{
@@ -7550,6 +7571,32 @@ mod tests {
         panic!("expected at least one bacterium-drug-mechanism prevention test case");
     }
 
+    fn multi_drug_promotion_case(param_cache: &ParameterKeyCache) -> (usize, usize, [usize; 2]) {
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                if mechanism.is_as_yet_unknown() {
+                    continue;
+                }
+
+                let applicable_drugs: Vec<usize> = (0..DRUG_SHORT_NAMES.len())
+                    .filter(|&drug_idx| {
+                        param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                    })
+                    .take(2)
+                    .collect();
+                if applicable_drugs.len() == 2 {
+                    return (
+                        bacteria_idx,
+                        mechanism_idx,
+                        [applicable_drugs[0], applicable_drugs[1]],
+                    );
+                }
+            }
+        }
+
+        panic!("expected a mechanism selected by at least two drugs");
+    }
+
     fn transferable_mechanism_idx() -> usize {
         ResistanceMechanism::all()
             .iter()
@@ -7618,6 +7665,59 @@ mod tests {
             load_float(individual.resistances[bacteria_idx][drug_idx].any_r),
             active_resistance_before
         );
+    }
+
+    #[test]
+    fn majority_promotion_rolls_once_with_multiple_selecting_drugs() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, mechanism_idx, drug_indices) = multi_drug_promotion_case(&param_cache);
+        let (mut individual, _rng) = individual_with_seed(22);
+        individual.level[bacteria_idx] = 1.0;
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+        for drug_idx in drug_indices {
+            individual.cur_level_drug[drug_idx] = 1.0;
+        }
+
+        let mut fail_then_succeed_rng = StepRng::new(u64::MAX, 1);
+        promote_minority_mechanisms_once(
+            &mut individual,
+            bacteria_idx,
+            &param_cache,
+            param_cache.majority_r_evolution_rate,
+            &mut fail_then_succeed_rng,
+        );
+
+        assert_eq!(param_cache.majority_r_evolution_rate, 0.18);
+        assert!(!individual.has_majority_mechanism(bacteria_idx, mechanism_idx));
+    }
+
+    #[test]
+    fn majority_promotion_requires_any_applicable_drug_pressure() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, mechanism_idx, drug_indices) = multi_drug_promotion_case(&param_cache);
+        let (mut individual, _rng) = individual_with_seed(23);
+        individual.level[bacteria_idx] = 1.0;
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+        let mut always_succeed_rng = StepRng::new(0, 0);
+
+        promote_minority_mechanisms_once(
+            &mut individual,
+            bacteria_idx,
+            &param_cache,
+            param_cache.majority_r_evolution_rate,
+            &mut always_succeed_rng,
+        );
+        assert!(!individual.has_majority_mechanism(bacteria_idx, mechanism_idx));
+
+        individual.cur_level_drug[drug_indices[0]] = 1.0;
+        promote_minority_mechanisms_once(
+            &mut individual,
+            bacteria_idx,
+            &param_cache,
+            param_cache.majority_r_evolution_rate,
+            &mut always_succeed_rng,
+        );
+        assert!(individual.has_majority_mechanism(bacteria_idx, mechanism_idx));
     }
 
     fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {
