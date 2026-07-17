@@ -3900,35 +3900,24 @@ lazy_static! {
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
-        // === [D.2] Resistance floor configuration for rare bacteria ===
-        // For bacteria with very low infection counts (like S. maltophilia and E. faecium at 100k pop),
-        // the cache-based resistance sampling may not sustain observed resistance levels.
-        // This feature provides minimum resistance floors that ramp up after drug introduction.
+        // === [D.2] Optional universal acquisition reseeding guard ===
+        // This is separate from explicit bacteria-mechanism environmental floors and the
+        // dynamic ratchet. When enabled, every new infection receives a separate entry roll for
+        // each modelled drug whose class has been introduced. A successful roll can add an
+        // applicable mechanism that is currently represented in the retained global profile
+        // cache. It is not a prevalence clamp, a rare-state trigger, or population-size scaled.
         //
-        // Drug introduction dates are already defined in DRUG_INTRODUCTION_DATES (lazy_static at bottom of file).
-        //
-        // Enabled per-bacteria with: bacteria_{name}_resistance_floor_enabled = 1.0 (or 0.0 to disable)
-        // Ramp period: bacteria_{name}_resistance_floor_ramp_years = years from drug intro to full floor
-        // Per-drug-class floors: bacteria_{name}_{drug_class}_resistance_floor = target floor level (0.0-1.0)
-        //
-        // The floor is applied as: floor_level * ramp_fraction, where ramp_fraction =
-        // min(1.0, (current_day - drug_intro_day) / (ramp_years * 365)) for the earliest drug in the class.
-        // If current_day < drug_intro_day, no floor is applied (resistance can't precede drug).
+        // Provisionally disabled for the population-3m/10m architecture review. The corrected
+        // profile cache and the explicit biological persistence pathways should first be allowed
+        // to operate without this universal, drug-list-dependent reinforcement.
+        map.insert("resistance_floor_feature_enabled".to_string(), 0.0);
 
-        // Master enable flag for resistance floors (set to 0.0 to disable globally)
-        map.insert("resistance_floor_feature_enabled".to_string(), 1.0);
-
-        // Convenience switch: set to 1.0 to enable floors for ALL bacteria at once without
-        // touching each per-organism flag.  Per-organism flags still take effect when this is 0.0.
+        // Dormant while the master switch is 0.0. Retained at 1.0 so a matched guard-on
+        // comparison requires changing only resistance_floor_feature_enabled.
         map.insert("resistance_floor_all_bacteria_enabled".to_string(), 1.0);
 
-        // Universal extinction guard: probability that a new infection acquires a resistance
-        // mechanism for a given drug class, provided:
-        //   (a) that drug class was introduced before the current simulation day, and
-        //   (b) that mechanism has already emerged somewhere in the simulation (causal guard).
-        // 1% is a minimal floor - not a calibration target. Resistance prevalences above
-        // this level arise entirely from de novo emergence, HGT, carriage, and profile-cache
-        // sampling. No per-organism or per-drug-class overrides are required or supported.
+        // Dormant guard-on value. This is rolled once per eligible drug entry, followed by the
+        // separate mechanism-assignment probability; it is not a 1% organism-level floor.
         map.insert("resistance_floor_default_level".to_string(), 0.01);
 
         // Debug-only helper: seed each hospital cache slot with one resistant profile so
