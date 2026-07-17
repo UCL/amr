@@ -1538,6 +1538,8 @@ impl MechanismProfileCache {
     }
 }
 
+const MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK: usize = 100;
+
 /// Unified mechanism resistance cache built entirely on the profile reservoir.
 ///
 /// - `profiles`: reservoir of up to 1000 complete mechanism genotypes (u64 bitmasks)
@@ -1685,28 +1687,33 @@ impl MechanismCache {
     /// For each (bacteria, mechanism) pair, prevalence is computed across all regional
     /// community caches, measuring the fraction of stored profiles that carry that mechanism.
     /// Hospital profiles are excluded because the ratchet seeds only exogenous community
-    /// acquisitions.
+    /// acquisitions. A bacterium must have at least
+    /// `MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK` retained community profiles before its
+    /// permanent peak can increase.
     ///
     /// Called automatically after the annual `update_profiles()` refresh.
     pub fn update_peak_community_marginal_prevalences(&mut self) {
         for b_idx in 0..self.num_bacteria {
+            let total_profiles = (0..self.num_regions)
+                .map(|r_idx| self.profiles.profiles[r_idx][0][b_idx].len())
+                .sum::<usize>();
+            if total_profiles < MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK {
+                continue;
+            }
+
             for m_idx in 0..self.num_mechanisms {
                 let bit = 1u64 << m_idx;
-                let mut total_profiles = 0usize;
                 let mut profiles_with_mechanism = 0usize;
                 for r_idx in 0..self.num_regions {
                     let community_slot = &self.profiles.profiles[r_idx][0][b_idx];
-                    total_profiles += community_slot.len();
                     profiles_with_mechanism += community_slot
                         .iter()
                         .filter(|&&mask| mask & bit != 0)
                         .count();
                 }
-                if total_profiles > 0 {
-                    let current_prev = profiles_with_mechanism as f64 / total_profiles as f64;
-                    if current_prev > self.peak_mechanism_prevalence[b_idx][m_idx] {
-                        self.peak_mechanism_prevalence[b_idx][m_idx] = current_prev;
-                    }
+                let current_prev = profiles_with_mechanism as f64 / total_profiles as f64;
+                if current_prev > self.peak_mechanism_prevalence[b_idx][m_idx] {
+                    self.peak_mechanism_prevalence[b_idx][m_idx] = current_prev;
                 }
             }
         }
@@ -8506,6 +8513,29 @@ mod tests {
         assert_eq!(
             cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
             0.25
+        );
+    }
+
+    #[test]
+    fn ratchet_peak_requires_one_hundred_community_profiles() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let bacteria_idx = 0;
+        let mechanism_idx = 0;
+        let mechanism_bit = 1u64 << mechanism_idx;
+        let mut cache = MechanismCache::new(2, BACTERIA_LIST.len(), num_mechanisms);
+
+        cache.profiles.profiles[0][0][bacteria_idx] = vec![mechanism_bit; 99];
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            0.0
+        );
+
+        cache.profiles.profiles[1][0][bacteria_idx].push(0);
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            0.99
         );
     }
 
