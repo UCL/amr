@@ -104,6 +104,7 @@ pub const RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY: &str =
     "run_pathway_microbiome_de_novo_multiplier";
 pub const RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY: &str =
     "run_pathway_microbiome_disruption_multiplier";
+pub const RUN_PATHWAY_RATCHET_ENABLED_KEY: &str = "run_pathway_ratchet_enabled";
 
 const REGION_VARIANTS: [Region; 7] = [
     Region::NorthAmerica,
@@ -12882,6 +12883,7 @@ lazy_static! {
         map.insert(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY.to_string(),       1.0); // Axis 2: mechanism reversion rate
         map.insert(RUN_PATHWAY_HGT_MULTIPLIER_KEY.to_string(),                  1.0); // Axis 3: HGT transfer rate
         map.insert(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY.to_string(), 1.0); // Axis 4: microbiome seeding on colonisation
+        map.insert(RUN_PATHWAY_RATCHET_ENABLED_KEY.to_string(),                1.0); // Diagnostic switch: 1=on, 0=off; not a calibration axis
         // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
 
         map

@@ -88,7 +88,8 @@ use crate::config::{
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
-    RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY, RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
+    RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
     self, load_float, store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus,
@@ -749,6 +750,24 @@ fn revert_unselected_microbiome_mechanisms(
     }
 
     any_microbiome_reverted
+}
+
+const RATCHET_REVERSION_RATE_THRESHOLD_PER_DAY: f64 = 0.003;
+const RATCHET_PREVALENCE_STEP: f64 = 0.10;
+const RATCHET_MAX_ASSIGNMENT_PROBABILITY: f64 = 0.50;
+
+#[inline]
+fn ratchet_floor_from_peak(
+    peak_prevalence: f64,
+    reversion_rate: f64,
+    ratchet_enabled: bool,
+) -> f64 {
+    if !ratchet_enabled || reversion_rate > RATCHET_REVERSION_RATE_THRESHOLD_PER_DAY {
+        return 0.0;
+    }
+
+    ((peak_prevalence / RATCHET_PREVALENCE_STEP).floor() * RATCHET_PREVALENCE_STEP)
+        .min(RATCHET_MAX_ASSIGNMENT_PROBABILITY)
 }
 
 #[inline]
@@ -2412,8 +2431,7 @@ pub(crate) fn apply_rules(
         get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
     let microbiome_disruption_sampling_multiplier =
         get_global_param(RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY).unwrap_or(1.0);
-    // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
-    // of setting it to zero in a counterfactual scenario with no resistance
+    let ratchet_enabled = get_global_param(RUN_PATHWAY_RATCHET_ENABLED_KEY).unwrap_or(1.0) > 0.5;
 
     // New stewardship policy levers
     let reserve_drug_penalty_multiplier = policy.reserve_drug_penalty_multiplier.unwrap_or(1.0);
@@ -5904,14 +5922,9 @@ pub(crate) fn apply_rules(
                             // level prevalence once a resistant clone is established.
                             // Stepped at 10% intervals: >10%→10%, >20%→20%, etc.
                             let reversion_rate = store.resistance_mechanism.reversion_rate(m_idx);
-                            let ratchet_floor = if reversion_rate <= 0.003 {
-                                let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
-                                // Round down to nearest 10% step — once a mechanism has reached
-                                // the next threshold it cannot decay below the previous step.
-                                ((peak / 0.10).floor() * 0.10).min(0.50)
-                            } else {
-                                0.0
-                            };
+                            let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
+                            let ratchet_floor =
+                                ratchet_floor_from_peak(peak, reversion_rate, ratchet_enabled);
                             let floor = static_floor.max(ratchet_floor);
                             if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
                                 let mechanism_bit = 1u64 << m_idx;
@@ -7440,7 +7453,7 @@ mod tests {
         hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
         mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
         not_under_medical_care_log_odds, prepare_individual_for_active_day,
-        promote_minority_mechanisms_once, propagate_mechanism_resistance,
+        promote_minority_mechanisms_once, propagate_mechanism_resistance, ratchet_floor_from_peak,
         record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
         reset_resistance_test_state, revert_unselected_microbiome_mechanisms,
         sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
@@ -8041,6 +8054,18 @@ mod tests {
             ),
             0
         );
+    }
+
+    #[test]
+    fn ratchet_switch_preserves_existing_steps_and_cap() {
+        let eligible_rate = 0.0001;
+
+        assert_eq!(ratchet_floor_from_peak(0.09, eligible_rate, true), 0.0);
+        assert_eq!(ratchet_floor_from_peak(0.12, eligible_rate, true), 0.10);
+        assert_eq!(ratchet_floor_from_peak(0.23, eligible_rate, true), 0.20);
+        assert_eq!(ratchet_floor_from_peak(0.99, eligible_rate, true), 0.50);
+        assert_eq!(ratchet_floor_from_peak(0.99, eligible_rate, false), 0.0);
+        assert_eq!(ratchet_floor_from_peak(0.99, 0.004, true), 0.0);
     }
 
     fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {

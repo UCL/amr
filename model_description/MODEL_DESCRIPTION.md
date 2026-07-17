@@ -1596,6 +1596,8 @@ In conceptual terms, a static environmental floor is a configured exogenous rese
 
 **Relationship to static floors.** Era-specific static environmental probabilities can provide exogenous seeding during configured historical periods, including periods when the finite profile cache might otherwise build a resistant reservoir slowly. The ratchet has no universal takeover date. At each eligible exogenous acquisition, the model uses the larger of the static and ratchet probabilities. For example, if a *Shigella* mechanism has a current static probability of 0.45 and a recorded cache peak that produces a ratchet probability of 0.40, the effective assignment probability remains 0.45. Neither value implies 45% or 40% total resistance prevalence.
 
+**Diagnostic switch.** `run_pathway_ratchet_enabled` is 1.0 by default and preserves the ratchet behavior described above. Setting it to 0.0 disables only the dynamic ratchet contribution for component-ablation runs; static environmental floors and the separate universal acquisition guard remain active.
+
 **Practical calibration framework for resistance shortfalls.** When the model under-shoots an observed resistance prevalence, the preferred response is *not* to keep inflating mechanism emergence rates above biologically plausible values. For stewardship-policy purposes, the model instead treats most persistent shortfalls as belonging to one of four interpretable categories:
 
 1. **Ratchet reseeding:** use when a mechanism plausibly built up historically under human selection, meets the configured reversion-rate gate, and should retain an acquisition-side historical memory after selection falls.
