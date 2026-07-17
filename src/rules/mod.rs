@@ -685,6 +685,52 @@ fn emerge_microbiome_mechanisms_once(
     microbiome_mechanism_changed
 }
 
+fn revert_unselected_microbiome_mechanisms(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    reversion_rate_multiplier: f64,
+    rng: &mut impl Rng,
+) -> bool {
+    let store = parameter_store();
+    let bacteria_name = BACTERIA_LIST[bacteria_idx];
+    let setting_multiplier = if individual.hospital_status.is_hospitalized() {
+        1.0
+    } else {
+        store
+            .bacteria
+            .community_mechanism_reversion_multiplier(bacteria_idx)
+    };
+    let mut present_mechanism_mask = individual.microbiome_mechanism_mask(bacteria_idx);
+    let mut any_microbiome_reverted = false;
+
+    while present_mechanism_mask != 0 {
+        let mechanism_idx = present_mechanism_mask.trailing_zeros() as usize;
+        present_mechanism_mask &= present_mechanism_mask - 1;
+        let mechanism = ResistanceMechanism::all()[mechanism_idx];
+        let selecting_drug_present =
+            DRUG_SHORT_NAMES
+                .iter()
+                .enumerate()
+                .any(|(drug_idx, &drug_name)| {
+                    individual.cur_level_drug[drug_idx] > 0.0
+                        && mechanism_applies_to_drug(mechanism, bacteria_name, drug_name)
+                });
+        if selecting_drug_present {
+            continue;
+        }
+
+        let mechanism_reversion_rate = store.resistance_mechanism.reversion_rate(mechanism_idx)
+            * reversion_rate_multiplier
+            * setting_multiplier;
+        if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
+            individual.clear_microbiome_mechanism(bacteria_idx, mechanism_idx);
+            any_microbiome_reverted = true;
+        }
+    }
+
+    any_microbiome_reverted
+}
+
 #[inline]
 fn mechanism_idx(target: ResistanceMechanism) -> usize {
     ResistanceMechanism::all()
@@ -5517,7 +5563,6 @@ pub(crate) fn apply_rules(
                     (baseline_clearance_prob / (1.0 - baseline_clearance_prob)).fast_ln();
                 let mut clearance_log_odds = baseline_log_odds;
                 let max_resistance_level = store.globals.max_resistance_level;
-                let mut strongest_microbiome_activity: f64 = 0.0;
 
                 // --- Duration effect: longer carriage = harder to clear (established colonization) ---
                 // MECHANISM: Newly acquired bacteria are more susceptible to immune clearance and competition.
@@ -5569,9 +5614,6 @@ pub(crate) fn apply_rules(
                                     .antibiotic_clearance_log_odds_per_unit_activity;
                             clearance_log_odds += clearance_boost;
                         }
-
-                        strongest_microbiome_activity =
-                            strongest_microbiome_activity.max(effective_activity);
                     }
                 }
 
@@ -5585,67 +5627,24 @@ pub(crate) fn apply_rules(
 
                 // --- de novo resistance emergence in microbiome when on drug ---
                 if individual.presence_microbiome[b_idx] {
-                    use crate::simulation::population::ResistanceMechanism;
-
                     // --- Microbiome mechanism reversion (replaces float half-life decay) ---
-                    // When no selecting drug pressure is present, microbiome mechanisms revert
-                    // using the same per-mechanism reversion rates as infection-side reversion.
-                    {
-                        let bacteria_name = BACTERIA_LIST[b_idx];
-                        let selection_pressure =
-                            strongest_microbiome_activity.clamp(0.0_f64, 5.0_f64);
-                        let no_selection = selection_pressure < 0.1;
-
-                        if no_selection {
-                            let mut any_microbiome_reverted = false;
-                            for (mechanism_idx, mechanism) in
-                                ResistanceMechanism::all().iter().enumerate()
-                            {
-                                if !individual.has_microbiome_mechanism(b_idx, mechanism_idx) {
-                                    continue;
-                                }
-                                // Check if any active drug selects for this mechanism
-                                let selecting_drug_present = DRUG_SHORT_NAMES
-                                    .iter()
-                                    .enumerate()
-                                    .any(|(d_idx, &drug_name)| {
-                                        individual.cur_level_drug[d_idx] > 0.0
-                                            && mechanism_applies_to_drug(
-                                                *mechanism,
-                                                bacteria_name,
-                                                drug_name,
-                                            )
-                                    });
-                                if !selecting_drug_present {
-                                    let community_reversion_mult =
-                                        if !individual.hospital_status.is_hospitalized() {
-                                            store
-                                                .bacteria
-                                                .community_mechanism_reversion_multiplier(b_idx)
-                                        } else {
-                                            1.0
-                                        };
-                                    let mechanism_reversion_rate =
-                                        store.resistance_mechanism.reversion_rate(mechanism_idx)
-                                            * reversion_rate_sampling_multiplier
-                                            * community_reversion_mult;
-                                    if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
-                                        individual.clear_microbiome_mechanism(b_idx, mechanism_idx);
-                                        any_microbiome_reverted = true;
-                                    }
-                                }
-                            }
-                            if any_microbiome_reverted {
-                                // Re-derive microbiome_r from updated mechanism_microbiome
-                                propagate_mechanism_resistance(
-                                    individual,
-                                    b_idx,
-                                    param_cache,
-                                    false, // raise_only=false: reversion resets to mechanism-derived level
-                                    true,  // propagate_microbiome_r: this is microbiome context
-                                );
-                            }
-                        }
+                    // Each mechanism can revert independently when no mapped active drug selects
+                    // for it, using the same per-mechanism rates as infection-side reversion.
+                    let any_microbiome_reverted = revert_unselected_microbiome_mechanisms(
+                        individual,
+                        b_idx,
+                        reversion_rate_sampling_multiplier,
+                        rng,
+                    );
+                    if any_microbiome_reverted {
+                        // Re-derive microbiome_r from updated mechanism_microbiome
+                        propagate_mechanism_resistance(
+                            individual,
+                            b_idx,
+                            param_cache,
+                            false, // raise_only=false: reversion resets to mechanism-derived level
+                            true,  // propagate_microbiome_r: this is microbiome context
+                        );
                     }
                     // --- end microbiome mechanism reversion ---
 
@@ -7444,10 +7443,11 @@ mod tests {
         emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
         has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
         hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
-        mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
-        prepare_individual_for_active_day, promote_minority_mechanisms_once,
-        propagate_mechanism_resistance, record_hgt_mechanism_in_present_compartments,
-        record_sampled_microbiome_profile, reset_resistance_test_state,
+        mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
+        not_under_medical_care_log_odds, prepare_individual_for_active_day,
+        promote_minority_mechanisms_once, propagate_mechanism_resistance,
+        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
+        reset_resistance_test_state, revert_unselected_microbiome_mechanisms,
         vaccination_acquisition_log_odds, ParameterKeyCache,
     };
     use crate::config::parameter_store;
@@ -7660,6 +7660,55 @@ mod tests {
         }
     }
 
+    fn microbiome_reversion_selection_case(
+        param_cache: &ParameterKeyCache,
+    ) -> (usize, usize, usize, usize, f64) {
+        let store = parameter_store();
+        for (bacteria_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+            for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                if param_cache.potency(bacteria_idx, drug_idx) <= 0.1 {
+                    continue;
+                }
+
+                let selected_mechanism = ResistanceMechanism::all().iter().enumerate().find(
+                    |(mechanism_idx, mechanism)| {
+                        !mechanism.is_as_yet_unknown()
+                            && store.resistance_mechanism.reversion_rate(*mechanism_idx) > 0.0
+                            && mechanism_applies_to_drug(**mechanism, bacteria_name, drug_name)
+                    },
+                );
+                let unrelated_mechanism = ResistanceMechanism::all().iter().enumerate().find(
+                    |(mechanism_idx, mechanism)| {
+                        !mechanism.is_as_yet_unknown()
+                            && store.resistance_mechanism.reversion_rate(*mechanism_idx) > 0.0
+                            && !mechanism_applies_to_drug(**mechanism, bacteria_name, drug_name)
+                            && DRUG_SHORT_NAMES.iter().any(|&other_drug_name| {
+                                mechanism_applies_to_drug(
+                                    **mechanism,
+                                    bacteria_name,
+                                    other_drug_name,
+                                )
+                            })
+                    },
+                );
+
+                if let (Some((selected_idx, _)), Some((unrelated_idx, _))) =
+                    (selected_mechanism, unrelated_mechanism)
+                {
+                    return (
+                        bacteria_idx,
+                        drug_idx,
+                        selected_idx,
+                        unrelated_idx,
+                        store.resistance_mechanism.reversion_rate(unrelated_idx),
+                    );
+                }
+            }
+        }
+
+        panic!("expected a microbiome reversion case with selected and unrelated mechanisms");
+    }
+
     fn transferable_mechanism_idx() -> usize {
         ResistanceMechanism::all()
             .iter()
@@ -7841,6 +7890,39 @@ mod tests {
         assert!(changed_with_pressure);
         assert!(individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx));
         assert_eq!(individual.any_mechanism_mask(bacteria_idx), 0);
+    }
+
+    #[test]
+    fn microbiome_reversion_is_mechanism_specific_under_unrelated_drug_pressure() {
+        let param_cache = ParameterKeyCache::new();
+        let (
+            bacteria_idx,
+            drug_idx,
+            selected_mechanism_idx,
+            unrelated_mechanism_idx,
+            unrelated_reversion_rate,
+        ) = microbiome_reversion_selection_case(&param_cache);
+        let (mut individual, _rng) = individual_with_seed(26);
+        individual.presence_microbiome[bacteria_idx] = true;
+        individual.hospital_status = HospitalStatus::InHospital;
+        individual.set_microbiome_mechanism(bacteria_idx, selected_mechanism_idx);
+        individual.set_microbiome_mechanism(bacteria_idx, unrelated_mechanism_idx);
+        individual.cur_level_drug[drug_idx] = 1.0;
+        let effective_activity_without_projected_resistance =
+            param_cache.potency(bacteria_idx, drug_idx) * individual.cur_level_drug[drug_idx];
+        assert!(effective_activity_without_projected_resistance > 0.1);
+
+        let mut always_succeed_rng = StepRng::new(0, 0);
+        let changed = revert_unselected_microbiome_mechanisms(
+            &mut individual,
+            bacteria_idx,
+            1.0 / unrelated_reversion_rate,
+            &mut always_succeed_rng,
+        );
+
+        assert!(changed);
+        assert!(individual.has_microbiome_mechanism(bacteria_idx, selected_mechanism_idx));
+        assert!(!individual.has_microbiome_mechanism(bacteria_idx, unrelated_mechanism_idx));
     }
 
     fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {
