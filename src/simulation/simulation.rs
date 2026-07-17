@@ -1547,7 +1547,8 @@ const MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK: usize = 100;
 ///   sampling and asymmetric retention (community vs hospital).
 /// - `peak_mechanism_prevalence`: global peak marginal prevalence ever achieved for each
 ///   (bacteria, mechanism) pair across all regional community caches. Used by the
-///   ratchet-floor mechanism to prevent reversion of low-fitness-cost resistance.
+///   ratchet-floor mechanism to support exogenous community reseeding of selected persistent
+///   resistance mechanisms.
 ///
 /// - `drug_resistance_prevalence`: exact prevalence derived from the current profile
 ///   reservoir after each daily refresh, for constant-time prescribing lookups.
@@ -1558,8 +1559,8 @@ pub struct MechanismCache {
     /// Global peak marginal mechanism prevalence ever achieved in the simulation.
     /// Indexed as `peak_mechanism_prevalence[bacteria_idx][mechanism_idx]`.
     /// Updated annually via `update_peak_community_marginal_prevalences()`.
-    /// Used by the ratchet floor: low-fitness-cost mechanisms that have reached X%
-    /// are prevented from falling below X% in the exogenous acquisition pool.
+    /// Used by the ratchet floor to derive stepped exogenous assignment probabilities for
+    /// selected persistent mechanisms.
     pub peak_mechanism_prevalence: Vec<Vec<f64>>,
     /// Exact resistance prevalence for each `[region x hospital/community x bacteria x drug]`
     /// slot, rebuilt whenever the profile reservoir changes.

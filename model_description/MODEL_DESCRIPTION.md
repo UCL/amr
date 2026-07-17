@@ -1567,11 +1567,11 @@ $$\text{effective\_floor} = \max(\text{static\_floor}, \text{ratchet\_floor})$$
 
 where:
 
-$$\text{ratchet\_floor} = \begin{cases} 0 & \text{if reversion\_rate} > 0.003 \text{ /day} \\ \lfloor \text{peak\_prev} / 0.10 \rfloor \times 0.10 & \text{otherwise} \end{cases}$$
+$$\text{ratchet\_floor} = \begin{cases} 0 & \text{if reversion\_rate} > 0.001 \text{ /day and mechanism is not RpoB} \\ \lfloor \text{peak\_prev} / 0.10 \rfloor \times 0.10 & \text{otherwise} \end{cases}$$
 
 capped at 0.50. Here `ratchet_floor` is a probability in the exogenous assignment loop. For example, a recorded peak of 12% yields a 10% assignment probability and a peak of 23% yields a 20% probability. The 100-profile evidence threshold prevents a handful of retained profiles from establishing permanent memory. Annual sampling and 10-point steps further reduce sensitivity to small fluctuations, but they do not eliminate sampling noise; because the peak is upward-only, a qualifying sampled threshold crossing has a lasting effect.
 
-**Eligibility gate — reversion rate ≤ 0.003/day.** In the current code the ratchet applies to mechanisms whose configured base reversion rate is at most 0.003/day. This is a numerical eligibility rule rather than a guarantee that the phenotype is stable in every bacterium and setting; it includes both very-low-reversion mechanisms and some modest-cost mechanisms such as `rpoB`, `ermB`, `vanA`, and `vanB`.
+**Eligibility gate — base reversion rate ≤ 0.001/day, plus RpoB.** The ratchet applies to mechanisms whose configured base reversion rate is at most 0.001/day. `MutationRpoB` is retained as an explicit historical-persistence exception at 0.002/day. This is an acquisition-path eligibility rule; it deliberately uses the mechanism's base rate rather than the bacterium- and run-specific effective rate used by the separate reversion pathway. Seven active mechanisms above the threshold are excluded: NDM/VIM, MCR-1, polymyxin regulatory mutation, LiaFSR/Cls, ErmB, VanA, and VanB.
 
 | Mechanism | Reversion rate | Ratchet-eligible y/n |
 |-----------|---------------|-----------------------------------|
@@ -1587,10 +1587,13 @@ capped at 0.50. Here `ratchet_floor` is a probability in the exogenous assignmen
 | Folate pathway (sul/dfrA) | 0.0001/day | ✓ |
 | AAC/APH | ~0.0001/day | ✓ |
 | MphA | ~0.0001/day | ✓ |
-| Polymyxin regulatory | 0.0015/day | ✓ |
-| ErmB | 0.002/day | ✓ |
-| VanA/VanB | 0.002/day | ✓ |
-| RpoB | 0.002/day | ✓ |
+| NDM/VIM | 0.0015/day | no |
+| MCR-1 | 0.0015/day | no |
+| Polymyxin regulatory | 0.0015/day | no |
+| LiaFSR/Cls | 0.0015/day | no |
+| ErmB | 0.002/day | no |
+| VanA/VanB | 0.002/day | no |
+| RpoB | 0.002/day | yes — explicit exception |
 
 In conceptual terms, a static environmental floor is a configured exogenous reseeding probability, whereas the ratchet is a history-derived exogenous reseeding probability based on prior cache prevalence.
 

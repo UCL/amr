@@ -752,17 +752,24 @@ fn revert_unselected_microbiome_mechanisms(
     any_microbiome_reverted
 }
 
-const RATCHET_REVERSION_RATE_THRESHOLD_PER_DAY: f64 = 0.003;
+const RATCHET_REVERSION_RATE_THRESHOLD_PER_DAY: f64 = 0.001;
 const RATCHET_PREVALENCE_STEP: f64 = 0.10;
 const RATCHET_MAX_ASSIGNMENT_PROBABILITY: f64 = 0.50;
 
 #[inline]
+fn ratchet_mechanism_is_eligible(mechanism: ResistanceMechanism, reversion_rate: f64) -> bool {
+    reversion_rate <= RATCHET_REVERSION_RATE_THRESHOLD_PER_DAY
+        || mechanism == ResistanceMechanism::MutationRpoB
+}
+
+#[inline]
 fn ratchet_floor_from_peak(
+    mechanism: ResistanceMechanism,
     peak_prevalence: f64,
     reversion_rate: f64,
     ratchet_enabled: bool,
 ) -> f64 {
-    if !ratchet_enabled || reversion_rate > RATCHET_REVERSION_RATE_THRESHOLD_PER_DAY {
+    if !ratchet_enabled || !ratchet_mechanism_is_eligible(mechanism, reversion_rate) {
         return 0.0;
     }
 
@@ -5891,11 +5898,10 @@ pub(crate) fn apply_rules(
                     // 1. Static environmental floor (hardcoded in config; represents agricultural
                     //    reservoirs, food-chain contamination, and early-era warm-up seeding).
                     // 2. Ratchet floor (dynamic; computed from the simulation's own peak achieved
-                    //    prevalence for mechanisms with low reversion rates).  Mechanistic basis:
-                    //    once a low-fitness-cost resistance gene has reached threshold X% prevalence
-                    //    in the circulating pool, co-selection, ecological persistence in
-                    //    wastewater/soil, and HGT ensure it cannot fall below X% — this is
-                    //    independent of whether the selecting drug is still prescribed locally.
+                    //    prevalence for selected persistent mechanisms). Mechanistic basis:
+                    //    once a low-fitness-cost resistance mechanism has reached a prevalence
+                    //    threshold in the circulating pool, co-selection, ecological persistence,
+                    //    and HGT can provide continued reseeding after direct selection declines.
                     //    The ratchet prevents the simulation from "forgetting" historically-built-up
                     //    resistance when drug selection pressure is later removed (e.g. post-2010
                     //    ciprofloxacin de-listing for Shigella: without the ratchet, gyrA prevalence
@@ -5914,17 +5920,19 @@ pub(crate) fn apply_rules(
                                 m_idx,
                                 simulation_year,
                             );
-                            // Ratchet floor: applies only to low-fitness-cost mechanisms
-                            // (reversion_rate <= 0.003/day ≈ fitness cost low relative to
-                            // selection benefits). Gate raised from 0.001 to 0.003 to include
-                            // MutationRpoB (reversion=0.002), whose fitness cost is modest
-                            // rather than negligible but still insufficient to erode population-
-                            // level prevalence once a resistant clone is established.
+                            // Ratchet floor: applies to mechanisms with base reversion rate
+                            // <= 0.001/day, plus the explicit MutationRpoB historical-persistence
+                            // exception. This eligibility rule is separate from the effective
+                            // bacterium- and run-specific rate used by the reversion pathway.
                             // Stepped at 10% intervals: >10%→10%, >20%→20%, etc.
                             let reversion_rate = store.resistance_mechanism.reversion_rate(m_idx);
                             let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
-                            let ratchet_floor =
-                                ratchet_floor_from_peak(peak, reversion_rate, ratchet_enabled);
+                            let ratchet_floor = ratchet_floor_from_peak(
+                                *mechanism,
+                                peak,
+                                reversion_rate,
+                                ratchet_enabled,
+                            );
                             let floor = static_floor.max(ratchet_floor);
                             if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
                                 let mechanism_bit = 1u64 << m_idx;
@@ -7454,10 +7462,10 @@ mod tests {
         mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
         not_under_medical_care_log_odds, prepare_individual_for_active_day,
         promote_minority_mechanisms_once, propagate_mechanism_resistance, ratchet_floor_from_peak,
-        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
-        reset_resistance_test_state, revert_unselected_microbiome_mechanisms,
-        sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
-        ParameterKeyCache,
+        ratchet_mechanism_is_eligible, record_hgt_mechanism_in_present_compartments,
+        record_sampled_microbiome_profile, reset_resistance_test_state,
+        revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
+        vaccination_acquisition_log_odds, ParameterKeyCache,
     };
     use crate::config::parameter_store;
     use crate::simulation::population::{
@@ -8058,14 +8066,64 @@ mod tests {
 
     #[test]
     fn ratchet_switch_preserves_existing_steps_and_cap() {
+        let mechanism = ResistanceMechanism::MutationGyrAPrimary;
         let eligible_rate = 0.0001;
 
-        assert_eq!(ratchet_floor_from_peak(0.09, eligible_rate, true), 0.0);
-        assert_eq!(ratchet_floor_from_peak(0.12, eligible_rate, true), 0.10);
-        assert_eq!(ratchet_floor_from_peak(0.23, eligible_rate, true), 0.20);
-        assert_eq!(ratchet_floor_from_peak(0.99, eligible_rate, true), 0.50);
-        assert_eq!(ratchet_floor_from_peak(0.99, eligible_rate, false), 0.0);
-        assert_eq!(ratchet_floor_from_peak(0.99, 0.004, true), 0.0);
+        assert_eq!(
+            ratchet_floor_from_peak(mechanism, 0.09, eligible_rate, true),
+            0.0
+        );
+        assert_eq!(
+            ratchet_floor_from_peak(mechanism, 0.12, eligible_rate, true),
+            0.10
+        );
+        assert_eq!(
+            ratchet_floor_from_peak(mechanism, 0.23, eligible_rate, true),
+            0.20
+        );
+        assert_eq!(
+            ratchet_floor_from_peak(mechanism, 0.99, eligible_rate, true),
+            0.50
+        );
+        assert_eq!(
+            ratchet_floor_from_peak(mechanism, 0.99, eligible_rate, false),
+            0.0
+        );
+        assert_eq!(ratchet_floor_from_peak(mechanism, 0.99, 0.0011, true), 0.0);
+    }
+
+    #[test]
+    fn ratchet_eligibility_is_selective_and_retains_rpo_b() {
+        let store = parameter_store();
+        let excluded = ResistanceMechanism::all()
+            .iter()
+            .enumerate()
+            .filter_map(|(mechanism_idx, &mechanism)| {
+                (!mechanism.is_as_yet_unknown()
+                    && !ratchet_mechanism_is_eligible(
+                        mechanism,
+                        store.resistance_mechanism.reversion_rate(mechanism_idx),
+                    ))
+                .then_some(mechanism)
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            excluded,
+            vec![
+                ResistanceMechanism::EnzymeNdmVim,
+                ResistanceMechanism::TargetSiteVanA,
+                ResistanceMechanism::TargetSiteVanB,
+                ResistanceMechanism::TargetSiteErmB,
+                ResistanceMechanism::ModificationMcr1,
+                ResistanceMechanism::MutationPolymyxinRegulatory,
+                ResistanceMechanism::MutationLiafsrCls,
+            ]
+        );
+        assert!(ratchet_mechanism_is_eligible(
+            ResistanceMechanism::MutationRpoB,
+            0.002
+        ));
     }
 
     fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {
