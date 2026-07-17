@@ -596,6 +596,23 @@ fn propagate_mechanism_resistance(
     }
 }
 
+fn record_sampled_microbiome_profile(individual: &mut Individual, b_idx: usize, profile: u64) {
+    for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+        if profile & (1u64 << mechanism_idx) != 0 && !mechanism.is_as_yet_unknown() {
+            individual.set_microbiome_mechanism(b_idx, mechanism_idx);
+        }
+    }
+}
+
+fn clear_microbiome_compartment(individual: &mut Individual, b_idx: usize) {
+    individual.presence_microbiome[b_idx] = false;
+    individual.date_microbiome_acquired[b_idx] = 0;
+    individual.clear_microbiome_mechanisms(b_idx);
+    for resistance in &mut individual.resistances[b_idx] {
+        resistance.microbiome_r = store_float(0.0);
+    }
+}
+
 #[inline]
 fn mechanism_idx(target: ResistanceMechanism) -> usize {
     ResistanceMechanism::all()
@@ -5331,10 +5348,8 @@ pub(crate) fn apply_rules(
                         individual.microbiome_acquired_on_drug_today[b_idx] = acquisition_on_drug;
 
                         // --- assign microbiome mechanisms on new microbiome acquisition ---
-                        // Mirror the infection-side mechanism sampling pattern:
-                        // sample a mechanism profile (or single mechanism) from the cache,
-                        // write to mechanism_microbiome AND mechanism_any, then derive
-                        // microbiome_r via propagate_mechanism_resistance.
+                        // Sample a complete profile into the carriage compartment. Transfer into
+                        // an active infection remains a separate, probability-gated pathway.
                         let region_idx = match individual.region_cur_in {
                             Region::Home => individual.region_living as usize,
                             r => r as usize,
@@ -5366,8 +5381,6 @@ pub(crate) fn apply_rules(
                         if rng.gen::<f64>()
                             < (microbiome_r_multiplier * counterfactual_resistance_multiplier)
                         {
-                            use crate::simulation::population::ResistanceMechanism;
-
                             // Sample a complete profile from the hospital or community pool.
                             // Hospital carriage uses weighted sampling for consistency
                             // with infection acquisition.
@@ -5391,21 +5404,12 @@ pub(crate) fn apply_rules(
                                     )
                                 };
                             if let Some(profile) = carriage_profile {
-                                for m_idx in 0..64 {
-                                    if (profile & (1 << m_idx)) != 0 {
-                                        if m_idx < ResistanceMechanism::all().len()
-                                            && ResistanceMechanism::all()[m_idx].is_as_yet_unknown()
-                                        {
-                                            continue;
-                                        }
-                                        individual.set_microbiome_mechanism(b_idx, m_idx);
-                                        individual.set_any_mechanism(b_idx, m_idx);
-                                    }
-                                }
+                                record_sampled_microbiome_profile(individual, b_idx, profile);
                             }
                         }
 
-                        // Derive microbiome_r (and raise any_r) from the mechanism state
+                        // Derive microbiome_r from the carriage mechanism state. With no active
+                        // infection, mechanism_any remains empty and any_r remains zero.
                         propagate_mechanism_resistance(
                             individual,
                             b_idx,
@@ -5417,15 +5421,10 @@ pub(crate) fn apply_rules(
                     }
                 }
             } else {
-                individual.presence_microbiome[b_idx] = false;
-                individual.date_microbiome_acquired[b_idx] = 0;
+                clear_microbiome_compartment(individual, b_idx);
                 individual.microbiome_acquired_today[b_idx] = false;
                 individual.microbiome_acquired_on_drug_today[b_idx] = false;
                 individual.microbiome_cleared_today[b_idx] = false;
-                for resistance_data in individual.resistances[b_idx].iter_mut() {
-                    resistance_data.microbiome_r = store_float(0.0);
-                }
-                individual.clear_microbiome_mechanisms(b_idx);
             }
 
             if allows_microbiome && individual.presence_microbiome[b_idx] {
@@ -5508,10 +5507,8 @@ pub(crate) fn apply_rules(
                 let clearance_probability = 1.0 / (1.0 + (-clearance_log_odds).fast_exp());
 
                 if rng.gen_bool(clearance_probability.clamp(0.0, 1.0)) {
-                    individual.presence_microbiome[b_idx] = false;
-                    individual.date_microbiome_acquired[b_idx] = 0; // Reset acquisition date for potential re-acquisition
+                    clear_microbiome_compartment(individual, b_idx);
                     individual.microbiome_cleared_today[b_idx] = true;
-                    individual.clear_microbiome_mechanisms(b_idx);
                 }
 
                 // --- de novo resistance emergence in microbiome when on drug ---
@@ -6668,9 +6665,8 @@ pub(crate) fn apply_rules(
                     ) && individual.presence_microbiome[b_idx]
                     {
                         if rng.gen_bool(cached_microbiome_clearance_on_drug_treatment) {
-                            individual.presence_microbiome[b_idx] = false;
+                            clear_microbiome_compartment(individual, b_idx);
                             individual.microbiome_cleared_today[b_idx] = true;
-                            individual.clear_microbiome_mechanisms(b_idx);
                         }
                     }
                 }
@@ -7409,12 +7405,14 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_active_symptomatic_syndromes, collect_regional_surveillance_bacteria,
-        complete_resistance_test_if_ready, existing_therapy_prevents_incoming_infection,
-        has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
-        hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
+        clear_microbiome_compartment, collect_active_symptomatic_syndromes,
+        collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
+        existing_therapy_prevents_incoming_infection, has_serious_resistance_test_positive,
+        hgt_context_multiplier, hgt_donor_mechanism_mask, hgt_donor_mechanism_multiplier,
+        identified_resistance_results_ready, is_under_medical_care,
         mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
-        prepare_individual_for_active_day, record_hgt_mechanism_in_present_compartments,
+        prepare_individual_for_active_day, propagate_mechanism_resistance,
+        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
         reset_resistance_test_state, vaccination_acquisition_log_odds, ParameterKeyCache,
     };
     use crate::config::parameter_store;
@@ -7560,6 +7558,66 @@ mod tests {
                     && crate::simulation::population::mechanism_is_hgt_transferable(mechanism)
             })
             .expect("at least one HGT-transferable mechanism")
+    }
+
+    #[test]
+    fn sampled_carriage_profile_populates_only_microbiome_resistance() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, drug_idx, mechanism_mask, _) =
+            incoming_resistance_prevention_case(&param_cache);
+        let (mut individual, _rng) = individual_with_seed(20);
+        individual.presence_microbiome[bacteria_idx] = true;
+
+        record_sampled_microbiome_profile(&mut individual, bacteria_idx, mechanism_mask);
+        propagate_mechanism_resistance(&mut individual, bacteria_idx, &param_cache, true, true);
+
+        assert_eq!(
+            individual.microbiome_mechanism_mask(bacteria_idx),
+            mechanism_mask
+        );
+        assert_eq!(individual.any_mechanism_mask(bacteria_idx), 0);
+        assert_eq!(individual.majority_mechanism_mask(bacteria_idx), 0);
+        assert!(load_float(individual.resistances[bacteria_idx][drug_idx].microbiome_r) > 0.0);
+        assert!(individual.resistances[bacteria_idx]
+            .iter()
+            .all(|resistance| load_float(resistance.any_r) == 0.0));
+    }
+
+    #[test]
+    fn clearing_carriage_preserves_active_infection_resistance() {
+        let param_cache = ParameterKeyCache::new();
+        let (bacteria_idx, drug_idx, mechanism_mask, _) =
+            incoming_resistance_prevention_case(&param_cache);
+        let mechanism_idx = mechanism_mask.trailing_zeros() as usize;
+        let (mut individual, _rng) = individual_with_seed(21);
+        individual.level[bacteria_idx] = 1.0;
+        individual.presence_microbiome[bacteria_idx] = true;
+        individual.date_microbiome_acquired[bacteria_idx] = 123;
+        individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+        individual.set_majority_mechanism(bacteria_idx, mechanism_idx);
+        individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+        propagate_mechanism_resistance(&mut individual, bacteria_idx, &param_cache, false, true);
+        let active_resistance_before =
+            load_float(individual.resistances[bacteria_idx][drug_idx].any_r);
+        assert!(active_resistance_before > 0.0);
+
+        clear_microbiome_compartment(&mut individual, bacteria_idx);
+
+        assert!(!individual.presence_microbiome[bacteria_idx]);
+        assert_eq!(individual.date_microbiome_acquired[bacteria_idx], 0);
+        assert_eq!(individual.microbiome_mechanism_mask(bacteria_idx), 0);
+        assert_eq!(individual.any_mechanism_mask(bacteria_idx), mechanism_mask);
+        assert_eq!(
+            individual.majority_mechanism_mask(bacteria_idx),
+            mechanism_mask
+        );
+        assert!(individual.resistances[bacteria_idx]
+            .iter()
+            .all(|resistance| load_float(resistance.microbiome_r) == 0.0));
+        assert_eq!(
+            load_float(individual.resistances[bacteria_idx][drug_idx].any_r),
+            active_resistance_before
+        );
     }
 
     fn assert_only_supported_vaccine_targets_are_vaccinated(individual: &Individual) {
