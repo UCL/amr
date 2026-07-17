@@ -1544,7 +1544,7 @@ impl MechanismProfileCache {
 ///   per `[region × hospital/community × bacteria]` slot, maintained via reservoir
 ///   sampling and asymmetric retention (community vs hospital).
 /// - `peak_mechanism_prevalence`: global peak marginal prevalence ever achieved for each
-///   (bacteria, mechanism) pair across all regions and both strata.  Used by the
+///   (bacteria, mechanism) pair across all regional community caches. Used by the
 ///   ratchet-floor mechanism to prevent reversion of low-fitness-cost resistance.
 ///
 /// - `drug_resistance_prevalence`: exact prevalence derived from the current profile
@@ -1555,7 +1555,7 @@ pub struct MechanismCache {
     pub profiles: MechanismProfileCache,
     /// Global peak marginal mechanism prevalence ever achieved in the simulation.
     /// Indexed as `peak_mechanism_prevalence[bacteria_idx][mechanism_idx]`.
-    /// Updated each timestep via `update_peak_marginal_prevalences()`.
+    /// Updated annually via `update_peak_community_marginal_prevalences()`.
     /// Used by the ratchet floor: low-fitness-cost mechanisms that have reached X%
     /// are prevented from falling below X% in the exogenous acquisition pool.
     pub peak_mechanism_prevalence: Vec<Vec<f64>>,
@@ -1682,26 +1682,25 @@ impl MechanismCache {
     /// Compute the current marginal mechanism prevalence from the profile cache and update
     /// `peak_mechanism_prevalence` wherever the current level exceeds the stored peak.
     ///
-    /// For each (bacteria, mechanism) pair, prevalence is computed across all regions and
-    /// both community+hospital strata (pooled), measuring the fraction of stored profiles
-    /// that carry that mechanism bit.  This is O(regions × bacteria × mechanisms × profiles_per_slot)
-    /// but with typical values (~6 regions, 45 bacteria, 50 mechanisms, ~200 profiles each)
-    /// this is ~2.7 million bitwise ops — fast enough to run every timestep.
+    /// For each (bacteria, mechanism) pair, prevalence is computed across all regional
+    /// community caches, measuring the fraction of stored profiles that carry that mechanism.
+    /// Hospital profiles are excluded because the ratchet seeds only exogenous community
+    /// acquisitions.
     ///
-    /// Called automatically after `update_profiles()` each simulation day.
-    pub fn update_peak_marginal_prevalences(&mut self) {
+    /// Called automatically after the annual `update_profiles()` refresh.
+    pub fn update_peak_community_marginal_prevalences(&mut self) {
         for b_idx in 0..self.num_bacteria {
             for m_idx in 0..self.num_mechanisms {
                 let bit = 1u64 << m_idx;
                 let mut total_profiles = 0usize;
                 let mut profiles_with_mechanism = 0usize;
                 for r_idx in 0..self.num_regions {
-                    for h in 0..2 {
-                        let slot = &self.profiles.profiles[r_idx][h][b_idx];
-                        total_profiles += slot.len();
-                        profiles_with_mechanism +=
-                            slot.iter().filter(|&&mask| mask & bit != 0).count();
-                    }
+                    let community_slot = &self.profiles.profiles[r_idx][0][b_idx];
+                    total_profiles += community_slot.len();
+                    profiles_with_mechanism += community_slot
+                        .iter()
+                        .filter(|&&mask| mask & bit != 0)
+                        .count();
                 }
                 if total_profiles > 0 {
                     let current_prev = profiles_with_mechanism as f64 / total_profiles as f64;
@@ -5974,7 +5973,8 @@ impl Simulation {
                 // the peak updates is biologically meaningless and the call is expensive when
                 // the profile cache is full (O(bacteria × mechanisms × regions × profiles)).
                 if t % 365 == 0 {
-                    self.mechanism_cache.update_peak_marginal_prevalences();
+                    self.mechanism_cache
+                        .update_peak_community_marginal_prevalences();
                 }
             }
 
@@ -8473,6 +8473,40 @@ mod tests {
         cache.update_profiles(0.0, 0.0, fresh, &param_cache, &mut rng);
 
         assert_eq!(cache.prevalence(0, false, bacteria_idx, drug_idx), 0.5);
+    }
+
+    #[test]
+    fn ratchet_peak_uses_community_profiles_only() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let bacteria_idx = 0;
+        let mechanism_idx = 0;
+        let mechanism_bit = 1u64 << mechanism_idx;
+        let mut cache = MechanismCache::new(2, BACTERIA_LIST.len(), num_mechanisms);
+
+        cache.profiles.profiles[0][0][bacteria_idx] = vec![0; 100];
+        cache.profiles.total_seen[0][0][bacteria_idx] = 100;
+        cache.profiles.profiles[0][1][bacteria_idx] = vec![mechanism_bit; 100];
+        cache.profiles.total_seen[0][1][bacteria_idx] = 100;
+
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            0.0
+        );
+
+        cache.profiles.profiles[0][0][bacteria_idx][..25].fill(mechanism_bit);
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            0.25
+        );
+
+        cache.profiles.profiles[0][0][bacteria_idx].fill(0);
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            0.25
+        );
     }
 
     #[test]
