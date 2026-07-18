@@ -2277,7 +2277,6 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | --- | ---: |
 | max_resistance_level | 1 |
 | resistance_emergence_bacteria_level_multiplier | 9 |
-| any_r_emergence_level_on_first_emergence | 0.5 |
 | multi_drug_penalty_threshold_num_drugs | 2 |
 | resistance_development_inhibition_single_drug | 0.05 |
 | resistance_development_inhibition_partial_cross | 0.3 |

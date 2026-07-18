@@ -310,10 +310,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
                 g.resistance_emergence_bacteria_level_multiplier,
             ),
             (
-                "any_r_emergence_level_on_first_emergence",
-                g.any_r_emergence_level_on_first_emergence,
-            ),
-            (
                 "multi_drug_penalty_threshold_num_drugs",
                 g.multi_drug_penalty_threshold_num_drugs,
             ),

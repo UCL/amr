@@ -233,6 +233,20 @@ fn parameters_initializer_has_no_duplicate_literal_keys() {
 }
 
 #[test]
+fn retired_resistance_parameter_names_are_absent() {
+    for key in [
+        "any_r_emergence_level_on_first_emergence",
+        "multi_drug_penalty_for_single_drug_resistance",
+        "multi_drug_penalty_for_partial_cross_resistance",
+    ] {
+        assert!(
+            !PARAMETERS.contains_key(key),
+            "retired resistance parameter returned to PARAMETERS: {key}"
+        );
+    }
+}
+
+#[test]
 fn bacterium_mechanism_emergence_grid_is_complete_and_exact() {
     let expected = BACTERIA_LIST
         .iter()

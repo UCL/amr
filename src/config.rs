@@ -229,7 +229,6 @@ pub struct GlobalScalars {
     pub antibiotic_infection_prevention_efficacy: f64,
     pub max_resistance_level: f64,
     pub resistance_emergence_bacteria_level_multiplier: f64,
-    pub any_r_emergence_level_on_first_emergence: f64,
     pub multi_drug_penalty_threshold_num_drugs: f64,
     pub resistance_development_inhibition_single_drug: f64,
     pub resistance_development_inhibition_partial_cross: f64,
@@ -512,11 +511,6 @@ impl GlobalScalars {
                 map,
                 "resistance_emergence_bacteria_level_multiplier",
                 0.0,
-            ),
-            any_r_emergence_level_on_first_emergence: get_or_default(
-                map,
-                "any_r_emergence_level_on_first_emergence",
-                0.5,
             ),
             multi_drug_penalty_threshold_num_drugs: get_or_default(
                 map,
@@ -8469,17 +8463,11 @@ lazy_static! {
 
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 9.0); // Multiplier for bacteria level's effect on emergence (ranges 1.0x to 10.0x)
 
-        map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
-
-
     // Daily probability of resistance transfer between active infection and microbiome carriage.
     map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0001);
 
-        // --- Multi-Drug Resistance Emergence Penalty Parameters ---
-        // When multiple drugs are active, resistance emergence is reduced because mutations
-        // must confer resistance to ALL active drugs to provide survival advantage
-        map.insert("multi_drug_penalty_for_single_drug_resistance".to_string(), 0.05); // Penalty when resistance affects only 1 of multiple active drugs (5% survival)
-        map.insert("multi_drug_penalty_for_partial_cross_resistance".to_string(), 0.3); // Penalty when resistance affects some but not all active drugs (30% survival)
+        // The live multi-drug emergence inhibition values are the explicit
+        // resistance_development_inhibition_* defaults near the start of this map.
         map.insert("multi_drug_penalty_threshold_num_drugs".to_string(), 2.0); // Minimum number of active drugs to trigger multi-drug penalty
 
 
