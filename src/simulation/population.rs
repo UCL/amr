@@ -178,7 +178,7 @@ pub enum ResistanceMechanism {
     // --- Additional mechanisms for improved coverage ---
     EnzymeAacAph, // AAC/APH/ANT family aminoglycoside-modifying enzymes (integrons/plasmids)
     EnzymeBlaZ,   // blaZ staphylococcal penicillinase (plasmid-borne)
-    EnzymeTem1, // TEM-1 narrow-spectrum penicillinase (Enterobacterales, plasmid-borne; inhibitor-resistant)
+    EnzymeNarrowSpectrumGramNegativePenicillinase, // TEM-1/ROB-1/BRO narrow-spectrum penicillinase proxy
     EnzymeMphA, // mphA macrolide phosphotransferase (Enterobacterales/EntericPathogen, plasmid-borne; azithromycin/macrolide resistance)
     EnzymeOxaAcinetobacter, // OXA-23/40/58 carbapenemases (A. baumannii, plasmid/Tn2006)
     Mutation23sRrna, // 23S rRNA point mutation: clarithromycin/macrolide resistance (chromosomal)
@@ -230,7 +230,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::ProtectionTetM,
             ResistanceMechanism::EnzymeAacAph,
             ResistanceMechanism::EnzymeBlaZ,
-            ResistanceMechanism::EnzymeTem1,
+            ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase,
             ResistanceMechanism::EnzymeMphA,
             ResistanceMechanism::EnzymeOxaAcinetobacter,
             ResistanceMechanism::Mutation23sRrna,
@@ -288,7 +288,9 @@ impl ResistanceMechanism {
             ResistanceMechanism::ProtectionTetM => "protection_tet_m",
             ResistanceMechanism::EnzymeAacAph => "enzyme_aac_aph",
             ResistanceMechanism::EnzymeBlaZ => "enzyme_bla_z",
-            ResistanceMechanism::EnzymeTem1 => "enzyme_tem_1",
+            ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase => {
+                "enzyme_narrow_spectrum_gram_negative_penicillinase"
+            }
             ResistanceMechanism::EnzymeMphA => "enzyme_mph_a",
             ResistanceMechanism::EnzymeOxaAcinetobacter => "enzyme_oxa_acinetobacter",
             ResistanceMechanism::Mutation23sRrna => "mutation_23s_rrna",
@@ -823,21 +825,15 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Streptococci,
         ]),
 
-        // blaZ penicillinase: staphylococci + H. pylori (PBP1A proxy) + GC (TEM-1 proxy)
-        // NOT Streptococci — Strep remain penicillin-susceptible without blaZ
-        // NOT Enterobacterales — those use EnzymeTem1 instead
-        EnzymeBlaZ => mask_for_groups(&[
-            BacteriaGroup::Staphylococci,
-            BacteriaGroup::Helicobacter,
-            BacteriaGroup::Fastidious,
-        ]),
+        // blaZ is the inhibitor-susceptible staphylococcal penicillinase.
+        EnzymeBlaZ => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
-        // TEM-1 narrow-spectrum penicillinase: Enterobacterales only.
-        // Inhibitor-resistant (clavulanate does NOT inhibit TEM-1), so covers BLI combinations.
-        // Does NOT confer cephalosporin resistance (that requires ESBL mutations — TEM-3+).
-        EnzymeTem1 => mask_for_groups(&[
+        // Policy-scale inhibitor-susceptible narrow-spectrum penicillinase slot for
+        // Gram-negative hosts (principally TEM-1, with ROB/BRO represented where relevant).
+        EnzymeNarrowSpectrumGramNegativePenicillinase => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
-            BacteriaGroup::EntericPathogen,  // E. coli-like enteric pathogens (e.g. Shigella relatives)
+            BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Fastidious,
         ]),
 
         // mphA macrolide phosphotransferase: Enterobacterales + EntericPathogen
@@ -910,7 +906,31 @@ pub fn bacterium_mechanism_host_is_eligible(
         ResistanceMechanism::MutationLiafsrCls => {
             matches!(bacteria, "enterococcus_faecalis" | "enterococcus_faecium")
         }
-        ResistanceMechanism::EnzymeBlaZ => bacteria != "neisseria_meningitidis",
+        ResistanceMechanism::EnzymeBlaZ => matches!(
+            bacteria,
+            "staphylococcus_aureus" | "staphylococcus_epidermidis"
+        ),
+        ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase => matches!(
+            bacteria,
+            "citrobacter_spp."
+                | "enterobacter_spp."
+                | "escherichia_coli"
+                | "klebsiella_pneumoniae"
+                | "morganella_spp."
+                | "proteus_spp."
+                | "serratia_spp."
+                | "p_stuartii"
+                | "salmonella_enterica_serovar_typhi"
+                | "salmonella_enterica_serovar_paratyphi_a"
+                | "invasive_non-typhoidal_salmonella_spp."
+                | "shigella_spp."
+                | "enterobacter_cloacae"
+                | "yersinia_enterocolitica"
+                | "vibrio_cholerae"
+                | "neisseria_gonorrhoeae"
+                | "haemophilus_influenzae"
+                | "moraxella_catarrhalis"
+        ),
         _ => true,
     }
 }
@@ -943,10 +963,10 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         AsYetUnknown => true,  // conservative default for remaining placeholder
         EnzymeAacAph => true,  // AAC/APH/ANT on integrons / plasmids
         EnzymeBlaZ => true,    // blaZ on plasmids in Staphylococci
-        EnzymeTem1 => true,    // TEM-1 on IncF/IncI plasmids / Tn3 transposons
-        EnzymeMphA => true,    // mphA on IncF/IncB/IncFII plasmids (co-selected on MDR R-plasmids)
+        EnzymeNarrowSpectrumGramNegativePenicillinase => true, // TEM/ROB-family mobile enzymes; BRO is represented as a policy-scale proxy
+        EnzymeMphA => true, // mphA on IncF/IncB/IncFII plasmids (co-selected on MDR R-plasmids)
         EnzymeOxaAcinetobacter => true, // OXA-23/40/58 on plasmids / Tn2006
-        EffluxTetAbc => true,  // tetA/B/C on Tn10 and related plasmid transposons
+        EffluxTetAbc => true, // tetA/B/C on Tn10 and related plasmid transposons
 
         // --- Chromosomal mutations / regulatory changes → NOT transferable ---
         Mutation23sRrna => false, // chromosomal 23S rRNA point mutation

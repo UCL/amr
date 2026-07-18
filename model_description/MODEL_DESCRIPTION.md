@@ -1198,7 +1198,8 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
    | NDM/VIM | `ndm_vim` | Metallo-β-lactamases | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
-  | blaZ | `blaz` | Staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin` | Staphylococci |
+  | blaZ | `enzyme_bla_z` | Inhibitor-susceptible staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | *S. aureus*, *S. epidermidis* |
+  | Narrow-spectrum Gram-negative penicillinase | `enzyme_narrow_spectrum_gram_negative_penicillinase` | Policy-scale inhibitor-susceptible route representing TEM-1 and, where explicitly assigned, related ROB/BRO enzymes | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | Reviewed Enterobacterales/enteric hosts, *N. gonorrhoeae*, *H. influenzae*, *M. catarrhalis* |
   | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Staphylococci, Helicobacter |
   | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci, Helicobacter |
   | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci, Helicobacter |
@@ -1247,6 +1248,8 @@ There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table 
 
 These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.
 
+The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for the plain-penicillin class and a zero legacy fallback. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.
+
 | Mechanism | Multiplier | Clinical interpretation |
 |-----------|-----------|----------------------|
 | NDM/VIM | 0.95 | Near-complete resistance — these metallo-β-lactamases destroy almost all β-lactams |
@@ -1265,6 +1268,8 @@ These enhancement multipliers should be interpreted as qualitative within-model 
 | Cfr | 0.95 | Cross-resistance to oxazolidinones and phenicols |
 | AmpC CMY/DHA | 0.70 | Moderate-high — overcomes β-lactamase inhibitors too |
 | CAT | 0.90 | Chloramphenicol resistance |
+| blaZ | 0.90 against plain penicillins | Inhibitor-susceptible staphylococcal penicillinase |
+| Narrow-spectrum Gram-negative penicillinase | 0.90 against plain penicillins | TEM-1 and policy-equivalent ROB/BRO route; inhibitor combinations retain activity |
 | GyrA primary | 0.40 | First-step fluoroquinolone resistance (partial) |
 | Folate pathway | 0.85 | Trimethoprim-sulfamethoxazole resistance |
 | FusB | 0.70 | Fusidic acid resistance |
@@ -6074,6 +6079,7 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | protection_tet_m | 5e-4 |
 | enzyme_aac_aph | 1e-4 |
 | enzyme_bla_z | 1e-4 |
+| enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-4 |
 | enzyme_oxa_acinetobacter | 1e-4 |
 | mutation_23s_rrna | 1e-4 |
 | mutation_ampc_derepression | 2e-4 |
@@ -7325,44 +7331,7 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_aac_aph | pleuromutilins | 0.85 |
 | enzyme_aac_aph | other | 0.85 |
 | enzyme_bla_z | pen | 0.9 |
-| enzyme_bla_z | bli | 0.9 |
-| enzyme_bla_z | bli_anti_pseudomonal | 0.9 |
-| enzyme_bla_z | bli_sulbactam | 0.9 |
-| enzyme_bla_z | c1_2g | 0.9 |
-| enzyme_bla_z | c3g | 0.9 |
-| enzyme_bla_z | c3g_bli | 0.9 |
-| enzyme_bla_z | c4g | 0.9 |
-| enzyme_bla_z | anti_mrsa_ceph | 0.9 |
-| enzyme_bla_z | siderophore_ceph | 0.9 |
-| enzyme_bla_z | cft_avi | 0.9 |
-| enzyme_bla_z | mer_vab | 0.9 |
-| enzyme_bla_z | azt_avi | 0.9 |
-| enzyme_bla_z | carb_group1 | 0.9 |
-| enzyme_bla_z | carb_group2 | 0.9 |
-| enzyme_bla_z | mono | 0.9 |
-| enzyme_bla_z | fq | 0.9 |
-| enzyme_bla_z | ag_group1 | 0.9 |
-| enzyme_bla_z | ag_group2 | 0.9 |
-| enzyme_bla_z | mls | 0.9 |
-| enzyme_bla_z | lincosamides | 0.9 |
-| enzyme_bla_z | glyc | 0.9 |
-| enzyme_bla_z | lipoglycopeptides | 0.9 |
-| enzyme_bla_z | tet | 0.9 |
-| enzyme_bla_z | glycylcyclines | 0.9 |
-| enzyme_bla_z | poly | 0.9 |
-| enzyme_bla_z | oxa | 0.9 |
-| enzyme_bla_z | chl | 0.9 |
-| enzyme_bla_z | sulf | 0.9 |
-| enzyme_bla_z | lipopeptides | 0.9 |
-| enzyme_bla_z | streptogramins | 0.9 |
-| enzyme_bla_z | nitrofurans | 0.9 |
-| enzyme_bla_z | phosphonic_acids | 0.9 |
-| enzyme_bla_z | nitroimidazoles | 0.9 |
-| enzyme_bla_z | rifamycins | 0.9 |
-| enzyme_bla_z | macrocycles | 0.9 |
-| enzyme_bla_z | steroid_antibacterials | 0.9 |
-| enzyme_bla_z | pleuromutilins | 0.9 |
-| enzyme_bla_z | other | 0.9 |
+| enzyme_narrow_spectrum_gram_negative_penicillinase | pen | 0.9 |
 | enzyme_oxa_acinetobacter | pen | 0.8 |
 | enzyme_oxa_acinetobacter | bli | 0.8 |
 | enzyme_oxa_acinetobacter | bli_anti_pseudomonal | 0.8 |
@@ -7699,6 +7668,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | escherichia_coli | protection_tet_m | 1e-6 |
 | escherichia_coli | enzyme_aac_aph | 0.001 |
 | escherichia_coli | efflux_tet_abc | 1e-6 |
+| escherichia_coli | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-6 |
 | klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-5 |
 | klebsiella_pneumoniae | enzyme_esbl_tem | 1e-5 |
 | klebsiella_pneumoniae | enzyme_esbl_shv | 1e-5 |
@@ -7774,6 +7744,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | proteus_spp. | protection_tet_m | 0.0035 |
 | proteus_spp. | enzyme_aac_aph | 0.02 |
 | proteus_spp. | efflux_tet_abc | 1e-6 |
+| proteus_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 3e-14 |
 | serratia_spp. | enzyme_esbl_ctx_m | 0.0018 |
 | serratia_spp. | enzyme_esbl_tem | 0.0018 |
 | serratia_spp. | enzyme_esbl_shv | 0.0018 |
@@ -7891,7 +7862,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | staphylococcus_aureus | protection_fus_b | 1e-5 |
 | staphylococcus_aureus | protection_tet_m | 4e-6 |
 | staphylococcus_aureus | enzyme_aac_aph | 1e-5 |
-| staphylococcus_aureus | enzyme_bla_z | 1e-8 |
+| staphylococcus_aureus | enzyme_bla_z | 1e-4 |
 | staphylococcus_epidermidis | target_site_pbp2a_meca | 1e-6 |
 | staphylococcus_epidermidis | target_site_van_a | 1e-8 |
 | staphylococcus_epidermidis | target_site_van_b | 1e-8 |
@@ -7907,7 +7878,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | staphylococcus_epidermidis | protection_fus_b | 3e-6 |
 | staphylococcus_epidermidis | protection_tet_m | 3e-5 |
 | staphylococcus_epidermidis | enzyme_aac_aph | 1e-9 |
-| staphylococcus_epidermidis | enzyme_bla_z | 1e-7 |
+| staphylococcus_epidermidis | enzyme_bla_z | 3e-5 |
 | streptococcus_pneumoniae | target_site_pbp2a_meca | 3e-8 |
 | streptococcus_pneumoniae | mutation_gyra_primary | 3e-5 |
 | streptococcus_pneumoniae | mutation_gyra_parc_secondary | 3e-5 |
@@ -7918,7 +7889,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | streptococcus_pneumoniae | mutation_folate_pathway | 0.003 |
 | streptococcus_pneumoniae | mutation_rpo_b | 0.001 |
 | streptococcus_pneumoniae | protection_tet_m | 0.001 |
-| streptococcus_pneumoniae | enzyme_bla_z | 3e-8 |
 | streptococcus_pneumoniae | mutation_23s_rrna | 5e-7 |
 | streptococcus_pneumoniae | mutation_pbp_mosaic | 3e-8 |
 | salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 0.005 |
@@ -7998,6 +7968,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.8 |
 | invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.08 |
 | invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 2.5e-6 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-11 |
 | shigella_spp. | enzyme_esbl_ctx_m | 0.001 |
 | shigella_spp. | enzyme_esbl_tem | 0.001 |
 | shigella_spp. | enzyme_esbl_shv | 0.001 |
@@ -8024,6 +7995,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | shigella_spp. | efflux_tet_abc | 0.03 |
 | shigella_spp. | mutation_pbp_mosaic | 0.001 |
 | shigella_spp. | efflux_mtr_cde | 0.001 |
+| shigella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.3 |
 | neisseria_gonorrhoeae | mutation_gyra_primary | 1 |
 | neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 1 |
 | neisseria_gonorrhoeae | protection_qnr | 1 |
@@ -8040,7 +8012,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | neisseria_gonorrhoeae | mutation_rpo_b | 1 |
 | neisseria_gonorrhoeae | protection_tet_m | 1 |
 | neisseria_gonorrhoeae | enzyme_aac_aph | 1 |
-| neisseria_gonorrhoeae | enzyme_bla_z | 0.02 |
+| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 1 |
 | neisseria_gonorrhoeae | mutation_23s_rrna | 0.03 |
 | neisseria_gonorrhoeae | efflux_tet_abc | 0.003 |
 | neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.02 |
@@ -8096,7 +8068,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | haemophilus_influenzae | mutation_rpo_b | 0.015 |
 | haemophilus_influenzae | protection_tet_m | 8e-4 |
 | haemophilus_influenzae | enzyme_aac_aph | 0.05 |
-| haemophilus_influenzae | enzyme_bla_z | 5e-7 |
+| haemophilus_influenzae | enzyme_narrow_spectrum_gram_negative_penicillinase | 5e-5 |
 | haemophilus_influenzae | mutation_23s_rrna | 3e-6 |
 | haemophilus_influenzae | mutation_pbp_mosaic | 5e-7 |
 | haemophilus_influenzae | efflux_mtr_cde | 5e-7 |
@@ -8259,6 +8231,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | enterobacter_cloacae | enzyme_aac_aph | 0.1 |
 | enterobacter_cloacae | efflux_tet_abc | 1e-4 |
 | enterobacter_cloacae | mutation_pbp_mosaic | 5e-6 |
+| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 2e-6 |
 | yersinia_enterocolitica | enzyme_esbl_ctx_m | 3e-10 |
 | yersinia_enterocolitica | enzyme_esbl_tem | 3e-10 |
 | yersinia_enterocolitica | enzyme_esbl_shv | 1e-10 |
@@ -8341,7 +8314,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | helicobacter_pylori | mutation_nitroreductase | 1 |
 | helicobacter_pylori | mutation_rpo_b | 1 |
 | helicobacter_pylori | protection_tet_m | 1 |
-| helicobacter_pylori | enzyme_bla_z | 1 |
 | helicobacter_pylori | mutation_23s_rrna | 1 |
 | helicobacter_pylori | mutation_pbp_mosaic | 1 |
 | mycoplasma_pneumoniae | mutation_gyra_primary | 3e-7 |

@@ -130,7 +130,7 @@ fn resistance_mechanism_family_idx(mechanism: ResistanceMechanism) -> usize {
         | ResistanceMechanism::EnzymeEsblShv
         | ResistanceMechanism::TargetSitePbp2aMecA
         | ResistanceMechanism::EnzymeBlaZ
-        | ResistanceMechanism::EnzymeTem1
+        | ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase
         | ResistanceMechanism::MutationPbpMosaic => MECH_FAMILY_BETA_LACTAMASE_ESBL_OR_BROAD,
         ResistanceMechanism::EnzymeAmpcCmy
         | ResistanceMechanism::EnzymeAmpcDha

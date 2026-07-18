@@ -1159,47 +1159,12 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "gentamicin" | "tobramycin" | "amikacin" | "streptomycin" | "neomycin"
         ),
 
-        // blaZ staphylococcal penicillinase: penicillins only (inhibitor-susceptible — clavulanate works).
-        // Exception: Moraxella catarrhalis BRO-1/BRO-2 are inhibitor-RESISTANT — also covers BLI combos.
-        // Does NOT cover BLI combinations for other organisms (amox-clav restores activity) or cephalosporins.
-        EnzymeBlaZ => {
-            if bacteria == "moraxella_catarrhalis" {
-                matches!(
-                    drug,
-                    "penicillin_g"
-                        | "ampicillin"
-                        | "amoxicillin"
-                        | "piperacillin"
-                        | "ticarcillin"
-                        | "amoxicillin_clavulanate"
-                        | "ampicillin_sulbactam"
-                        | "piperacillin_tazobactam"
-                        | "ticarcillin_clavulanate"
-                )
-            } else {
-                matches!(
-                    drug,
-                    "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
-                )
-            }
-        }
-
-        // TEM-1 narrow-spectrum Enterobacterales penicillinase: penicillins + BLI combinations.
-        // Inhibitor-RESISTANT — clavulanate/sulbactam/tazobactam do NOT inhibit TEM-1 at clinical
-        // concentrations, so amoxicillin-clavulanate and piperacillin-tazobactam resistance follows.
-        // Does NOT confer cephalosporin resistance (requires ESBL point mutations: TEM-3, TEM-10+).
-        EnzymeTem1 => matches!(
+        // Inhibitor-susceptible narrow-spectrum penicillinases. The Gram-negative slot
+        // represents TEM-1 and policy-equivalent ROB/BRO enzymes; neither slot confers
+        // resistance to flucloxacillin, BLI combinations, or cephalosporins.
+        EnzymeBlaZ | EnzymeNarrowSpectrumGramNegativePenicillinase => matches!(
             drug,
-            "penicillin_g"
-                | "ampicillin"
-                | "amoxicillin"
-                | "piperacillin"
-                | "ticarcillin"
-                | "flucloxacillin"
-                | "amoxicillin_clavulanate"
-                | "ampicillin_sulbactam"
-                | "piperacillin_tazobactam"
-                | "ticarcillin_clavulanate"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
         ),
 
         // mphA macrolide 2'-phosphotransferase: inactivates macrolides by phosphorylation of 2'-OH
@@ -7474,8 +7439,8 @@ mod tests {
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
-        load_float, store_float, HospitalStatus, Individual, ResistanceMechanism, BACTERIA_LIST,
-        DRUG_SHORT_NAMES,
+        bacterium_mechanism_host_is_eligible, load_float, store_float, DrugClass, HospitalStatus,
+        Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
     };
     use crate::simulation::simulation::MechanismCache;
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -7570,9 +7535,149 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 6_447,
-            "host-status centralization should preserve the reviewed non-placeholder phenotype matrix"
+            applicable_cells, 6_381,
+            "narrow-spectrum penicillinase correction should preserve the reviewed phenotype matrix"
         );
+    }
+
+    #[test]
+    fn narrow_spectrum_penicillinases_have_reviewed_host_scope() {
+        let bla_z = ResistanceMechanism::EnzymeBlaZ;
+        let gram_negative = ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase;
+
+        for bacterium in ["staphylococcus_aureus", "staphylococcus_epidermidis"] {
+            assert!(bacterium_mechanism_host_is_eligible(
+                bacteria_idx(bacterium),
+                bla_z
+            ));
+        }
+        for bacterium in [
+            "neisseria_gonorrhoeae",
+            "haemophilus_influenzae",
+            "moraxella_catarrhalis",
+            "escherichia_coli",
+        ] {
+            assert!(!bacterium_mechanism_host_is_eligible(
+                bacteria_idx(bacterium),
+                bla_z
+            ));
+            assert!(bacterium_mechanism_host_is_eligible(
+                bacteria_idx(bacterium),
+                gram_negative
+            ));
+        }
+        for bacterium in [
+            "staphylococcus_aureus",
+            "helicobacter_pylori",
+            "streptococcus_pneumoniae",
+            "neisseria_meningitidis",
+            "legionella_pneumophila",
+        ] {
+            assert!(!bacterium_mechanism_host_is_eligible(
+                bacteria_idx(bacterium),
+                gram_negative
+            ));
+        }
+    }
+
+    #[test]
+    fn narrow_spectrum_penicillinases_affect_plain_penicillins_only() {
+        for (mechanism, bacterium) in [
+            (ResistanceMechanism::EnzymeBlaZ, "staphylococcus_aureus"),
+            (
+                ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase,
+                "escherichia_coli",
+            ),
+        ] {
+            for drug in [
+                "penicillin_g",
+                "ampicillin",
+                "amoxicillin",
+                "piperacillin",
+                "ticarcillin",
+            ] {
+                assert!(mechanism_applies_to_drug(mechanism, bacterium, drug));
+            }
+            for drug in [
+                "flucloxacillin",
+                "amoxicillin_clavulanate",
+                "ampicillin_sulbactam",
+                "piperacillin_tazobactam",
+                "ticarcillin_clavulanate",
+                "ceftriaxone",
+                "aztreonam",
+                "meropenem",
+            ] {
+                assert!(!mechanism_applies_to_drug(mechanism, bacterium, drug));
+            }
+        }
+    }
+
+    #[test]
+    fn narrow_spectrum_penicillinase_enhancements_are_explicit() {
+        let store = parameter_store();
+        for mechanism in [
+            ResistanceMechanism::EnzymeBlaZ,
+            ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase,
+        ] {
+            let mechanism_idx = super::mechanism_idx(mechanism);
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, DrugClass::Penicillins.index(),),
+                0.90
+            );
+            for drug_class in [
+                DrugClass::BliCombinations,
+                DrugClass::BliAntiPseudomonal,
+                DrugClass::BliSulbactam,
+                DrugClass::Cephalosporins3,
+            ] {
+                assert_eq!(
+                    store
+                        .resistance_mechanism
+                        .enhancement_multiplier(mechanism_idx, drug_class.index()),
+                    0.0,
+                    "unexpected enhancement for {} / {}",
+                    mechanism.as_str(),
+                    drug_class.as_str()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn positive_narrow_spectrum_gram_negative_rates_have_a_live_penicillin_effect() {
+        let store = parameter_store();
+        let param_cache = ParameterKeyCache::new();
+        let mechanism = ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase;
+        let mechanism_idx = super::mechanism_idx(mechanism);
+        let mut positive_rate_hosts = 0;
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            if store
+                .bacteria_mechanism_emergence
+                .rate(bacteria_idx, mechanism_idx)
+                <= 0.0
+            {
+                continue;
+            }
+            positive_rate_hosts += 1;
+            assert!(param_cache.mechanism_host_is_eligible(mechanism_idx, bacteria_idx));
+            assert!(
+                (0..DRUG_SHORT_NAMES.len()).any(|drug_idx| {
+                    param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                        && store.resistance_mechanism.enhancement_multiplier(
+                            mechanism_idx,
+                            crate::simulation::population::DRUG_CLASS_LOOKUP[drug_idx],
+                        ) > 0.0
+                }),
+                "positive rate has no live effect for {}",
+                BACTERIA_LIST[bacteria_idx]
+            );
+        }
+
+        assert_eq!(positive_rate_hosts, 7);
     }
 
     #[test]
