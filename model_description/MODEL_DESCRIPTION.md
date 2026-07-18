@@ -1531,7 +1531,7 @@ The model includes a dedicated family of **environmental / exogenous mechanism f
 
 **What they represent.** The environmental floors are used when resistance can be maintained outside the local human circulating pool. In the classic case, this means agricultural, food-chain, wastewater, or other exogenous reservoirs that keep resistance present even when direct human treatment of that bacterium is weak. In the current configuration they also cover a small number of explicitly modelled non-agricultural exogenous pathways, most notably the rifampicin `rpoB` floors discussed below.
 
-**Where they act.** Each community active-infection acquisition is split by `community_resistance_dilution_factor` into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair. In the current implementation this environmental/ratchet floor loop is applied at active-infection acquisition; carriage acquisition uses its own profile-cache gate and does not directly run this exogenous floor loop.
+**Where they act.** Each community active-infection acquisition is split by `community_resistance_dilution_factor` into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair. These are marginal mechanism probabilities: independent rolls do not themselves encode plasmid linkage or other within-profile correlation. Once a resulting profile enters the human cache, later profile sampling can propagate that realised combination. In the current implementation this environmental/ratchet floor loop is applied at active-infection acquisition; carriage acquisition uses its own profile-cache gate and does not directly run this exogenous floor loop.
 
 Despite the parameter name, a configured value is therefore a Bernoulli mechanism-assignment probability on an exogenous active-infection acquisition, not a guaranteed lower bound on prevalence in infections, carriage, or the population. The resulting prevalence also depends on how often acquisition follows the exogenous path, the competing human-cache pathway, subsequent transmission and selection, and mechanism loss.
 
@@ -1551,6 +1551,8 @@ Era-specific `_before_{YYYY}` overrides allow the exogenous reservoir to change 
 3. A broader `rpoB` block representing rifampicin-associated bystander or exogenous maintenance pathways for a wider set of organisms, including several Enterobacterales and selected respiratory or enteric pathogens.
 
 So while the original motivation was agricultural resistance ecology, the live implementation is broader: it now represents any explicitly parameterised exogenous pathway that should continue to reseed resistance even when the local human profile cache alone would be insufficient.
+
+Every configured positive static floor is required to have an eligible bacterium-mechanism host, at least one potency-qualified drug phenotype, and a non-zero default exogenous acquisition fraction. A regression invariant enforces these three reachability conditions.
 
 ---
 

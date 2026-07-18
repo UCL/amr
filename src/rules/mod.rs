@@ -5928,14 +5928,14 @@ pub(crate) fn apply_rules(
                     // --- Environmental / agricultural floor (exogenous draw only) ---
                     // When the infection was drawn from the non-cache reservoir (from_human_reservoir
                     // == false), apply per-mechanism floor probabilities representing resistance
-                    // maintained in the agricultural/food-chain pool independently of local human
-                    // prescribing.  Each mechanism is independently rolled so co-resistance patterns
-                    // reflect the actual plasmid linkage encoded in the floor values rather than
-                    // synthetic correlation from profile sampling.
+                    // maintained outside the local human cache through agricultural/food-chain
+                    // reservoirs, global importation, or explicit off-model selection pathways.
+                    // Each mechanism is rolled independently, so these probabilities specify
+                    // marginal frequencies and do not encode plasmid linkage. Correlated profiles
+                    // can subsequently propagate through the human cache.
                     //
                     // Two sources of floor probability are combined with max():
-                    // 1. Static environmental floor (hardcoded in config; represents agricultural
-                    //    reservoirs, food-chain contamination, and early-era warm-up seeding).
+                    // 1. Static environmental floor (configured exogenous reseeding probability).
                     // 2. Ratchet floor (dynamic; computed from the simulation's own peak achieved
                     //    prevalence for selected persistent mechanisms). Mechanistic basis:
                     //    once a low-fitness-cost resistance mechanism has reached a prevalence
@@ -8088,38 +8088,28 @@ mod tests {
     }
 
     #[test]
-    fn excluded_environmental_floor_cannot_assign_a_mechanism() {
+    fn host_excluded_mechanism_cannot_receive_an_exogenous_floor() {
         let param_cache = ParameterKeyCache::new();
         let eligible_bacteria_idx = bacteria_idx("shigella_spp.");
         let eligible_mechanism_idx = super::mechanism_idx(ResistanceMechanism::ProtectionTetM);
         let store = parameter_store();
 
-        for (bacterium, mechanism) in [
-            ("campylobacter_jejuni", ResistanceMechanism::EnzymeAacAph),
-            ("shigella_spp.", ResistanceMechanism::TargetSiteErmB),
-        ] {
-            let excluded_bacteria_idx = bacteria_idx(bacterium);
-            let excluded_mechanism_idx = super::mechanism_idx(mechanism);
-            assert!(
-                store.environmental_floors.floor_at_year(
-                    excluded_bacteria_idx,
-                    excluded_mechanism_idx,
-                    2025.0,
-                ) > 0.0,
-                "test requires a configured but host-excluded floor"
-            );
-            assert_eq!(
-                exogenous_mechanism_floor_probability(
-                    excluded_bacteria_idx,
-                    excluded_mechanism_idx,
-                    2025.0,
-                    0.0,
-                    false,
-                    &param_cache,
-                ),
-                0.0
-            );
-        }
+        let excluded_bacteria_idx = bacteria_idx("campylobacter_jejuni");
+        let excluded_mechanism_idx = super::mechanism_idx(ResistanceMechanism::EnzymeAacAph);
+        assert!(
+            !param_cache.mechanism_host_is_eligible(excluded_mechanism_idx, excluded_bacteria_idx)
+        );
+        assert_eq!(
+            exogenous_mechanism_floor_probability(
+                excluded_bacteria_idx,
+                excluded_mechanism_idx,
+                2025.0,
+                0.50,
+                true,
+                &param_cache,
+            ),
+            0.0
+        );
 
         let eligible_floor = store.environmental_floors.floor_at_year(
             eligible_bacteria_idx,
@@ -8139,6 +8129,45 @@ mod tests {
             .to_bits(),
             eligible_floor.to_bits()
         );
+    }
+
+    #[test]
+    fn configured_environmental_floors_are_reachable_in_the_default_model() {
+        let param_cache = ParameterKeyCache::new();
+        let store = parameter_store();
+
+        for (bacteria_idx, &bacterium) in BACTERIA_LIST.iter().enumerate() {
+            for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                let has_positive_floor = (1930..=2100).any(|year| {
+                    store.environmental_floors.floor_at_year(
+                        bacteria_idx,
+                        mechanism_idx,
+                        f64::from(year),
+                    ) > 0.0
+                });
+                if !has_positive_floor {
+                    continue;
+                }
+
+                assert!(
+                    param_cache.mechanism_host_is_eligible(mechanism_idx, bacteria_idx),
+                    "configured floor is host-excluded: {bacterium}/{}",
+                    mechanism.as_str()
+                );
+                assert!(
+                    (0..DRUG_SHORT_NAMES.len()).any(|drug_idx| {
+                        param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                    }),
+                    "configured floor has no potency-qualified phenotype: {bacterium}/{}",
+                    mechanism.as_str()
+                );
+                assert!(
+                    store.bacteria.community_resistance_dilution_factor[bacteria_idx] < 1.0,
+                    "configured floor cannot reach the exogenous branch: {bacterium}/{}",
+                    mechanism.as_str()
+                );
+            }
+        }
     }
 
     #[test]

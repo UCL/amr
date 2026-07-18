@@ -3453,18 +3453,17 @@ impl BacteriaMechanismStatuses {
 /// (the `1 - community_resistance_dilution_factor` draw that does not sample the local human
 /// profile cache), each mechanism is independently rolled against this floor probability.
 ///
-/// This models resistance maintained by the animal/food-chain/water reservoir independently
-/// of human antibiotic use - primarily relevant for zoonotic organisms where agricultural
-/// antibiotic consumption (~70-80% of global tetracycline/ampicillin use is veterinary) drives
-/// community resistance levels that human clinical selection alone cannot sustain.
+/// This models resistance maintained outside the local human profile cache, including
+/// animal/food-chain reservoirs, global importation, and explicitly represented off-model
+/// selection pathways.
 ///
 /// Two parameter suffixes are recognised (mechanistically identical; conceptually distinct):
-///   `_environmental_floor`  - agricultural/food-chain reservoir (E. coli, C. jejuni, NTS)
+///   `_environmental_floor`  - exogenous reservoir or off-model selection pathway
 ///   `_coselection_floor`    - cross-organism intra-gut co-selection (added for Shigella; not
 ///                              currently active - see comment in `from_map` for rationale)
 ///
 /// Both support `_before_{YYYY}` era overrides.
-/// Default = 0.0 - organisms not listed remain fully susceptible in the exogenous draw.
+/// Default = 0.0 - no probability is added by this static-floor source.
 #[derive(Debug)]
 pub struct EnvironmentalMechanismFloors {
     base: Vec<f64>,
@@ -3479,7 +3478,7 @@ impl EnvironmentalMechanismFloors {
 
         // Two recognised base suffixes - mechanistically identical (both fire on the
         // (1-D) exogenous fraction), but conceptually distinct:
-        //   _environmental_floor  - agricultural/food-chain reservoir (E. coli, Campylobacter, NTS)
+        //   _environmental_floor  - exogenous reservoir or off-model selection pathway
         //   _coselection_floor    - cross-organism intra-gut plasmid co-selection
         //
         // NOTE: _coselection_floor was added to support Shigella calibration (the idea being
@@ -10706,12 +10705,6 @@ lazy_static! {
         map.insert("bacteria_campylobacter_jejuni_mechanism_protection_tet_m_environmental_floor_before_1970".to_string(), 0.06);
         map.insert("bacteria_campylobacter_jejuni_mechanism_protection_tet_m_environmental_floor_before_1955".to_string(), 0.0);
 
-        // Aminoglycosides: AME enzymes in poultry-associated Campylobacter.
-        map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_aac_aph_environmental_floor".to_string(),             0.15);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_aac_aph_environmental_floor_before_1995".to_string(), 0.06);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_aac_aph_environmental_floor_before_1975".to_string(), 0.01);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_aac_aph_environmental_floor_before_1960".to_string(), 0.0);
-
         // Macrolide resistance: veterinary tylosin/erythromycin in livestock;
         // 23S rRNA mutation A2075G; ~5-10% in poultry-source C. jejuni (EU); higher in some regions.
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_23s_rrna_environmental_floor".to_string(),             0.08);
@@ -10816,13 +10809,7 @@ lazy_static! {
         map.insert("bacteria_shigella_spp._mechanism_enzyme_cat_environmental_floor_before_1975".to_string(), 0.08);
         map.insert("bacteria_shigella_spp._mechanism_enzyme_cat_environmental_floor_before_1950".to_string(), 0.0);
 
-        // Macrolides/azithromycin: erm(B) + mphA on conjugative plasmids; rising sharply with
-        // azithromycin adoption post-2010; ~29% WHO global target.
-        map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_environmental_floor".to_string(),             0.20);
-        map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_environmental_floor_before_2015".to_string(), 0.10);
-        map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_environmental_floor_before_2005".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_environmental_floor_before_1952".to_string(), 0.0);
-
+        // Macrolides/azithromycin: mphA on conjugative plasmids, rising with azithromycin use.
         map.insert("bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor".to_string(),             0.22);
         map.insert("bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor_before_2015".to_string(), 0.10);
         map.insert("bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor_before_2005".to_string(), 0.02);
@@ -10881,10 +10868,6 @@ lazy_static! {
         map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.03);
         map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
 
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.20); // target 0.45; nosocomial MDR selection + TB bystander
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.05);
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
         map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.12); // target 0.30
         map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.04);
         map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
@@ -10904,9 +10887,6 @@ lazy_static! {
         // Lower targets / partial mechanistic link
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.05); // target 0.15; some meningitis + NTHi rifampicin exposure
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.04); // target 0.15; ratchet from prophylaxis prescribing should drive most; small floor for contacts of TB patients
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
 
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.06); // target 0.20; occasional add-on therapy for resistant pneumococcal meningitis
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1975".to_string(), 0.01);
