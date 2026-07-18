@@ -8513,9 +8513,9 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 1.0                ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 1.0                ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 1.0      ); // classes: fq  // raised 0.3->1.0: secondary GyrA/ParC step-up mutation is common in high-use settings and is needed to reach observed high-level FQ resistance prevalences
-        map.insert("bacteria_escherichia_coli_mechanism_protection_qnr_emergence_rate".to_string(), 1.0               ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_escherichia_coli_mechanism_protection_qnr_emergence_rate".to_string(), 1.0               ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_escherichia_coli_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 1.0        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_escherichia_coli_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0         ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -8563,9 +8563,9 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.5     ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.5     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.5   ); // classes: fq
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.5     ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.5     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.5   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.5       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -8614,9 +8614,9 @@ lazy_static! {
       map.insert("bacteria_citrobacter_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002      ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+      map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002      ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.002       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-      map.insert("bacteria_citrobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.002      ); // classes: fq (ciprofloxacin, ofloxacin only)
+      map.insert("bacteria_citrobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.002      ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
       map.insert("bacteria_citrobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
       map.insert("bacteria_citrobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0        ); // tier 0 — MexXY-OprM is Pseudomonas-specific; non-zero rate was spuriously generating AG/tet resistance in Citrobacter
       map.insert("bacteria_citrobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002          ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -8662,9 +8662,9 @@ lazy_static! {
       map.insert("bacteria_enterobacter_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3      ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+      map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3      ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_3     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-      map.insert("bacteria_enterobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3      ); // classes: fq (ciprofloxacin, ofloxacin only)
+      map.insert("bacteria_enterobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3      ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
       map.insert("bacteria_enterobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_3     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
       map.insert("bacteria_enterobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3         ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -8712,9 +8712,9 @@ lazy_static! {
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002    ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002    ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.002    ); // classes: fq
-    map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.002   ); // classes: fq (ciprofloxacin, ofloxacin only)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.002   ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -8761,9 +8761,9 @@ lazy_static! {
         map.insert("bacteria_morganella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.007 ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.007 ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.007  ); // classes: fq
-        map.insert("bacteria_morganella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.007   ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_morganella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.007   ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_morganella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.007   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_morganella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0 — MexXY-OprM is a Pseudomonas-specific efflux system; rate set to 0.0 to prevent spurious AG/tet resistance in Morganella
         map.insert("bacteria_morganella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.007  ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -8810,9 +8810,9 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01        ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01        ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01         ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_proteus_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01         ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_proteus_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01         ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_proteus_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_proteus_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -8859,9 +8859,9 @@ lazy_static! {
         map.insert("bacteria_serratia_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01     ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_serratia_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01      ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_serratia_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01      ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_serratia_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_serratia_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -8908,9 +8908,9 @@ lazy_static! {
         map.insert("bacteria_p_stuartii_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_p_stuartii_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3   ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_p_stuartii_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3   ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_p_stuartii_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_3   ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_p_stuartii_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3   ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_p_stuartii_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3   ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_p_stuartii_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_3     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_p_stuartii_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -8957,9 +8957,9 @@ lazy_static! {
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 10.0     ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 10.0     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 10.0       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_protection_qnr_emergence_rate".to_string(), 10.0       ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_protection_qnr_emergence_rate".to_string(), 10.0       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 10.0     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0 - MexXY-OprM is Pseudomonas-specific; was incorrectly set to 1.0 (fixed; compare E. coli/K. pneumoniae = 0.0)
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_global_efflux_pump_emergence_rate".to_string(), 10.0       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9006,9 +9006,9 @@ lazy_static! {
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.3       ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_protection_qnr_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_protection_qnr_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0     ); // tier 0 — MexXY-OprM is Pseudomonas-specific; non-zero rate was spuriously generating AG/tet resistance in Paratyphi A
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9055,9 +9055,9 @@ lazy_static! {
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002   ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002   ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.002    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.002     ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.002     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9110,9 +9110,9 @@ lazy_static! {
         map.insert("bacteria_shigella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 30.0    ); // classes: mls
         map.insert("bacteria_shigella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // rate currently 0.0 — cfr documented on mobile elements in E. coli and other Enterobacterales; Shigella shares plasmids with E. coli so acquisition is biologically plausible
-        map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0          ); // classes: fq
+        map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0          ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0           ); // classes: fq
-        map.insert("bacteria_shigella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 30.0           ); // classes: fq
+        map.insert("bacteria_shigella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 30.0           ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_shigella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 30.0       ); // classes: fq, tet, chl
         map.insert("bacteria_shigella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0     ); // classes: fq, tet, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
@@ -9158,9 +9158,9 @@ lazy_static! {
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005           ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005           ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005           ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_qnr_emergence_rate".to_string(), 0.002_5          ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_qnr_emergence_rate".to_string(), 0.002_5          ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.005           ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.005           ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9210,9 +9210,9 @@ lazy_static! {
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0         ); // tier 0 by group; P. aeruginosa is NonFermenter; ErmB group mask excludes NonFermenter ***changed: mechanism cannot fire for this organism
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0         ); // tier 0 by group; P. aeruginosa is NonFermenter; Cfr group mask excludes NonFermenter ***changed: mechanism cannot fire for this organism (and "mls" was also wrong: Cfr covers oxa+lin+chl+pleuro, not macrolides/streptogramins)
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01          ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01          ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01       ); // classes: fq
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_protection_qnr_emergence_rate".to_string(), 0.01        ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_protection_qnr_emergence_rate".to_string(), 0.01        ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.01           ); // classes: fq (ciprofloxacin only), ag, tet (tetracycline/doxy/minocycline; NOT tigecycline), chl ***changed: ceph+carb->removed; tet+chl->added (MexXY-OprM covers FQ, aminoglycosides, tetracyclines, chloramphenicol; does NOT cover cephalosporins, carbapenems, or tigecycline)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01          ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -9259,9 +9259,9 @@ lazy_static! {
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001  ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001  ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_5 ); // classes: fq
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_5); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_5); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5 ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -9308,9 +9308,9 @@ lazy_static! {
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0 ); // tier 0 by group; S. maltophilia is NonFermenter; ErmB group mask excludes NonFermenter ***changed: mechanism cannot fire for this organism (non-zero rate is dead code)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02          ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step); FQ 88% vs target 45-55%
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02          ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route); FQ 88% vs target 45-55%
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.02           ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance); FQ broad reduction
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_qnr_emergence_rate".to_string(), 0.03         ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_qnr_emergence_rate".to_string(), 0.03         ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.02        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9357,9 +9357,9 @@ lazy_static! {
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.3    ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.3    ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.3     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_qnr_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_qnr_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9409,9 +9409,9 @@ lazy_static! {
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03      ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03      ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_vibrio_cholerae_mechanism_protection_qnr_emergence_rate".to_string(), 0.03       ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_vibrio_cholerae_mechanism_protection_qnr_emergence_rate".to_string(), 0.03       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_vibrio_cholerae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.03       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_vibrio_cholerae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.03       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9458,7 +9458,7 @@ lazy_static! {
         map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.03       ); // classes: mls; raised 0.001->0.25: erm(B) is the dominant lincosamide/macrolide resistance determinant in Campylobacter; lincosamide (clindamycin) resistance target ~12% requires substantial erm(B) prevalence; erm(B) found on pCG8245-type conjugative plasmids co-selected by erythromycin/azithromycin pressure
         map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_cfr_emergence_rate".to_string(), 0.01       ); // classes: oxa, lin, chl, pleuro; supports clindamycin and chloramphenicol tail ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0       ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0       ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_campylobacter_jejuni_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9507,7 +9507,7 @@ lazy_static! {
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0 - acquired VanB glycopeptide resistance is not represented for H. pylori
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0 - clarithromycin resistance uses the chromosomal 23S rRNA route
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0 - Cfr is not an established H. pylori resistance route
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0   ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0   ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9556,9 +9556,9 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.05        ); // classes: mls
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001             ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0      ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0      ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_qnr_emergence_rate".to_string(), 30.0        ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_qnr_emergence_rate".to_string(), 30.0        ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 30.0         ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0              ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9605,9 +9605,9 @@ lazy_static! {
         map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_003  ); // classes: mls
         map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_005  ) ; // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_05 ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_05 ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_05 ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_15  ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_15  ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_15 ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_15  ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9654,9 +9654,9 @@ lazy_static! {
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_1         ); // classes: mls
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_01     ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1   ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1   ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9703,9 +9703,9 @@ lazy_static! {
         map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_erm_b_emergence_rate".to_string(), 1.0       ); // classes: mls, lincosamides, streptogramins (MLSB phenotype: macrolides + clindamycin + quinu_dalfo)
         map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.05     ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.2        ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.2        ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.2        ); // classes: fq
-        map.insert("bacteria_haemophilus_influenzae_mechanism_protection_qnr_emergence_rate".to_string(), 0.2       ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_haemophilus_influenzae_mechanism_protection_qnr_emergence_rate".to_string(), 0.2       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.2   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.2      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
@@ -9753,9 +9753,9 @@ lazy_static! {
         map.insert("bacteria_legionella_pneumophila_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_legionella_pneumophila_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_003 ); // classes: mls
         map.insert("bacteria_legionella_pneumophila_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_03); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_legionella_pneumophila_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_003); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_legionella_pneumophila_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_003); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_legionella_pneumophila_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_003 ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_legionella_pneumophila_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_000_01); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_legionella_pneumophila_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_000_01); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_legionella_pneumophila_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_03); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_legionella_pneumophila_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_legionella_pneumophila_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_003 ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -9805,7 +9805,7 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_03     ); // classes: glyc
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 30.0      ); // classes: mls, lincosamides, streptogramins (MLSB phenotype: macrolides + clindamycin + quinu_dalfo); macrolides ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 30.0       ); // classes: oxa, lin, chl, pleuro; Linezolid 1% ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0     ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step); FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route); FQ target ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0     ); // classes: fq; FQ target ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_qnr_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9853,7 +9853,7 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_005); // classes: glyc
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_3 ); // classes: mls
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_001  ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_5); // classes: fq
+        map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_5); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_5); // classes: fq
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9905,7 +9905,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(),  30.0            ); // classes: mls, lincosamides, streptogramins (MLSB phenotype: macrolides + clindamycin + quinu_dalfo)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1           ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1           ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1           ); // classes: fq
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9954,7 +9954,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_01         ); // classes: mls
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_03             ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1       ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1       ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1      ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10003,7 +10003,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_003    ); // classes: glyc
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001   ); // classes: mls  quin_dalfo
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.003         ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1    ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1      ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10055,7 +10055,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_2   ); // classes: glyc; vanc 29% vs target 5%
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001       ); // classes: mls, lincosamides, streptogramins (MLSB phenotype: macrolides + clindamycin + quinu_dalfo); macrolide 47% vs target 35%
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_2   ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005     ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step); FQ 74% vs target 35%
+        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route); FQ 74% vs target 35%
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005     ); // classes: fq; FQ broad reduction
         map.insert("bacteria_enterococcus_faecalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10105,7 +10105,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.000_3           ); // classes: glyc
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   0.003           ); // classes: mls, lincosamides, streptogramins (MLSB phenotype: macrolides + clindamycin + quinu_dalfo)
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.001               ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.005       ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.005       ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.005            ) ; // classes: fq
         map.insert("bacteria_enterococcus_faecium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10157,7 +10157,7 @@ lazy_static! {
         map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_van_b_emergence_rate".to_string(), 0.3       ); // classes: glyc
         map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.15   ); // classes: mls
         map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 0.3       ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03   ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03   ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_listeria_monocytogenes_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10206,7 +10206,7 @@ lazy_static! {
         map.insert("bacteria_clostridioides_difficile_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // vanB documented in C. difficile (vancomycin is first-line treatment); rate currently 0.0
         map.insert("bacteria_clostridioides_difficile_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.002    ); // classes: mls
         map.insert("bacteria_clostridioides_difficile_mechanism_target_site_cfr_emergence_rate".to_string(), 0.01       ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1     ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_clostridioides_difficile_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10255,9 +10255,9 @@ lazy_static! {
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.002   ); // classes: mls
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.1        ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005    ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005    ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
-        map.insert("bacteria_bacteroides_fragilis_mechanism_protection_qnr_emergence_rate".to_string(), 0.005    ); // classes: fq (ciprofloxacin, ofloxacin only)
+        map.insert("bacteria_bacteroides_fragilis_mechanism_protection_qnr_emergence_rate".to_string(), 0.005    ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
         map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -10308,7 +10308,7 @@ lazy_static! {
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // classes: mls; disabled; ErmB macrolide resistance documented in B. pertussis
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.003           ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.008            ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.008            ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.008   ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_bordetella_pertussis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // rate currently 0.0 — Qnr-mediated FQ resistance uncommon but possible in B. pertussis
         map.insert("bacteria_bordetella_pertussis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.008        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
@@ -10357,7 +10357,7 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 30.0         ); // classes: mls - ErmB rare in M. genitalium; primary macrolide R is 23S rRNA A2058G/A2059G (handled separately at 30.0); keep 0.3 only as a minor MLS co-resistance fallback pathway
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0        ); // tier 0 - Cfr methyltransferase is a Gram-positive/anaerobe mobile element; impossible in M. genitalium
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0       ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0       ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10406,7 +10406,7 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.01      ); // classes: mls
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_000_3); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_03); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_03); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_015); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10458,7 +10458,7 @@ lazy_static! {
         map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.02        ); // classes: mls
         map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_cfr_emergence_rate".to_string(), 2.0            ); // classes: oxa, lin, chl, pleuro ***changed: mls->lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02        ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02        ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.02        ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_chlamydia_trachomatis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10507,7 +10507,7 @@ lazy_static! {
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001    ); // classes: fq (ciprofloxacin, ofloxacin only — first-step mutation; levofloxacin/moxifloxacin require secondary GyrA/ParC step)
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001    ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_treponema_pallidum_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10941,8 +10941,8 @@ lazy_static! {
         // Target Mods
         map.insert("resistance_mechanism_target_site_pbp2a_meca_enhancement_multiplier".to_string(), 0.99); // MecA is absolute
         // map.insert("resistance_mechanism_mutation_pbp2x_enhancement_multiplier".to_string(), 0.5); // Pneumo Penicillin is gradual (Mech removed)
-        map.insert("resistance_mechanism_mutation_gyra_primary_enhancement_multiplier".to_string(), 0.4); // Low level FQ
-        map.insert("resistance_mechanism_mutation_gyra_parc_secondary_enhancement_multiplier".to_string(), 0.95); // High level FQ
+        map.insert("resistance_mechanism_mutation_gyra_primary_enhancement_multiplier".to_string(), 0.0); // Explicit quinolone-class effect below
+        map.insert("resistance_mechanism_mutation_gyra_parc_secondary_enhancement_multiplier".to_string(), 0.0); // Explicit fluoroquinolone-class effect below
         // map.insert("resistance_mechanism_mutation_rpob_enhancement_multiplier".to_string(), 0.95); // Rifampicin R is high (Mech removed)
         map.insert("resistance_mechanism_target_site_cfr_enhancement_multiplier".to_string(), 0.95); // Linezolid/Chloramphenicol
 
@@ -10955,7 +10955,7 @@ lazy_static! {
         map.insert("resistance_mechanism_enzyme_cat_enhancement_multiplier".to_string(), 0.9);
         map.insert("resistance_mechanism_target_site_erm_b_enhancement_multiplier".to_string(), 0.9); // MLSb is high
         // map.insert("resistance_mechanism_efflux_mef_enhancement_multiplier".to_string(), 0.4); // Mef is low/moderate (Mech removed)
-        map.insert("resistance_mechanism_protection_qnr_enhancement_multiplier".to_string(), 0.2); // Qnr is low
+        map.insert("resistance_mechanism_protection_qnr_enhancement_multiplier".to_string(), 0.0); // Explicit fluoroquinolone-class effect below
 
         // Other
         map.insert("resistance_mechanism_porin_loss_oprd_enhancement_multiplier".to_string(), 0.0); // explicit Pseudomonas carbapenem effects below

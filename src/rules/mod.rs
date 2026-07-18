@@ -1038,7 +1038,11 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
               | "meropenem" | "imipenem_c" | "ertapenem"
         ),
 
-        MutationGyrAPrimary => matches!(drug, "ciprofloxacin" | "ofloxacin"),
+        // Nalidixic acid selects the first-step gyrA route used by the historical
+        // prescribing parameters. Later fluoroquinolones remain on the secondary route.
+        MutationGyrAPrimary => {
+            matches!(drug, "nalidixic_acid" | "ciprofloxacin" | "ofloxacin")
+        }
 
         MutationGyrAParCSecondary => matches!(
             drug,
@@ -7544,9 +7548,72 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_564,
-            "OprD should add one live meropenem-vaborbactam cell; low-potency ertapenem was already filtered"
+            applicable_cells, 5_582,
+            "nalidixic acid should add primary-GyrA applicability for its 18 active bacterial hosts"
         );
+    }
+
+    #[test]
+    fn nalidixic_acid_uses_the_primary_gyra_route_only() {
+        let store = parameter_store();
+        let param_cache = ParameterKeyCache::new();
+        let nalidixic_idx = drug_idx("nalidixic_acid");
+        let primary = ResistanceMechanism::MutationGyrAPrimary;
+        let primary_idx = super::mechanism_idx(primary);
+
+        for bacterium in [
+            "escherichia_coli",
+            "shigella_spp.",
+            "campylobacter_jejuni",
+            "salmonella_enterica_serovar_typhi",
+            "salmonella_enterica_serovar_paratyphi_a",
+            "invasive_non-typhoidal_salmonella_spp.",
+        ] {
+            let bacteria_idx = bacteria_idx(bacterium);
+            assert!(mechanism_applies_to_drug(
+                primary,
+                bacterium,
+                "nalidixic_acid"
+            ));
+            assert!(param_cache.mechanism_applicable(primary_idx, bacteria_idx, nalidixic_idx));
+            assert!(
+                store
+                    .bacteria_mechanism_emergence
+                    .rate(bacteria_idx, primary_idx)
+                    > 0.0
+            );
+        }
+
+        for mechanism in [
+            ResistanceMechanism::MutationGyrAParCSecondary,
+            ResistanceMechanism::ProtectionQnr,
+        ] {
+            assert!(!mechanism_applies_to_drug(
+                mechanism,
+                "escherichia_coli",
+                "nalidixic_acid"
+            ));
+        }
+
+        for (mechanism, expected_fq_effect) in [
+            (ResistanceMechanism::MutationGyrAPrimary, 0.40),
+            (ResistanceMechanism::MutationGyrAParCSecondary, 0.95),
+            (ResistanceMechanism::ProtectionQnr, 0.20),
+        ] {
+            let mechanism_idx = super::mechanism_idx(mechanism);
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, DrugClass::Fluoroquinolones.index()),
+                expected_fq_effect
+            );
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, DrugClass::Penicillins.index()),
+                0.0
+            );
+        }
     }
 
     #[test]
@@ -8122,7 +8189,7 @@ mod tests {
             (
                 ResistanceMechanism::MutationGyrAPrimary,
                 "neisseria_gonorrhoeae",
-                &["ciprofloxacin", "ofloxacin"],
+                &["nalidixic_acid", "ciprofloxacin", "ofloxacin"],
                 &["levofloxacin", "moxifloxacin"],
             ),
             (

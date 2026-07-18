@@ -903,6 +903,8 @@ The species-guideline shifts currently encoded are:
 | *Campylobacter jejuni* | **nalidixic_acid** | 8.0 | **1963–1990** | 0.0 | Gastroenteritis treatment; GyrA Thr86Ile selected before veterinary fluoroquinolone era |
 | *S.* Typhi / Paratyphi A / iNTS | **nalidixic_acid** | 8.0 | **1963–1990** | 0.0 | First-line enteric fever in South/SE Asia and sub-Saharan Africa 1963–1990 |
 
+Nalidixic acid is grouped with fluoroquinolones in the model's policy-scale drug-class table, but its historical exposure is wired specifically to the first-step `MutationGyrAPrimary` route. It does not directly select the high-level `MutationGyrAParCSecondary` or `ProtectionQnr` routes. The existing 0.40 class effect is retained for this coarse representation; it should not be interpreted as a literal nalidixic-acid MIC shift.
+
 *C. difficile* also has a `treatment_recognition_year` of 1977 — before the Bartlett et al. description of antibiotic-associated colitis, no antibiotic pressure is applied to this organism regardless of multiplier values.
 
 For *M. genitalium*, the live calibration now treats macrolide resistance as primarily a 23S-rRNA mutation problem, with `erm_b` retained only as a low-probability MLS co-resistance fallback rather than a dominant pathway. This avoids forcing an implausibly strong mobile-element-style mechanism in an organism whose macrolide resistance is usually explained by chromosomal 23S substitutions.
@@ -1203,9 +1205,9 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *S. aureus*, *S. epidermidis* |
   | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci |
   | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci |
-  | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `ciprofloxacin`, `ofloxacin` | All |
+  | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `nalidixic_acid`, `ciprofloxacin`, `ofloxacin` | All |
   | GyrA + ParC | `gyra_parc` | Additional topoisomerase mutation | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | All |
-  | Qnr | `qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+  | Qnr | `qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | 16S rRMT | `16s_rrmt` | 16S rRNA methyltransferase | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
   | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
@@ -1270,7 +1272,7 @@ The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for t
 | CAT | 0.90 | Chloramphenicol resistance |
 | blaZ | 0.90 against plain penicillins | Inhibitor-susceptible staphylococcal penicillinase |
 | Narrow-spectrum Gram-negative penicillinase | 0.90 against plain penicillins | TEM-1 and policy-equivalent ROB/BRO route; inhibitor combinations retain activity |
-| GyrA primary | 0.40 | First-step fluoroquinolone resistance (partial) |
+| GyrA primary | 0.40 | First-step quinolone route: nalidixic-acid resistance and partial resistance to ciprofloxacin/ofloxacin |
 | Folate pathway | 0.85 | Trimethoprim-sulfamethoxazole resistance |
 | FusB | 0.70 | Fusidic acid resistance |
 | FosA | 0.80 | Fosfomycin resistance |
@@ -6518,123 +6520,9 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | target_site_van_b | steroid_antibacterials | 0.99 |
 | target_site_van_b | pleuromutilins | 0.99 |
 | target_site_van_b | other | 0.99 |
-| mutation_gyra_primary | pen | 0.4 |
-| mutation_gyra_primary | bli | 0.4 |
-| mutation_gyra_primary | bli_anti_pseudomonal | 0.4 |
-| mutation_gyra_primary | bli_sulbactam | 0.4 |
-| mutation_gyra_primary | c1_2g | 0.4 |
-| mutation_gyra_primary | c3g | 0.4 |
-| mutation_gyra_primary | c3g_bli | 0.4 |
-| mutation_gyra_primary | c4g | 0.4 |
-| mutation_gyra_primary | anti_mrsa_ceph | 0.4 |
-| mutation_gyra_primary | siderophore_ceph | 0.4 |
-| mutation_gyra_primary | cft_avi | 0.4 |
-| mutation_gyra_primary | mer_vab | 0.4 |
-| mutation_gyra_primary | azt_avi | 0.4 |
-| mutation_gyra_primary | carb_group1 | 0.4 |
-| mutation_gyra_primary | carb_group2 | 0.4 |
-| mutation_gyra_primary | mono | 0.4 |
 | mutation_gyra_primary | fq | 0.4 |
-| mutation_gyra_primary | ag_group1 | 0.4 |
-| mutation_gyra_primary | ag_group2 | 0.4 |
-| mutation_gyra_primary | mls | 0.4 |
-| mutation_gyra_primary | lincosamides | 0.4 |
-| mutation_gyra_primary | glyc | 0.4 |
-| mutation_gyra_primary | lipoglycopeptides | 0.4 |
-| mutation_gyra_primary | tet | 0.4 |
-| mutation_gyra_primary | glycylcyclines | 0.4 |
-| mutation_gyra_primary | poly | 0.4 |
-| mutation_gyra_primary | oxa | 0.4 |
-| mutation_gyra_primary | chl | 0.4 |
-| mutation_gyra_primary | sulf | 0.4 |
-| mutation_gyra_primary | lipopeptides | 0.4 |
-| mutation_gyra_primary | streptogramins | 0.4 |
-| mutation_gyra_primary | nitrofurans | 0.4 |
-| mutation_gyra_primary | phosphonic_acids | 0.4 |
-| mutation_gyra_primary | nitroimidazoles | 0.4 |
-| mutation_gyra_primary | rifamycins | 0.4 |
-| mutation_gyra_primary | macrocycles | 0.4 |
-| mutation_gyra_primary | steroid_antibacterials | 0.4 |
-| mutation_gyra_primary | pleuromutilins | 0.4 |
-| mutation_gyra_primary | other | 0.4 |
-| mutation_gyra_parc_secondary | pen | 0.95 |
-| mutation_gyra_parc_secondary | bli | 0.95 |
-| mutation_gyra_parc_secondary | bli_anti_pseudomonal | 0.95 |
-| mutation_gyra_parc_secondary | bli_sulbactam | 0.95 |
-| mutation_gyra_parc_secondary | c1_2g | 0.95 |
-| mutation_gyra_parc_secondary | c3g | 0.95 |
-| mutation_gyra_parc_secondary | c3g_bli | 0.95 |
-| mutation_gyra_parc_secondary | c4g | 0.95 |
-| mutation_gyra_parc_secondary | anti_mrsa_ceph | 0.95 |
-| mutation_gyra_parc_secondary | siderophore_ceph | 0.95 |
-| mutation_gyra_parc_secondary | cft_avi | 0.95 |
-| mutation_gyra_parc_secondary | mer_vab | 0.95 |
-| mutation_gyra_parc_secondary | azt_avi | 0.95 |
-| mutation_gyra_parc_secondary | carb_group1 | 0.95 |
-| mutation_gyra_parc_secondary | carb_group2 | 0.95 |
-| mutation_gyra_parc_secondary | mono | 0.95 |
 | mutation_gyra_parc_secondary | fq | 0.95 |
-| mutation_gyra_parc_secondary | ag_group1 | 0.95 |
-| mutation_gyra_parc_secondary | ag_group2 | 0.95 |
-| mutation_gyra_parc_secondary | mls | 0.95 |
-| mutation_gyra_parc_secondary | lincosamides | 0.95 |
-| mutation_gyra_parc_secondary | glyc | 0.95 |
-| mutation_gyra_parc_secondary | lipoglycopeptides | 0.95 |
-| mutation_gyra_parc_secondary | tet | 0.95 |
-| mutation_gyra_parc_secondary | glycylcyclines | 0.95 |
-| mutation_gyra_parc_secondary | poly | 0.95 |
-| mutation_gyra_parc_secondary | oxa | 0.95 |
-| mutation_gyra_parc_secondary | chl | 0.95 |
-| mutation_gyra_parc_secondary | sulf | 0.95 |
-| mutation_gyra_parc_secondary | lipopeptides | 0.95 |
-| mutation_gyra_parc_secondary | streptogramins | 0.95 |
-| mutation_gyra_parc_secondary | nitrofurans | 0.95 |
-| mutation_gyra_parc_secondary | phosphonic_acids | 0.95 |
-| mutation_gyra_parc_secondary | nitroimidazoles | 0.95 |
-| mutation_gyra_parc_secondary | rifamycins | 0.95 |
-| mutation_gyra_parc_secondary | macrocycles | 0.95 |
-| mutation_gyra_parc_secondary | steroid_antibacterials | 0.95 |
-| mutation_gyra_parc_secondary | pleuromutilins | 0.95 |
-| mutation_gyra_parc_secondary | other | 0.95 |
-| protection_qnr | pen | 0.2 |
-| protection_qnr | bli | 0.2 |
-| protection_qnr | bli_anti_pseudomonal | 0.2 |
-| protection_qnr | bli_sulbactam | 0.2 |
-| protection_qnr | c1_2g | 0.2 |
-| protection_qnr | c3g | 0.2 |
-| protection_qnr | c3g_bli | 0.2 |
-| protection_qnr | c4g | 0.2 |
-| protection_qnr | anti_mrsa_ceph | 0.2 |
-| protection_qnr | siderophore_ceph | 0.2 |
-| protection_qnr | cft_avi | 0.2 |
-| protection_qnr | mer_vab | 0.2 |
-| protection_qnr | azt_avi | 0.2 |
-| protection_qnr | carb_group1 | 0.2 |
-| protection_qnr | carb_group2 | 0.2 |
-| protection_qnr | mono | 0.2 |
 | protection_qnr | fq | 0.2 |
-| protection_qnr | ag_group1 | 0.2 |
-| protection_qnr | ag_group2 | 0.2 |
-| protection_qnr | mls | 0.2 |
-| protection_qnr | lincosamides | 0.2 |
-| protection_qnr | glyc | 0.2 |
-| protection_qnr | lipoglycopeptides | 0.2 |
-| protection_qnr | tet | 0.2 |
-| protection_qnr | glycylcyclines | 0.2 |
-| protection_qnr | poly | 0.2 |
-| protection_qnr | oxa | 0.2 |
-| protection_qnr | chl | 0.2 |
-| protection_qnr | sulf | 0.2 |
-| protection_qnr | lipopeptides | 0.2 |
-| protection_qnr | streptogramins | 0.2 |
-| protection_qnr | nitrofurans | 0.2 |
-| protection_qnr | phosphonic_acids | 0.2 |
-| protection_qnr | nitroimidazoles | 0.2 |
-| protection_qnr | rifamycins | 0.2 |
-| protection_qnr | macrocycles | 0.2 |
-| protection_qnr | steroid_antibacterials | 0.2 |
-| protection_qnr | pleuromutilins | 0.2 |
-| protection_qnr | other | 0.2 |
 | enzyme_16s_rrmt | pen | 0.95 |
 | enzyme_16s_rrmt | bli | 0.95 |
 | enzyme_16s_rrmt | bli_anti_pseudomonal | 0.95 |
