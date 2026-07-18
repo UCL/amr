@@ -1221,7 +1221,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | TetA/B/C | `tet_abc` | Gram-negative tetracycline efflux | `tetracycline`, `doxycycline` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious |
   | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All eligible hosts except *H. pylori* |
   | 16S rRNA (tetracycline) | `mutation_16s_rrna_tetracycline` | Chromosomal 16S rRNA target-site mutation in both *H. pylori* rRNA copies | `tetracycline`, `doxycycline`, `minocycline` | *H. pylori* only |
-  | OmpK35/36 | `ompk35_36` | Outer membrane porin loss (Klebsiella) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+  | OmpK35/36 | `ompk35_36` | Combined loss of the two major *K. pneumoniae* outer-membrane porins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *K. pneumoniae* only |
   | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
@@ -1280,7 +1280,7 @@ The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for t
 | Nitroreductase | 0.70 | Nitrofurantoin resistance |
 | OprD | 0.80 | Porin loss — carbapenem resistance (mainly in *Pseudomonas*) |
 | MprF | 0.60 | Daptomycin resistance |
-| OmpK35/36 | 0.80 | Porin loss — broad resistance in Enterobacterales |
+| OmpK35/36 | 0.25-0.40 by beta-lactam class | Moderate permeability effect in *K. pneumoniae*; larger combined phenotypes can arise with beta-lactamases |
 | Qnr | 0.20 | Low-level quinolone resistance (facilitates further mutation) |
 | MexXY-OprM | 0.30 | Efflux pump — aminoglycoside/FQ resistance in *Pseudomonas* |
 | AcrAB-TolC | 0.30 | Gram-negative efflux — modest broad-spectrum resistance |
@@ -1436,7 +1436,7 @@ The full reversion rates by mechanism category:
 | Mechanism | Reversion Rate (per day) | Clinical Notes |
 | :--- | :--- | :--- |
 | **OprD Loss** | `0.0005` | Loss of outer membrane channel (carbapenem resistance); hinders nutrient acquisition. |
-| **OmpK35 / OmpK36 Loss** | `0.0005` | Analogous mechanism in Enterobacterales. |
+| **OmpK35 / OmpK36 Loss** | `0.0005` | Combined major-porin loss in *K. pneumoniae*; chromosomal and non-transferable. |
 | **AcrAB-TolC** | `0.0005` | Overexpression of major RND-family efflux pump complex. |
 | **MexXY-OprM** | `0.0005` | Endogenous efflux system upregulation (common in *Pseudomonas aeruginosa*). |
 | **Global / Generic Efflux** | `0.0005` | Broad, non-specific transport energy costs. |
@@ -6860,7 +6860,6 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | porin_loss_ompk35_36 | bli | 0.4 |
 | porin_loss_ompk35_36 | bli_anti_pseudomonal | 0.4 |
 | porin_loss_ompk35_36 | bli_sulbactam | 0.4 |
-| porin_loss_ompk35_36 | c1_2g | 0.8 |
 | porin_loss_ompk35_36 | c3g | 0.4 |
 | porin_loss_ompk35_36 | c3g_bli | 0.4 |
 | porin_loss_ompk35_36 | c4g | 0.3 |
@@ -6869,27 +6868,9 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | porin_loss_ompk35_36 | cft_avi | 0.25 |
 | porin_loss_ompk35_36 | mer_vab | 0.25 |
 | porin_loss_ompk35_36 | azt_avi | 0.25 |
-| porin_loss_ompk35_36 | mono | 0.8 |
-| porin_loss_ompk35_36 | mls | 0.8 |
-| porin_loss_ompk35_36 | lincosamides | 0.8 |
-| porin_loss_ompk35_36 | glyc | 0.8 |
-| porin_loss_ompk35_36 | lipoglycopeptides | 0.8 |
-| porin_loss_ompk35_36 | tet | 0.8 |
-| porin_loss_ompk35_36 | glycylcyclines | 0.8 |
-| porin_loss_ompk35_36 | poly | 0.8 |
-| porin_loss_ompk35_36 | oxa | 0.8 |
-| porin_loss_ompk35_36 | chl | 0.8 |
-| porin_loss_ompk35_36 | sulf | 0.8 |
-| porin_loss_ompk35_36 | lipopeptides | 0.8 |
-| porin_loss_ompk35_36 | streptogramins | 0.8 |
-| porin_loss_ompk35_36 | nitrofurans | 0.8 |
-| porin_loss_ompk35_36 | phosphonic_acids | 0.8 |
-| porin_loss_ompk35_36 | nitroimidazoles | 0.8 |
-| porin_loss_ompk35_36 | rifamycins | 0.8 |
-| porin_loss_ompk35_36 | macrocycles | 0.8 |
-| porin_loss_ompk35_36 | steroid_antibacterials | 0.8 |
-| porin_loss_ompk35_36 | pleuromutilins | 0.8 |
-| porin_loss_ompk35_36 | other | 0.8 |
+| porin_loss_ompk35_36 | carb_group1 | 0.4 |
+| porin_loss_ompk35_36 | carb_group2 | 0.4 |
+| porin_loss_ompk35_36 | mono | 0.4 |
 | porin_loss_oprd | pen | 0.8 |
 | porin_loss_oprd | bli | 0.8 |
 | porin_loss_oprd | bli_anti_pseudomonal | 0.8 |

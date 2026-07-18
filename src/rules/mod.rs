@@ -1099,16 +1099,32 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
            | "chloramphenicol" | "ciprofloxacin"
         ),
 
-        // OmpK35/36 loss (Klebsiella): reduces permeability to all hydrophilic antibiotics entering through porins
+        // Combined OmpK35/36 loss (Klebsiella): reduced beta-lactam permeability.
         PorinLossOmpk35_36 => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
-                | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
-                | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
-                | "aztreonam" | "aztreonam_avibactam"
-                | "meropenem" | "imipenem_c" | "ertapenem"
-                | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
-                | "gentamicin" | "tobramycin" | "amikacin" // Weak AG permeability reduction
+            "penicillin_g"
+                | "ampicillin"
+                | "amoxicillin"
+                | "piperacillin"
+                | "ticarcillin"
+                | "amoxicillin_clavulanate"
+                | "ampicillin_sulbactam"
+                | "piperacillin_tazobactam"
+                | "ticarcillin_clavulanate"
+                | "ceftriaxone"
+                | "ceftazidime"
+                | "cefixime"
+                | "cefepime"
+                | "ceftolozane_tazobactam"
+                | "ceftaroline"
+                | "cefiderocol"
+                | "ceftazidime_avibactam"
+                | "meropenem_vaborbactam"
+                | "aztreonam"
+                | "aztreonam_avibactam"
+                | "meropenem"
+                | "imipenem_c"
+                | "ertapenem"
         ),
 
         // OprD loss (Pseudomonas): dedicated carbapenem channel, not a general porin
@@ -7528,8 +7544,118 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_568,
-            "removing generic porin loss should remove its 801 broad applicability cells"
+            applicable_cells, 5_563,
+            "OmpK35/36 should add two explicit beta-lactam cells and remove seven zero-effect FQ/AG cells"
+        );
+    }
+
+    #[test]
+    fn ompk35_36_is_a_klebsiella_beta_lactam_route() {
+        let mechanism = ResistanceMechanism::PorinLossOmpk35_36;
+        let klebsiella_idx = bacteria_idx("klebsiella_pneumoniae");
+
+        assert!(bacterium_mechanism_host_is_eligible(
+            klebsiella_idx,
+            mechanism
+        ));
+        for bacterium in [
+            "escherichia_coli",
+            "enterobacter_cloacae",
+            "pseudomonas_aeruginosa",
+        ] {
+            assert!(!bacterium_mechanism_host_is_eligible(
+                bacteria_idx(bacterium),
+                mechanism
+            ));
+        }
+
+        for drug in [
+            "piperacillin",
+            "piperacillin_tazobactam",
+            "ceftriaxone",
+            "cefepime",
+            "ceftazidime_avibactam",
+            "meropenem_vaborbactam",
+            "aztreonam",
+            "aztreonam_avibactam",
+            "meropenem",
+            "imipenem_c",
+            "ertapenem",
+        ] {
+            assert!(
+                mechanism_applies_to_drug(mechanism, "klebsiella_pneumoniae", drug),
+                "missing OmpK35/36 beta-lactam substrate: {drug}"
+            );
+        }
+        for drug in [
+            "ciprofloxacin",
+            "levofloxacin",
+            "gentamicin",
+            "amikacin",
+            "chloramphenicol",
+        ] {
+            assert!(
+                !mechanism_applies_to_drug(mechanism, "klebsiella_pneumoniae", drug),
+                "non-beta-lactam should not select OmpK35/36: {drug}"
+            );
+        }
+    }
+
+    #[test]
+    fn ompk35_36_effects_are_explicit_without_legacy_fallback() {
+        let store = parameter_store();
+        let mechanism_idx = super::mechanism_idx(ResistanceMechanism::PorinLossOmpk35_36);
+
+        for (drug_class, expected) in [
+            (DrugClass::Penicillins, 0.30),
+            (DrugClass::BliCombinations, 0.40),
+            (DrugClass::BliAntiPseudomonal, 0.40),
+            (DrugClass::BliSulbactam, 0.40),
+            (DrugClass::Cephalosporins3, 0.40),
+            (DrugClass::Cephalosporins4, 0.30),
+            (DrugClass::CeftazidimeAvibactam, 0.25),
+            (DrugClass::MeropenemVaborbactam, 0.25),
+            (DrugClass::AztreonamAvibactam, 0.25),
+            (DrugClass::CarbapenemsGroup1, 0.40),
+            (DrugClass::CarbapenemsGroup2, 0.40),
+            (DrugClass::Monobactams, 0.40),
+        ] {
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, drug_class.index()),
+                expected,
+                "unexpected OmpK35/36 effect for {}",
+                drug_class.as_str()
+            );
+        }
+
+        for drug_class in [
+            DrugClass::Fluoroquinolones,
+            DrugClass::AminoglycosidesGroup1,
+            DrugClass::AminoglycosidesGroup2,
+            DrugClass::Macrolides,
+            DrugClass::Chloramphenicol,
+        ] {
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, drug_class.index()),
+                0.0,
+                "legacy OmpK35/36 fallback leaked into {}",
+                drug_class.as_str()
+            );
+        }
+
+        assert_eq!(
+            store
+                .bacteria_mechanism_emergence
+                .rate(bacteria_idx("klebsiella_pneumoniae"), mechanism_idx),
+            0.000_01
+        );
+        assert_eq!(
+            store.resistance_mechanism.reversion_rate(mechanism_idx),
+            0.0005
         );
     }
 
