@@ -158,9 +158,9 @@ fn resistance_mechanism_family_idx(mechanism: ResistanceMechanism) -> usize {
         ResistanceMechanism::TargetSiteCfr
         | ResistanceMechanism::EnzymeCat
         | ResistanceMechanism::Mutation23sRrnaOxazolidinone => MECH_FAMILY_PHENICOL_OXAZOLIDINONE,
-        ResistanceMechanism::ProtectionTetM | ResistanceMechanism::EffluxTetAbc => {
-            MECH_FAMILY_TETRACYCLINE
-        }
+        ResistanceMechanism::ProtectionTetM
+        | ResistanceMechanism::EffluxTetAbc
+        | ResistanceMechanism::Mutation16sRrnaTetracycline => MECH_FAMILY_TETRACYCLINE,
         ResistanceMechanism::MutationFolatePathway => MECH_FAMILY_FOLATE_PATHWAY,
         ResistanceMechanism::ModificationMcr1
         | ResistanceMechanism::MutationPolymyxinRegulatory => MECH_FAMILY_COLISTIN,

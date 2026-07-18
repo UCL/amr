@@ -186,6 +186,7 @@ pub enum ResistanceMechanism {
     EffluxTetAbc, // TetA/B/C efflux pumps: Gram-negative tetracycline efflux (Tn10 / plasmids)
     MutationPbpMosaic, // PBP mosaic mutations: reduced β-lactam affinity (penicillins, cephalosporins, aztreonam)
     EffluxMtrCde, // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
+    Mutation16sRrnaTetracycline, // H. pylori 16S rRNA target mutation
     AsYetUnknown, // Calibration placeholder: drug specificity set via config overrides
 }
 
@@ -238,6 +239,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::EffluxTetAbc,
             ResistanceMechanism::MutationPbpMosaic,
             ResistanceMechanism::EffluxMtrCde,
+            ResistanceMechanism::Mutation16sRrnaTetracycline,
             ResistanceMechanism::AsYetUnknown,
         ]
     }
@@ -298,6 +300,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::EffluxTetAbc => "efflux_tet_abc",
             ResistanceMechanism::MutationPbpMosaic => "mutation_pbp_mosaic",
             ResistanceMechanism::EffluxMtrCde => "efflux_mtr_cde",
+            ResistanceMechanism::Mutation16sRrnaTetracycline => "mutation_16s_rrna_tetracycline",
             ResistanceMechanism::AsYetUnknown => "as_yet_unknown",
         }
     }
@@ -741,16 +744,12 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         ]),
 
         // mecA/PBP2a: staphylococci only — S. pyogenes/Streptococci do NOT carry mecA
-        TargetSitePbp2aMecA => mask_for_groups(&[
-            BacteriaGroup::Staphylococci,
-            BacteriaGroup::Helicobacter, // Added for H. pylori Amoxicillin resistance
-        ]),
+        TargetSitePbp2aMecA => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
         // VanA/VanB glycopeptide resistance: Enterococcus (Streptococci group) + rarely VRSA (Staphylococci)
         TargetSiteVanA | TargetSiteVanB => mask_for_groups(&[
             BacteriaGroup::Staphylococci,
             BacteriaGroup::Streptococci,
-            BacteriaGroup::Helicobacter,
         ]),
 
         // Macrolide/Lincosamide/Streptogramin (MLS) & Phenicol Resistance
@@ -877,6 +876,8 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Fastidious,
             BacteriaGroup::EntericPathogen,
         ]),
+        // H. pylori tetracycline target-site mutations in both 16S rRNA copies.
+        Mutation16sRrnaTetracycline => mask_for_groups(&[BacteriaGroup::Helicobacter]),
         // Placeholder 3: still dormant
         AsYetUnknown => mask_for_groups(BacteriaGroup::all()),
     }
@@ -931,6 +932,11 @@ pub fn bacterium_mechanism_host_is_eligible(
                 | "haemophilus_influenzae"
                 | "moraxella_catarrhalis"
         ),
+        ResistanceMechanism::TargetSiteErmB | ResistanceMechanism::TargetSiteCfr => {
+            bacteria != "helicobacter_pylori"
+        }
+        ResistanceMechanism::ProtectionTetM => bacteria != "helicobacter_pylori",
+        ResistanceMechanism::Mutation16sRrnaTetracycline => bacteria == "helicobacter_pylori",
         _ => true,
     }
 }
@@ -960,6 +966,7 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         MutationFolatePathway => true,           // sul1/2/3, dfrA on integrons / plasmids
         MutationPbpMosaic => false, // PBP mosaic: chromosomal point mutations, not transferable
         EffluxMtrCde => false, // mtrCDE efflux: chromosomal regulatory mutations, not transferable
+        Mutation16sRrnaTetracycline => false, // chromosomal 16S rRNA target mutation
         AsYetUnknown => true,  // conservative default for remaining placeholder
         EnzymeAacAph => true,  // AAC/APH/ANT on integrons / plasmids
         EnzymeBlaZ => true,    // blaZ on plasmids in Staphylococci

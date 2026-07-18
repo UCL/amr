@@ -41,7 +41,7 @@
 
 We present a **framework** in the form of an **individual-based model** which simulates infection incidence, antibacterial usage, resistance emergence and risk of sepsis and death.  In the current configuration / set-up, we **simulate the lives of a repreentative sample the global population from 1930 to the present**, before the use of antibiotics, to the present day in **daily** time steps.  We typically simulate 3 million people alive at some time during this period.  The framework code is open-source and we encourage colleagues to use, and perhaps further develop, the framework to enable them to answer questions around how resistance has emerged over time (including through use of counterfactuals) and, critically, to predict the effect of various potential policies  on antibacterial drug resistance and infection related mortality.  Possible policies could relate to those aimed at minimizing drug resistance emergence and growth but also those that for which future drug resistance is a concern as a negative effect of a policy, such as those involving wider antibiotic use, and the framework should enable these negative effects to be quantified and compared with the positive effects.
 
-As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
+As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 47 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
 The framework aims to capture how bacterial resistance in one individual can affect risk in others in the same region (and accounts for movement between regions).  It does not, however, dynamically model infection spread per se; infection incidence in a given region in a given age, immunodeficiency and hospitalisation status is directly specified. 
 
@@ -1181,7 +1181,7 @@ This distinction is important because a zero emergence rate is not a synonym for
 
 ### 7.1 Resistance mechanisms
 
-The model explicitly tracks **46** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
+The model explicitly tracks **47** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
 
 The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) relate to `pen`, `c1_2g`, `c3g`, `c4g`, and related monobactam-active entries but not `carb_group1`/`carb_group2`, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well, for example.
 
@@ -1200,18 +1200,18 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
   | blaZ | `enzyme_bla_z` | Inhibitor-susceptible staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | *S. aureus*, *S. epidermidis* |
   | Narrow-spectrum Gram-negative penicillinase | `enzyme_narrow_spectrum_gram_negative_penicillinase` | Policy-scale inhibitor-susceptible route representing TEM-1 and, where explicitly assigned, related ROB/BRO enzymes | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | Reviewed Enterobacterales/enteric hosts, *N. gonorrhoeae*, *H. influenzae*, *M. catarrhalis* |
-  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Staphylococci, Helicobacter |
-  | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci, Helicobacter |
-  | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci, Helicobacter |
+  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *S. aureus*, *S. epidermidis* |
+  | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci |
+  | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci |
   | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `ciprofloxacin`, `ofloxacin` | All |
   | GyrA + ParC | `gyra_parc` | Additional topoisomerase mutation | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | All |
   | Qnr | `qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | 16S rRMT | `16s_rrmt` | 16S rRNA methyltransferase | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
-  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Staphylococci, Streptococci, Anaerobes, Fastidious, Helicobacter |
+  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
   | 23S rRNA | `23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Streptococci |
   | 23S rRNA (oxa) | `mutation_23s_rrna_oxazolidinone` | 23S rRNA domain V mutation conferring linezolid/tedizolid resistance — chromosomal, non-transferable | `linezolid`, `tedizolid` | Staphylococci, Streptococci |
-  | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Staphylococci, Streptococci, Anaerobes, Fastidious, Helicobacter |
+  | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
   | CAT | `cat` | Chloramphenicol acetyltransferase | `chloramphenicol` | All |
   | MCR-1 | `mcr_1` | Mobilised colistin resistance | `colistin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | Polymyxin regulatory | `mutation_polymyxin_regulatory` | Chromosomal polymyxin resistance (*mgrB*, *pmrAB*, *phoPQ*, *lpx* mutations) — chromosomal, non-transferable | `colistin` | Enterobacterales, Nonfermenters |
@@ -1219,7 +1219,8 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | MexXY-OprM | `mexxy_oprm` | Pseudomonas-specific efflux pump | `tetracycline`, `doxycycline`, `minocycline`, `gentamicin`, `tobramycin`, `amikacin`, `chloramphenicol`, `ciprofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | Global eff. | `global_efflux` | Non-specific efflux upregulation | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | All |
   | TetA/B/C | `tet_abc` | Gram-negative tetracycline efflux | `tetracycline`, `doxycycline` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious |
-  | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All |
+  | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All eligible hosts except *H. pylori* |
+  | 16S rRNA (tetracycline) | `mutation_16s_rrna_tetracycline` | Chromosomal 16S rRNA target-site mutation in both *H. pylori* rRNA copies | `tetracycline`, `doxycycline`, `minocycline` | *H. pylori* only |
   | OmpK35/36 | `ompk35_36` | Outer membrane porin loss (Klebsiella) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | Global por. | `global_porin_loss` | Non-specific porin downregulation | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | All |
@@ -1244,7 +1245,7 @@ Each mechanism a bacteria has **reduces** drug efficacy by a specific amount. Th
 - **0.95** = the mechanism eliminates 95% of the drug's activity (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)
 - **1.0** = complete resistance - the mechanism being present means the drug has no effect (the same as if it had potency 0 (ie. maximal "intrinsic resistance"))
 
-There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table below shows the **global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):
+There are 47 mechanisms × 39 drug classes = 1,833 individual values. The table below shows the **global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):
 
 These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.
 
@@ -1274,6 +1275,8 @@ The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for t
 | Folate pathway | 0.85 | Trimethoprim-sulfamethoxazole resistance |
 | FusB | 0.70 | Fusidic acid resistance |
 | FosA | 0.80 | Fosfomycin resistance |
+| TetM/TetO | 0.90 | Ribosomal protection against classical tetracyclines |
+| 16S rRNA (tetracycline) | 0.90 | *H. pylori* target-site mutation affecting classical tetracyclines |
 | MCR-1 | 0.85 | Colistin resistance — critically important as colistin is the last resort |
 | Nitroreductase | 0.70 | Nitrofurantoin resistance |
 | OprD | 0.80 | Porin loss — carbapenem resistance (mainly in *Pseudomonas*) |
@@ -1505,6 +1508,8 @@ Stenotrophomonas maltophilia. Intrinsic non-susceptibility to carbapenems, unpro
 
 Helicobacter pylori. Resistance is driven primarily by chromosomal mutation during treatment courses. A major persistence pathway is treatment failure without second-line rescue therapy (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80`). When first-line clarithromycin-based triple therapy fails, approximately 80% of patients in the model do not proceed to bismuth quadruple rescue therapy — reflecting real-world loss to follow-up, access barriers, poor tolerability of the quadruple regimen, and incomplete prescriber uptake. These patients are left chronically infected with an *H. pylori* strain that has been under macrolide selection pressure; each minority mechanism receives one 0.18/day promotion roll whenever any applicable drug pressure is present, and successful transitions enter the `mechanism_majority` profile recorded in the community mechanism cache. Over a 35-year simulation, this persistent-carrier pool builds up the circulating resistant-strain reservoir through the standard mechanism-inheritance pathway at acquisition. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other organisms contributes additional selection pressure.
 
+The organism-specific *H. pylori* target routes are explicit: PBP1A-dominant changes use `MutationPbpMosaic` for amoxicillin resistance, 23S rRNA mutations use `Mutation23sRrna` for clarithromycin-class resistance, and 16S rRNA mutations use `Mutation16sRrnaTetracycline` for tetracycline-class resistance. Staphylococcal `mecA/PBP2a`, acquired `ErmB`/`Cfr`, VanA/VanB, and TetM/TetO are not used as *H. pylori* proxies. The 16S route is non-transferable and restricted to *H. pylori*; tetracycline remains policy-relevant because it is explicitly selected in the bismuth rescue pathway.
+
 Enterococcus faecium. VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. With the universal guard disabled, glycopeptide resistance is maintained through the standard selection, carriage, HGT, profile-transmission, and other explicit persistence pathways.
 
 
@@ -1580,6 +1585,7 @@ capped at 0.50. Here `ratchet_floor` is a probability in the exogenous assignmen
 | CAT | 0.0005/day | ✓ |
 | 16S rRMT | 0.0005/day | ✓ |
 | TetM/TetO | 0.0005/day | ✓ |
+| 16S rRNA tetracycline mutation | 0.0005/day | ✓ |
 | TetA/B/C efflux | ~0.0001/day | ✓ |
 | Folate pathway (sul/dfrA) | 0.0001/day | ✓ |
 | AAC/APH | ~0.0001/day | ✓ |
@@ -2109,7 +2115,7 @@ The class labels in this table mirror the model's current internal `DrugClass` m
 
 
 
-### A.4 Resistance Mechanisms (46)
+### A.4 Resistance Mechanisms (47)
 
 See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
@@ -6037,7 +6043,7 @@ Under the default parameter map below, vaccination is active. Coverage ramps lin
 
 ### B.10 Resistance Mechanisms
 
-Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
+Parameters for the 47 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
 
 See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
@@ -6077,6 +6083,7 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | mutation_rpo_b | 0.002 |
 | protection_fus_b | 5e-4 |
 | protection_tet_m | 5e-4 |
+| mutation_16s_rrna_tetracycline | 5e-4 |
 | enzyme_aac_aph | 1e-4 |
 | enzyme_bla_z | 1e-4 |
 | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-4 |
@@ -7484,6 +7491,7 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | efflux_mtr_cde | macrocycles | 0.4 |
 | efflux_mtr_cde | steroid_antibacterials | 0.4 |
 | efflux_mtr_cde | pleuromutilins | 0.4 |
+| mutation_16s_rrna_tetracycline | tet | 0.9 |
 | as_yet_unknown | pen | 0.5 |
 | as_yet_unknown | bli | 0.5 |
 | as_yet_unknown | bli_anti_pseudomonal | 0.5 |
@@ -8304,18 +8312,16 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | bordetella_pertussis | mutation_rpo_b | 1e-12 |
 | bordetella_pertussis | protection_tet_m | 1e-11 |
 | bordetella_pertussis | efflux_mtr_cde | 2e-12 |
-| helicobacter_pylori | mutation_gyra_primary | 1 |
-| helicobacter_pylori | mutation_gyra_parc_secondary | 1 |
-| helicobacter_pylori | target_site_erm_b | 1 |
-| helicobacter_pylori | target_site_cfr | 1 |
-| helicobacter_pylori | global_efflux_pump | 1 |
-| helicobacter_pylori | global_porin_loss | 1 |
-| helicobacter_pylori | mutation_folate_pathway | 1 |
-| helicobacter_pylori | mutation_nitroreductase | 1 |
-| helicobacter_pylori | mutation_rpo_b | 1 |
-| helicobacter_pylori | protection_tet_m | 1 |
-| helicobacter_pylori | mutation_23s_rrna | 1 |
-| helicobacter_pylori | mutation_pbp_mosaic | 1 |
+| helicobacter_pylori | enzyme_cat | 30 |
+| helicobacter_pylori | mutation_gyra_primary | 30 |
+| helicobacter_pylori | mutation_gyra_parc_secondary | 30 |
+| helicobacter_pylori | global_efflux_pump | 30 |
+| helicobacter_pylori | mutation_folate_pathway | 0.005 |
+| helicobacter_pylori | mutation_nitroreductase | 30 |
+| helicobacter_pylori | mutation_rpo_b | 0.05 |
+| helicobacter_pylori | mutation_23s_rrna | 30 |
+| helicobacter_pylori | mutation_pbp_mosaic | 0.3 |
+| helicobacter_pylori | mutation_16s_rrna_tetracycline | 30 |
 | mycoplasma_pneumoniae | mutation_gyra_primary | 3e-7 |
 | mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-7 |
 | mycoplasma_pneumoniae | target_site_erm_b | 1.5e-5 |
@@ -9368,7 +9374,7 @@ Each row represents one simulated day. The number of rows equals the total numbe
 
 ### C.4 Total Column Count
 
-With 42 bacteria, 62 drugs, 46 resistance mechanisms, and 6 regions, the CSV contains thousands of columns. The exact schema is generated by `Simulation::export_summary_to_csv` and guarded by `tests/csv_invariants.rs`; it can change when output families are added or retired.
+With 42 bacteria, 62 drugs, 47 resistance mechanisms, and 6 regions, the CSV contains thousands of columns. The exact schema is generated by `Simulation::export_summary_to_csv` and guarded by `tests/csv_invariants.rs`; it can change when output families are added or retired.
 
 Approximate families:
 

@@ -1232,6 +1232,10 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "minocycline"
                 | "chloramphenicol"
         ),
+        // H. pylori 16S rRNA mutations at the primary tetracycline-binding site.
+        Mutation16sRrnaTetracycline => {
+            matches!(drug, "tetracycline" | "doxycycline" | "minocycline")
+        }
         // Placeholder: still dormant.
         AsYetUnknown => false,
     }
@@ -7439,8 +7443,9 @@ mod tests {
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
-        bacterium_mechanism_host_is_eligible, load_float, store_float, DrugClass, HospitalStatus,
-        Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
+        bacterium_mechanism_host_is_eligible, load_float, mechanism_is_hgt_transferable,
+        store_float, DrugClass, HospitalStatus, Individual, ResistanceMechanism, BACTERIA_LIST,
+        DRUG_SHORT_NAMES,
     };
     use crate::simulation::simulation::MechanismCache;
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -7535,8 +7540,8 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 6_381,
-            "narrow-spectrum penicillinase correction should preserve the reviewed phenotype matrix"
+            applicable_cells, 6_369,
+            "H. pylori proxy correction should preserve the reviewed phenotype matrix"
         );
     }
 
@@ -7678,6 +7683,117 @@ mod tests {
         }
 
         assert_eq!(positive_rate_hosts, 7);
+    }
+
+    #[test]
+    fn helicobacter_pylori_uses_reviewed_target_site_routes() {
+        let h_pylori_idx = bacteria_idx("helicobacter_pylori");
+
+        for mechanism in [
+            ResistanceMechanism::MutationPbpMosaic,
+            ResistanceMechanism::Mutation23sRrna,
+            ResistanceMechanism::Mutation16sRrnaTetracycline,
+        ] {
+            assert!(bacterium_mechanism_host_is_eligible(
+                h_pylori_idx,
+                mechanism
+            ));
+        }
+
+        for mechanism in [
+            ResistanceMechanism::TargetSitePbp2aMecA,
+            ResistanceMechanism::TargetSiteVanA,
+            ResistanceMechanism::TargetSiteVanB,
+            ResistanceMechanism::TargetSiteErmB,
+            ResistanceMechanism::TargetSiteCfr,
+            ResistanceMechanism::ProtectionTetM,
+        ] {
+            assert!(
+                !bacterium_mechanism_host_is_eligible(h_pylori_idx, mechanism),
+                "unexpected H. pylori proxy route: {}",
+                mechanism.as_str()
+            );
+        }
+
+        let campylobacter_idx = bacteria_idx("campylobacter_jejuni");
+        for mechanism in [
+            ResistanceMechanism::TargetSiteErmB,
+            ResistanceMechanism::TargetSiteCfr,
+            ResistanceMechanism::ProtectionTetM,
+        ] {
+            assert!(bacterium_mechanism_host_is_eligible(
+                campylobacter_idx,
+                mechanism
+            ));
+        }
+        assert!(!bacterium_mechanism_host_is_eligible(
+            campylobacter_idx,
+            ResistanceMechanism::Mutation16sRrnaTetracycline
+        ));
+        assert!(!mechanism_is_hgt_transferable(
+            ResistanceMechanism::Mutation16sRrnaTetracycline
+        ));
+    }
+
+    #[test]
+    fn helicobacter_pylori_tetracycline_rate_moved_without_retuning() {
+        let store = parameter_store();
+        let h_pylori_idx = bacteria_idx("helicobacter_pylori");
+        let target_mutation = ResistanceMechanism::Mutation16sRrnaTetracycline;
+        let target_mutation_idx = super::mechanism_idx(target_mutation);
+
+        assert_eq!(
+            store
+                .bacteria_mechanism_emergence
+                .rate(h_pylori_idx, target_mutation_idx),
+            30.0
+        );
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .enhancement_multiplier(target_mutation_idx, DrugClass::Tetracyclines.index(),),
+            0.9
+        );
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .reversion_rate(target_mutation_idx),
+            0.0005
+        );
+        for drug in ["tetracycline", "doxycycline", "minocycline"] {
+            assert!(mechanism_applies_to_drug(
+                target_mutation,
+                "helicobacter_pylori",
+                drug
+            ));
+        }
+        for drug in ["tigecycline", "clarithromycin", "chloramphenicol"] {
+            assert!(!mechanism_applies_to_drug(
+                target_mutation,
+                "helicobacter_pylori",
+                drug
+            ));
+        }
+
+        for mechanism in [
+            ResistanceMechanism::TargetSiteErmB,
+            ResistanceMechanism::TargetSiteCfr,
+            ResistanceMechanism::ProtectionTetM,
+        ] {
+            assert_eq!(
+                store
+                    .bacteria_mechanism_emergence
+                    .rate(h_pylori_idx, super::mechanism_idx(mechanism)),
+                0.0
+            );
+        }
+        assert_eq!(
+            store.bacteria_mechanism_emergence.rate(
+                h_pylori_idx,
+                super::mechanism_idx(ResistanceMechanism::Mutation23sRrna),
+            ),
+            30.0
+        );
     }
 
     #[test]
