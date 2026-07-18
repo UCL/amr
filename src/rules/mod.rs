@@ -1127,8 +1127,8 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "ertapenem"
         ),
 
-        // OprD loss (Pseudomonas): dedicated carbapenem channel, not a general porin
-        PorinLossOprd => matches!(drug, "meropenem" | "imipenem_c" | "ertapenem"),
+        // OprD loss (Pseudomonas): imipenem- and meropenem-containing drugs.
+        PorinLossOprd => matches!(drug, "meropenem" | "imipenem_c" | "meropenem_vaborbactam"),
 
         // Folate pathway: DHPS (sul genes) and DHFR (dfr genes) mutations
         MutationFolatePathway => matches!(drug, "sulfanilamide" | "trim_sulf"),
@@ -7544,8 +7544,8 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_563,
-            "OmpK35/36 should add two explicit beta-lactam cells and remove seven zero-effect FQ/AG cells"
+            applicable_cells, 5_564,
+            "OprD should add one live meropenem-vaborbactam cell; low-potency ertapenem was already filtered"
         );
     }
 
@@ -7652,6 +7652,91 @@ mod tests {
                 .bacteria_mechanism_emergence
                 .rate(bacteria_idx("klebsiella_pneumoniae"), mechanism_idx),
             0.000_01
+        );
+        assert_eq!(
+            store.resistance_mechanism.reversion_rate(mechanism_idx),
+            0.0005
+        );
+    }
+
+    #[test]
+    fn oprd_is_a_pseudomonas_imipenem_meropenem_route() {
+        let mechanism = ResistanceMechanism::PorinLossOprd;
+
+        assert!(bacterium_mechanism_host_is_eligible(
+            bacteria_idx("pseudomonas_aeruginosa"),
+            mechanism
+        ));
+        for bacterium in [
+            "klebsiella_pneumoniae",
+            "acinetobacter_baumannii",
+            "stenotrophomonas_maltophilia",
+        ] {
+            assert!(!bacterium_mechanism_host_is_eligible(
+                bacteria_idx(bacterium),
+                mechanism
+            ));
+        }
+
+        for drug in ["imipenem_c", "meropenem", "meropenem_vaborbactam"] {
+            assert!(
+                mechanism_applies_to_drug(mechanism, "pseudomonas_aeruginosa", drug),
+                "missing OprD carbapenem substrate: {drug}"
+            );
+        }
+        for drug in [
+            "ertapenem",
+            "piperacillin_tazobactam",
+            "cefepime",
+            "ciprofloxacin",
+        ] {
+            assert!(
+                !mechanism_applies_to_drug(mechanism, "pseudomonas_aeruginosa", drug),
+                "non-OprD drug should not select the mechanism: {drug}"
+            );
+        }
+    }
+
+    #[test]
+    fn oprd_effects_are_explicit_without_legacy_fallback() {
+        let store = parameter_store();
+        let mechanism_idx = super::mechanism_idx(ResistanceMechanism::PorinLossOprd);
+
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .enhancement_multiplier(mechanism_idx, DrugClass::CarbapenemsGroup2.index()),
+            0.80
+        );
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .enhancement_multiplier(mechanism_idx, DrugClass::MeropenemVaborbactam.index()),
+            0.80
+        );
+        for drug_class in [
+            DrugClass::CarbapenemsGroup1,
+            DrugClass::Penicillins,
+            DrugClass::Cephalosporins3,
+            DrugClass::Monobactams,
+            DrugClass::Fluoroquinolones,
+            DrugClass::AminoglycosidesGroup1,
+        ] {
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, drug_class.index()),
+                0.0,
+                "legacy OprD fallback leaked into {}",
+                drug_class.as_str()
+            );
+        }
+
+        assert_eq!(
+            store
+                .bacteria_mechanism_emergence
+                .rate(bacteria_idx("pseudomonas_aeruginosa"), mechanism_idx),
+            0.000_3
         );
         assert_eq!(
             store.resistance_mechanism.reversion_rate(mechanism_idx),

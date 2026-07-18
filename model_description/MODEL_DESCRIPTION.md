@@ -1222,7 +1222,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All eligible hosts except *H. pylori* |
   | 16S rRNA (tetracycline) | `mutation_16s_rrna_tetracycline` | Chromosomal 16S rRNA target-site mutation in both *H. pylori* rRNA copies | `tetracycline`, `doxycycline`, `minocycline` | *H. pylori* only |
   | OmpK35/36 | `ompk35_36` | Combined loss of the two major *K. pneumoniae* outer-membrane porins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *K. pneumoniae* only |
-  | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+  | OprD | `oprd` | Loss of the carbapenem uptake porin in *P. aeruginosa* | `meropenem`, `imipenem_c`, `meropenem_vaborbactam` | *P. aeruginosa* only |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
   | FosA/FosB | `fosa` | Fosfomycin-modifying enzyme (FosA: Gram-negative; FosB: Gram-positive) | `fosfomycin` | Staphylococci, Streptococci, Enterobacterales, Nonfermenters, Enteric Pathogens |
@@ -1278,7 +1278,7 @@ The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for t
 | 16S rRNA (tetracycline) | 0.90 | *H. pylori* target-site mutation affecting classical tetracyclines |
 | MCR-1 | 0.85 | Colistin resistance — critically important as colistin is the last resort |
 | Nitroreductase | 0.70 | Nitrofurantoin resistance |
-| OprD | 0.80 | Porin loss — carbapenem resistance (mainly in *Pseudomonas*) |
+| OprD | 0.80 | Imipenem- and meropenem-containing drug resistance in *P. aeruginosa* |
 | MprF | 0.60 | Daptomycin resistance |
 | OmpK35/36 | 0.25-0.40 by beta-lactam class | Moderate permeability effect in *K. pneumoniae*; larger combined phenotypes can arise with beta-lactamases |
 | Qnr | 0.20 | Low-level quinolone resistance (facilitates further mutation) |
@@ -1435,7 +1435,7 @@ The full reversion rates by mechanism category:
 ### Porin Loss & Efflux Pumps
 | Mechanism | Reversion Rate (per day) | Clinical Notes |
 | :--- | :--- | :--- |
-| **OprD Loss** | `0.0005` | Loss of outer membrane channel (carbapenem resistance); hinders nutrient acquisition. |
+| **OprD Loss** | `0.0005` | Chromosomal, non-transferable loss of the *P. aeruginosa* carbapenem uptake channel. |
 | **OmpK35 / OmpK36 Loss** | `0.0005` | Combined major-porin loss in *K. pneumoniae*; chromosomal and non-transferable. |
 | **AcrAB-TolC** | `0.0005` | Overexpression of major RND-family efflux pump complex. |
 | **MexXY-OprM** | `0.0005` | Endogenous efflux system upregulation (common in *Pseudomonas aeruginosa*). |
@@ -6871,45 +6871,8 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | porin_loss_ompk35_36 | carb_group1 | 0.4 |
 | porin_loss_ompk35_36 | carb_group2 | 0.4 |
 | porin_loss_ompk35_36 | mono | 0.4 |
-| porin_loss_oprd | pen | 0.8 |
-| porin_loss_oprd | bli | 0.8 |
-| porin_loss_oprd | bli_anti_pseudomonal | 0.8 |
-| porin_loss_oprd | bli_sulbactam | 0.8 |
-| porin_loss_oprd | c1_2g | 0.8 |
-| porin_loss_oprd | c3g | 0.8 |
-| porin_loss_oprd | c3g_bli | 0.8 |
-| porin_loss_oprd | c4g | 0.8 |
-| porin_loss_oprd | anti_mrsa_ceph | 0.8 |
-| porin_loss_oprd | siderophore_ceph | 0.8 |
-| porin_loss_oprd | cft_avi | 0.8 |
 | porin_loss_oprd | mer_vab | 0.8 |
-| porin_loss_oprd | azt_avi | 0.8 |
-| porin_loss_oprd | carb_group1 | 0.8 |
 | porin_loss_oprd | carb_group2 | 0.8 |
-| porin_loss_oprd | mono | 0.8 |
-| porin_loss_oprd | fq | 0.8 |
-| porin_loss_oprd | ag_group1 | 0.8 |
-| porin_loss_oprd | ag_group2 | 0.8 |
-| porin_loss_oprd | mls | 0.8 |
-| porin_loss_oprd | lincosamides | 0.8 |
-| porin_loss_oprd | glyc | 0.8 |
-| porin_loss_oprd | lipoglycopeptides | 0.8 |
-| porin_loss_oprd | tet | 0.8 |
-| porin_loss_oprd | glycylcyclines | 0.8 |
-| porin_loss_oprd | poly | 0.8 |
-| porin_loss_oprd | oxa | 0.8 |
-| porin_loss_oprd | chl | 0.8 |
-| porin_loss_oprd | sulf | 0.8 |
-| porin_loss_oprd | lipopeptides | 0.8 |
-| porin_loss_oprd | streptogramins | 0.8 |
-| porin_loss_oprd | nitrofurans | 0.8 |
-| porin_loss_oprd | phosphonic_acids | 0.8 |
-| porin_loss_oprd | nitroimidazoles | 0.8 |
-| porin_loss_oprd | rifamycins | 0.8 |
-| porin_loss_oprd | macrocycles | 0.8 |
-| porin_loss_oprd | steroid_antibacterials | 0.8 |
-| porin_loss_oprd | pleuromutilins | 0.8 |
-| porin_loss_oprd | other | 0.8 |
 | modification_mcr_1 | pen | 0.85 |
 | modification_mcr_1 | bli | 0.85 |
 | modification_mcr_1 | bli_anti_pseudomonal | 0.85 |
@@ -7759,7 +7722,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | pseudomonas_aeruginosa | target_site_cfr | 3e-5 |
 | pseudomonas_aeruginosa | enzyme_cat | 4e-4 |
 | pseudomonas_aeruginosa | efflux_mexxy_oprm | 5e-4 |
-| pseudomonas_aeruginosa | porin_loss_oprd | 5e-4 |
+| pseudomonas_aeruginosa | porin_loss_oprd | 3e-4 |
 | pseudomonas_aeruginosa | modification_mcr_1 | 0.003 |
 | pseudomonas_aeruginosa | global_efflux_pump | 3e-4 |
 | pseudomonas_aeruginosa | mutation_folate_pathway | 0.003 |
