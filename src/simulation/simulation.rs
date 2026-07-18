@@ -139,9 +139,9 @@ fn resistance_mechanism_family_idx(mechanism: ResistanceMechanism) -> usize {
         | ResistanceMechanism::EnzymeNdmVim
         | ResistanceMechanism::EnzymeOxa48
         | ResistanceMechanism::EnzymeOxaAcinetobacter => MECH_FAMILY_CARBAPENEMASE,
-        ResistanceMechanism::PorinLossOmpk35_36
-        | ResistanceMechanism::PorinLossOprd
-        | ResistanceMechanism::GlobalPorinLoss => MECH_FAMILY_PORIN_LOSS,
+        ResistanceMechanism::PorinLossOmpk35_36 | ResistanceMechanism::PorinLossOprd => {
+            MECH_FAMILY_PORIN_LOSS
+        }
         ResistanceMechanism::EffluxAcrabTolc
         | ResistanceMechanism::EffluxMexxyOprm
         | ResistanceMechanism::GlobalEffluxPump

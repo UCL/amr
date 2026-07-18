@@ -1114,18 +1114,6 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // OprD loss (Pseudomonas): dedicated carbapenem channel, not a general porin
         PorinLossOprd => matches!(drug, "meropenem" | "imipenem_c" | "ertapenem"),
 
-        // Generic porin loss: moderate broad-spectrum permeability reduction for hydrophilic drugs
-        GlobalPorinLoss => matches!(
-            drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
-            | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
-            | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
-            | "aztreonam" | "aztreonam_avibactam"
-              | "meropenem" | "imipenem_c" | "ertapenem"
-            | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
-            | "gentamicin" | "tobramycin" | "amikacin" // Weak AG permeability reduction
-        ),
-
         // Folate pathway: DHPS (sul genes) and DHFR (dfr genes) mutations
         MutationFolatePathway => matches!(drug, "sulfanilamide" | "trim_sulf"),
 
@@ -7540,8 +7528,8 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 6_369,
-            "H. pylori proxy correction should preserve the reviewed phenotype matrix"
+            applicable_cells, 5_568,
+            "removing generic porin loss should remove its 801 broad applicability cells"
         );
     }
 

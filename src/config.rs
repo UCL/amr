@@ -8521,7 +8521,6 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0         ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_escherichia_coli_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_0003        ); // classes: none (currently zeroed)
         map.insert("bacteria_escherichia_coli_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_1      ); // classes: poly
         map.insert("bacteria_escherichia_coli_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // classes: poly; rate currently 0.0 — pmrAB mutations documented in E. coli; mcr_1 is the modelled polymyxin resistance route
         map.insert("bacteria_escherichia_coli_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0          ); // classes: sulf
@@ -8572,7 +8571,6 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.5       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_01  ); // classes: pen, flu, bli, ceph, carb, mono, fq, ag ***changed: flu+mono+fq+ag added (OmpK35/36 porin loss synergises with all beta-lactams incl. flucloxacillin and monobactams, and also reduces FQ and aminoglycoside penetration)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_001  ); // classes: none (currently zeroed)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 10.0      ); // classes: poly
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 10.0  ); // classes: poly; chromosomal colistin resistance
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_2   ); // classes: sulf
@@ -8624,7 +8622,6 @@ lazy_static! {
       map.insert("bacteria_citrobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002          ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
       map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-      map.insert("bacteria_citrobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1   ); // classes: none (currently zeroed)
       map.insert("bacteria_citrobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.015    ); // classes: poly
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — chromosomal colistin resistance (pmrA/B mutations) not modelled for Citrobacter; use modification_mcr_1 for MCR-1 plasmid-mediated resistance
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_5    ); // classes: sulf
@@ -8673,7 +8670,6 @@ lazy_static! {
       map.insert("bacteria_enterobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3         ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
       map.insert("bacteria_enterobacter_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0   ); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
-      map.insert("bacteria_enterobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.001     ); // classes: none (currently zeroed)
       map.insert("bacteria_enterobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_5    ); // classes: poly
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.000_5 ); // classes: poly; chromosomal colistin resistance
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01     ); // classes: sulf
@@ -8724,7 +8720,6 @@ lazy_static! {
     map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
     map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_01 ); // classes: none (currently zeroed)
     map.insert("bacteria_enterobacter_cloacae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.002  ); // classes: poly
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.002 ); // classes: poly; chromosomal colistin resistance
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003        ); // classes: sulf
@@ -8774,7 +8769,6 @@ lazy_static! {
         map.insert("bacteria_morganella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.007  ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_morganella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_001  ); // classes: none (currently zeroed)
         map.insert("bacteria_morganella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03      ); // classes: poly
         map.insert("bacteria_morganella_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.03  ); // classes: poly; Morganella is inherently not susceptible to polymyxins (zero potency; constitutive lpxA/lpxC pathway); rate retained to model acquired regulatory mutations via the active pathway machinery
         map.insert("bacteria_morganella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005   ); // classes: sulf
@@ -8824,7 +8818,6 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_proteus_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1        ); // classes: none (currently zeroed)
         map.insert("bacteria_proteus_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01         ); // classes: poly
         map.insert("bacteria_proteus_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — Proteus is inherently not susceptible to polymyxins (zero potency; chromosomal LPS modification); no acquired resistance mechanism to model here
         map.insert("bacteria_proteus_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_3         ); // classes: sulf
@@ -8874,7 +8867,6 @@ lazy_static! {
         map.insert("bacteria_serratia_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_serratia_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1   ); // classes: none (currently zeroed)
         map.insert("bacteria_serratia_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01      ); // classes: poly
         map.insert("bacteria_serratia_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — Serratia is inherently not susceptible to polymyxins (zero potency; chromosomal LPS modification); no acquired resistance mechanism to model here
         map.insert("bacteria_serratia_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01   ); // classes: sulf
@@ -8924,7 +8916,6 @@ lazy_static! {
         map.insert("bacteria_p_stuartii_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_p_stuartii_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_p_stuartii_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_01  ); // classes: none (currently zeroed)
         map.insert("bacteria_p_stuartii_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_002 ); // classes: poly
         map.insert("bacteria_p_stuartii_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.000_3); // classes: poly; chromosomal colistin resistance
         map.insert("bacteria_p_stuartii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.1   ); // classes: sulf
@@ -8974,7 +8965,6 @@ lazy_static! {
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_global_efflux_pump_emergence_rate".to_string(), 10.0       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1       ); // classes: none (currently zeroed)
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_modification_mcr_1_emergence_rate".to_string(), 30.0        ); // classes: poly
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 30.0); // classes: poly; chromosomal colistin resistance (pmrA/B, phoQ mutations); relevant in XDR Typhi context
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 10.0      ); // classes: sulf - dhfr/sul genes on IncHI1 MDR plasmid; co-selected with CAT by chloramphenicol/ampicillin pressure; ~25% sulfonamide resistance target
@@ -9024,7 +9014,6 @@ lazy_static! {
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.3       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0     ); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_01  ); // classes: none (currently zeroed)
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_modification_mcr_1_emergence_rate".to_string(), 30.0       ); // classes: poly
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 30.0); // classes: poly; chromosomal colistin resistance (pmrA/B, phoQ mutations)
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05     ); // classes: sulf
@@ -9074,7 +9063,6 @@ lazy_static! {
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_003      ); // classes: none (currently zeroed)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 30.0     ); // classes: poly
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 30.0); // chromosomal colistin resistance not modelled for iNTS; use modification_mcr_1 for plasmid-mediated colistin resistance
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_000_5  ); // classes: sulf
@@ -9130,7 +9118,6 @@ lazy_static! {
         map.insert("bacteria_shigella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0     ); // classes: fq, tet, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_shigella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_shigella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.1        ); // classes: none (currently zeroed)
         map.insert("bacteria_shigella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 30.0        ); // classes: poly; Colistin ~20%; raised 0.005->0.5: mcr-1 is plasmid-mediated and spread rapidly in Shigella Sonnei globally post-2015 via livestock colistin selection; 0.005 was near-zero and could never accumulate to 20% target
         map.insert("bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 30.0); // classes: poly;
         map.insert("bacteria_shigella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0       ); // classes: sulf
@@ -9179,7 +9166,6 @@ lazy_static! {
         map.insert("bacteria_yersinia_enterocolitica_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.005           ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_yersinia_enterocolitica_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_global_porin_loss_emergence_rate".to_string(), 0.002_5          ); // classes: none (currently zeroed)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03             ); // classes: poly
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — chromosomal colistin resistance not modelled for Yersinia; MCR-1 plasmid resistance captured via modification_mcr_1
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01            ); // classes: sulf
@@ -9232,7 +9218,6 @@ lazy_static! {
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01          ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.000_3      ); // classes: carb
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0      ); // classes: none (currently zeroed)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_1    ); // classes: poly
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.000_1); // classes: poly; chromosomal colistin resistance
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005      ); // classes: sulf
@@ -9282,7 +9267,6 @@ lazy_static! {
         map.insert("bacteria_acinetobacter_baumannii_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5 ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_03 ); // classes: none (currently zeroed)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01     ); // classes: poly; Colistin 0%->12%
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.01); // classes: poly; chromosomal colistin resistance
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.1    ); // classes: sulf
@@ -9332,7 +9316,6 @@ lazy_static! {
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.02        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0  ); // classes: none (currently zeroed)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.1 ); // classes: poly; colistin 0% vs target 70%
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — S. maltophilia is inherently not susceptible to polymyxins (LPS aminoarabinose modification; zero potency); modelled via potency
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001    ); // classes: sulf; trim/sulf
@@ -9382,7 +9365,6 @@ lazy_static! {
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_porin_loss_emergence_rate".to_string(), 0.03   ); // classes: none (currently zeroed)
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03      ); // classes: poly
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — Burkholderia cepacia complex is inherently not susceptible to polymyxins (LPS modification, constitutive efflux; zero potency); modelled via potency
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.02    ); // classes: sulf
@@ -9435,7 +9417,6 @@ lazy_static! {
         map.insert("bacteria_vibrio_cholerae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.03       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_vibrio_cholerae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1      ); // classes: none (currently zeroed)
         map.insert("bacteria_vibrio_cholerae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.001        ); // classes: poly
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.001  ); //— V. cholerae is susceptible to polymyxins; chromosomal colistin resistance not clinically significant; use modification_mcr_1 for plasmid-mediated resistance
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001     ); // classes: sulf
@@ -9485,7 +9466,6 @@ lazy_static! {
         map.insert("bacteria_campylobacter_jejuni_mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_campylobacter_jejuni_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_campylobacter_jejuni_mechanism_global_porin_loss_emergence_rate".to_string(), 0.1      ); // classes: none (currently zeroed)
         map.insert("bacteria_campylobacter_jejuni_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.3  ); // classes: sulf
@@ -9535,7 +9515,6 @@ lazy_static! {
         map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0  ); // classes: none (currently zeroed)
         map.insert("bacteria_helicobacter_pylori_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005    ); // classes: sulf
@@ -9585,7 +9564,6 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0              ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.001      ); // classes: none (currently zeroed)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.005          ); // classes: poly
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — N. gonorrhoeae is inherently not susceptible to polymyxins (constitutive LPS phosphoethanolamine modification via LptA/PptA; zero potency); modelled via potency
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0     ); // classes: sulf
@@ -9635,7 +9613,6 @@ lazy_static! {
         map.insert("bacteria_neisseria_meningitidis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_15  ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_neisseria_meningitidis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_15  ); // classes: none (currently zeroed)
         map.insert("bacteria_neisseria_meningitidis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_005  ); // classes: poly
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — N. meningitidis is susceptible to polymyxins; chromosomal regulatory mutations not clinically significant; use modification_mcr_1 for plasmid-mediated resistance
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_2      ); // classes: sulf
@@ -9685,7 +9662,6 @@ lazy_static! {
         map.insert("bacteria_moraxella_catarrhalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_1    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_moraxella_catarrhalis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_001   ); // classes: mono
         map.insert("bacteria_moraxella_catarrhalis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_01     ); // classes: poly
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — polymyxins not clinically used for M. catarrhalis; use modification_mcr_1 for any plasmid-mediated polymyxin resistance
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005        ); // classes: sulf
@@ -9735,7 +9711,6 @@ lazy_static! {
         map.insert("bacteria_haemophilus_influenzae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.2      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_haemophilus_influenzae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_haemophilus_influenzae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_02       ); // classes: none
         map.insert("bacteria_haemophilus_influenzae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_05      ); // classes: poly
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // classes: poly; rate currently 0.0 — H. influenzae is inherently not susceptible to polymyxins (constitutive LPS phosphoethanolamine substitutions; zero potency); additional acquired mutational resistance not separately modelled
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0        ); // classes: sulf
@@ -9786,7 +9761,6 @@ lazy_static! {
         map.insert("bacteria_legionella_pneumophila_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_003 ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_legionella_pneumophila_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_legionella_pneumophila_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_legionella_pneumophila_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1); // classes: none (currently zeroed)
         map.insert("bacteria_legionella_pneumophila_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_03); // classes: poly
         map.insert("bacteria_legionella_pneumophila_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — L. pneumophila is inherently not susceptible to polymyxins (intracellular niche + LPS modifications; zero potency); clinically not a target for polymyxin therapy
         map.insert("bacteria_legionella_pneumophila_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_3); // classes: sulf
@@ -9839,7 +9813,6 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0          ); // classes: fq, tet, chl; bumps FQs, Tet ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0; Gram-positive, no outer membrane - porin loss not applicable
         map.insert("bacteria_staphylococcus_aureus_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0       ); // classes: sulf; trim/sulf target 35%
@@ -9888,7 +9861,6 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5); // classes: fq, tet, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003    ); // classes: sulf
@@ -9941,7 +9913,6 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1           ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_003      ); // classes: none (currently zeroed)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_1         ); // classes: sulf
@@ -9991,7 +9962,6 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_1      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_streptococcus_pyogenes_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003     ); // classes: sulf
@@ -10041,7 +10011,6 @@ lazy_static! {
         map.insert("bacteria_streptococcus_agalactiae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_streptococcus_agalactiae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001      ); // classes: sulf
@@ -10094,7 +10063,6 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.005        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl; cuts FQ+tet+chlor ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_enterococcus_faecalis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_03  ); // classes: none (currently zeroed); low-probability background permeability effect
         map.insert("bacteria_enterococcus_faecalis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01    ); // classes: sulf
@@ -10145,7 +10113,6 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.005             ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl ***changed: mls->removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines incl. tigecycline + chloramphenicol)
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005       ); // classes: sulf
@@ -10198,7 +10165,6 @@ lazy_static! {
         map.insert("bacteria_listeria_monocytogenes_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.03   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_listeria_monocytogenes_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_listeria_monocytogenes_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05   ); // classes: sulf
@@ -10248,7 +10214,6 @@ lazy_static! {
         map.insert("bacteria_clostridioides_difficile_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_01  ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_clostridioides_difficile_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0 — C. difficile is inherently not susceptible to polymyxins (Gram-positive anaerobe; no outer membrane; zero potency)
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.5      ); // classes: sulf
@@ -10298,7 +10263,6 @@ lazy_static! {
         map.insert("bacteria_bacteroides_fragilis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_bacteroides_fragilis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_5  ); // classes: none (currently zeroed)
         map.insert("bacteria_bacteroides_fragilis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_05   ); // classes: poly
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — B. fragilis is inherently not susceptible to polymyxins (no outer LPS bilayer; lipid A modifications; zero potency); modelled via potency
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 10.0        ); // classes: sulf
@@ -10352,7 +10316,6 @@ lazy_static! {
         map.insert("bacteria_bordetella_pertussis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.008      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_bordetella_pertussis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1   ); // classes: none (currently zeroed)
         map.insert("bacteria_bordetella_pertussis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // rate currently 0.0 — B. pertussis is susceptible to polymyxins; chromosomal regulatory mutations not clinically significant; use modification_mcr_1 for plasmid-mediated resistance
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 3.0      ); // classes: sulf
@@ -10402,7 +10365,6 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_global_efflux_pump_emergence_rate".to_string(), 30.0            ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_mycoplasma_genitalium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0 — M. genitalium has no outer membrane LPS; intrinsically insensitive to polymyxins; mechanism inapplicable
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.0     ); // tier 0 - M. genitalium lacks DHPS (dihydropteroate synthase); scavenges folate from host; intrinsically insensitive to sulfonamides/TMP-SMX; confirmed by sulfanilamide_potency=0.05
@@ -10452,7 +10414,6 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_015); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0 — M. pneumoniae has no outer membrane LPS; intrinsically insensitive to polymyxins; mechanism inapplicable
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_000_3); // classes: sulf
@@ -10505,7 +10466,6 @@ lazy_static! {
         map.insert("bacteria_chlamydia_trachomatis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.02          ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_chlamydia_trachomatis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0 — C. trachomatis is an obligate intracellular organism; polymyxins do not penetrate to intracellular compartment; mechanism inapplicable
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.02           ); // classes: sulf
@@ -10555,7 +10515,6 @@ lazy_static! {
         map.insert("bacteria_treponema_pallidum_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001      ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_treponema_pallidum_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001     ); // classes: sulf
@@ -10608,7 +10567,6 @@ lazy_static! {
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.0 ); // rate currently 0.0 — M. tuberculosis uses MmpL/Mmr efflux rather than the AcrAB-TolC/GlobalEffluxPump model; not modelled via this mechanism
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.0 ); // classes: sulf
@@ -11008,7 +10966,6 @@ lazy_static! {
         map.insert("resistance_mechanism_target_site_van_a_enhancement_multiplier".to_string(), 0.99);
         map.insert("resistance_mechanism_target_site_van_b_enhancement_multiplier".to_string(), 0.99);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_multiplier".to_string(), 0.2);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_multiplier".to_string(), 0.2);
 
         // --- New mechanisms ---
         map.insert("resistance_mechanism_mutation_folate_pathway_enhancement_multiplier".to_string(), 0.85); // sul/dfr genes: high-level sulfonamide/trimethoprim resistance
@@ -11327,22 +11284,6 @@ lazy_static! {
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_glycylcyclines".to_string(), 0.15);
         map.insert("resistance_mechanism_global_efflux_pump_enhancement_chl".to_string(), 0.15);
 
-        // Global Porin Loss: zeroed - too broad, undermines drug-class differentiation
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_pen".to_string(), 0.0);  // zeroed: marginal cross-class
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_bli".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_bli_anti_pseudomonal".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_bli_sulbactam".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_c3g".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_c3g_bli".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_c4g".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_anti_mrsa_ceph".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_siderophore_ceph".to_string(), 0.0);  // zeroed: marginal cross-class
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_carb_group1".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_carb_group2".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_fq".to_string(), 0.0);  // zeroed: marginal cross-class
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_ag_group1".to_string(), 0.0);
-        map.insert("resistance_mechanism_global_porin_loss_enhancement_ag_group2".to_string(), 0.0);
-
         // --- Per-drug-class enhancement multipliers for NEW mechanisms ---
 
         // Folate Pathway (sul/dfr): only affects sulfonamide class
@@ -11537,7 +11478,6 @@ lazy_static! {
         map.insert("resistance_mechanism_porin_loss_oprd_reversion_rate".to_string(), 0.0005);
         map.insert("resistance_mechanism_porin_loss_ompk35_36_reversion_rate".to_string(), 0.0005);
         map.insert("resistance_mechanism_global_efflux_pump_reversion_rate".to_string(), 0.0005);
-        map.insert("resistance_mechanism_global_porin_loss_reversion_rate".to_string(), 0.0005);
         map.insert("resistance_mechanism_efflux_acrab_tolc_reversion_rate".to_string(), 0.0005);
         map.insert("resistance_mechanism_efflux_mexxy_oprm_reversion_rate".to_string(), 0.0005);
 

@@ -41,7 +41,7 @@
 
 We present a **framework** in the form of an **individual-based model** which simulates infection incidence, antibacterial usage, resistance emergence and risk of sepsis and death.  In the current configuration / set-up, we **simulate the lives of a repreentative sample the global population from 1930 to the present**, before the use of antibiotics, to the present day in **daily** time steps.  We typically simulate 3 million people alive at some time during this period.  The framework code is open-source and we encourage colleagues to use, and perhaps further develop, the framework to enable them to answer questions around how resistance has emerged over time (including through use of counterfactuals) and, critically, to predict the effect of various potential policies  on antibacterial drug resistance and infection related mortality.  Possible policies could relate to those aimed at minimizing drug resistance emergence and growth but also those that for which future drug resistance is a concern as a negative effect of a policy, such as those involving wider antibiotic use, and the framework should enable these negative effects to be quantified and compared with the positive effects.
 
-As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 47 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
+As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
 The framework aims to capture how bacterial resistance in one individual can affect risk in others in the same region (and accounts for movement between regions).  It does not, however, dynamically model infection spread per se; infection incidence in a given region in a given age, immunodeficiency and hospitalisation status is directly specified. 
 
@@ -1181,7 +1181,7 @@ This distinction is important because a zero emergence rate is not a synonym for
 
 ### 7.1 Resistance mechanisms
 
-The model explicitly tracks **47** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
+The model explicitly tracks **46** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
 
 The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) relate to `pen`, `c1_2g`, `c3g`, `c4g`, and related monobactam-active entries but not `carb_group1`/`carb_group2`, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well, for example.
 
@@ -1223,7 +1223,6 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | 16S rRNA (tetracycline) | `mutation_16s_rrna_tetracycline` | Chromosomal 16S rRNA target-site mutation in both *H. pylori* rRNA copies | `tetracycline`, `doxycycline`, `minocycline` | *H. pylori* only |
   | OmpK35/36 | `ompk35_36` | Outer membrane porin loss (Klebsiella) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | Global por. | `global_porin_loss` | Non-specific porin downregulation | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | All |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
   | FosA/FosB | `fosa` | Fosfomycin-modifying enzyme (FosA: Gram-negative; FosB: Gram-positive) | `fosfomycin` | Staphylococci, Streptococci, Enterobacterales, Nonfermenters, Enteric Pathogens |
@@ -1245,7 +1244,7 @@ Each mechanism a bacteria has **reduces** drug efficacy by a specific amount. Th
 - **0.95** = the mechanism eliminates 95% of the drug's activity (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)
 - **1.0** = complete resistance - the mechanism being present means the drug has no effect (the same as if it had potency 0 (ie. maximal "intrinsic resistance"))
 
-There are 47 mechanisms × 39 drug classes = 1,833 individual values. The table below shows the **global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):
+There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table below shows the **global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):
 
 These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.
 
@@ -1283,7 +1282,6 @@ The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for t
 | MprF | 0.60 | Daptomycin resistance |
 | OmpK35/36 | 0.80 | Porin loss — broad resistance in Enterobacterales |
 | Qnr | 0.20 | Low-level quinolone resistance (facilitates further mutation) |
-| Global porin loss | 0.20 | Broad, non-specific resistance via reduced permeability |
 | MexXY-OprM | 0.30 | Efflux pump — aminoglycoside/FQ resistance in *Pseudomonas* |
 | AcrAB-TolC | 0.30 | Gram-negative efflux — modest broad-spectrum resistance |
 | Global efflux | 0.20 | Non-specific efflux — weakest single mechanism |
@@ -1439,7 +1437,6 @@ The full reversion rates by mechanism category:
 | :--- | :--- | :--- |
 | **OprD Loss** | `0.0005` | Loss of outer membrane channel (carbapenem resistance); hinders nutrient acquisition. |
 | **OmpK35 / OmpK36 Loss** | `0.0005` | Analogous mechanism in Enterobacterales. |
-| **Global / Generic Porin Loss** | `0.0005` | Broad permeability phenotype cost. |
 | **AcrAB-TolC** | `0.0005` | Overexpression of major RND-family efflux pump complex. |
 | **MexXY-OprM** | `0.0005` | Endogenous efflux system upregulation (common in *Pseudomonas aeruginosa*). |
 | **Global / Generic Efflux** | `0.0005` | Broad, non-specific transport energy costs. |
@@ -2115,7 +2112,7 @@ The class labels in this table mirror the model's current internal `DrugClass` m
 
 
 
-### A.4 Resistance Mechanisms (47)
+### A.4 Resistance Mechanisms (46)
 
 See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
@@ -6043,7 +6040,7 @@ Under the default parameter map below, vaccination is active. Coverage ramps lin
 
 ### B.10 Resistance Mechanisms
 
-Parameters for the 47 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
+Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
 
 See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
@@ -6075,7 +6072,6 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | porin_loss_oprd | 5e-4 |
 | modification_mcr_1 | 0.0015 |
 | global_efflux_pump | 5e-4 |
-| global_porin_loss | 5e-4 |
 | mutation_folate_pathway | 1e-4 |
 | mutation_nitroreductase | 3e-4 |
 | enzyme_fos_a | 5e-4 |
@@ -7000,31 +6996,6 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | global_efflux_pump | steroid_antibacterials | 0.2 |
 | global_efflux_pump | pleuromutilins | 0.2 |
 | global_efflux_pump | other | 0.2 |
-| global_porin_loss | c1_2g | 0.2 |
-| global_porin_loss | cft_avi | 0.2 |
-| global_porin_loss | mer_vab | 0.2 |
-| global_porin_loss | azt_avi | 0.2 |
-| global_porin_loss | mono | 0.2 |
-| global_porin_loss | mls | 0.2 |
-| global_porin_loss | lincosamides | 0.2 |
-| global_porin_loss | glyc | 0.2 |
-| global_porin_loss | lipoglycopeptides | 0.2 |
-| global_porin_loss | tet | 0.2 |
-| global_porin_loss | glycylcyclines | 0.2 |
-| global_porin_loss | poly | 0.2 |
-| global_porin_loss | oxa | 0.2 |
-| global_porin_loss | chl | 0.2 |
-| global_porin_loss | sulf | 0.2 |
-| global_porin_loss | lipopeptides | 0.2 |
-| global_porin_loss | streptogramins | 0.2 |
-| global_porin_loss | nitrofurans | 0.2 |
-| global_porin_loss | phosphonic_acids | 0.2 |
-| global_porin_loss | nitroimidazoles | 0.2 |
-| global_porin_loss | rifamycins | 0.2 |
-| global_porin_loss | macrocycles | 0.2 |
-| global_porin_loss | steroid_antibacterials | 0.2 |
-| global_porin_loss | pleuromutilins | 0.2 |
-| global_porin_loss | other | 0.2 |
 | mutation_folate_pathway | pen | 0.85 |
 | mutation_folate_pathway | bli | 0.85 |
 | mutation_folate_pathway | bli_anti_pseudomonal | 0.85 |
@@ -7553,7 +7524,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | acinetobacter_baumannii | enzyme_cat | 0.01 |
 | acinetobacter_baumannii | modification_mcr_1 | 0.01 |
 | acinetobacter_baumannii | global_efflux_pump | 0.025 |
-| acinetobacter_baumannii | global_porin_loss | 1e-4 |
 | acinetobacter_baumannii | mutation_folate_pathway | 0.05 |
 | acinetobacter_baumannii | enzyme_fos_a | 0.0035 |
 | acinetobacter_baumannii | mutation_rpo_b | 0.045 |
@@ -7579,7 +7549,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | citrobacter_spp. | efflux_mexxy_oprm | 0.0015 |
 | citrobacter_spp. | modification_mcr_1 | 0.05 |
 | citrobacter_spp. | global_efflux_pump | 0.003 |
-| citrobacter_spp. | global_porin_loss | 5e-4 |
 | citrobacter_spp. | mutation_folate_pathway | 0.003 |
 | citrobacter_spp. | mutation_nitroreductase | 0.015 |
 | citrobacter_spp. | enzyme_fos_a | 0.005 |
@@ -7604,7 +7573,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | enterobacter_spp. | efflux_acrab_tolc | 5e-4 |
 | enterobacter_spp. | modification_mcr_1 | 0.03 |
 | enterobacter_spp. | global_efflux_pump | 5e-4 |
-| enterobacter_spp. | global_porin_loss | 5e-4 |
 | enterobacter_spp. | mutation_folate_pathway | 0.001 |
 | enterobacter_spp. | mutation_nitroreductase | 0.005 |
 | enterobacter_spp. | enzyme_fos_a | 0.02 |
@@ -7622,7 +7590,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | enterococcus_faecalis | target_site_cfr | 0.003 |
 | enterococcus_faecalis | enzyme_cat | 2e-4 |
 | enterococcus_faecalis | global_efflux_pump | 3e-4 |
-| enterococcus_faecalis | global_porin_loss | 1e-4 |
 | enterococcus_faecalis | mutation_folate_pathway | 0.02 |
 | enterococcus_faecalis | mutation_nitroreductase | 0.02 |
 | enterococcus_faecalis | mutation_mpr_f | 0.005 |
@@ -7668,7 +7635,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | escherichia_coli | efflux_acrab_tolc | 1e-4 |
 | escherichia_coli | modification_mcr_1 | 1e-5 |
 | escherichia_coli | global_efflux_pump | 1e-4 |
-| escherichia_coli | global_porin_loss | 1e-7 |
 | escherichia_coli | mutation_folate_pathway | 1e-4 |
 | escherichia_coli | mutation_nitroreductase | 1e-6 |
 | escherichia_coli | enzyme_fos_a | 1e-6 |
@@ -7694,7 +7660,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | klebsiella_pneumoniae | porin_loss_ompk35_36 | 1e-5 |
 | klebsiella_pneumoniae | modification_mcr_1 | 0.01 |
 | klebsiella_pneumoniae | global_efflux_pump | 0.001 |
-| klebsiella_pneumoniae | global_porin_loss | 3e-9 |
 | klebsiella_pneumoniae | mutation_folate_pathway | 0.001 |
 | klebsiella_pneumoniae | mutation_nitroreductase | 0.002 |
 | klebsiella_pneumoniae | enzyme_fos_a | 0.003 |
@@ -7719,7 +7684,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | morganella_spp. | efflux_mexxy_oprm | 2e-4 |
 | morganella_spp. | modification_mcr_1 | 0.02 |
 | morganella_spp. | global_efflux_pump | 0.003 |
-| morganella_spp. | global_porin_loss | 1e-5 |
 | morganella_spp. | mutation_folate_pathway | 0.004 |
 | morganella_spp. | mutation_nitroreductase | 0.03 |
 | morganella_spp. | enzyme_fos_a | 0.003 |
@@ -7744,7 +7708,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | proteus_spp. | efflux_acrab_tolc | 0.005 |
 | proteus_spp. | modification_mcr_1 | 5e-4 |
 | proteus_spp. | global_efflux_pump | 0.05 |
-| proteus_spp. | global_porin_loss | 1.5e-4 |
 | proteus_spp. | mutation_folate_pathway | 0.002 |
 | proteus_spp. | mutation_nitroreductase | 1.5e-5 |
 | proteus_spp. | enzyme_fos_a | 0.0015 |
@@ -7769,7 +7732,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | serratia_spp. | efflux_acrab_tolc | 0.008 |
 | serratia_spp. | modification_mcr_1 | 0.03 |
 | serratia_spp. | global_efflux_pump | 0.0015 |
-| serratia_spp. | global_porin_loss | 3e-5 |
 | serratia_spp. | mutation_folate_pathway | 0.001 |
 | serratia_spp. | mutation_nitroreductase | 0.002 |
 | serratia_spp. | enzyme_fos_a | 2e-4 |
@@ -7793,7 +7755,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | p_stuartii | efflux_acrab_tolc | 1.9e-4 |
 | p_stuartii | modification_mcr_1 | 1.9e-5 |
 | p_stuartii | global_efflux_pump | 3.7e-5 |
-| p_stuartii | global_porin_loss | 3.7e-5 |
 | p_stuartii | mutation_folate_pathway | 3.8e-4 |
 | p_stuartii | mutation_nitroreductase | 3.7e-5 |
 | p_stuartii | enzyme_fos_a | 3.7e-5 |
@@ -7820,7 +7781,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | pseudomonas_aeruginosa | porin_loss_oprd | 5e-4 |
 | pseudomonas_aeruginosa | modification_mcr_1 | 0.003 |
 | pseudomonas_aeruginosa | global_efflux_pump | 3e-4 |
-| pseudomonas_aeruginosa | global_porin_loss | 3e-4 |
 | pseudomonas_aeruginosa | mutation_folate_pathway | 0.003 |
 | pseudomonas_aeruginosa | mutation_nitroreductase | 3e-5 |
 | pseudomonas_aeruginosa | enzyme_fos_a | 0.01 |
@@ -7844,7 +7804,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | stenotrophomonas_maltophilia | enzyme_cat | 5e-7 |
 | stenotrophomonas_maltophilia | modification_mcr_1 | 0.05 |
 | stenotrophomonas_maltophilia | global_efflux_pump | 1e-7 |
-| stenotrophomonas_maltophilia | global_porin_loss | 1e-13 |
 | stenotrophomonas_maltophilia | mutation_folate_pathway | 0.005 |
 | stenotrophomonas_maltophilia | mutation_nitroreductase | 10 |
 | stenotrophomonas_maltophilia | enzyme_fos_a | 0.03 |
@@ -7893,7 +7852,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | streptococcus_pneumoniae | target_site_erm_b | 1e-6 |
 | streptococcus_pneumoniae | enzyme_cat | 3e-4 |
 | streptococcus_pneumoniae | global_efflux_pump | 1e-5 |
-| streptococcus_pneumoniae | global_porin_loss | 3e-8 |
 | streptococcus_pneumoniae | mutation_folate_pathway | 0.003 |
 | streptococcus_pneumoniae | mutation_rpo_b | 0.001 |
 | streptococcus_pneumoniae | protection_tet_m | 0.001 |
@@ -7915,7 +7873,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 0.05 |
 | salmonella_enterica_serovar_typhi | modification_mcr_1 | 0.0015 |
 | salmonella_enterica_serovar_typhi | global_efflux_pump | 0.005 |
-| salmonella_enterica_serovar_typhi | global_porin_loss | 0.001 |
 | salmonella_enterica_serovar_typhi | mutation_folate_pathway | 0.15 |
 | salmonella_enterica_serovar_typhi | mutation_nitroreductase | 0.0015 |
 | salmonella_enterica_serovar_typhi | enzyme_fos_a | 0.0015 |
@@ -7941,7 +7898,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | salmonella_enterica_serovar_paratyphi_a | efflux_mexxy_oprm | 8e-4 |
 | salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 0.003 |
 | salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.0045 |
-| salmonella_enterica_serovar_paratyphi_a | global_porin_loss | 1e-4 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.03 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 1.5e-4 |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_fos_a | 1.5e-4 |
@@ -7967,7 +7923,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 0.03 |
 | invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | global_porin_loss | 1e-5 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | enzyme_fos_a | 0.001 |
@@ -7994,7 +7949,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | shigella_spp. | efflux_acrab_tolc | 5e-4 |
 | shigella_spp. | modification_mcr_1 | 3e-4 |
 | shigella_spp. | global_efflux_pump | 0.9 |
-| shigella_spp. | global_porin_loss | 3e-5 |
 | shigella_spp. | mutation_folate_pathway | 0.003 |
 | shigella_spp. | mutation_rpo_b | 0.04 |
 | shigella_spp. | protection_tet_m | 0.03 |
@@ -8013,7 +7967,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | neisseria_gonorrhoeae | enzyme_cat | 0.001 |
 | neisseria_gonorrhoeae | modification_mcr_1 | 0.005 |
 | neisseria_gonorrhoeae | global_efflux_pump | 1 |
-| neisseria_gonorrhoeae | global_porin_loss | 0.001 |
 | neisseria_gonorrhoeae | mutation_folate_pathway | 0.1 |
 | neisseria_gonorrhoeae | mutation_nitroreductase | 0.1 |
 | neisseria_gonorrhoeae | enzyme_fos_a | 3e-4 |
@@ -8070,7 +8023,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | haemophilus_influenzae | enzyme_cat | 1e-4 |
 | haemophilus_influenzae | modification_mcr_1 | 2e-6 |
 | haemophilus_influenzae | global_efflux_pump | 3e-4 |
-| haemophilus_influenzae | global_porin_loss | 3e-7 |
 | haemophilus_influenzae | mutation_folate_pathway | 8e-4 |
 | haemophilus_influenzae | mutation_nitroreductase | 2e-5 |
 | haemophilus_influenzae | mutation_rpo_b | 0.015 |
@@ -8118,7 +8070,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | vibrio_cholerae | efflux_acrab_tolc | 3e-6 |
 | vibrio_cholerae | modification_mcr_1 | 3e-7 |
 | vibrio_cholerae | global_efflux_pump | 3e-6 |
-| vibrio_cholerae | global_porin_loss | 1.5e-6 |
 | vibrio_cholerae | mutation_folate_pathway | 1.5e-4 |
 | vibrio_cholerae | mutation_nitroreductase | 3e-7 |
 | vibrio_cholerae | enzyme_fos_a | 3e-7 |
@@ -8143,7 +8094,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | neisseria_meningitidis | efflux_acrab_tolc | 3e-7 |
 | neisseria_meningitidis | modification_mcr_1 | 3e-7 |
 | neisseria_meningitidis | global_efflux_pump | 2e-6 |
-| neisseria_meningitidis | global_porin_loss | 5e-7 |
 | neisseria_meningitidis | mutation_folate_pathway | 5e-6 |
 | neisseria_meningitidis | mutation_nitroreductase | 3e-6 |
 | neisseria_meningitidis | mutation_rpo_b | 3e-6 |
@@ -8194,7 +8144,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | bacteroides_fragilis | efflux_acrab_tolc | 1e-4 |
 | bacteroides_fragilis | modification_mcr_1 | 0.002 |
 | bacteroides_fragilis | global_efflux_pump | 1e-4 |
-| bacteroides_fragilis | global_porin_loss | 1e-5 |
 | bacteroides_fragilis | mutation_folate_pathway | 0.005 |
 | bacteroides_fragilis | mutation_nitroreductase | 5e-4 |
 | bacteroides_fragilis | mutation_rpo_b | 0.002 |
@@ -8207,7 +8156,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | campylobacter_jejuni | target_site_cfr | 1e-5 |
 | campylobacter_jejuni | enzyme_cat | 6e-4 |
 | campylobacter_jejuni | global_efflux_pump | 0.03 |
-| campylobacter_jejuni | global_porin_loss | 2e-5 |
 | campylobacter_jejuni | mutation_folate_pathway | 0.6 |
 | campylobacter_jejuni | mutation_rpo_b | 0.6 |
 | campylobacter_jejuni | protection_tet_m | 0.01 |
@@ -8230,7 +8178,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | enterobacter_cloacae | enzyme_cat | 2e-4 |
 | enterobacter_cloacae | efflux_acrab_tolc | 5e-5 |
 | enterobacter_cloacae | modification_mcr_1 | 0.01 |
-| enterobacter_cloacae | global_porin_loss | 1e-6 |
 | enterobacter_cloacae | mutation_folate_pathway | 5e-5 |
 | enterobacter_cloacae | mutation_nitroreductase | 0.001 |
 | enterobacter_cloacae | enzyme_fos_a | 0.001 |
@@ -8256,7 +8203,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | yersinia_enterocolitica | efflux_acrab_tolc | 3e-10 |
 | yersinia_enterocolitica | modification_mcr_1 | 3e-10 |
 | yersinia_enterocolitica | global_efflux_pump | 3e-10 |
-| yersinia_enterocolitica | global_porin_loss | 1e-10 |
 | yersinia_enterocolitica | mutation_folate_pathway | 3e-10 |
 | yersinia_enterocolitica | mutation_nitroreductase | 1e-9 |
 | yersinia_enterocolitica | enzyme_fos_a | 3e-10 |
@@ -8280,7 +8226,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | moraxella_catarrhalis | efflux_acrab_tolc | 5e-7 |
 | moraxella_catarrhalis | modification_mcr_1 | 2e-8 |
 | moraxella_catarrhalis | global_efflux_pump | 5e-6 |
-| moraxella_catarrhalis | global_porin_loss | 2e-7 |
 | moraxella_catarrhalis | mutation_folate_pathway | 1e-5 |
 | moraxella_catarrhalis | mutation_nitroreductase | 2e-7 |
 | moraxella_catarrhalis | mutation_rpo_b | 2e-7 |
@@ -8306,7 +8251,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | bordetella_pertussis | enzyme_cat | 3.8e-12 |
 | bordetella_pertussis | efflux_acrab_tolc | 1e-12 |
 | bordetella_pertussis | global_efflux_pump | 5e-12 |
-| bordetella_pertussis | global_porin_loss | 1e-12 |
 | bordetella_pertussis | mutation_folate_pathway | 1e-11 |
 | bordetella_pertussis | mutation_nitroreductase | 1e-10 |
 | bordetella_pertussis | mutation_rpo_b | 1e-12 |
@@ -8348,7 +8292,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | legionella_pneumophila | efflux_acrab_tolc | 3e-7 |
 | legionella_pneumophila | modification_mcr_1 | 3e-7 |
 | legionella_pneumophila | global_efflux_pump | 3e-5 |
-| legionella_pneumophila | global_porin_loss | 1e-6 |
 | legionella_pneumophila | mutation_folate_pathway | 3e-6 |
 | legionella_pneumophila | mutation_nitroreductase | 3e-7 |
 | legionella_pneumophila | mutation_rpo_b | 3e-6 |
@@ -8369,7 +8312,6 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | burkholderia_cepacia_complex | enzyme_cat | 3.7e-5 |
 | burkholderia_cepacia_complex | modification_mcr_1 | 7.5e-6 |
 | burkholderia_cepacia_complex | global_efflux_pump | 7.5e-4 |
-| burkholderia_cepacia_complex | global_porin_loss | 3.8e-4 |
 | burkholderia_cepacia_complex | mutation_folate_pathway | 7.5e-5 |
 | burkholderia_cepacia_complex | enzyme_fos_a | 3.7e-5 |
 | burkholderia_cepacia_complex | mutation_rpo_b | 7.5e-6 |
@@ -9374,7 +9316,7 @@ Each row represents one simulated day. The number of rows equals the total numbe
 
 ### C.4 Total Column Count
 
-With 42 bacteria, 62 drugs, 47 resistance mechanisms, and 6 regions, the CSV contains thousands of columns. The exact schema is generated by `Simulation::export_summary_to_csv` and guarded by `tests/csv_invariants.rs`; it can change when output families are added or retired.
+With 42 bacteria, 62 drugs, 46 resistance mechanisms, and 6 regions, the CSV contains thousands of columns. The exact schema is generated by `Simulation::export_summary_to_csv` and guarded by `tests/csv_invariants.rs`; it can change when output families are added or retired.
 
 Approximate families:
 

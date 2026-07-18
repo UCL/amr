@@ -165,7 +165,6 @@ pub enum ResistanceMechanism {
     ModificationMcr1,
     MutationPolymyxinRegulatory,
     GlobalEffluxPump,
-    GlobalPorinLoss,
     // --- New mechanisms added to cover previously unmapped drugs ---
     MutationFolatePathway,  // sul1/2/3 + dfrA: sulfanilamide, trim_sulf
     MutationNitroreductase, // nim genes, nfsA/B loss: metronidazole, nitrofurantoin, furazolidone
@@ -220,7 +219,6 @@ impl ResistanceMechanism {
             ResistanceMechanism::ModificationMcr1,
             ResistanceMechanism::MutationPolymyxinRegulatory,
             ResistanceMechanism::GlobalEffluxPump,
-            ResistanceMechanism::GlobalPorinLoss,
             ResistanceMechanism::MutationFolatePathway,
             ResistanceMechanism::MutationNitroreductase,
             ResistanceMechanism::EnzymeFos,
@@ -279,7 +277,6 @@ impl ResistanceMechanism {
             ResistanceMechanism::ModificationMcr1 => "modification_mcr_1",
             ResistanceMechanism::MutationPolymyxinRegulatory => "mutation_polymyxin_regulatory",
             ResistanceMechanism::GlobalEffluxPump => "global_efflux_pump",
-            ResistanceMechanism::GlobalPorinLoss => "global_porin_loss",
             ResistanceMechanism::MutationFolatePathway => "mutation_folate_pathway",
             ResistanceMechanism::MutationNitroreductase => "mutation_nitroreductase",
             ResistanceMechanism::EnzymeFos => "enzyme_fos",
@@ -765,7 +762,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // Universal (or near universal) Mechanisms
         MutationGyrAPrimary | MutationGyrAParCSecondary |
         EnzymeCat |
-        GlobalEffluxPump | GlobalPorinLoss // Fallbacks if used
+        GlobalEffluxPump // Fallback if used
         => mask_for_groups(BacteriaGroup::all()),
 
         // Folate pathway mutations: primarily Enterobacterales, but also Staph, Strep, others
@@ -987,7 +984,6 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         MutationAmpCDerepression => false, // chromosomal regulatory derepression of intrinsic AmpC
         MutationPolymyxinRegulatory => false, // chromosomal mgrB/pmrAB/phoPQ/lpx pathways
         GlobalEffluxPump => false, // chromosomal global efflux
-        GlobalPorinLoss => false, // chromosomal global porin loss
         MutationNitroreductase => false, // chromosomal gene inactivation
         MutationMprF => false,    // chromosomal membrane modification
         MutationLiafsrCls => false, // chromosomal cell-envelope remodeling
