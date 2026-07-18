@@ -1,5 +1,8 @@
-use amr_project::config::{parameter_store, PARAMETERS};
-use amr_project::simulation::population::{ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES};
+use amr_project::config::{parameter_store, BacteriumMechanismStatus, PARAMETERS};
+use amr_project::simulation::population::{
+    bacterium_mechanism_host_is_eligible, mechanism_is_hgt_transferable, ResistanceMechanism,
+    BACTERIA_LIST, DRUG_SHORT_NAMES,
+};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 const CONFIG_RS: &str = include_str!("../src/config.rs");
@@ -263,6 +266,72 @@ fn bacterium_mechanism_emergence_grid_is_complete_and_exact() {
     assert!(
         missing.is_empty() && unexpected.is_empty(),
         "emergence-rate grid mismatch; missing={missing:#?}, unexpected={unexpected:#?}"
+    );
+}
+
+#[test]
+fn bacterium_mechanism_status_matrix_has_explicit_route_semantics() {
+    let store = parameter_store();
+    let mut statuses_seen = BTreeSet::new();
+
+    for bacteria_idx in 0..BACTERIA_LIST.len() {
+        for (mechanism_idx, &mechanism) in ResistanceMechanism::all().iter().enumerate() {
+            let host_is_eligible = bacterium_mechanism_host_is_eligible(bacteria_idx, mechanism);
+            let emergence_rate = store
+                .bacteria_mechanism_emergence
+                .rate(bacteria_idx, mechanism_idx);
+            let expected = if !host_is_eligible {
+                BacteriumMechanismStatus::ExcludedHost
+            } else if emergence_rate > 0.0 {
+                BacteriumMechanismStatus::DeNovo
+            } else if mechanism_is_hgt_transferable(mechanism) {
+                BacteriumMechanismStatus::HgtOnly
+            } else {
+                BacteriumMechanismStatus::EligibleNoDeNovo
+            };
+            let actual = store
+                .bacteria_mechanism_status
+                .status(bacteria_idx, mechanism_idx);
+            assert_eq!(
+                actual,
+                expected,
+                "status mismatch for {} / {}",
+                BACTERIA_LIST[bacteria_idx],
+                mechanism.as_str()
+            );
+
+            let bit = 1u64 << mechanism_idx;
+            assert_eq!(
+                store
+                    .bacteria_mechanism_status
+                    .host_eligible_mask(bacteria_idx)
+                    & bit
+                    != 0,
+                actual.host_is_eligible()
+            );
+            assert_eq!(
+                store.bacteria_mechanism_status.de_novo_mask(bacteria_idx) & bit != 0,
+                actual.allows_de_novo()
+            );
+            assert_eq!(
+                store
+                    .bacteria_mechanism_status
+                    .hgt_recipient_mask(bacteria_idx)
+                    & bit
+                    != 0,
+                actual.host_is_eligible() && mechanism_is_hgt_transferable(mechanism)
+            );
+            statuses_seen.insert(format!("{actual:?}"));
+        }
+    }
+
+    assert_eq!(
+        statuses_seen,
+        ["DeNovo", "EligibleNoDeNovo", "ExcludedHost", "HgtOnly"]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+        "all four route statuses should be represented in the current matrix"
     );
 }
 

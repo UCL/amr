@@ -4598,7 +4598,10 @@ impl Simulation {
                                             r_idx,
                                             b_idx,
                                             record_as_hosp,
-                                            individual.majority_mechanism_mask(b_idx),
+                                            param_cache.sanitize_mechanism_profile(
+                                                b_idx,
+                                                individual.majority_mechanism_mask(b_idx),
+                                            ),
                                             &mut lt.rng,
                                         );
                                     }

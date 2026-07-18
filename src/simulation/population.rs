@@ -886,6 +886,35 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
     }
 }
 
+/// Returns whether a mechanism is within scope for a specific bacterial host.
+///
+/// Group masks provide the broad default. Exact host restrictions that were previously
+/// embedded in drug mapping live here so every acquisition and projection pathway can use
+/// the same decision. `AsYetUnknown` remains dormant regardless of its placeholder metadata.
+pub fn bacterium_mechanism_host_is_eligible(
+    bacteria_idx: usize,
+    mechanism: ResistanceMechanism,
+) -> bool {
+    let Some(&bacteria) = BACTERIA_LIST.get(bacteria_idx) else {
+        return false;
+    };
+    if mechanism.is_as_yet_unknown()
+        || mechanism_allowed_group_mask(mechanism) & bacteria_group_mask(bacteria_idx) == 0
+    {
+        return false;
+    }
+
+    match mechanism {
+        ResistanceMechanism::PorinLossOmpk35_36 => bacteria == "klebsiella_pneumoniae",
+        ResistanceMechanism::PorinLossOprd => bacteria == "pseudomonas_aeruginosa",
+        ResistanceMechanism::MutationLiafsrCls => {
+            matches!(bacteria, "enterococcus_faecalis" | "enterococcus_faecium")
+        }
+        ResistanceMechanism::EnzymeBlaZ => bacteria != "neisseria_meningitidis",
+        _ => true,
+    }
+}
+
 /// Returns true if the mechanism is carried on mobile genetic elements (plasmids,
 /// transposons, integrons) and can therefore be horizontally transferred between
 /// bacteria.  Chromosomal point mutations, efflux up-regulation, and porin loss

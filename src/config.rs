@@ -40,8 +40,9 @@
 
 // src/config.rs
 use crate::simulation::population::{
-    AgeCategory, BacteriaGroup, Region, ResistanceMechanism, AGE_CATEGORY_SEQUENCE,
-    BACTERIA_GROUPS, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    bacterium_mechanism_host_is_eligible, mechanism_is_hgt_transferable, AgeCategory,
+    BacteriaGroup, Region, ResistanceMechanism, AGE_CATEGORY_SEQUENCE, BACTERIA_GROUPS,
+    BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 use lazy_static::lazy_static;
 use std::borrow::Cow;
@@ -140,6 +141,7 @@ pub struct ParameterStore {
     pub hgt: HgtMatrix,
     pub resistance_mechanism: ResistanceMechanismParameters,
     pub bacteria_mechanism_emergence: BacteriaMechanismEmergenceRates,
+    pub bacteria_mechanism_status: BacteriaMechanismStatuses,
 }
 
 impl ParameterStore {
@@ -165,6 +167,8 @@ impl ParameterStore {
         let resistance_mechanism = ResistanceMechanismParameters::from_map(map);
         let bacteria_mechanism_emergence =
             BacteriaMechanismEmergenceRates::from_map(map, BACTERIA_LIST.len());
+        let bacteria_mechanism_status =
+            BacteriaMechanismStatuses::from_emergence(&bacteria_mechanism_emergence);
 
         ParameterStore {
             globals,
@@ -184,6 +188,7 @@ impl ParameterStore {
             hgt,
             resistance_mechanism,
             bacteria_mechanism_emergence,
+            bacteria_mechanism_status,
         }
     }
 }
@@ -3331,6 +3336,113 @@ impl BacteriaMechanismEmergenceRates {
     pub fn rate(&self, bacteria_idx: usize, mechanism_idx: usize) -> f64 {
         let offset = bacteria_idx * self.num_mechanisms + mechanism_idx;
         self.values[offset]
+    }
+}
+
+/// Executable status for one bacterium-mechanism pair.
+///
+/// A zero emergence rate is not itself a host exclusion: transferable mechanisms can still
+/// arrive by HGT, while non-transferable mechanisms can be inherited in an already-circulating
+/// profile or assigned by an explicit exogenous rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BacteriumMechanismStatus {
+    ExcludedHost,
+    EligibleNoDeNovo,
+    HgtOnly,
+    DeNovo,
+}
+
+impl BacteriumMechanismStatus {
+    #[inline]
+    pub const fn host_is_eligible(self) -> bool {
+        !matches!(self, Self::ExcludedHost)
+    }
+
+    #[inline]
+    pub const fn allows_de_novo(self) -> bool {
+        matches!(self, Self::DeNovo)
+    }
+}
+
+/// Typed bacterium-mechanism status matrix shared by every mechanism pathway.
+#[derive(Debug)]
+pub struct BacteriaMechanismStatuses {
+    values: Vec<BacteriumMechanismStatus>,
+    host_eligible_masks: Vec<u64>,
+    de_novo_masks: Vec<u64>,
+    hgt_recipient_masks: Vec<u64>,
+    num_mechanisms: usize,
+}
+
+impl BacteriaMechanismStatuses {
+    fn from_emergence(emergence: &BacteriaMechanismEmergenceRates) -> Self {
+        let mechanisms = ResistanceMechanism::all();
+        let num_mechanisms = mechanisms.len();
+        assert!(
+            num_mechanisms <= 64,
+            "bacterium-mechanism status masks require at most 64 mechanisms"
+        );
+
+        let mut values = Vec::with_capacity(BACTERIA_LIST.len() * num_mechanisms);
+        let mut host_eligible_masks = vec![0u64; BACTERIA_LIST.len()];
+        let mut de_novo_masks = vec![0u64; BACTERIA_LIST.len()];
+        let mut hgt_recipient_masks = vec![0u64; BACTERIA_LIST.len()];
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for (mechanism_idx, &mechanism) in mechanisms.iter().enumerate() {
+                let host_is_eligible =
+                    bacterium_mechanism_host_is_eligible(bacteria_idx, mechanism);
+                let status = if !host_is_eligible {
+                    BacteriumMechanismStatus::ExcludedHost
+                } else if emergence.rate(bacteria_idx, mechanism_idx) > 0.0 {
+                    BacteriumMechanismStatus::DeNovo
+                } else if mechanism_is_hgt_transferable(mechanism) {
+                    BacteriumMechanismStatus::HgtOnly
+                } else {
+                    BacteriumMechanismStatus::EligibleNoDeNovo
+                };
+
+                let bit = 1u64 << mechanism_idx;
+                if status.host_is_eligible() {
+                    host_eligible_masks[bacteria_idx] |= bit;
+                }
+                if status.allows_de_novo() {
+                    de_novo_masks[bacteria_idx] |= bit;
+                }
+                if status.host_is_eligible() && mechanism_is_hgt_transferable(mechanism) {
+                    hgt_recipient_masks[bacteria_idx] |= bit;
+                }
+                values.push(status);
+            }
+        }
+
+        Self {
+            values,
+            host_eligible_masks,
+            de_novo_masks,
+            hgt_recipient_masks,
+            num_mechanisms,
+        }
+    }
+
+    #[inline]
+    pub fn status(&self, bacteria_idx: usize, mechanism_idx: usize) -> BacteriumMechanismStatus {
+        self.values[bacteria_idx * self.num_mechanisms + mechanism_idx]
+    }
+
+    #[inline]
+    pub fn host_eligible_mask(&self, bacteria_idx: usize) -> u64 {
+        self.host_eligible_masks[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn de_novo_mask(&self, bacteria_idx: usize) -> u64 {
+        self.de_novo_masks[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn hgt_recipient_mask(&self, bacteria_idx: usize) -> u64 {
+        self.hgt_recipient_masks[bacteria_idx]
     }
 }
 

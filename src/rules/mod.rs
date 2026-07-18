@@ -596,11 +596,17 @@ fn propagate_mechanism_resistance(
     }
 }
 
-fn record_sampled_microbiome_profile(individual: &mut Individual, b_idx: usize, profile: u64) {
-    for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-        if profile & (1u64 << mechanism_idx) != 0 && !mechanism.is_as_yet_unknown() {
-            individual.set_microbiome_mechanism(b_idx, mechanism_idx);
-        }
+fn record_sampled_microbiome_profile(
+    individual: &mut Individual,
+    b_idx: usize,
+    profile: u64,
+    param_cache: &ParameterKeyCache,
+) {
+    let mut eligible_profile = param_cache.sanitize_mechanism_profile(b_idx, profile);
+    while eligible_profile != 0 {
+        let mechanism_idx = eligible_profile.trailing_zeros() as usize;
+        eligible_profile &= eligible_profile - 1;
+        individual.set_microbiome_mechanism(b_idx, mechanism_idx);
     }
 }
 
@@ -667,14 +673,15 @@ fn emerge_microbiome_mechanisms_once(
         while candidate_mask != 0 {
             let mechanism_idx = candidate_mask.trailing_zeros() as usize;
             candidate_mask &= candidate_mask - 1;
-            if ResistanceMechanism::all()[mechanism_idx].is_as_yet_unknown() {
-                continue;
-            }
-
-            let mechanism_emergence_rate = store
-                .bacteria_mechanism_emergence
-                .rate(bacteria_idx, mechanism_idx)
-                * emergence_multiplier;
+            let mechanism_emergence_rate =
+                if param_cache.mechanism_allows_de_novo(mechanism_idx, bacteria_idx) {
+                    store
+                        .bacteria_mechanism_emergence
+                        .rate(bacteria_idx, mechanism_idx)
+                        * emergence_multiplier
+                } else {
+                    0.0
+                };
             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
                 individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
                 microbiome_mechanism_changed = true;
@@ -777,6 +784,34 @@ fn ratchet_floor_from_peak(
 }
 
 #[inline]
+fn exogenous_mechanism_floor_probability(
+    bacteria_idx: usize,
+    mechanism_idx: usize,
+    simulation_year: f64,
+    peak_prevalence: f64,
+    ratchet_enabled: bool,
+    param_cache: &ParameterKeyCache,
+) -> f64 {
+    if !param_cache.mechanism_host_is_eligible(mechanism_idx, bacteria_idx) {
+        return 0.0;
+    }
+
+    let store = parameter_store();
+    let mechanism = ResistanceMechanism::all()[mechanism_idx];
+    let static_floor =
+        store
+            .environmental_floors
+            .floor_at_year(bacteria_idx, mechanism_idx, simulation_year);
+    let ratchet_floor = ratchet_floor_from_peak(
+        mechanism,
+        peak_prevalence,
+        store.resistance_mechanism.reversion_rate(mechanism_idx),
+        ratchet_enabled,
+    );
+    static_floor.max(ratchet_floor)
+}
+
+#[inline]
 fn mechanism_idx(target: ResistanceMechanism) -> usize {
     ResistanceMechanism::all()
         .iter()
@@ -822,6 +857,13 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         let mech_idx = mechanism_idx(mechanism);
         let mechanism_bit = 1u64 << mech_idx;
         if *mechanism_mask & mechanism_bit != 0 {
+            return false;
+        }
+        if !store
+            .bacteria_mechanism_status
+            .status(b_idx, mech_idx)
+            .host_is_eligible()
+        {
             return false;
         }
         if !mechanism_cache.mechanism_has_ever_emerged_globally(b_idx, mech_idx) {
@@ -908,22 +950,19 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
 #[inline]
 fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, drug: &str) -> bool {
-    use crate::simulation::population::{
-        self, ResistanceMechanism::*, BACTERIA_GROUPS, BACTERIA_LIST,
-    };
+    use crate::simulation::population::{self, ResistanceMechanism::*, BACTERIA_LIST};
 
-    // 1. Check Group Compatibility
-    // Find bacteria index (slow but only runs at startup for cache)
+    // Host status is authoritative across emergence, HGT, floors, profile import, and
+    // phenotype projection. This lookup runs only while the startup cache is built.
     if let Some(b_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
-        let bacteria_group = BACTERIA_GROUPS[b_idx];
-        let allowed_mask = population::mechanism_allowed_group_mask(mechanism);
-
-        if (allowed_mask & bacteria_group.bit()) == 0 {
+        if !population::bacterium_mechanism_host_is_eligible(b_idx, mechanism) {
             return false;
         }
+    } else {
+        return false;
     }
 
-    // 2. Check Drug Specificity
+    // Check drug specificity after host eligibility.
     match mechanism {
         EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv => matches!(
             drug,
@@ -1061,29 +1100,19 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ),
 
         // OmpK35/36 loss (Klebsiella): reduces permeability to all hydrophilic antibiotics entering through porins
-        PorinLossOmpk35_36 => {
-            if bacteria != "klebsiella_pneumoniae" {
-                return false;
-            }
-            matches!(
-                drug,
-                "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
+        PorinLossOmpk35_36 => matches!(
+            drug,
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
                 | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
                 | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
                 | "aztreonam" | "aztreonam_avibactam"
                 | "meropenem" | "imipenem_c" | "ertapenem"
                 | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
                 | "gentamicin" | "tobramycin" | "amikacin" // Weak AG permeability reduction
-            )
-        }
+        ),
 
         // OprD loss (Pseudomonas): dedicated carbapenem channel, not a general porin
-        PorinLossOprd => {
-            if bacteria != "pseudomonas_aeruginosa" {
-                return false;
-            }
-            matches!(drug, "meropenem" | "imipenem_c" | "ertapenem")
-        }
+        PorinLossOprd => matches!(drug, "meropenem" | "imipenem_c" | "ertapenem"),
 
         // Generic porin loss: moderate broad-spectrum permeability reduction for hydrophilic drugs
         GlobalPorinLoss => matches!(
@@ -1112,12 +1141,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         MutationMprF => matches!(drug, "daptomycin"),
 
         // Enterococcal daptomycin resistance: liaFSR / cls remodeling
-        MutationLiafsrCls => {
-            if !matches!(bacteria, "enterococcus_faecalis" | "enterococcus_faecium") {
-                return false;
-            }
-            matches!(drug, "daptomycin")
-        }
+        MutationLiafsrCls => matches!(drug, "daptomycin"),
 
         // RpoB mutation: fidaxomicin resistance (C. difficile) + rifampicin resistance (all bacteria)
         MutationRpoB => matches!(drug, "fidaxomicin" | "rifampicin"),
@@ -1139,14 +1163,6 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // Exception: Moraxella catarrhalis BRO-1/BRO-2 are inhibitor-RESISTANT — also covers BLI combos.
         // Does NOT cover BLI combinations for other organisms (amox-clav restores activity) or cephalosporins.
         EnzymeBlaZ => {
-            // N. meningitidis does NOT carry TEM-1/BlaZ penicillinase.
-            // Penicillin reduced susceptibility in N. meningitidis is exclusively via PBP2
-            // mosaic mutations (penA), modelled by MutationPbpMosaic. Without this guard,
-            // BlaZ HGT-transfers from H. influenzae via the shared Fastidious respiratory
-            // compartment, producing spurious ~90% penicillin resistance.
-            if bacteria == "neisseria_meningitidis" {
-                return false;
-            }
             if bacteria == "moraxella_catarrhalis" {
                 matches!(
                     drug,
@@ -1251,8 +1267,8 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "minocycline"
                 | "chloramphenicol"
         ),
-        // Placeholder: still dormant (applies to all drugs)
-        AsYetUnknown => true,
+        // Placeholder: still dormant.
+        AsYetUnknown => false,
     }
 }
 
@@ -1971,6 +1987,9 @@ pub struct ParameterKeyCache {
     bacteria_age_sepsis_log_odds: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
     mechanism_applicability: Vec<bool>,
     mechanism_applicability_masks: Vec<u64>,
+    mechanism_host_eligible_masks: Vec<u64>,
+    mechanism_de_novo_masks: Vec<u64>,
+    mechanism_hgt_recipient_masks: Vec<u64>,
     /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
     /// Value of 1.0 means no preference adjustment (default)
     clinical_preference_multipliers: Vec<f64>,
@@ -2015,6 +2034,23 @@ impl ParameterKeyCache {
         let mut mechanism_applicability =
             Vec::with_capacity(mechanism_count * bacteria_count * drug_count);
         let mut mechanism_applicability_masks = vec![0u64; bacteria_count * drug_count];
+        let mechanism_host_eligible_masks = (0..bacteria_count)
+            .map(|bacteria_idx| {
+                store
+                    .bacteria_mechanism_status
+                    .host_eligible_mask(bacteria_idx)
+            })
+            .collect::<Vec<_>>();
+        let mechanism_de_novo_masks = (0..bacteria_count)
+            .map(|bacteria_idx| store.bacteria_mechanism_status.de_novo_mask(bacteria_idx))
+            .collect::<Vec<_>>();
+        let mechanism_hgt_recipient_masks = (0..bacteria_count)
+            .map(|bacteria_idx| {
+                store
+                    .bacteria_mechanism_status
+                    .hgt_recipient_mask(bacteria_idx)
+            })
+            .collect::<Vec<_>>();
 
         // Pre-compute all drug/bacteria combinations
         for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
@@ -2033,6 +2069,8 @@ impl ParameterKeyCache {
         for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
             for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                 for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                    let host_is_eligible =
+                        mechanism_host_eligible_masks[b_idx] & (1u64 << mechanism_idx) != 0;
                     let default_applies =
                         mechanism_applies_to_drug(*mechanism, bacteria_name, drug_name);
 
@@ -2049,7 +2087,9 @@ impl ParameterKeyCache {
                     let has_general_override = get_global_param(&general_override_key).is_some();
                     let has_explicit_override = has_specific_override || has_general_override;
 
-                    let mut applies = if let Some(val) = get_global_param(&specific_override_key) {
+                    let mut applies = if !host_is_eligible {
+                        false
+                    } else if let Some(val) = get_global_param(&specific_override_key) {
                         val > 0.5
                     } else if let Some(val) = get_global_param(&general_override_key) {
                         val > 0.5
@@ -2098,6 +2138,9 @@ impl ParameterKeyCache {
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
             mechanism_applicability_masks,
+            mechanism_host_eligible_masks,
+            mechanism_de_novo_masks,
+            mechanism_hgt_recipient_masks,
             clinical_preference_multipliers,
             microbiome_majority_threshold: crate::config::get_global_param(
                 "microbiome_majority_threshold",
@@ -2248,6 +2291,31 @@ impl ParameterKeyCache {
     #[inline]
     pub fn mechanism_applicability_mask(&self, bacteria_idx: usize, drug_idx: usize) -> u64 {
         self.mechanism_applicability_masks[bacteria_idx * self.drug_count + drug_idx]
+    }
+
+    #[inline]
+    pub fn mechanism_host_is_eligible(&self, mechanism_idx: usize, bacteria_idx: usize) -> bool {
+        self.mechanism_host_eligible_masks[bacteria_idx] & (1u64 << mechanism_idx) != 0
+    }
+
+    #[inline]
+    pub fn mechanism_allows_de_novo(&self, mechanism_idx: usize, bacteria_idx: usize) -> bool {
+        self.mechanism_de_novo_masks[bacteria_idx] & (1u64 << mechanism_idx) != 0
+    }
+
+    #[inline]
+    pub fn mechanism_allows_hgt_receipt(&self, mechanism_idx: usize, bacteria_idx: usize) -> bool {
+        self.mechanism_hgt_recipient_masks[bacteria_idx] & (1u64 << mechanism_idx) != 0
+    }
+
+    #[inline]
+    pub fn host_eligible_mechanism_mask(&self, bacteria_idx: usize) -> u64 {
+        self.mechanism_host_eligible_masks[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn sanitize_mechanism_profile(&self, bacteria_idx: usize, profile: u64) -> u64 {
+        profile & self.host_eligible_mechanism_mask(bacteria_idx)
     }
 
     /// Get the pre-computed clinical preference multiplier for a bacteria-drug pair.
@@ -5563,7 +5631,12 @@ pub(crate) fn apply_rules(
                                     )
                                 };
                             if let Some(profile) = carriage_profile {
-                                record_sampled_microbiome_profile(individual, b_idx, profile);
+                                record_sampled_microbiome_profile(
+                                    individual,
+                                    b_idx,
+                                    profile,
+                                    param_cache,
+                                );
                             }
                         }
 
@@ -5720,8 +5793,10 @@ pub(crate) fn apply_rules(
             // ...resistance transfer (each way) between infection site and microbiome ...
             // Mechanism-driven: copy mechanism bits between compartments, then re-derive floats.
             if individual.presence_microbiome[b_idx] && individual.level[b_idx] > 0.0 {
-                let infection_mask = individual.any_mechanism_mask(b_idx);
-                let microbiome_mask = individual.microbiome_mechanism_mask(b_idx);
+                let host_eligible_mask = param_cache.host_eligible_mechanism_mask(b_idx);
+                let infection_mask = individual.any_mechanism_mask(b_idx) & host_eligible_mask;
+                let microbiome_mask =
+                    individual.microbiome_mechanism_mask(b_idx) & host_eligible_mask;
                 let has_infection_only_mechanisms = infection_mask & !microbiome_mask != 0;
                 let has_microbiome_only_mechanisms = microbiome_mask & !infection_mask != 0;
 
@@ -5841,20 +5916,12 @@ pub(crate) fn apply_rules(
                         };
                         if let Some(profile) = sampled_profile {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
-                                for m_idx in 0..64 {
-                                    if (profile & (1 << m_idx)) != 0 {
-                                        // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                                        if m_idx < ResistanceMechanism::all().len()
-                                            && ResistanceMechanism::all()[m_idx].is_as_yet_unknown()
-                                        {
-                                            continue;
-                                        }
-                                        // Mark as any-strain AND majority-strain (established circulating strain)
-                                        let mechanism_bit = 1u64 << m_idx;
-                                        incoming_any_mask |= mechanism_bit;
-                                        incoming_majority_mask |= mechanism_bit;
-                                    }
-                                }
+                                let eligible_profile =
+                                    param_cache.sanitize_mechanism_profile(b_idx, profile);
+                                // A sampled circulating genotype starts in both the any-strain
+                                // and majority-strain compartments.
+                                incoming_any_mask |= eligible_profile;
+                                incoming_majority_mask |= eligible_profile;
                             }
                             true
                         } else {
@@ -5906,29 +5973,16 @@ pub(crate) fn apply_rules(
                     // unaffected; the loop is cheap for them.
                     if !from_human_reservoir {
                         use crate::simulation::population::ResistanceMechanism;
-                        for (m_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                            if mechanism.is_as_yet_unknown() {
-                                continue;
-                            }
-                            let static_floor = store.environmental_floors.floor_at_year(
+                        for (m_idx, _) in ResistanceMechanism::all().iter().enumerate() {
+                            let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
+                            let floor = exogenous_mechanism_floor_probability(
                                 b_idx,
                                 m_idx,
                                 simulation_year,
-                            );
-                            // Ratchet floor: applies to mechanisms with base reversion rate
-                            // <= 0.001/day, plus the explicit MutationRpoB historical-persistence
-                            // exception. This eligibility rule is separate from the effective
-                            // bacterium- and run-specific rate used by the reversion pathway.
-                            // Stepped at 10% intervals: >10%→10%, >20%→20%, etc.
-                            let reversion_rate = store.resistance_mechanism.reversion_rate(m_idx);
-                            let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
-                            let ratchet_floor = ratchet_floor_from_peak(
-                                *mechanism,
                                 peak,
-                                reversion_rate,
                                 ratchet_enabled,
+                                param_cache,
                             );
-                            let floor = static_floor.max(ratchet_floor);
                             if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
                                 let mechanism_bit = 1u64 << m_idx;
                                 incoming_any_mask |= mechanism_bit;
@@ -6031,17 +6085,18 @@ pub(crate) fn apply_rules(
                                 .min(1.0);
                         if rng.gen_bool(inheritance_prob) {
                             let dampening = store.globals.infection_from_microbiome_dampening;
-                            let num_mechanisms = ResistanceMechanism::all().len();
-                            for m_idx in 0..num_mechanisms {
+                            let mut candidate_mask = param_cache.sanitize_mechanism_profile(
+                                b_idx,
+                                individual.microbiome_mechanism_mask(b_idx),
+                            ) & !incoming_any_mask;
+                            while candidate_mask != 0 {
+                                let m_idx = candidate_mask.trailing_zeros() as usize;
+                                candidate_mask &= candidate_mask - 1;
                                 let mechanism_bit = 1u64 << m_idx;
-                                if individual.has_microbiome_mechanism(b_idx, m_idx)
-                                    && incoming_any_mask & mechanism_bit == 0
-                                {
-                                    // Per-mechanism transfer probability = dampening parameter
-                                    if rng.gen_bool(dampening.clamp(0.0, 1.0)) {
-                                        incoming_any_mask |= mechanism_bit;
-                                        inherited_mask |= mechanism_bit;
-                                    }
+                                // Per-mechanism transfer probability = dampening parameter
+                                if rng.gen_bool(dampening.clamp(0.0, 1.0)) {
+                                    incoming_any_mask |= mechanism_bit;
+                                    inherited_mask |= mechanism_bit;
                                 }
                             }
                         }
@@ -6192,14 +6247,7 @@ pub(crate) fn apply_rules(
                         let multi_drug_penalty_threshold =
                             store.globals.multi_drug_penalty_threshold_num_drugs as usize;
 
-                        for (mechanism_idx, mechanism) in
-                            ResistanceMechanism::all().iter().enumerate()
-                        {
-                            // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                            if mechanism.is_as_yet_unknown() {
-                                continue;
-                            }
-
+                        for (mechanism_idx, _) in ResistanceMechanism::all().iter().enumerate() {
                             // Skip if mechanism already present
                             if individual.has_any_mechanism(bacteria_full_idx, mechanism_idx) {
                                 continue;
@@ -6228,9 +6276,15 @@ pub(crate) fn apply_rules(
                                 continue;
                             }
 
-                            let mechanism_rate = store
-                                .bacteria_mechanism_emergence
-                                .rate(bacteria_full_idx, mechanism_idx);
+                            let mechanism_rate = if param_cache
+                                .mechanism_allows_de_novo(mechanism_idx, bacteria_full_idx)
+                            {
+                                store
+                                    .bacteria_mechanism_emergence
+                                    .rate(bacteria_full_idx, mechanism_idx)
+                            } else {
+                                0.0
+                            };
 
                             // Multi-drug penalty: how many active relevant drugs does this mechanism NOT cover?
                             let mut multi_drug_penalty_factor = 1.0;
@@ -6878,8 +6932,6 @@ pub(crate) fn apply_rules(
                         * hgt_multiplier
                         * counterfactual_resistance_multiplier;
 
-                    let recipient_group_mask = population::bacteria_group_mask(recipient_idx);
-
                     // ── Mechanism-driven HGT transfer ──────────────────────────
                     // Instead of iterating over drugs and copying any_r values,
                     // we transfer individual *mechanisms* that the donor carries
@@ -6919,10 +6971,10 @@ pub(crate) fn apply_rules(
                             continue;
                         }
 
-                        // Recipient must already have this mechanism's group mask
-                        if population::mechanism_allowed_group_mask(*mechanism)
-                            & recipient_group_mask
-                            == 0
+                        // Both hosts must permit the mechanism, and the recipient status must
+                        // explicitly permit HGT receipt. De novo rate zero does not block HGT.
+                        if !param_cache.mechanism_host_is_eligible(mech_idx, donor_idx)
+                            || !param_cache.mechanism_allows_hgt_receipt(mech_idx, recipient_idx)
                         {
                             continue;
                         }
@@ -7409,17 +7461,18 @@ mod tests {
         clear_microbiome_compartment, collect_active_symptomatic_syndromes,
         collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
         emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
-        has_serious_resistance_test_positive, hgt_context_multiplier, hgt_donor_mechanism_mask,
-        hgt_donor_mechanism_multiplier, identified_resistance_results_ready, is_under_medical_care,
-        mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
-        not_under_medical_care_log_odds, prepare_individual_for_active_day,
-        promote_minority_mechanisms_once, propagate_mechanism_resistance, ratchet_floor_from_peak,
-        ratchet_mechanism_is_eligible, record_hgt_mechanism_in_present_compartments,
-        record_sampled_microbiome_profile, reset_resistance_test_state,
-        revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
-        vaccination_acquisition_log_odds, ParameterKeyCache,
+        exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
+        hgt_context_multiplier, hgt_donor_mechanism_mask, hgt_donor_mechanism_multiplier,
+        identified_resistance_results_ready, is_under_medical_care, mechanism_applies_to_drug,
+        mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
+        prepare_individual_for_active_day, promote_minority_mechanisms_once,
+        propagate_mechanism_resistance, ratchet_floor_from_peak, ratchet_mechanism_is_eligible,
+        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
+        reset_resistance_test_state, revert_unselected_microbiome_mechanisms,
+        sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
+        ParameterKeyCache,
     };
-    use crate::config::parameter_store;
+    use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
         load_float, store_float, HospitalStatus, Individual, ResistanceMechanism, BACTERIA_LIST,
         DRUG_SHORT_NAMES,
@@ -7493,6 +7546,147 @@ mod tests {
 
             individual.clear_infection_mechanisms(bacteria_idx);
         }
+    }
+
+    #[test]
+    fn excluded_hosts_have_no_applicable_phenotype_cells() {
+        let param_cache = ParameterKeyCache::new();
+        let mut applicable_cells = 0usize;
+
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            for mechanism_idx in 0..ResistanceMechanism::all().len() {
+                for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                    if param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx) {
+                        applicable_cells += 1;
+                        assert!(
+                            param_cache.mechanism_host_is_eligible(mechanism_idx, bacteria_idx),
+                            "excluded host has a live phenotype: {} / {}",
+                            BACTERIA_LIST[bacteria_idx],
+                            ResistanceMechanism::all()[mechanism_idx].as_str()
+                        );
+                    }
+                }
+            }
+        }
+
+        assert_eq!(
+            applicable_cells, 6_447,
+            "host-status centralization should preserve the reviewed non-placeholder phenotype matrix"
+        );
+    }
+
+    #[test]
+    fn sampled_profiles_drop_excluded_host_mechanisms() {
+        let param_cache = ParameterKeyCache::new();
+        let bacteria_idx = bacteria_idx("neisseria_meningitidis");
+        let excluded_idx = super::mechanism_idx(ResistanceMechanism::EnzymeBlaZ);
+        let eligible_idx = super::mechanism_idx(ResistanceMechanism::MutationGyrAPrimary);
+        let excluded_bit = 1u64 << excluded_idx;
+        let eligible_bit = 1u64 << eligible_idx;
+        let (mut individual, _rng) = individual_with_seed(28);
+
+        assert!(!param_cache.mechanism_host_is_eligible(excluded_idx, bacteria_idx));
+        assert!(param_cache.mechanism_host_is_eligible(eligible_idx, bacteria_idx));
+        record_sampled_microbiome_profile(
+            &mut individual,
+            bacteria_idx,
+            excluded_bit | eligible_bit,
+            &param_cache,
+        );
+
+        assert_eq!(
+            individual.microbiome_mechanism_mask(bacteria_idx),
+            eligible_bit
+        );
+    }
+
+    #[test]
+    fn excluded_environmental_floor_cannot_assign_a_mechanism() {
+        let param_cache = ParameterKeyCache::new();
+        let eligible_bacteria_idx = bacteria_idx("shigella_spp.");
+        let eligible_mechanism_idx = super::mechanism_idx(ResistanceMechanism::ProtectionTetM);
+        let store = parameter_store();
+
+        for (bacterium, mechanism) in [
+            ("campylobacter_jejuni", ResistanceMechanism::EnzymeAacAph),
+            ("shigella_spp.", ResistanceMechanism::TargetSiteErmB),
+        ] {
+            let excluded_bacteria_idx = bacteria_idx(bacterium);
+            let excluded_mechanism_idx = super::mechanism_idx(mechanism);
+            assert!(
+                store.environmental_floors.floor_at_year(
+                    excluded_bacteria_idx,
+                    excluded_mechanism_idx,
+                    2025.0,
+                ) > 0.0,
+                "test requires a configured but host-excluded floor"
+            );
+            assert_eq!(
+                exogenous_mechanism_floor_probability(
+                    excluded_bacteria_idx,
+                    excluded_mechanism_idx,
+                    2025.0,
+                    0.0,
+                    false,
+                    &param_cache,
+                ),
+                0.0
+            );
+        }
+
+        let eligible_floor = store.environmental_floors.floor_at_year(
+            eligible_bacteria_idx,
+            eligible_mechanism_idx,
+            2025.0,
+        );
+        assert!(eligible_floor > 0.0);
+        assert_eq!(
+            exogenous_mechanism_floor_probability(
+                eligible_bacteria_idx,
+                eligible_mechanism_idx,
+                2025.0,
+                0.0,
+                false,
+                &param_cache,
+            )
+            .to_bits(),
+            eligible_floor.to_bits()
+        );
+    }
+
+    #[test]
+    fn hgt_only_status_allows_receipt_but_excluded_host_does_not() {
+        let param_cache = ParameterKeyCache::new();
+        let store = parameter_store();
+        let hgt_only_pair = BACTERIA_LIST
+            .iter()
+            .enumerate()
+            .find_map(|(bacteria_idx, _)| {
+                ResistanceMechanism::all()
+                    .iter()
+                    .enumerate()
+                    .find_map(|(mechanism_idx, _)| {
+                        (store
+                            .bacteria_mechanism_status
+                            .status(bacteria_idx, mechanism_idx)
+                            == BacteriumMechanismStatus::HgtOnly)
+                            .then_some((bacteria_idx, mechanism_idx))
+                    })
+            })
+            .expect("current matrix should contain an HGT-only pair");
+
+        assert_eq!(
+            store
+                .bacteria_mechanism_emergence
+                .rate(hgt_only_pair.0, hgt_only_pair.1),
+            0.0
+        );
+        assert!(param_cache.mechanism_allows_hgt_receipt(hgt_only_pair.1, hgt_only_pair.0));
+        assert!(!param_cache.mechanism_allows_de_novo(hgt_only_pair.1, hgt_only_pair.0));
+
+        let meningococcus_idx = bacteria_idx("neisseria_meningitidis");
+        let bla_z_idx = super::mechanism_idx(ResistanceMechanism::EnzymeBlaZ);
+        assert!(!param_cache.mechanism_allows_hgt_receipt(bla_z_idx, meningococcus_idx));
     }
 
     #[test]
@@ -7893,7 +8087,12 @@ mod tests {
         let (mut individual, _rng) = individual_with_seed(20);
         individual.presence_microbiome[bacteria_idx] = true;
 
-        record_sampled_microbiome_profile(&mut individual, bacteria_idx, mechanism_mask);
+        record_sampled_microbiome_profile(
+            &mut individual,
+            bacteria_idx,
+            mechanism_mask,
+            &param_cache,
+        );
         propagate_mechanism_resistance(&mut individual, bacteria_idx, &param_cache, true, true);
 
         assert_eq!(
