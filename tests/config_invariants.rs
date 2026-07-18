@@ -1,6 +1,6 @@
 use amr_project::config::{parameter_store, PARAMETERS};
-use amr_project::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES};
-use std::collections::{BTreeMap, HashSet};
+use amr_project::simulation::population::{ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 const CONFIG_RS: &str = include_str!("../src/config.rs");
 const MAIN_RS: &str = include_str!("../src/main.rs");
@@ -226,6 +226,43 @@ fn parameters_initializer_has_no_duplicate_literal_keys() {
     assert!(
         duplicates.is_empty(),
         "literal duplicate keys are forbidden in the PARAMETERS initializer: {duplicates:#?}"
+    );
+}
+
+#[test]
+fn bacterium_mechanism_emergence_grid_is_complete_and_exact() {
+    let expected = BACTERIA_LIST
+        .iter()
+        .flat_map(|bacteria| {
+            ResistanceMechanism::all().iter().map(move |mechanism| {
+                format!(
+                    "bacteria_{bacteria}_mechanism_{}_emergence_rate",
+                    mechanism.as_str()
+                )
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let actual = PARAMETERS
+        .keys()
+        .filter(|key| {
+            key.starts_with("bacteria_")
+                && key.contains("_mechanism_")
+                && key.ends_with("_emergence_rate")
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    let missing = expected.difference(&actual).cloned().collect::<Vec<_>>();
+    let unexpected = actual.difference(&expected).cloned().collect::<Vec<_>>();
+
+    assert_eq!(
+        actual.len(),
+        BACTERIA_LIST.len() * ResistanceMechanism::all().len(),
+        "expected one emergence-rate key for every bacterium-mechanism pair"
+    );
+    assert!(
+        missing.is_empty() && unexpected.is_empty(),
+        "emergence-rate grid mismatch; missing={missing:#?}, unexpected={unexpected:#?}"
     );
 }
 
