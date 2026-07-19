@@ -15,10 +15,12 @@
 use amr_project::config::{get_global_param, PARAMETERS};
 use amr_project::config_validation::{validate_parameter_map, ConfigValidationMode};
 use amr_project::observability;
+use amr_project::run_config::{ConfigValueSource, RunConfig};
 use amr_project::simulation::population::BACTERIA_LIST;
 use amr_project::simulation::simulation::CalibrationMode;
 use amr_project::simulation::simulation::Simulation;
 use chrono::Utc;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::backtrace::Backtrace;
 use std::fs::{File, OpenOptions};
@@ -27,10 +29,93 @@ use std::path::PathBuf;
 
 const RAYON_WORKER_STACK_BYTES: usize = 4 * 1024 * 1024;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct ResolvedRunSeed {
     value: u64,
     source: &'static str,
+}
+
+#[derive(Serialize)]
+struct EffectiveValue<T> {
+    value: T,
+    source: &'static str,
+}
+
+#[derive(Serialize)]
+struct EffectiveRunConfig {
+    population_size: EffectiveValue<usize>,
+    time_steps: EffectiveValue<usize>,
+    calibration_mode: EffectiveValue<String>,
+    log_individuals: EffectiveValue<bool>,
+    log_infection_journeys: EffectiveValue<bool>,
+    rng_seed: EffectiveValue<u64>,
+    config_validation_mode: EffectiveValue<String>,
+}
+
+#[derive(Serialize)]
+struct AmrFinalReport {
+    schema_version: &'static str,
+    status: &'static str,
+    exit_code: i32,
+    finished_at_utc: String,
+    source_hash: String,
+    runtime_config_consumed: bool,
+    runtime_config_sha256: Option<String>,
+    run_id: Option<u32>,
+    last_timestep: Option<usize>,
+    duration_seconds: Option<f64>,
+    summary_csv: Option<String>,
+    summary_sha256: Option<String>,
+    failure_class: String,
+    effective_config: EffectiveRunConfig,
+    source: &'static str,
+}
+
+fn config_source(source: ConfigValueSource) -> &'static str {
+    source.as_str()
+}
+
+fn write_final_report(path: &std::path::Path, report: &AmrFinalReport) -> std::io::Result<()> {
+    observability::write_json_atomically(path, report)
+}
+
+fn effective_run_config(
+    run_config: &RunConfig,
+    seed: ResolvedRunSeed,
+    config_validation_mode: ConfigValidationMode,
+    config_validation_source: &'static str,
+) -> EffectiveRunConfig {
+    let sources = run_config.sources();
+    EffectiveRunConfig {
+        population_size: EffectiveValue {
+            value: run_config.population_size,
+            source: config_source(sources.population_size),
+        },
+        time_steps: EffectiveValue {
+            value: run_config.time_steps,
+            source: config_source(sources.time_steps),
+        },
+        calibration_mode: EffectiveValue {
+            value: run_config.calibration_mode.to_string(),
+            source: config_source(sources.calibration_mode),
+        },
+        log_individuals: EffectiveValue {
+            value: run_config.log_individuals,
+            source: config_source(sources.log_individuals),
+        },
+        log_infection_journeys: EffectiveValue {
+            value: run_config.log_infection_journeys,
+            source: config_source(sources.log_infection_journeys),
+        },
+        rng_seed: EffectiveValue {
+            value: seed.value,
+            source: seed.source,
+        },
+        config_validation_mode: EffectiveValue {
+            value: config_validation_mode.to_string(),
+            source: config_validation_source,
+        },
+    }
 }
 
 fn configure_rayon_worker_stack() {
@@ -46,16 +131,41 @@ fn configure_rayon_worker_stack() {
     );
 }
 
-fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunSeed {
-    if let Ok(value) = std::env::var("AMR_RNG_SEED") {
-        let parsed = value
-            .parse::<u64>()
-            .expect("AMR_RNG_SEED must parse as a u64");
+fn resolve_run_seed(
+    runtime_config_seed: Option<u64>,
+    environment_seed: Option<&str>,
+    use_fixed_seed: bool,
+    fixed_seed_value: u64,
+) -> Result<ResolvedRunSeed, String> {
+    let environment_seed = environment_seed
+        .map(|value| {
+            value
+                .parse::<u64>()
+                .map_err(|_| format!("AMR_RNG_SEED must parse as a u64, got '{value}'"))
+        })
+        .transpose()?;
+
+    if let Some(value) = runtime_config_seed {
+        if let Some(environment) = environment_seed {
+            if environment != value {
+                return Err(format!(
+                    "runtime config rng_seed {value} conflicts with AMR_RNG_SEED {environment}"
+                ));
+            }
+        }
+        eprintln!("[startup] AMR_RNG_SEED={} source=runtime_config", value);
+        return Ok(ResolvedRunSeed {
+            value,
+            source: "runtime_config",
+        });
+    }
+
+    if let Some(parsed) = environment_seed {
         eprintln!("[startup] AMR_RNG_SEED={} source=env", parsed);
-        return ResolvedRunSeed {
+        return Ok(ResolvedRunSeed {
             value: parsed,
             source: "env",
-        };
+        });
     }
 
     if use_fixed_seed {
@@ -63,17 +173,47 @@ fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunS
             "[startup] AMR_RNG_SEED={} source=fixed_seed_value",
             fixed_seed_value
         );
-        return ResolvedRunSeed {
+        return Ok(ResolvedRunSeed {
             value: fixed_seed_value,
             source: "fixed_seed_value",
-        };
+        });
     }
 
     let generated = rand::random::<u64>();
     eprintln!("[startup] AMR_RNG_SEED={} source=generated", generated);
-    ResolvedRunSeed {
+    Ok(ResolvedRunSeed {
         value: generated,
         source: "generated",
+    })
+}
+
+#[cfg(test)]
+mod seed_tests {
+    use super::*;
+
+    #[test]
+    fn runtime_seed_is_explicit_and_must_match_the_environment() {
+        let seed = resolve_run_seed(Some(1729), Some("1729"), false, 99).unwrap();
+        assert_eq!(seed.value, 1729);
+        assert_eq!(seed.source, "runtime_config");
+
+        let error = resolve_run_seed(Some(1729), Some("1730"), false, 99).unwrap_err();
+        assert!(error.contains("conflicts"));
+    }
+
+    #[test]
+    fn model_generates_a_seed_when_no_override_exists() {
+        let seed = resolve_run_seed(None, None, false, 99).unwrap();
+        assert_eq!(seed.source, "generated");
+    }
+
+    #[test]
+    fn legacy_environment_and_fixed_seed_fallbacks_are_preserved() {
+        let environment = resolve_run_seed(None, Some("42"), false, 99).unwrap();
+        assert_eq!((environment.value, environment.source), (42, "env"));
+
+        let fixed = resolve_run_seed(None, None, true, 99).unwrap();
+        assert_eq!((fixed.value, fixed.source), (99, "fixed_seed_value"));
     }
 }
 
@@ -220,23 +360,29 @@ fn main() {
     configure_rayon_worker_stack();
     let _ = env_logger::builder().is_test(false).try_init();
 
-    // Main run configuration. This is the quickest place to switch between calibration-sized
-    // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
-    let population_size = 3_000_000;
-    // CalibrationMode::FullMinimal — sparse 2022-2025 CSV with drug-share plus bacteria×drug resistance.
-    // CalibrationMode::Full        — sparse 2022-2025 CSV with all fields needed for calibration_summary.txt.
-    // CalibrationMode::Partial     — all 1930-2025 rows kept; time-series plots still work.
-    // CalibrationMode::None        — full run with policy branches to 2035.
-    let calibration_mode = CalibrationMode::Partial;
-    // Calibration runs only need rows through the end of 2025.
-    // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
-    // Full run (policy branches to 2035) needs 38_325.
-    let time_steps = match calibration_mode {
-        CalibrationMode::None => 38_325,
-        CalibrationMode::Partial | CalibrationMode::FullMinimal | CalibrationMode::Full => 35_040,
+    let run_config = match RunConfig::load_from_env() {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("[startup] invalid AMR runtime configuration: {err}");
+            std::process::exit(2);
+        }
     };
-    let log_individuals = false; // Full individual logging is expensive and mainly useful for narrow debugging.
-    let log_infection_journeys = false; // Journey logging captures dense snapshots only for sampled infections.
+    match run_config.source_path() {
+        Some(path) => eprintln!(
+            "[startup] AMR_RUN_CONFIG={} source=runtime_config",
+            path.display()
+        ),
+        None => eprintln!("[startup] AMR_RUN_CONFIG=unset source=model_defaults"),
+    }
+    let runtime_config_consumed = run_config.source_path().is_some();
+    let runtime_config_sha256 = run_config.source_sha256().map(str::to_owned);
+
+    let population_size = run_config.population_size;
+    let calibration_mode = run_config.calibration_mode;
+    let time_steps = run_config.time_steps;
+    let log_individuals = run_config.log_individuals;
+    let log_infection_journeys = run_config.log_infection_journeys;
+    let run_config_sources = run_config.sources();
     let infection_journey_sample_rate = 1.00; // Fraction of eligible infections to log when journey logging is enabled.
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
@@ -250,7 +396,19 @@ fn main() {
     // Some("enterococcus_faecium")
     // None - logs all bacteria types
 
-    let resolved_run_seed = resolve_run_seed(use_fixed_seed, fixed_seed_value);
+    let environment_seed = std::env::var("AMR_RNG_SEED").ok();
+    let resolved_run_seed = match resolve_run_seed(
+        run_config.rng_seed,
+        environment_seed.as_deref(),
+        use_fixed_seed,
+        fixed_seed_value,
+    ) {
+        Ok(seed) => seed,
+        Err(err) => {
+            eprintln!("[startup] invalid RNG seed configuration: {err}");
+            std::process::exit(2);
+        }
+    };
     std::env::set_var("AMR_RNG_SEED", resolved_run_seed.value.to_string());
     let seed_override = Some(resolved_run_seed.value);
     let source_hash = resolve_source_hash();
@@ -276,12 +434,24 @@ fn main() {
         4, // Equal global access
     ];
 
-    let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
+    let output_dir = run_config.outputs.model_output_dir.as_path();
     if let Err(err) = std::fs::create_dir_all(output_dir) {
         eprintln!(
-            "Warning: unable to create output directory {:?}: {}",
-            output_dir, err
+            "[startup] unable to create output directory {}: {err}",
+            output_dir.display()
         );
+        std::process::exit(2);
+    }
+    std::env::set_var("AMR_REPORT_JSON", &run_config.outputs.report_json);
+    if let Err(err) = observability::configure_progress(observability::ProgressConfig {
+        snapshot_path: run_config.outputs.progress_json.clone(),
+        events_path: run_config.outputs.progress_jsonl.clone(),
+        population_size,
+        total_steps: time_steps,
+        calibration_mode: calibration_mode.to_string(),
+    }) {
+        eprintln!("[startup] unable to initialize AMR progress evidence: {err}");
+        std::process::exit(2);
     }
 
     let metadata_stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
@@ -290,12 +460,22 @@ fn main() {
         metadata_stamp, resolved_run_seed.value
     ));
 
-    let config_validation_mode = match ConfigValidationMode::from_env() {
-        Ok(mode) => mode,
-        Err(err) => {
-            eprintln!("[config-validation] FAILED: {}", err);
-            std::process::exit(2);
-        }
+    let config_validation_source = if run_config.config_validation_mode.is_some() {
+        config_source(run_config_sources.config_validation_mode)
+    } else if std::env::var_os("AMR_CONFIG_VALIDATION").is_some() {
+        "environment"
+    } else {
+        "model_default"
+    };
+    let config_validation_mode = match run_config.config_validation_mode {
+        Some(mode) => mode,
+        None => match ConfigValidationMode::from_env() {
+            Ok(mode) => mode,
+            Err(err) => {
+                eprintln!("[config-validation] FAILED: {}", err);
+                std::process::exit(2);
+            }
+        },
     };
     let config_validation_report = validate_parameter_map(&PARAMETERS);
     let rendered_config_validation = config_validation_report.render(config_validation_mode);
@@ -343,6 +523,37 @@ fn main() {
                 metadata_path.display(),
                 err
             );
+        }
+
+        let report = AmrFinalReport {
+            schema_version: "amr-report/v1",
+            status: "failed",
+            exit_code: 2,
+            finished_at_utc: Utc::now().to_rfc3339(),
+            source_hash: source_hash.clone(),
+            runtime_config_consumed,
+            runtime_config_sha256: runtime_config_sha256.clone(),
+            run_id: None,
+            last_timestep: None,
+            duration_seconds: None,
+            summary_csv: None,
+            summary_sha256: None,
+            failure_class: "config_validation_failed".to_string(),
+            effective_config: effective_run_config(
+                &run_config,
+                resolved_run_seed,
+                config_validation_mode,
+                config_validation_source,
+            ),
+            source: "amr_model",
+        };
+        if let Err(err) = write_final_report(&run_config.outputs.report_json, &report) {
+            eprintln!("[report] unable to write AMR final report: {err}");
+        }
+        if let Err(err) =
+            observability::publish_progress(observability::ProgressStatus::Failed, None)
+        {
+            eprintln!("[progress] unable to write terminal AMR progress: {err}");
         }
 
         println!(
@@ -435,32 +646,66 @@ fn main() {
     let csv_path = output_dir.join(&csv_basename);
 
     // The summary CSV is the primary handoff to the Python analysis scripts.
-    let (summary_hash, final_status, failure_class) =
+    let (summary_hash, mut failure_class, mut exit_code) =
         match simulation.export_summary_to_csv(&csv_path) {
             Ok(()) => {
                 println!("Summary data exported to {}", csv_path.display());
                 match hash_file_sha256(&csv_path) {
-                    Ok(hash) => (Some(hash), "completed", "completed"),
+                    Ok(hash) => (Some(hash), "completed".to_string(), 0),
                     Err(err) => {
                         eprintln!(
                             "Warning: unable to hash summary CSV {}: {}",
                             csv_path.display(),
                             err
                         );
-                        (
-                            None,
-                            "completed_with_summary_hash_error",
-                            "summary_hash_failed",
-                        )
+                        (None, "summary_hash_failed".to_string(), 1)
                     }
                 }
             }
             Err(err) => {
                 println!("Error exporting CSV: {}", err);
-                (None, "csv_export_failed", "csv_export_failed")
+                (None, "csv_export_failed".to_string(), 1)
             }
         };
     let last_timestep = observability::current_timestep().or_else(|| time_steps.checked_sub(1));
+    let summary_csv_path = csv_path.is_file().then_some(csv_path.as_path());
+
+    let report = AmrFinalReport {
+        schema_version: "amr-report/v1",
+        status: if exit_code == 0 {
+            "completed"
+        } else {
+            "failed"
+        },
+        exit_code,
+        finished_at_utc: Utc::now().to_rfc3339(),
+        source_hash: source_hash.clone(),
+        runtime_config_consumed,
+        runtime_config_sha256,
+        run_id: Some(run_id),
+        last_timestep,
+        duration_seconds: Some(duration.as_secs_f64()),
+        summary_csv: summary_csv_path.map(|path| path.display().to_string()),
+        summary_sha256: summary_hash.clone(),
+        failure_class: failure_class.clone(),
+        effective_config: effective_run_config(
+            &run_config,
+            resolved_run_seed,
+            config_validation_mode,
+            config_validation_source,
+        ),
+        source: "amr_model",
+    };
+    if let Err(err) = write_final_report(&run_config.outputs.report_json, &report) {
+        eprintln!("[report] unable to write AMR final report: {err}");
+        failure_class = "report_write_failed".to_string();
+        exit_code = 3;
+    }
+    let final_status = if exit_code == 0 {
+        "completed"
+    } else {
+        "failed"
+    };
 
     if let Err(err) = write_run_metadata(
         &metadata_path,
@@ -472,10 +717,10 @@ fn main() {
         calibration_mode,
         active_policies,
         Some(run_id),
-        Some(&csv_path),
+        summary_csv_path,
         Some(duration.as_secs_f64()),
         summary_hash.as_deref(),
-        failure_class,
+        &failure_class,
         last_timestep,
         &config_validation_mode.to_string(),
         config_validation_report.status(),
@@ -488,6 +733,20 @@ fn main() {
             metadata_path.display(),
             err
         );
+    }
+
+    let progress_step = if exit_code == 0 {
+        Some(time_steps)
+    } else {
+        last_timestep
+    };
+    let progress_status = if exit_code == 0 {
+        observability::ProgressStatus::Completed
+    } else {
+        observability::ProgressStatus::Failed
+    };
+    if let Err(err) = observability::publish_progress(progress_status, progress_step) {
+        eprintln!("[progress] unable to write terminal AMR progress: {err}");
     }
 
     println!(
@@ -517,6 +776,9 @@ fn main() {
         duration.as_secs_f64()
     );
     println!("                          ");
+    if exit_code != 0 {
+        std::process::exit(exit_code);
+    }
 }
 
 fn install_panic_log_hook() {
@@ -527,7 +789,8 @@ fn install_panic_log_hook() {
         let run_id = observability::current_run_id()
             .map(|id| id.to_string())
             .unwrap_or_else(|| "unset".to_string());
-        let last_timestep = observability::current_timestep()
+        let current_timestep = observability::current_timestep();
+        let last_timestep = current_timestep
             .map(|step| step.to_string())
             .unwrap_or_else(|| "unset".to_string());
         let location = panic_info
@@ -558,6 +821,11 @@ fn install_panic_log_hook() {
         );
 
         eprintln!("{}", report);
+        if let Err(error) =
+            observability::publish_progress(observability::ProgressStatus::Failed, current_timestep)
+        {
+            eprintln!("[progress] unable to write panic progress evidence: {error}");
+        }
 
         if let Ok(mut file) = OpenOptions::new()
             .create(true)

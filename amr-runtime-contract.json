@@ -1,0 +1,14 @@
+{
+  "schema_version": "amr-runtime-capability/v1",
+  "run_config": {
+    "schema_version": "amr-run-config/v1",
+    "transport": "environment_path",
+    "environment_variable": "AMR_RUN_CONFIG"
+  },
+  "progress": {
+    "schema_version": "amr-progress/v1"
+  },
+  "report": {
+    "schema_version": "amr-report/v1"
+  }
+}

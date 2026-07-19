@@ -17,12 +17,12 @@ cargo build --release
 cargo run --release
 ```
 
-The executable is named `executable_amr`. All configuration is hardcoded in `src/main.rs` — there are no command-line arguments. To adjust the simulation, edit the constants at the top of `main()`:
+The executable is named `executable_amr`. With no runtime configuration it uses the model defaults below. Launchers can supply a strict, typed JSON configuration by setting `AMR_RUN_CONFIG` to an `amr-run-config/v1` file; omitted override keys retain model defaults. [`amr-runtime-contract.json`](amr-runtime-contract.json) is the machine-readable capability declaration for launchers and source intake systems.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `population_size` | 1,000,000 | Number of simulated individuals |
-| `calibration_mode` | `CalibrationMode::Full` | Output/detail mode for calibration vs full policy runs |
+| `population_size` | 3,000,000 | Number of simulated individuals |
+| `calibration_mode` | `CalibrationMode::Partial` | Output/detail mode for calibration vs full policy runs |
 | `time_steps` | 35,040 for calibration; 38,325 for policy runs | Days simulated by mode |
 | `log_individuals` | `false` | Per-individual logging (very verbose) |
 | `log_infection_journeys` | `false` | Infection lifecycle logging |
@@ -33,9 +33,37 @@ The executable is named `executable_amr`. All configuration is hardcoded in `src
 | `infection_journey_bacteria_filter` | `None` | Filter journeys to one species |
 | `use_disk_branch_checkpointing` | `false` | Serialise branch checkpoints to disk |
 
+Example runtime configuration:
+
+```json
+{
+  "schema_version": "amr-run-config/v1",
+  "contract": "typed_adapter_runtime_config",
+  "override_semantics": "explicit_keys_only_model_defaults_when_omitted",
+  "overrides": {
+    "population_size": 64,
+    "time_steps": 4,
+    "calibration_mode": "partial",
+    "rng_seed": 1729,
+    "config_validation_mode": "strict"
+  },
+  "outputs": {
+    "run_root": "/tmp/amr-run",
+    "report_json": "/tmp/amr-run/amr_report.json",
+    "progress_json": "/tmp/amr-run/amr_progress.json",
+    "progress_jsonl": "/tmp/amr-run/amr_progress.jsonl",
+    "model_output_dir": "/tmp/amr-run/model-outputs"
+  }
+}
+```
+
+Canonical calibration values are `none`, `partial`, `full_minimal`, and `full`. Population and timestep overrides must be positive. Unknown fields, unsupported contract versions, invalid values, unreadable files, and empty output paths stop the process before simulation work begins. CPU count, affinity, NUMA policy, memory limits, and process lifetime are launcher resource policy and are deliberately excluded from this model contract.
+
+The model writes `amr_progress.json` atomically and appends progress events to `amr_progress.jsonl` at startup, every 100 timesteps, and termination; both use `amr-progress/v1`. It writes the terminal `amr-report/v1` document to `outputs.report_json`, including effective model values, their sources, the resolved seed, the parsed runtime-config SHA-256, and the summary CSV hash. Progress `current_step` is a completed-step count; report `last_timestep` is the zero-based terminal timestep index. The configured `model_output_dir` receives the CSV and legacy run evidence.
+
 ### Fixed-Seed Reproducibility
 
-Fixed-seed runs use named ChaCha RNG streams derived from the run seed. Daily population updates are processed in fixed-size deterministic chunks, so a fixed seed is not tied to Rayon worker assignment or thread count. `AMR_RNG_SEED=<u64>` overrides the hardcoded seed setting for replay.
+Fixed-seed runs use named ChaCha RNG streams derived from the run seed. Daily population updates are processed in fixed-size deterministic chunks, so a fixed seed is not tied to Rayon worker assignment or thread count. An explicit runtime-config seed has highest priority and must match `AMR_RNG_SEED` when both are supplied. `AMR_RNG_SEED=<u64>` remains available for replay compatibility. With neither override, the model generates a fresh random seed and records it in run metadata and the final report.
 
 For the same source, configuration, and seed, fixed-seed summary output should be identical across repeated runs and across different `RAYON_NUM_THREADS` values.
 

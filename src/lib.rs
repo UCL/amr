@@ -9,4 +9,5 @@ pub mod config;
 pub mod config_validation;
 pub mod observability;
 pub mod rules;
+pub mod run_config;
 pub mod simulation;
