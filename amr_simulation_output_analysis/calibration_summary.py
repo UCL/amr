@@ -3017,9 +3017,40 @@ def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional
     return sim_value, target_value, len(eligible)
 
 
+def _resistance_component_weights(
+    calibration_score_config: Optional[Dict[str, object]] = None,
+) -> Dict[str, float]:
+    default_resistance = DEFAULT_CALIBRATION_SCORE_CONFIG.get("resistance", {})
+    default_weights = (
+        default_resistance.get("component_weights", {})
+        if isinstance(default_resistance, dict)
+        else {}
+    )
+    config = calibration_score_config or DEFAULT_CALIBRATION_SCORE_CONFIG
+    resistance_config = config.get("resistance", {}) if isinstance(config, dict) else {}
+    configured_weights = (
+        resistance_config.get("component_weights", {})
+        if isinstance(resistance_config, dict)
+        else {}
+    )
+
+    weights: Dict[str, float] = {}
+    for component in ("infection", "average"):
+        default_value = _coerce_float(default_weights.get(component))
+        value = _coerce_float(configured_weights.get(component))
+        if value is None or value < 0.0:
+            value = default_value if default_value is not None else 1.0
+        weights[component] = value
+    return weights
+
+
 def _calculate_resistance_fit_metrics(
     resistance_df: pd.DataFrame,
+    calibration_score_config: Optional[Dict[str, object]] = None,
 ) -> Tuple[Dict[str, Optional[float]], pd.DataFrame]:
+    component_weights = _resistance_component_weights(calibration_score_config)
+    infection_weight = component_weights["infection"]
+    average_weight = component_weights["average"]
     metrics: Dict[str, Optional[float]] = {
         "infection_abs_delta": None,
         "average_resistant_abs_delta": None,
@@ -3027,6 +3058,8 @@ def _calculate_resistance_fit_metrics(
         "infection_sqrt_abs_delta": None,
         "average_resistant_sqrt_abs_delta": None,
         "weighted_overall_sqrt_abs_delta": None,
+        "infection_weight": infection_weight,
+        "average_resistant_weight": average_weight,
     }
 
     empty_result = (metrics, pd.DataFrame(columns=[
@@ -3063,17 +3096,17 @@ def _calculate_resistance_fit_metrics(
     average_sqrt = metrics["average_resistant_sqrt_abs_delta"]
 
     if infection_abs is not None:
-        weighted_sum += 3.0 * infection_abs
-        total_weight += 3.0
+        weighted_sum += infection_weight * infection_abs
+        total_weight += infection_weight
     if average_abs is not None:
-        weighted_sum += average_abs
-        total_weight += 1.0
+        weighted_sum += average_weight * average_abs
+        total_weight += average_weight
     if infection_sqrt is not None:
-        sqrt_weighted_sum += 3.0 * infection_sqrt
-        sqrt_total_weight += 3.0
+        sqrt_weighted_sum += infection_weight * infection_sqrt
+        sqrt_total_weight += infection_weight
     if average_sqrt is not None:
-        sqrt_weighted_sum += average_sqrt
-        sqrt_total_weight += 1.0
+        sqrt_weighted_sum += average_weight * average_sqrt
+        sqrt_total_weight += average_weight
 
     if total_weight > 0.0:
         metrics["weighted_overall_abs_delta"] = weighted_sum / total_weight
@@ -3350,11 +3383,7 @@ def _calculate_calibration_score(
     add_block("drug_usage", _weighted_mean(drug_usage_values), drug_usage_target_count)
 
     resistance_config = config.get("resistance") if isinstance(config.get("resistance"), dict) else {}
-    resistance_weights = (
-        resistance_config.get("component_weights")
-        if isinstance(resistance_config.get("component_weights"), dict)
-        else {}
-    )
+    resistance_weights = _resistance_component_weights(config)
     resistance_tolerances = (
         resistance_config.get("tolerances_pp")
         if isinstance(resistance_config.get("tolerances_pp"), dict)
@@ -3372,7 +3401,7 @@ def _calculate_calibration_score(
         if eligible.empty or sim_col not in eligible.columns or target_col_name not in eligible.columns:
             continue
         tolerance = _coerce_float(resistance_tolerances.get(component_key)) or 10.0
-        component_weight = _coerce_float(resistance_weights.get(component_key)) or 1.0
+        component_weight = resistance_weights[component_key]
         subset = eligible[["Bacteria", "Drug", sim_col, target_col_name]].copy()
         subset[sim_col] = pd.to_numeric(subset[sim_col], errors="coerce")
         subset[target_col_name] = pd.to_numeric(subset[target_col_name], errors="coerce")
@@ -3771,7 +3800,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     resistance_expanded_label = str(expanded_label_obj) if expanded_label_obj not in (None, "") else ""
 
     overall_resistance = context.get("overall_resistance", (None, None, 0))
-    resistance_fit_metrics, resistance_component_df = _calculate_resistance_fit_metrics(resistance_df)
+    resistance_fit_metrics, resistance_component_df = _calculate_resistance_fit_metrics(
+        resistance_df,
+        targets.calibration_score_config,
+    )
     reserve_drug_stats = context.get("reserve_drug_stats", {})
     bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
     resistance_locus_df = context.get("resistance_incidence_locus_df")
@@ -4222,12 +4254,17 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         else:
             handle.write("(insufficient overlapping bacteria/drug combinations)\n")
 
+        infection_weight = resistance_fit_metrics.get("infection_weight") or 0.0
+        average_weight = resistance_fit_metrics.get("average_resistant_weight") or 0.0
+        weight_label = (
+            f"{infection_weight:g}x infection + {average_weight:g}x resistant-level"
+        )
         handle.write(
-            "- Weighted overall delta (3× infection + 1× resistant-level): "
+            f"- Weighted overall delta ({weight_label}): "
             f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_abs_delta'])}\n"
         )
         handle.write(
-            "- Weighted overall delta, √% scale (3× infection + 1× resistant-level): "
+            f"- Weighted overall delta, √% scale ({weight_label}): "
             f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_sqrt_abs_delta'])}\n\n"
         )
 
