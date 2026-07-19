@@ -21,6 +21,7 @@ import logging
 import gc
 from .config import DataConfig, PlotConfig
 from .column_selector import get_required_columns, estimate_memory_savings
+from .summary_input import SummaryInputError, resolve_summary_csv
 
 
 def downcast_floats(df: pd.DataFrame, target_dtype: str = 'float32') -> pd.DataFrame:
@@ -121,7 +122,7 @@ class DataCache:
             if csv_file is None:
                 csv_file = str(DataConfig().simulation_file)
 
-            csv_path = Path(csv_file)
+            csv_path = resolve_summary_csv(csv_file)
             self._simulation_csv_path = csv_path
             self._simulation_data = load_simulation_data(
                 str(csv_path),
@@ -418,7 +419,12 @@ def load_simulation_data(
         DataFrame with simulation data or None if loading failed
     """
     data_cfg = DataConfig()
-    csv_path = Path(csv_file)
+    try:
+        csv_path = resolve_summary_csv(csv_file)
+    except SummaryInputError as exc:
+        logger.error("Unable to resolve simulation summary input: %s", exc)
+        print(f"Error: {exc}")
+        return None
 
     parquet_path: Optional[Path] = None
     parquet_compression = getattr(data_cfg, 'parquet_cache_compression', 'snappy')
@@ -509,15 +515,15 @@ def load_simulation_data(
     # Pandas with column subsetting for memory efficiency
     try:
         print(f"[MEMORY] Loading CSV with pandas (usecols={len(usecols) if usecols else 'all'} columns)...")
-        df = pd.read_csv(csv_file, usecols=usecols)
-        logger.info(f"Loaded {len(df)} time steps, {len(df.columns)} columns from {csv_file}")
+        df = pd.read_csv(csv_path, usecols=usecols)
+        logger.info(f"Loaded {len(df)} time steps, {len(df.columns)} columns from {csv_path}")
         print(f"Loaded {len(df)} time steps × {len(df.columns)} columns")
         df = downcast_floats(df)
         _write_parquet_cache(df, parquet_path, parquet_compression)
         return df
 
     except MemoryError as mem_err:
-        logger.error(f"Out of memory loading {csv_file}: {mem_err}")
+        logger.error(f"Out of memory loading {csv_path}: {mem_err}")
         print(f"\n[ERROR] OUT OF MEMORY loading CSV!")
         print("The file is too large for available RAM.")
         print("Try: 1) Close other apps  2) Run simulation with fewer time steps")
@@ -525,8 +531,8 @@ def load_simulation_data(
         return None
 
     except Exception as e:
-        logger.error(f"Error loading {csv_file}: {e}")
-        print(f"Error loading {csv_file}: {e}")
+        logger.error(f"Error loading {csv_path}: {e}")
+        print(f"Error loading {csv_path}: {e}")
         return None
 
 def safe_divide(numerator, denominator, default=np.nan):

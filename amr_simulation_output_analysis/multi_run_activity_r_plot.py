@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
-"""Plot overall activity_r ratio for every available simulation run.
+"""Plot overall activity_r ratio for explicitly selected simulation runs.
 
 This script mirrors the top-left panel of grouped figure 6, but overlays one
-line per simulation_summary_<run_id>.csv so that multi-run variability is easy
-to inspect in a single figure.
+line per summary CSV so that multi-run variability is easy to inspect without
+treating the model-local six-digit filename token as global run identity.
 """
 
 from __future__ import annotations
 
-import re
+import argparse
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+try:
+    from .summary_input import (
+        canonical_summary_identity,
+        discover_summary_csvs,
+        model_run_id_from_filename,
+        resolve_summary_csv,
+    )
+except ImportError:  # Support direct script execution from the repository root.
+    from summary_input import (
+        canonical_summary_identity,
+        discover_summary_csvs,
+        model_run_id_from_filename,
+        resolve_summary_csv,
+    )
 
 SMOOTHING_WINDOW_DAYS = 365
 CSV_DIR = Path("amr_simulation_output_analysis_outputs")
@@ -22,7 +37,6 @@ OUTPUT_PATH = Path("amr_simulation_output_analysis_outputs/multi_run_activity_r.
 SUMMARY_OUTPUT_PATH = Path(
     "amr_simulation_output_analysis_outputs/multi_run_activity_r_summary.png"
 )
-RUN_FILE_PATTERN = re.compile(r"simulation_summary_(\d{6})\.csv$")
 
 
 def _detect_bacteria_columns(df: pd.DataFrame) -> List[str]:
@@ -68,34 +82,61 @@ def _compute_overall_ratio(df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
     return years, smoothed_clipped
 
 
-def _collect_run_files() -> Dict[str, Path]:
-    runs: Dict[str, Path] = {}
-    if not CSV_DIR.exists():
-        raise FileNotFoundError(f"Directory {CSV_DIR} does not exist")
-    for path in sorted(CSV_DIR.glob("simulation_summary_*.csv")):
-        match = RUN_FILE_PATTERN.match(path.name)
-        if match:
-            runs[match.group(1)] = path
-    if not runs:
-        raise FileNotFoundError("No simulation_summary_<id>.csv files were found")
+def _collect_run_files(inputs: Sequence[Path], input_dir: Path) -> list[tuple[str, Path]]:
+    paths = (
+        [resolve_summary_csv(path) for path in inputs]
+        if inputs
+        else list(discover_summary_csvs(input_dir))
+    )
+    if not paths:
+        raise FileNotFoundError("No AMR summary CSV files were found")
+    identities: set[str] = set()
+    runs: list[tuple[str, Path]] = []
+    for path in paths:
+        identity = canonical_summary_identity(path)
+        if identity in identities:
+            raise ValueError(f"Duplicate summary input identity: {identity}")
+        identities.add(identity)
+        runs.append((identity, path))
     return runs
 
 
-def main() -> None:
-    run_files = _collect_run_files()
+def _display_run_label(identity: str, path: Path) -> str:
+    model_run_id = model_run_id_from_filename(path)
+    identity_hint = identity.rsplit(":", 1)[-1][-8:]
+    return f"{model_run_id} ({identity_hint})" if model_run_id else path.stem
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "inputs",
+        nargs="*",
+        type=Path,
+        help="Explicit summary CSV or run-manifest paths",
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=CSV_DIR,
+        help="Directory scanned only when no explicit inputs are supplied",
+    )
+    args = parser.parse_args(argv)
+    run_files = _collect_run_files(args.inputs, args.input_dir)
     plt.figure(figsize=(12, 7))
     ax = plt.gca()
     time_axis: np.ndarray | None = None
     ratio_matrix: List[np.ndarray] = []
 
-    for run_id, csv_path in run_files.items():
+    for run_identity, csv_path in run_files:
+        run_label = _display_run_label(run_identity, csv_path)
         df = pd.read_csv(csv_path)
         try:
             time_years, ratio = _compute_overall_ratio(df)
         except ValueError as err:
             print(f"Skipping {csv_path.name}: {err}")
             continue
-        ax.plot(time_years, ratio, linewidth=1.0, alpha=0.6, label=f"Run {run_id}")
+        ax.plot(time_years, ratio, linewidth=1.0, alpha=0.6, label=f"Run {run_label}")
 
         years_np = np.asarray(time_years)
         ratio_np = ratio.to_numpy()
@@ -105,7 +146,7 @@ def main() -> None:
             pass
         else:
             print(
-                f"[warn] Run {run_id} uses a different time axis; excluding from summary plot"
+                f"[warn] Run {run_label} uses a different time axis; excluding from summary plot"
             )
             continue
         ratio_matrix.append(ratio_np)

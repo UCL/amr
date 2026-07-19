@@ -273,8 +273,26 @@ Dependencies: `pandas`, `matplotlib`, `seaborn`, `numpy`, `scipy`, `polars`, `py
 ### Running Analysis
 
 ```python
-from amr_simulation_output_analysis.amr_analysis import run_analysis
-run_analysis("amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv")
+from amr_simulation_output_analysis.data_loader import DataCache
+
+data = DataCache().get_simulation_data(
+    csv_file="amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv"
+)
+```
+
+The input may be an explicit summary CSV, a `run_manifest.json`, or a directory
+containing exactly one summary. Ambiguous directories fail with a list of
+candidates instead of choosing one silently. Both legacy model-native names and
+platform export names such as
+`simulation_summary_NNNNNN--<submission-id>.csv` are accepted; the six-digit
+model-local ID is evidence only and is not treated as globally unique.
+
+For deliberate multi-run analysis, use the multi-run tool and pass explicit
+inputs or an input directory:
+
+```bash
+python -m amr_simulation_output_analysis.multi_run_activity_r_plot \
+  --input-dir amr_simulation_output_analysis_outputs
 ```
 
 Key analysis modules:
