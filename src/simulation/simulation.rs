@@ -2348,6 +2348,7 @@ pub struct TimeStepSummary {
     pub infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of infected individuals without carriage
     pub resistant_infected_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among carriers
     pub resistant_infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among non-carriers
+    // Active-infection stock split by current care location, not infection acquisition route.
     pub currently_infected_hospital_count_by_bacteria: Vec<usize>,
     pub currently_infected_community_count_by_bacteria: Vec<usize>,
     pub resistant_infected_hospital_count_by_bacteria: Vec<usize>,
@@ -2371,7 +2372,7 @@ pub struct TimeStepSummary {
     // per-bacteria, per-drug any_r sum values for infected individuals (flat, len = bacteria * drugs)
     pub any_r_sum_by_bacteria_drug: Vec<f64>,
 
-    // per-bacteria, per-drug any_r sum values for hospital-acquired infected individuals (flat, len = bacteria * drugs)
+    // per-bacteria, per-drug any_r sum values for currently hospitalized infected individuals (flat, len = bacteria * drugs)
     pub any_r_sum_by_bacteria_drug_hospital: Vec<f64>,
 
     // per-bacteria, per-drug counts of infected individuals with any_r > 0 (flat, len = bacteria * drugs)
@@ -3086,7 +3087,7 @@ impl Simulation {
                 drug_failure_count_by_bacteria: Vec<usize>,
                 /// per-bacteria, per-drug sum of any_r values for infected individuals (float, indexed by bacteria * drugs)
                 any_r_sum_by_bacteria_drug: Vec<f64>,
-                /// per-bacteria, per-drug sum of any_r values for hospital-acquired infected individuals (float, indexed by bacteria * drugs)
+                /// per-bacteria, per-drug sum of any_r values for currently hospitalized infected individuals (float, indexed by bacteria * drugs)
                 any_r_sum_by_bacteria_drug_hospital: Vec<f64>,
                 /// per-bacteria, per-drug counts of infected individuals with any_r > 0 (flat, len = bacteria * drugs)
                 infected_with_any_r_positive_by_bacteria_drug: Vec<usize>,
@@ -4509,6 +4510,8 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let base = b_idx * num_drugs;
+                                    let record_as_hosp =
+                                        individual.hospital_status.is_hospitalized();
                                     if on_any_drug_current {
                                         lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
                                     }
@@ -4532,14 +4535,14 @@ impl Simulation {
                                             if any_r > 0.0 {
                                                 lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
                                                 if !lt.infected_with_any_r_positive_hospital_by_bacteria_drug.is_empty() {
-                                                    if individual.hospital_status.is_hospitalized() {
+                                                    if record_as_hosp {
                                                         lt.infected_with_any_r_positive_hospital_by_bacteria_drug[base + d_idx] += 1;
                                                     } else {
                                                         lt.infected_with_any_r_positive_community_by_bacteria_drug[base + d_idx] += 1;
                                                     }
                                                 }
                                             }
-                                            if individual.infection_hospital_acquired[b_idx] {
+                                            if record_as_hosp {
                                                 lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += any_r;
                                             }
                                         }
@@ -4554,7 +4557,6 @@ impl Simulation {
                                     // acquired infections that are admitted to hospital feed the
                                     // hospital resistance pool, reflecting what is actually
                                     // circulating on the ward.
-                                    let record_as_hosp = individual.hospital_status.is_hospitalized();
                                     let mut has_recorded_mechanism = false;
                                     let mut family_present =
                                         [false; RESISTANCE_MECHANISM_FAMILY_COUNT];
@@ -5360,6 +5362,8 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
+                                    let record_as_hosp =
+                                        individual.hospital_status.is_hospitalized();
                                     let mut infection_any_r_positive = false;
                                     // Count syndrome for this infected individual (take first one if multiple infections)
                                     if !individual_has_any_infection_counted_for_syndrome {
@@ -5548,14 +5552,14 @@ impl Simulation {
                                         }
                                     }
                                     if !lt.currently_infected_hospital_count_by_bacteria.is_empty() {
-                                        if individual.infection_hospital_acquired[b_idx] {
+                                        if record_as_hosp {
                                             lt.currently_infected_hospital_count_by_bacteria[b_idx] += 1;
                                         } else {
                                             lt.currently_infected_community_count_by_bacteria[b_idx] += 1;
                                         }
                                     }
                                     if !lt.resistant_infected_hospital_count_by_bacteria.is_empty() {
-                                        if individual.infection_hospital_acquired[b_idx] {
+                                        if record_as_hosp {
                                             if infection_any_r_positive {
                                                 lt.resistant_infected_hospital_count_by_bacteria[b_idx] += 1;
                                             }
@@ -7114,7 +7118,7 @@ impl Simulation {
                 header.push_str(drug);
             }
         }
-        // Add per-bacteria, per-drug any_r sum columns for hospital-acquired infections
+        // Add per-bacteria, per-drug any_r sum columns for infections currently in hospital
         for bacteria in BACTERIA_LIST.iter() {
             for drug in DRUG_SHORT_NAMES.iter() {
                 header.push(',');

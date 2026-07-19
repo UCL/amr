@@ -1,8 +1,11 @@
 use amr_project::simulation::journey_logger::JourneyLogger;
-use amr_project::simulation::population::{store_float, Individual, BACTERIA_LIST};
+use amr_project::simulation::population::{
+    store_float, Individual, BACTERIA_LIST, DRUG_SHORT_NAMES,
+};
 use amr_project::simulation::simulation::{CalibrationMode, Simulation};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -49,10 +52,15 @@ fn assert_antibiotic_context_counts_sum(path: &Path) {
         .headers()
         .expect("CSV should include headers")
         .clone();
+    let indices: HashMap<&str, usize> = header
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| (name, idx))
+        .collect();
     let index = |name: &str| {
-        header
-            .iter()
-            .position(|column| column == name)
+        indices
+            .get(name)
+            .copied()
             .unwrap_or_else(|| panic!("summary CSV should include {name}"))
     };
     let total_idx = index("currently_taking_drug_count");
@@ -151,6 +159,90 @@ fn assert_new_infection_resistance_counts_bounded(path: &Path) {
             "newly infected serious-R count should be bounded by newly infected any-resistance count in CSV row {}",
             row_idx + 2
         );
+    }
+}
+
+fn assert_resistance_care_setting_counts_bounded(path: &Path) {
+    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
+    let header = reader
+        .headers()
+        .expect("CSV should include headers")
+        .clone();
+    let indices: HashMap<&str, usize> = header
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| (name, idx))
+        .collect();
+    let index = |name: &str| {
+        indices
+            .get(name)
+            .copied()
+            .unwrap_or_else(|| panic!("summary CSV should include {name}"))
+    };
+
+    for (row_idx, record) in reader.records().enumerate() {
+        let record = record.expect("CSV data row should parse");
+        let parse_usize = |name: &str| {
+            record[index(name)]
+                .parse::<usize>()
+                .unwrap_or_else(|_| panic!("{name} should contain a usize"))
+        };
+
+        for bacteria in BACTERIA_LIST.iter() {
+            let slug = bacteria.replace(' ', "_");
+            let total = parse_usize(&format!("{slug}_currently_infected"));
+            let hospital = parse_usize(&format!("{slug}_currently_infected_hospital_count"));
+            let community = parse_usize(&format!("{slug}_currently_infected_community_count"));
+            let resistant_hospital =
+                parse_usize(&format!("{slug}_resistant_infected_hospital_count"));
+            let resistant_community =
+                parse_usize(&format!("{slug}_resistant_infected_community_count"));
+
+            assert_eq!(
+                hospital + community,
+                total,
+                "current hospital/community infection counts should partition {bacteria} in CSV row {}",
+                row_idx + 2
+            );
+            assert!(
+                resistant_hospital <= hospital,
+                "hospital resistant infections should be bounded by current hospital infections for {bacteria} in CSV row {}",
+                row_idx + 2
+            );
+            assert!(
+                resistant_community <= community,
+                "community resistant infections should be bounded by current community infections for {bacteria} in CSV row {}",
+                row_idx + 2
+            );
+
+            for drug in DRUG_SHORT_NAMES.iter() {
+                let positive_total =
+                    parse_usize(&format!("{slug}_infected_with_any_r_positive_{drug}"));
+                let positive_hospital = parse_usize(&format!(
+                    "{slug}_infected_with_any_r_positive_hospital_{drug}"
+                ));
+                let positive_community = parse_usize(&format!(
+                    "{slug}_infected_with_any_r_positive_community_{drug}"
+                ));
+
+                assert_eq!(
+                    positive_hospital + positive_community,
+                    positive_total,
+                    "current care-setting resistance counts should partition {bacteria}/{drug} in CSV row {}",
+                    row_idx + 2
+                );
+                assert!(
+                    positive_hospital <= hospital,
+                    "hospital resistance count should be bounded by current hospital infections for {bacteria}/{drug} in CSV row {}",
+                    row_idx + 2
+                );
+                assert!(
+                    positive_community <= community,
+                    "community resistance count should be bounded by current community infections for {bacteria}/{drug} in CSV row {}",
+                    row_idx + 2
+                );
+            }
+        }
     }
 }
 
@@ -377,6 +469,15 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
         (0..BACTERIA_LIST.len()).map(|idx| 100 + idx).collect();
     summary.newly_infected_by_bacteria_over_65 =
         (0..BACTERIA_LIST.len()).map(|idx| 200 + idx).collect();
+    summary.infections_by_bacteria.fill(18);
+    summary.currently_infected_hospital_count_by_bacteria = vec![7; BACTERIA_LIST.len()];
+    summary.currently_infected_community_count_by_bacteria = vec![11; BACTERIA_LIST.len()];
+    summary.resistant_infected_hospital_count_by_bacteria = vec![3; BACTERIA_LIST.len()];
+    summary.resistant_infected_community_count_by_bacteria = vec![5; BACTERIA_LIST.len()];
+    let bacteria_drug_len = BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len();
+    summary.infected_with_any_r_positive_by_bacteria_drug = vec![6; bacteria_drug_len];
+    summary.infected_with_any_r_positive_hospital_by_bacteria_drug = vec![2; bacteria_drug_len];
+    summary.infected_with_any_r_positive_community_by_bacteria_drug = vec![4; bacteria_drug_len];
     let region_count = summary.newly_infected_by_bacteria_region.len() / BACTERIA_LIST.len();
     summary.newly_infected_by_bacteria_region.fill(0);
     for bacteria_idx in 0..BACTERIA_LIST.len() {
@@ -393,6 +494,7 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     assert_new_infection_split_columns_preserve_bacterium_values(&path);
     assert_antibiotic_context_counts_sum(&path);
     assert_new_infection_resistance_counts_bounded(&path);
+    assert_resistance_care_setting_counts_bounded(&path);
     assert_summary_has_figure_11_columns(&path);
     assert_summary_has_supplementary_figure_s1_columns(&path);
     assert_summary_has_supplementary_table_s1_columns(&path);
