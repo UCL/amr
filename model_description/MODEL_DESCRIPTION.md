@@ -61,6 +61,8 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 
 **Calibration.** As laid out below, the framework contains thousands of parameters.  In the current configuration we have just a single value for each parameter which we argue provides a reasonable calibration to observed antibiotic consumption rates, resistance prevalence reported by named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD), and infection incidence data.  Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to try to identify multiple sets of parameter values that produce an acceptable calibration in order to be able to express uncertainty over parameter values when comparing future policy options.
 
+**Resistance calibration quantities.** Figure 2 deliberately defines simulated resistance prevalence as the proportion of active-infection person-days for which the bacterium-drug `any_r` value is greater than zero. Resistance severity is represented separately by the mean `any_r` among those positive infection-days. These are policy-scale model quantities rather than literal clinical breakpoint categories. The model does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because the additional pharmacokinetic, laboratory, and breakpoint parameterisation would be disproportionate to its all-bacteria policy-comparison purpose.
+
 
 ### 1.2 Document structure
 
