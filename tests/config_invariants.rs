@@ -238,6 +238,9 @@ fn retired_resistance_parameter_names_are_absent() {
         "any_r_emergence_level_on_first_emergence",
         "multi_drug_penalty_for_single_drug_resistance",
         "multi_drug_penalty_for_partial_cross_resistance",
+        "resistance_floor_feature_enabled",
+        "resistance_floor_all_bacteria_enabled",
+        "resistance_floor_default_level",
     ] {
         assert!(
             !PARAMETERS.contains_key(key),

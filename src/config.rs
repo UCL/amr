@@ -263,6 +263,8 @@ pub struct GlobalScalars {
     pub staph_aureus_lineage_enrichment_fus_b_probability: f64,
     pub staph_aureus_lineage_enrichment_hospital_multiplier: f64,
     pub community_profile_cache_retention: f64,
+    pub local_mechanism_persistence_enabled: bool,
+    pub local_mechanism_persistence_reactivation_probability: f64,
     pub debug_seed_hospital_cache_resistant_profiles: bool,
     pub mdr_tb_pre_antibiotic_era_multiplier: f64,
     pub mdr_tb_early_antibiotic_era_multiplier: f64,
@@ -582,6 +584,17 @@ impl GlobalScalars {
                 "community_profile_cache_retention",
                 0.9,
             ),
+            local_mechanism_persistence_enabled: get_or_default(
+                map,
+                "local_mechanism_persistence_enabled",
+                1.0,
+            ) > 0.5,
+            local_mechanism_persistence_reactivation_probability: get_or_default(
+                map,
+                "local_mechanism_persistence_reactivation_probability",
+                0.001,
+            )
+            .clamp(0.0, 1.0),
             debug_seed_hospital_cache_resistant_profiles: get_or_default(
                 map,
                 "debug_seed_hospital_cache_resistant_profiles",
@@ -4005,25 +4018,18 @@ lazy_static! {
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
-        // === [D.2] Optional universal acquisition reseeding guard ===
-        // This is separate from explicit bacteria-mechanism environmental floors and the
-        // dynamic ratchet. When enabled, every new infection receives a separate entry roll for
-        // each modelled drug whose class has been introduced. A successful roll can add an
-        // applicable mechanism that is currently represented in the retained global profile
-        // cache. It is not a prevalence clamp, a rare-state trigger, or population-size scaled.
-        //
-        // Provisionally disabled for the population-3m/10m architecture review. The corrected
-        // profile cache and the explicit biological persistence pathways should first be allowed
-        // to operate without this universal, drug-list-dependent reinforcement.
-        map.insert("resistance_floor_feature_enabled".to_string(), 0.0);
-
-        // Dormant while the master switch is 0.0. Retained at 1.0 so a matched guard-on
-        // comparison requires changing only resistance_floor_feature_enabled.
-        map.insert("resistance_floor_all_bacteria_enabled".to_string(), 1.0);
-
-        // Dormant guard-on value. This is rolled once per eligible drug entry, followed by the
-        // separate mechanism-assignment probability; it is not a 1% organism-level floor.
-        map.insert("resistance_floor_default_level".to_string(), 0.01);
+        // === [D.2] Local mechanism persistence archive ===
+        // A mechanism first observed in a region x care-setting x bacterium cache slot is
+        // remembered there permanently as a complete historical genotype. If every active
+        // cached profile carrying an established mechanism later disappears, all locally latent
+        // archived genotypes together receive one bounded reactivation draw when that slot is
+        // sampled. The 0.001 default is one virtual-profile share of a full 1000-profile cache.
+        // It is a single profile-level draw, independent of the number of drugs or mechanisms.
+        map.insert("local_mechanism_persistence_enabled".to_string(), 1.0);
+        map.insert(
+            "local_mechanism_persistence_reactivation_probability".to_string(),
+            0.001,
+        );
 
         // Debug-only helper: seed each hospital cache slot with one resistant profile so
         // hospital prune experiments can prove the cache logic can reach 100% any-R when
@@ -13457,17 +13463,12 @@ pub fn get_all_active_interactions() -> Vec<(String, String, f64)> {
 
     interactions
 }
-// ============================================================================
-// === Resistance Floor Helper Functions ===
-// ============================================================================
-// These functions support the resistance floor feature for rare bacteria where
-// cache-based sampling doesn't sustain observed resistance levels.
 
-/// Get the drug class name for a given drug
-/// Returns the class name used in resistance floor parameters
+/// Broad drug-class label used by generated parameter documentation.
+///
+/// This reporting grouping is not used to determine mechanism applicability or resistance.
 pub fn get_drug_class(drug: &str) -> Option<&'static str> {
     match drug {
-        // Penicillins (including BL/BLI)
         "penicillin_g"
         | "ampicillin"
         | "amoxicillin"
@@ -13478,11 +13479,7 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
         | "piperacillin_tazobactam"
         | "ampicillin_sulbactam"
         | "ticarcillin_clavulanate" => Some("penicillins"),
-
-        // Cephalosporins 1st/2nd gen
         "cephalexin" | "cefazolin" | "cefuroxime" => Some("cephalosporins_1_2"),
-
-        // Cephalosporins 3rd/4th gen (including BL/BLI combos, siderophore cephems)
         "ceftriaxone"
         | "ceftazidime"
         | "cefixime"
@@ -13490,175 +13487,25 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
         | "ceftaroline"
         | "cefiderocol"
         | "ceftazidime_avibactam"
-        | "ceftolozane_tazobactam" => Some("cephalosporins_3_4"),
-
-        // Carbapenems (including BL/BLI)
+        | "ceftolozane_tazobactam"
+        | "aztreonam"
+        | "aztreonam_avibactam" => Some("cephalosporins_3_4"),
         "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam" => Some("carbapenems"),
-
-        // Monobactams - no separate floor, treat like cephalosporins 3/4 for coverage
-        "aztreonam" => Some("cephalosporins_3_4"),
-        "aztreonam_avibactam" => Some("cephalosporins_3_4"),
-
-        // Macrolides
-        "erythromycin" | "azithromycin" | "clarithromycin" => Some("macrolides"),
-
-        // Lincosamides - treat like macrolides (MLSb resistance)
-        "clindamycin" => Some("macrolides"),
-
-        // Aminoglycosides
+        "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin" => Some("macrolides"),
         "gentamicin" | "tobramycin" | "amikacin" => Some("aminoglycosides"),
-
-        // Fluoroquinolones
         "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin" | "nalidixic_acid" => {
             Some("fluoroquinolones")
         }
-
-        // Tetracyclines
         "tetracycline" | "doxycycline" | "minocycline" | "tigecycline" => Some("tetracyclines"),
-
-        // Glycopeptides (vancomycin only - evades VanB)
         "vancomycin" => Some("glycopeptides"),
-
-        // Lipoglycopeptides (evade VanB; separate floor class)
         "teicoplanin" | "dalbavancin" => Some("lipoglycopeptides"),
-
-        // Oxazolidinones
         "linezolid" | "tedizolid" => Some("oxazolidinones"),
-
-        // Folate antagonists
-        "trim_sulf" => Some("folate_antagonists"),
-
-        // Polymyxins
+        "trim_sulf" | "sulfanilamide" => Some("folate_antagonists"),
         "colistin" => Some("polymyxins"),
-
-        // Sulfanilamide - original sulfonamide, treat as folate antagonist
-        "sulfanilamide" => Some("folate_antagonists"),
-
-        // Nitroimidazoles
         "metronidazole" => Some("nitroimidazoles"),
-
-        // Others without specific floors
         _ => None,
     }
 }
-
-/// Get the introduction day for a drug (uses existing DRUG_INTRODUCTION_DATES)
-/// Returns None if drug introduction is not configured
-pub fn get_drug_introduction_day(drug: &str) -> Option<i32> {
-    // Use the existing DRUG_INTRODUCTION_DATES via get_drug_introduction_time_step
-    get_drug_introduction_time_step(drug).map(|ts| ts as i32)
-}
-
-/// Get the earliest introduction day for any drug in a class
-/// This is used to determine when resistance floors should start ramping
-pub fn get_drug_class_introduction_day(drug_class: &str) -> Option<i32> {
-    // Map drug class to its constituent drugs and find earliest introduction
-    let drugs: &[&str] = match drug_class {
-        "penicillins" => &[
-            "penicillin_g",
-            "ampicillin",
-            "amoxicillin",
-            "piperacillin",
-            "ticarcillin",
-            "flucloxacillin",
-            "amoxicillin_clavulanate",
-            "piperacillin_tazobactam",
-            "ampicillin_sulbactam",
-            "ticarcillin_clavulanate",
-        ],
-        "cephalosporins_1_2" => &["cephalexin", "cefazolin", "cefuroxime"],
-        "cephalosporins_3_4" => &[
-            "ceftriaxone",
-            "ceftazidime",
-            "cefepime",
-            "ceftaroline",
-            "cefixime",
-            "cefiderocol",
-            "ceftazidime_avibactam",
-            "ceftolozane_tazobactam",
-            "aztreonam",
-            "aztreonam_avibactam",
-        ],
-        "carbapenems" => &[
-            "meropenem",
-            "imipenem_c",
-            "ertapenem",
-            "meropenem_vaborbactam",
-        ],
-        "macrolides" => &[
-            "erythromycin",
-            "azithromycin",
-            "clarithromycin",
-            "clindamycin",
-        ],
-        "aminoglycosides" => &["gentamicin", "tobramycin", "amikacin"],
-        "fluoroquinolones" => &["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        "tetracyclines" => &["tetracycline", "doxycycline", "minocycline"],
-        "glycopeptides" => &["vancomycin"],
-        "lipoglycopeptides" => &["teicoplanin", "dalbavancin"],
-        "oxazolidinones" => &["linezolid", "tedizolid"],
-        "folate_antagonists" => &["trim_sulf", "sulfanilamide"],
-        "polymyxins" => &["colistin"],
-        "nitroimidazoles" => &["metronidazole"],
-        _ => return None,
-    };
-
-    drugs
-        .iter()
-        .filter_map(|drug| get_drug_introduction_day(drug))
-        .min()
-}
-
-/// Check if resistance floors are enabled globally
-pub fn resistance_floors_enabled() -> bool {
-    get_global_param("resistance_floor_feature_enabled").unwrap_or(0.0) > 0.5
-}
-
-/// Check if resistance floors are enabled for a specific bacteria
-pub fn bacteria_resistance_floor_enabled(bacteria_name: &str) -> bool {
-    if !resistance_floors_enabled() {
-        return false;
-    }
-    // Global override: resistance_floor_all_bacteria_enabled = 1.0 enables all organisms at once
-    if get_global_param("resistance_floor_all_bacteria_enabled").unwrap_or(0.0) > 0.5 {
-        return true;
-    }
-    let canonical = canonicalize_bacteria_slug(bacteria_name);
-    let key = format!("bacteria_{}_resistance_floor_enabled", canonical.as_ref());
-    get_global_param(&key).unwrap_or(0.0) > 0.5
-}
-
-/// Calculate the effective resistance floor for a bacteria-drug pair at a given simulation day.
-///
-/// Returns `resistance_floor_default_level` (default 0.01) if:
-/// - Resistance floors are enabled for this bacteria
-/// - The drug class has been introduced before `current_day`
-///
-/// Returns 0.0 otherwise. The causal correctness guard in the calling code (rules/mod.rs)
-/// ensures the floor can only fire when a relevant mechanism has already emerged somewhere
-/// in the simulation - no per-organism or per-drug-class floor values are needed.
-pub fn calculate_resistance_floor(bacteria_name: &str, drug: &str, current_day: i32) -> f64 {
-    if !bacteria_resistance_floor_enabled(bacteria_name) {
-        return 0.0;
-    }
-
-    let drug_class = match get_drug_class(drug) {
-        Some(class) => class,
-        None => return 0.0,
-    };
-
-    let intro_day = match get_drug_class_introduction_day(drug_class) {
-        Some(day) => day,
-        None => return 0.0,
-    };
-
-    if current_day < intro_day {
-        return 0.0;
-    }
-
-    get_global_param("resistance_floor_default_level").unwrap_or(0.01)
-}
-
 // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
 // CALIBRATION AXES - global run-level multipliers sampled during search
 //

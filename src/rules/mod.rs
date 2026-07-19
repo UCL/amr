@@ -81,11 +81,10 @@
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
 
 use crate::config::{
-    calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
-    get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
-    RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
-    RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+    get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
+    get_drug_introduction_time_step, get_global_param, parameter_store,
+    RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY, RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
+    RUN_PATHWAY_HGT_MULTIPLIER_KEY, RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
@@ -866,7 +865,7 @@ fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
         {
             return false;
         }
-        if !mechanism_cache.mechanism_has_ever_emerged_globally(b_idx, mech_idx) {
+        if !mechanism_cache.mechanism_is_present_in_active_cache_globally(b_idx, mech_idx) {
             return false;
         }
         let probability = (base_probability * hospital_multiplier).clamp(0.0, 1.0);
@@ -2441,6 +2440,11 @@ fn collect_regional_surveillance_bacteria<'a>(
     &buffer[..len]
 }
 
+#[derive(Default)]
+pub(crate) struct RuleEvents {
+    pub local_persistence_profile_reactivations: usize,
+}
+
 /// applies model rules to an individual for one time step.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
@@ -2451,7 +2455,8 @@ pub(crate) fn apply_rules(
     drug_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
-) {
+) -> RuleEvents {
+    let mut events = RuleEvents::default();
     let store = parameter_store();
     // Policy can tighten or loosen randomness when deciding among viable drugs.
     let selection_temperature = policy
@@ -2491,7 +2496,7 @@ pub(crate) fn apply_rules(
 
     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
     if !prepare_individual_for_active_day(individual, simulation_year, &store.vaccination, rng) {
-        return;
+        return events;
     }
 
     // Reset microbiome acquisition flags ahead of this timestep's updates
@@ -5611,9 +5616,12 @@ pub(crate) fn apply_rules(
                                 record_sampled_microbiome_profile(
                                     individual,
                                     b_idx,
-                                    profile,
+                                    profile.mask,
                                     param_cache,
                                 );
+                                if profile.from_local_persistence {
+                                    events.local_persistence_profile_reactivations += 1;
+                                }
                             }
                         }
 
@@ -5815,13 +5823,12 @@ pub(crate) fn apply_rules(
                 // Keep the prospective infection local until existing therapy has been
                 // evaluated against its finalized incoming resistance profile.
                 {
-                    let max_resistance_level = store.globals.max_resistance_level;
                     let mut incoming_any_mask = 0_u64;
                     let mut incoming_majority_mask = 0_u64;
                     let mut community_acquired_mask = 0_u64;
-                    let mut floor_acquired_drug_mask = 0_u64;
                     let mut tb_acquired_mask = 0_u64;
                     let mut inherited_mask = 0_u64;
+                    let mut sampled_from_local_persistence = false;
 
                     // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
                     let is_tb = bacteria == "mdr_mycobacterium_tuberculosis";
@@ -5894,11 +5901,13 @@ pub(crate) fn apply_rules(
                         if let Some(profile) = sampled_profile {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 let eligible_profile =
-                                    param_cache.sanitize_mechanism_profile(b_idx, profile);
+                                    param_cache.sanitize_mechanism_profile(b_idx, profile.mask);
                                 // A sampled circulating genotype starts in both the any-strain
                                 // and majority-strain compartments.
                                 incoming_any_mask |= eligible_profile;
                                 incoming_majority_mask |= eligible_profile;
+                                sampled_from_local_persistence =
+                                    profile.from_local_persistence && eligible_profile != 0;
                             }
                             true
                         } else {
@@ -5965,52 +5974,6 @@ pub(crate) fn apply_rules(
                                 incoming_any_mask |= mechanism_bit;
                                 incoming_majority_mask |= mechanism_bit;
                                 community_acquired_mask |= mechanism_bit;
-                            }
-                        }
-                    }
-
-                    // Resistance floor: apply minimum resistance level for rare bacteria
-                    // by ensuring mechanism_any is set where prevalence floor applies.
-                    // (This preserves the floor semantics without injecting float values.)
-                    for (d_idx, drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        let floor_level = calculate_resistance_floor(
-                            bacteria,
-                            drug_name_static,
-                            time_step as i32,
-                        );
-                        if floor_level > 0.0
-                            && rng.gen_bool((floor_level / max_resistance_level).clamp(0.0, 1.0))
-                        {
-                            // Assign a mechanism applicable to this drug with floor probability
-                            let mechanism_prob =
-                                store.globals.mechanism_assignment_probability_on_any_r_gain;
-                            use crate::simulation::population::ResistanceMechanism;
-                            for (mech_idx, mechanism) in
-                                ResistanceMechanism::all().iter().enumerate()
-                            {
-                                if mechanism.is_as_yet_unknown() {
-                                    continue;
-                                }
-                                if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
-                                    continue;
-                                }
-                                // Causal correctness: only assign mechanisms that have already
-                                // emerged somewhere in the simulation (i.e. present in the
-                                // circulating strain pool). Prevents the floor from introducing
-                                // a resistance mechanism before any de novo emergence has
-                                // occurred anywhere in the world.
-                                if !mechanism_cache
-                                    .mechanism_has_ever_emerged_globally(b_idx, mech_idx)
-                                {
-                                    continue;
-                                }
-                                if rng.gen_bool(mechanism_prob) {
-                                    let mechanism_bit = 1u64 << mech_idx;
-                                    incoming_any_mask |= mechanism_bit;
-                                    incoming_majority_mask |= mechanism_bit;
-                                    floor_acquired_drug_mask |= 1u64 << d_idx;
-                                    break; // one mechanism sufficient for floor
-                                }
                             }
                         }
                     }
@@ -6099,6 +6062,9 @@ pub(crate) fn apply_rules(
                         individual.infection_hospital_acquired[b_idx] = is_hospital_acquired;
                         individual.mechanism_any[b_idx] = incoming_any_mask;
                         individual.mechanism_majority[b_idx] = incoming_majority_mask;
+                        if sampled_from_local_persistence {
+                            events.local_persistence_profile_reactivations += 1;
+                        }
 
                         propagate_mechanism_resistance(
                             individual,
@@ -6117,9 +6083,7 @@ pub(crate) fn apply_rules(
                                         community_acquired_mask & (1u64 << m_idx) != 0
                                             && param_cache.mechanism_applicable(m_idx, b_idx, d_idx)
                                     });
-                                let acquired_from_floor =
-                                    floor_acquired_drug_mask & (1u64 << d_idx) != 0;
-                                if has_community_mechanism || acquired_from_floor {
+                                if has_community_mechanism {
                                     individual.how_resistance_acquired[b_idx][d_idx] =
                                         Some(ResistanceAcquisitionType::AtInfectionCommunity);
                                 }
@@ -7033,6 +6997,7 @@ pub(crate) fn apply_rules(
 
     // Update the current number of drugs counter at the end of each timestep
     update_drug_counter(individual);
+    events
 }
 
 /// Calculate comprehensive testing probability based on multiple factors
@@ -9169,7 +9134,8 @@ mod tests {
         for _ in 0..256 {
             let incoming_mask = mechanism_cache
                 .sample_profile(0, bacteria_idx, false, &mut rng)
-                .expect("seeded regional profile");
+                .expect("seeded regional profile")
+                .mask;
             let prevented = existing_therapy_prevents_incoming_infection(
                 &individual,
                 bacteria_idx,
