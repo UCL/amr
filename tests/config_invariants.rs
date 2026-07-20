@@ -241,6 +241,7 @@ fn retired_resistance_parameter_names_are_absent() {
         "resistance_floor_feature_enabled",
         "resistance_floor_all_bacteria_enabled",
         "resistance_floor_default_level",
+        "local_mechanism_persistence_reactivation_probability",
     ] {
         assert!(
             !PARAMETERS.contains_key(key),

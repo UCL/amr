@@ -264,7 +264,8 @@ pub struct GlobalScalars {
     pub staph_aureus_lineage_enrichment_hospital_multiplier: f64,
     pub community_profile_cache_retention: f64,
     pub local_mechanism_persistence_enabled: bool,
-    pub local_mechanism_persistence_reactivation_probability: f64,
+    pub local_mechanism_persistence_virtual_profile_mass: f64,
+    pub local_mechanism_persistence_max_sampling_probability: f64,
     pub debug_seed_hospital_cache_resistant_profiles: bool,
     pub mdr_tb_pre_antibiotic_era_multiplier: f64,
     pub mdr_tb_early_antibiotic_era_multiplier: f64,
@@ -589,10 +590,16 @@ impl GlobalScalars {
                 "local_mechanism_persistence_enabled",
                 1.0,
             ) > 0.5,
-            local_mechanism_persistence_reactivation_probability: get_or_default(
+            local_mechanism_persistence_virtual_profile_mass: get_or_default(
                 map,
-                "local_mechanism_persistence_reactivation_probability",
-                0.001,
+                "local_mechanism_persistence_virtual_profile_mass",
+                10.0,
+            )
+            .max(0.0),
+            local_mechanism_persistence_max_sampling_probability: get_or_default(
+                map,
+                "local_mechanism_persistence_max_sampling_probability",
+                0.10,
             )
             .clamp(0.0, 1.0),
             debug_seed_hospital_cache_resistant_profiles: get_or_default(
@@ -4020,15 +4027,19 @@ lazy_static! {
 
         // === [D.2] Local mechanism persistence archive ===
         // A mechanism first observed in a region x care-setting x bacterium cache slot is
-        // remembered there permanently as a complete historical genotype. If every active
-        // cached profile carrying an established mechanism later disappears, all locally latent
-        // archived genotypes together receive one bounded reactivation draw when that slot is
-        // sampled. The 0.001 default is one virtual-profile share of a full 1000-profile cache.
-        // It is a single profile-level draw, independent of the number of drugs or mechanisms.
+        // remembered there permanently as a complete historical genotype. Deduplicated archived
+        // genotypes form a bounded pseudo-reservoir during local human-reservoir sampling. Its
+        // total virtual mass is shared across all archived genotypes, so sampling pressure does
+        // not multiply with the number of drugs or mechanisms. A cap prevents sparse active
+        // cache slots from being dominated by the archive.
         map.insert("local_mechanism_persistence_enabled".to_string(), 1.0);
         map.insert(
-            "local_mechanism_persistence_reactivation_probability".to_string(),
-            0.001,
+            "local_mechanism_persistence_virtual_profile_mass".to_string(),
+            10.0,
+        );
+        map.insert(
+            "local_mechanism_persistence_max_sampling_probability".to_string(),
+            0.10,
         );
 
         // Debug-only helper: seed each hospital cache slot with one resistant profile so

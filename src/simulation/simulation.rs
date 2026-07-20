@@ -1575,12 +1575,12 @@ pub struct MechanismCache {
     /// Zero is the sentinel for "not yet established" because a carrying profile is non-zero.
     /// Indexed `[region][hospital/community][bacterium][mechanism]`.
     established_profile_by_mechanism: Vec<Vec<Vec<Vec<u64>>>>,
-    /// Deduplicated established genotypes carrying at least one mechanism currently absent from
-    /// the corresponding active profile slot. Rebuilt after every cache refresh so acquisition
-    /// sampling does not scan mechanisms or active profiles in the hot path.
-    latent_profiles: Vec<Vec<Vec<Vec<u64>>>>,
+    /// Deduplicated complete genotypes from the local establishment archive. Rebuilt after every
+    /// cache refresh so acquisition sampling does not scan mechanisms in the hot path.
+    persistence_profiles: Vec<Vec<Vec<Vec<u64>>>>,
     local_mechanism_persistence_enabled: bool,
-    local_mechanism_persistence_reactivation_probability: f64,
+    local_mechanism_persistence_virtual_profile_mass: f64,
+    local_mechanism_persistence_max_sampling_probability: f64,
     pub num_regions: usize,
     pub num_bacteria: usize,
     pub num_mechanisms: usize,
@@ -1606,10 +1606,12 @@ impl MechanismCache {
                 ];
                 num_regions
             ],
-            latent_profiles: vec![vec![vec![Vec::new(); num_bacteria]; 2]; num_regions],
+            persistence_profiles: vec![vec![vec![Vec::new(); num_bacteria]; 2]; num_regions],
             local_mechanism_persistence_enabled: globals.local_mechanism_persistence_enabled,
-            local_mechanism_persistence_reactivation_probability: globals
-                .local_mechanism_persistence_reactivation_probability,
+            local_mechanism_persistence_virtual_profile_mass: globals
+                .local_mechanism_persistence_virtual_profile_mass,
+            local_mechanism_persistence_max_sampling_probability: globals
+                .local_mechanism_persistence_max_sampling_probability,
             num_regions,
             num_bacteria,
             num_mechanisms,
@@ -1674,25 +1676,22 @@ impl MechanismCache {
         }
     }
 
-    fn rebuild_local_latent_profiles(&mut self) {
+    fn rebuild_local_persistence_profiles(&mut self) {
         for region_idx in 0..self.num_regions {
             for hospital_idx in 0..2 {
                 for bacteria_idx in 0..self.num_bacteria {
-                    let active_union = self.profiles.profiles[region_idx][hospital_idx]
-                        [bacteria_idx]
-                        .iter()
-                        .fold(0_u64, |union, &profile| union | profile);
                     let archive = &self.established_profile_by_mechanism[region_idx][hospital_idx]
                         [bacteria_idx];
-                    let latent = &mut self.latent_profiles[region_idx][hospital_idx][bacteria_idx];
-                    latent.clear();
+                    let profiles =
+                        &mut self.persistence_profiles[region_idx][hospital_idx][bacteria_idx];
+                    profiles.clear();
 
-                    for (mechanism_idx, &profile) in archive.iter().enumerate() {
-                        if profile == 0 || active_union & (1_u64 << mechanism_idx) != 0 {
+                    for &profile in archive {
+                        if profile == 0 {
                             continue;
                         }
-                        if !latent.contains(&profile) {
-                            latent.push(profile);
+                        if !profiles.contains(&profile) {
+                            profiles.push(profile);
                         }
                     }
                 }
@@ -1700,25 +1699,37 @@ impl MechanismCache {
         }
     }
 
-    fn sample_local_latent_profile<R: Rng + ?Sized>(
+    fn local_persistence_sampling_probability(&self, active_profile_count: usize) -> f64 {
+        if !self.local_mechanism_persistence_enabled
+            || self.local_mechanism_persistence_virtual_profile_mass <= 0.0
+            || self.local_mechanism_persistence_max_sampling_probability <= 0.0
+        {
+            return 0.0;
+        }
+
+        let virtual_mass = self.local_mechanism_persistence_virtual_profile_mass;
+        let probability = virtual_mass / (active_profile_count as f64 + virtual_mass);
+        probability.min(self.local_mechanism_persistence_max_sampling_probability)
+    }
+
+    fn sample_local_persistence_profile<R: Rng + ?Sized>(
         &self,
         region_idx: usize,
         bacteria_idx: usize,
         hospital: bool,
+        active_profile_count: usize,
         rng: &mut R,
     ) -> Option<MechanismProfileSample> {
         if !self.local_mechanism_persistence_enabled
-            || self.local_mechanism_persistence_reactivation_probability <= 0.0
             || region_idx >= self.num_regions
             || bacteria_idx >= self.num_bacteria
         {
             return None;
         }
 
-        let candidates = &self.latent_profiles[region_idx][hospital as usize][bacteria_idx];
-        if candidates.is_empty()
-            || !rng.gen_bool(self.local_mechanism_persistence_reactivation_probability)
-        {
+        let candidates = &self.persistence_profiles[region_idx][hospital as usize][bacteria_idx];
+        let probability = self.local_persistence_sampling_probability(active_profile_count);
+        if candidates.is_empty() || probability <= 0.0 || !rng.gen_bool(probability) {
             return None;
         }
 
@@ -1771,7 +1782,7 @@ impl MechanismCache {
         }
 
         self.archive_current_profiles();
-        self.rebuild_local_latent_profiles();
+        self.rebuild_local_persistence_profiles();
         self.rebuild_drug_resistance_prevalence(param_cache);
         seeded_slots
     }
@@ -1793,7 +1804,7 @@ impl MechanismCache {
             hospital_retention,
             rng,
         );
-        self.rebuild_local_latent_profiles();
+        self.rebuild_local_persistence_profiles();
         self.rebuild_drug_resistance_prevalence(param_cache);
     }
 
@@ -1882,9 +1893,16 @@ impl MechanismCache {
         hospital: bool,
         rng: &mut R,
     ) -> Option<MechanismProfileSample> {
-        if let Some(sample) =
-            self.sample_local_latent_profile(region_idx, bacteria_idx, hospital, rng)
-        {
+        let active_profile_count = self
+            .selected_slot(region_idx, bacteria_idx, hospital)
+            .map_or(0, <[u64]>::len);
+        if let Some(sample) = self.sample_local_persistence_profile(
+            region_idx,
+            bacteria_idx,
+            hospital,
+            active_profile_count,
+            rng,
+        ) {
             return Some(sample);
         }
         self.profiles
@@ -1982,11 +2000,18 @@ impl MechanismCache {
         concentration_factor: f64,
         rng: &mut R,
     ) -> Option<MechanismProfileSample> {
-        if let Some(sample) = self.sample_local_latent_profile(region_idx, bacteria_idx, true, rng)
-        {
+        let slot = self.selected_slot(region_idx, bacteria_idx, true);
+        let active_profile_count = slot.map_or(0, <[u64]>::len);
+        if let Some(sample) = self.sample_local_persistence_profile(
+            region_idx,
+            bacteria_idx,
+            true,
+            active_profile_count,
+            rng,
+        ) {
             return Some(sample);
         }
-        let Some(slot) = self.selected_slot(region_idx, bacteria_idx, true) else {
+        let Some(slot) = slot else {
             return None;
         };
 
@@ -2034,10 +2059,6 @@ impl MechanismCache {
         if region_idx >= self.profiles.num_regions || bacteria_idx >= self.profiles.num_bacteria {
             return None;
         }
-        if let Some(sample) = self.sample_local_latent_profile(region_idx, bacteria_idx, true, rng)
-        {
-            return Some(sample);
-        }
 
         let hospital_slot = &self.profiles.profiles[region_idx][1][bacteria_idx];
         let community_slot = &self.profiles.profiles[region_idx][0][bacteria_idx];
@@ -2045,14 +2066,8 @@ impl MechanismCache {
 
         let pooled_slot;
         let slot = if hospital_has_resistant {
-            if hospital_slot.is_empty() {
-                return None;
-            }
             hospital_slot.as_slice()
         } else if hospital_slot.is_empty() {
-            if community_slot.is_empty() {
-                return None;
-            }
             community_slot.as_slice()
         } else if community_slot.is_empty() {
             hospital_slot.as_slice()
@@ -2062,11 +2077,17 @@ impl MechanismCache {
                 .chain(community_slot.iter())
                 .copied()
                 .collect::<Vec<u64>>();
-            if pooled_slot.is_empty() {
-                return None;
-            }
             pooled_slot.as_slice()
         };
+
+        if let Some(sample) =
+            self.sample_local_persistence_profile(region_idx, bacteria_idx, true, slot.len(), rng)
+        {
+            return Some(sample);
+        }
+        if slot.is_empty() {
+            return None;
+        }
 
         let prune_probability = (prune_susceptible_percent / 100.0).clamp(0.0, 1.0);
         let use_pruned_slot = prune_probability > 0.0;
@@ -2496,9 +2517,14 @@ pub struct TimeStepSummary {
     #[serde(default)]
     pub new_any_r_infections_in_non_carriers_by_bacteria: Vec<usize>,
     pub newly_infected_count: usize, // Number of people newly infected this time step
-    /// Complete profiles incorporated from a locally established but currently latent archive.
+    /// Complete profiles incorporated into newly established active infections from the local
+    /// historical pseudo-reservoir.
     #[serde(default)]
-    pub local_persistence_profile_reactivations: usize,
+    pub local_persistence_profile_incorporations_infection: usize,
+    /// Complete profiles incorporated into newly acquired carriage from the local historical
+    /// pseudo-reservoir.
+    #[serde(default)]
+    pub local_persistence_profile_incorporations_carriage: usize,
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
     pub newly_infected_with_serious_resistance_count: usize, // Newly infected people with serious-R marker resistance
     pub newly_infected_serious_resistance_marker_eligible_count: usize, // Newly infected people whose bacterium has a serious-R marker
@@ -3193,7 +3219,8 @@ impl Simulation {
                 diagnostic_cascade_stage_counts_by_setting: Vec<usize>,
                 diagnostic_cascade_assignments: Vec<DiagnosticCascadeAssignment>,
                 newly_infected_count: usize,
-                local_persistence_profile_reactivations: usize,
+                local_persistence_profile_incorporations_infection: usize,
+                local_persistence_profile_incorporations_carriage: usize,
                 newly_infected_with_resistance_count: usize,
                 newly_infected_with_serious_resistance_count: usize,
                 newly_infected_serious_resistance_marker_eligible_count: usize,
@@ -3458,7 +3485,8 @@ impl Simulation {
                         },
                         diagnostic_cascade_assignments: Vec::new(),
                         newly_infected_count: 0,
-                        local_persistence_profile_reactivations: 0,
+                        local_persistence_profile_incorporations_infection: 0,
+                        local_persistence_profile_incorporations_carriage: 0,
                         newly_infected_with_resistance_count: 0,
                         newly_infected_with_serious_resistance_count: 0,
                         newly_infected_serious_resistance_marker_eligible_count: 0,
@@ -4038,8 +4066,10 @@ impl Simulation {
                     self.diagnostic_cascade_assignments
                         .extend(other.diagnostic_cascade_assignments);
                     self.newly_infected_count += other.newly_infected_count;
-                    self.local_persistence_profile_reactivations +=
-                        other.local_persistence_profile_reactivations;
+                    self.local_persistence_profile_incorporations_infection +=
+                        other.local_persistence_profile_incorporations_infection;
+                    self.local_persistence_profile_incorporations_carriage +=
+                        other.local_persistence_profile_incorporations_carriage;
                     self.newly_infected_with_resistance_count +=
                         other.newly_infected_with_resistance_count;
                     self.newly_infected_with_serious_resistance_count +=
@@ -4872,8 +4902,10 @@ impl Simulation {
                         param_cache,
                         &policy,
                     );
-                    lt.local_persistence_profile_reactivations +=
-                        rule_events.local_persistence_profile_reactivations;
+                    lt.local_persistence_profile_incorporations_infection +=
+                        rule_events.local_persistence_profile_incorporations_infection;
+                    lt.local_persistence_profile_incorporations_carriage +=
+                        rule_events.local_persistence_profile_incorporations_carriage;
 
                     let died_today = individual.date_of_death == Some(t);
                     if collect_testing_stats {
@@ -6021,7 +6053,8 @@ impl Simulation {
                 diagnostic_cascade_stage_counts_by_setting,
                 diagnostic_cascade_assignments,
                 newly_infected_count,
-                local_persistence_profile_reactivations,
+                local_persistence_profile_incorporations_infection,
+                local_persistence_profile_incorporations_carriage,
                 newly_infected_with_resistance_count,
                 newly_infected_with_serious_resistance_count,
                 newly_infected_serious_resistance_marker_eligible_count,
@@ -6268,7 +6301,8 @@ impl Simulation {
                 diagnostic_cascade_stage_counts_by_setting,
                 infections_prevented_by_drug_by_bacteria,
                 newly_infected_count,
-                local_persistence_profile_reactivations,
+                local_persistence_profile_incorporations_infection,
+                local_persistence_profile_incorporations_carriage,
                 newly_infected_with_resistance_count,
                 newly_infected_with_serious_resistance_count,
                 newly_infected_serious_resistance_marker_eligible_count,
@@ -6930,7 +6964,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_taking_drug_count_other_no_active_modelled_infection,currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection,currently_taking_drug_count_other_unknown_or_legacy,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,local_persistence_profile_reactivations,newly_infected_with_resistance_count,newly_infected_with_serious_resistance_count,newly_infected_serious_resistance_marker_eligible_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,diagnostic_cascade_eligible_symptomatic_infections,diagnostic_cascade_bacterial_identification_done,diagnostic_cascade_resistance_testing_done,diagnostic_cascade_targeted_treatment_started,diagnostic_cascade_effective_targeted_treatment_started,diagnostic_cascade_eligible_symptomatic_infections_community,diagnostic_cascade_bacterial_identification_done_community,diagnostic_cascade_resistance_testing_done_community,diagnostic_cascade_targeted_treatment_started_community,diagnostic_cascade_effective_targeted_treatment_started_community,diagnostic_cascade_eligible_symptomatic_infections_hospital,diagnostic_cascade_bacterial_identification_done_hospital,diagnostic_cascade_resistance_testing_done_hospital,diagnostic_cascade_targeted_treatment_started_hospital,diagnostic_cascade_effective_targeted_treatment_started_hospital,sepsis_onset_no_antibiotic_count,sepsis_onset_other_or_prophylaxis_only_count,sepsis_onset_empiric_not_effective_count,sepsis_onset_empiric_effective_count,sepsis_onset_targeted_not_effective_count,sepsis_onset_targeted_effective_count,sepsis_onset_unknown_legacy_count,sepsis_effective_therapy_on_or_before_onset_count,sepsis_effective_therapy_later_same_day_count,sepsis_effective_therapy_1_day_count,sepsis_effective_therapy_2_3_days_count,sepsis_effective_therapy_4plus_days_count,sepsis_no_effective_therapy_before_resolution_death_or_censoring_count,sepsis_no_effective_therapy_before_recovery_count,sepsis_no_effective_therapy_before_death_count,sepsis_no_effective_therapy_before_censoring_count,sepsis_no_effective_therapy_unknown_count,sepsis_effective_therapy_unknown_or_censored_count,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_taking_drug_count_other_no_active_modelled_infection,currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection,currently_taking_drug_count_other_unknown_or_legacy,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,local_persistence_profile_incorporations_total,local_persistence_profile_incorporations_infection,local_persistence_profile_incorporations_carriage,newly_infected_with_resistance_count,newly_infected_with_serious_resistance_count,newly_infected_serious_resistance_marker_eligible_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,diagnostic_cascade_eligible_symptomatic_infections,diagnostic_cascade_bacterial_identification_done,diagnostic_cascade_resistance_testing_done,diagnostic_cascade_targeted_treatment_started,diagnostic_cascade_effective_targeted_treatment_started,diagnostic_cascade_eligible_symptomatic_infections_community,diagnostic_cascade_bacterial_identification_done_community,diagnostic_cascade_resistance_testing_done_community,diagnostic_cascade_targeted_treatment_started_community,diagnostic_cascade_effective_targeted_treatment_started_community,diagnostic_cascade_eligible_symptomatic_infections_hospital,diagnostic_cascade_bacterial_identification_done_hospital,diagnostic_cascade_resistance_testing_done_hospital,diagnostic_cascade_targeted_treatment_started_hospital,diagnostic_cascade_effective_targeted_treatment_started_hospital,sepsis_onset_no_antibiotic_count,sepsis_onset_other_or_prophylaxis_only_count,sepsis_onset_empiric_not_effective_count,sepsis_onset_empiric_effective_count,sepsis_onset_targeted_not_effective_count,sepsis_onset_targeted_effective_count,sepsis_onset_unknown_legacy_count,sepsis_effective_therapy_on_or_before_onset_count,sepsis_effective_therapy_later_same_day_count,sepsis_effective_therapy_1_day_count,sepsis_effective_therapy_2_3_days_count,sepsis_effective_therapy_4plus_days_count,sepsis_no_effective_therapy_before_resolution_death_or_censoring_count,sepsis_no_effective_therapy_before_recovery_count,sepsis_no_effective_therapy_before_death_count,sepsis_no_effective_therapy_before_censoring_count,sepsis_no_effective_therapy_unknown_count,sepsis_effective_therapy_unknown_or_censored_count,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -7764,7 +7798,16 @@ impl Simulation {
             append_scalar(format_args!("{}", summary.newly_infected_count))?;
             append_scalar(format_args!(
                 "{}",
-                summary.local_persistence_profile_reactivations
+                summary.local_persistence_profile_incorporations_infection
+                    + summary.local_persistence_profile_incorporations_carriage
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.local_persistence_profile_incorporations_infection
+            ))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.local_persistence_profile_incorporations_carriage
             ))?;
             append_scalar(format_args!(
                 "{}",
@@ -8665,31 +8708,39 @@ mod tests {
     }
 
     #[test]
-    fn local_persistence_reactivates_one_complete_archived_genotype_after_local_loss() {
+    fn local_persistence_samples_one_complete_archived_genotype_while_active() {
         let param_cache = ParameterKeyCache::new();
         let num_mechanisms = ResistanceMechanism::all().len();
         let archived_profile = (1u64 << 0) | (1u64 << 1);
         let mut cache = MechanismCache::new(1, 1, num_mechanisms);
-        cache.local_mechanism_persistence_reactivation_probability = 1.0;
+        cache.local_mechanism_persistence_virtual_profile_mass = f64::MAX;
+        cache.local_mechanism_persistence_max_sampling_probability = 1.0;
         let mut rng = SmallRng::seed_from_u64(101);
 
         let mut observed = MechanismProfileCache::new(1, 1, num_mechanisms);
-        observed.profiles[0][0][0] = vec![archived_profile];
-        observed.total_seen[0][0][0] = 1;
+        observed.profiles[0][0][0] = vec![archived_profile, 0];
+        observed.total_seen[0][0][0] = 2;
         cache.update_profiles(0.0, 0.0, observed, &param_cache, &mut rng);
-        assert!(cache.latent_profiles[0][0][0].is_empty());
 
-        let mut susceptible = MechanismProfileCache::new(1, 1, num_mechanisms);
-        susceptible.profiles[0][0][0] = vec![0];
-        susceptible.total_seen[0][0][0] = 1;
-        cache.update_profiles(0.0, 0.0, susceptible, &param_cache, &mut rng);
-
-        assert_eq!(cache.latent_profiles[0][0][0], vec![archived_profile]);
+        assert_eq!(cache.persistence_profiles[0][0][0], vec![archived_profile]);
         let sample = cache
             .sample_profile(0, 0, false, &mut rng)
-            .expect("latent profile should reactivate at probability one");
+            .expect("the local pseudo-reservoir should be sampled at probability one");
         assert_eq!(sample.mask, archived_profile);
         assert!(sample.from_local_persistence);
+    }
+
+    #[test]
+    fn local_persistence_sampling_probability_uses_bounded_virtual_mass() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let mut cache = MechanismCache::new(1, 1, num_mechanisms);
+        cache.local_mechanism_persistence_virtual_profile_mass = 10.0;
+        cache.local_mechanism_persistence_max_sampling_probability = 0.10;
+
+        assert!((cache.local_persistence_sampling_probability(1000) - 10.0 / 1010.0).abs() < 1e-12);
+        assert!((cache.local_persistence_sampling_probability(100) - 10.0 / 110.0).abs() < 1e-12);
+        assert_eq!(cache.local_persistence_sampling_probability(90), 0.10);
+        assert_eq!(cache.local_persistence_sampling_probability(0), 0.10);
     }
 
     #[test]
@@ -8698,7 +8749,8 @@ mod tests {
         let num_mechanisms = ResistanceMechanism::all().len();
         let archived_profile = 1u64 << 0;
         let mut cache = MechanismCache::new(2, 1, num_mechanisms);
-        cache.local_mechanism_persistence_reactivation_probability = 1.0;
+        cache.local_mechanism_persistence_virtual_profile_mass = f64::MAX;
+        cache.local_mechanism_persistence_max_sampling_probability = 1.0;
         let mut rng = SmallRng::seed_from_u64(102);
 
         let mut observed = MechanismProfileCache::new(2, 1, num_mechanisms);
@@ -8706,19 +8758,14 @@ mod tests {
         observed.total_seen[0][0][0] = 1;
         cache.update_profiles(0.0, 0.0, observed, &param_cache, &mut rng);
 
-        let mut susceptible = MechanismProfileCache::new(2, 1, num_mechanisms);
-        susceptible.profiles[0][0][0] = vec![0];
-        susceptible.total_seen[0][0][0] = 1;
-        cache.update_profiles(0.0, 0.0, susceptible, &param_cache, &mut rng);
-
         assert!(cache
-            .sample_local_latent_profile(0, 0, false, &mut rng)
+            .sample_local_persistence_profile(0, 0, false, 1, &mut rng)
             .is_some());
         assert!(cache
-            .sample_local_latent_profile(1, 0, false, &mut rng)
+            .sample_local_persistence_profile(1, 0, false, 1, &mut rng)
             .is_none());
         assert!(cache
-            .sample_local_latent_profile(0, 0, true, &mut rng)
+            .sample_local_persistence_profile(0, 0, true, 1, &mut rng)
             .is_none());
     }
 
@@ -8735,21 +8782,17 @@ mod tests {
         observed.total_seen[0][0][0] = 1;
         cache.update_profiles(0.0, 0.0, observed, &param_cache, &mut rng);
 
-        let mut susceptible = MechanismProfileCache::new(1, 1, num_mechanisms);
-        susceptible.profiles[0][0][0] = vec![0];
-        susceptible.total_seen[0][0][0] = 1;
-        cache.update_profiles(0.0, 0.0, susceptible, &param_cache, &mut rng);
-
-        assert_eq!(cache.latent_profiles[0][0][0], vec![archived_profile]);
+        assert_eq!(cache.persistence_profiles[0][0][0], vec![archived_profile]);
     }
 
     #[test]
-    fn local_persistence_toggle_disables_reactivation_without_erasing_history() {
+    fn local_persistence_toggle_disables_sampling_without_erasing_history() {
         let param_cache = ParameterKeyCache::new();
         let num_mechanisms = ResistanceMechanism::all().len();
         let archived_profile = 1u64 << 0;
         let mut cache = MechanismCache::new(1, 1, num_mechanisms);
-        cache.local_mechanism_persistence_reactivation_probability = 1.0;
+        cache.local_mechanism_persistence_virtual_profile_mass = f64::MAX;
+        cache.local_mechanism_persistence_max_sampling_probability = 1.0;
         let mut rng = SmallRng::seed_from_u64(104);
 
         let mut observed = MechanismProfileCache::new(1, 1, num_mechanisms);
@@ -8757,15 +8800,11 @@ mod tests {
         observed.total_seen[0][0][0] = 1;
         cache.update_profiles(0.0, 0.0, observed, &param_cache, &mut rng);
 
-        let mut susceptible = MechanismProfileCache::new(1, 1, num_mechanisms);
-        susceptible.profiles[0][0][0] = vec![0];
-        susceptible.total_seen[0][0][0] = 1;
-        cache.update_profiles(0.0, 0.0, susceptible, &param_cache, &mut rng);
         cache.local_mechanism_persistence_enabled = false;
 
-        assert_eq!(cache.latent_profiles[0][0][0], vec![archived_profile]);
+        assert_eq!(cache.persistence_profiles[0][0][0], vec![archived_profile]);
         assert!(cache
-            .sample_local_latent_profile(0, 0, false, &mut rng)
+            .sample_local_persistence_profile(0, 0, false, 1, &mut rng)
             .is_none());
     }
 

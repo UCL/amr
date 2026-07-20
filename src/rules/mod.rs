@@ -20,7 +20,7 @@
 //   5. Drug selection and treatment initiation
 //   6. Drug effects (level decay, activity calculations, toxicity)
 //   7. Infection clearance (immune or drug-assisted)
-//   8. Resistance dynamics (emergence, HGT, reversion, floors)
+//   8. Resistance dynamics (emergence, HGT, reversion, persistence pathways)
 //   9. Microbiome dynamics (colonization, clearance)
 //   10. Mortality check
 //
@@ -37,7 +37,7 @@
 //   - update_resistance_from_drug_use(): De novo emergence during treatment
 //   - apply_hgt(): Horizontal gene transfer between bacteria
 //   - apply_resistance_reversion(): Fitness-cost-driven resistance decay
-//   - apply_resistance_floors(): Maintain minimum resistance for rare bacteria
+//   - exogenous_mechanism_floor_probability(): Environmental and ratchet reseeding
 //
 // Infection:
 //   - infection_acquisition(): Check for new infections
@@ -2442,7 +2442,8 @@ fn collect_regional_surveillance_bacteria<'a>(
 
 #[derive(Default)]
 pub(crate) struct RuleEvents {
-    pub local_persistence_profile_reactivations: usize,
+    pub local_persistence_profile_incorporations_infection: usize,
+    pub local_persistence_profile_incorporations_carriage: usize,
 }
 
 /// applies model rules to an individual for one time step.
@@ -5620,7 +5621,7 @@ pub(crate) fn apply_rules(
                                     param_cache,
                                 );
                                 if profile.from_local_persistence {
-                                    events.local_persistence_profile_reactivations += 1;
+                                    events.local_persistence_profile_incorporations_carriage += 1;
                                 }
                             }
                         }
@@ -6063,7 +6064,7 @@ pub(crate) fn apply_rules(
                         individual.mechanism_any[b_idx] = incoming_any_mask;
                         individual.mechanism_majority[b_idx] = incoming_majority_mask;
                         if sampled_from_local_persistence {
-                            events.local_persistence_profile_reactivations += 1;
+                            events.local_persistence_profile_incorporations_infection += 1;
                         }
 
                         propagate_mechanism_resistance(

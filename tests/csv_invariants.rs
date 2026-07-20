@@ -301,6 +301,34 @@ fn csv_header(path: &Path) -> csv::StringRecord {
         .expect("header row should parse")
 }
 
+fn assert_local_persistence_counters_sum(path: &Path) {
+    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
+    let header = reader
+        .headers()
+        .expect("CSV should include headers")
+        .clone();
+    let index = |name: &str| {
+        header
+            .iter()
+            .position(|column| column == name)
+            .unwrap_or_else(|| panic!("summary CSV should include {name}"))
+    };
+    let total_idx = index("local_persistence_profile_incorporations_total");
+    let infection_idx = index("local_persistence_profile_incorporations_infection");
+    let carriage_idx = index("local_persistence_profile_incorporations_carriage");
+
+    for row in reader.records() {
+        let row = row.expect("CSV row should parse");
+        let parse = |idx: usize| {
+            row.get(idx)
+                .expect("counter column should exist")
+                .parse::<usize>()
+                .expect("counter should be an integer")
+        };
+        assert_eq!(parse(total_idx), parse(infection_idx) + parse(carriage_idx));
+    }
+}
+
 fn assert_summary_has_figure_11_columns(path: &Path) {
     let header = csv_header(path);
     let expected = [
@@ -474,6 +502,8 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     summary.currently_infected_community_count_by_bacteria = vec![11; BACTERIA_LIST.len()];
     summary.resistant_infected_hospital_count_by_bacteria = vec![3; BACTERIA_LIST.len()];
     summary.resistant_infected_community_count_by_bacteria = vec![5; BACTERIA_LIST.len()];
+    summary.local_persistence_profile_incorporations_infection = 7;
+    summary.local_persistence_profile_incorporations_carriage = 11;
     let bacteria_drug_len = BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len();
     summary.infected_with_any_r_positive_by_bacteria_drug = vec![6; bacteria_drug_len];
     summary.infected_with_any_r_positive_hospital_by_bacteria_drug = vec![2; bacteria_drug_len];
@@ -491,6 +521,7 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
         .expect("summary export should succeed");
 
     assert_csv_rows_match_header_width(&path);
+    assert_local_persistence_counters_sum(&path);
     assert_new_infection_split_columns_preserve_bacterium_values(&path);
     assert_antibiotic_context_counts_sum(&path);
     assert_new_infection_resistance_counts_bounded(&path);
