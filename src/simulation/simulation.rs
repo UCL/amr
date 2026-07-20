@@ -804,6 +804,31 @@ fn ensure_sepsis_episode_state(individual: &mut Individual, num_bacteria: usize)
         .resize(num_bacteria, false);
 }
 
+fn has_active_sepsis(individual: &Individual) -> bool {
+    individual
+        .sepsis
+        .iter()
+        .enumerate()
+        .any(|(b_idx, &is_septic)| is_septic && individual.level[b_idx] > INFECTION_EPS)
+}
+
+fn is_new_person_level_sepsis_case(
+    individual: &Individual,
+    had_active_sepsis_before_rules: bool,
+    time_step: usize,
+) -> bool {
+    !had_active_sepsis_before_rules
+        && individual
+            .sepsis
+            .iter()
+            .enumerate()
+            .any(|(b_idx, &is_septic)| {
+                is_septic
+                    && individual.level[b_idx] > INFECTION_EPS
+                    && individual.sepsis_onset_day[b_idx] == time_step as i32
+            })
+}
+
 fn ensure_diagnostic_cascade_state(individual: &mut Individual, num_bacteria: usize) {
     individual
         .diagnostic_cascade_open
@@ -2431,6 +2456,9 @@ pub struct TimeStepSummary {
     pub number_in_hospital: usize,
     pub number_severely_immunosuppressed: usize,
     pub number_with_sepsis: usize,
+    /// People transitioning from no active sepsis to active sepsis this timestep.
+    #[serde(default)]
+    pub new_sepsis_cases: usize,
     pub number_with_sepsis_by_bacteria: Vec<usize>, // per-bacteria counts of people with sepsis
     pub new_sepsis_cases_by_bacteria: Vec<usize>, // per-bacteria counts of people who developed sepsis this timestep
     #[serde(default)]
@@ -3191,6 +3219,7 @@ impl Simulation {
                 number_in_hospital: usize,
                 number_severely_immunosuppressed: usize,
                 number_with_sepsis: usize,
+                new_sepsis_cases: usize,
                 number_with_sepsis_by_bacteria: Vec<usize>,
                 new_sepsis_cases_by_bacteria: Vec<usize>,
                 sepsis_onset_context_counts: Vec<usize>,
@@ -3439,6 +3468,7 @@ impl Simulation {
                         number_in_hospital: 0,
                         number_severely_immunosuppressed: 0,
                         number_with_sepsis: 0,
+                        new_sepsis_cases: 0,
                         number_with_sepsis_by_bacteria: vec![0; num_bacteria],
                         new_sepsis_cases_by_bacteria: vec![0; num_bacteria],
                         sepsis_onset_context_counts: vec![0; SEPSIS_CONTEXT_CATEGORY_COUNT],
@@ -3994,6 +4024,7 @@ impl Simulation {
                     self.number_in_hospital += other.number_in_hospital;
                     self.number_severely_immunosuppressed += other.number_severely_immunosuppressed;
                     self.number_with_sepsis += other.number_with_sepsis;
+                    self.new_sepsis_cases += other.new_sepsis_cases;
                     for (a, b) in self
                         .number_with_sepsis_by_bacteria
                         .iter_mut()
@@ -4846,9 +4877,10 @@ impl Simulation {
                         }
                     }
 
-                    // Snapshot current therapy before same-day rule updates can start or stop drugs.
+                    // Snapshot current therapy and sepsis state before same-day rule updates.
                     ensure_sepsis_episode_state(individual, num_bacteria);
                     ensure_diagnostic_cascade_state(individual, num_bacteria);
+                    let had_active_sepsis_before_rules = has_active_sepsis(individual);
                     if individual.date_of_death.is_none() && individual.age >= 0 {
                         for b_idx in 0..num_bacteria {
                             if individual.level[b_idx] > INFECTION_EPS
@@ -4888,6 +4920,14 @@ impl Simulation {
                         rule_events.local_persistence_profile_incorporations_infection;
                     lt.local_persistence_profile_incorporations_carriage +=
                         rule_events.local_persistence_profile_incorporations_carriage;
+
+                    if is_new_person_level_sepsis_case(
+                        individual,
+                        had_active_sepsis_before_rules,
+                        t,
+                    ) {
+                        lt.new_sepsis_cases += 1;
+                    }
 
                     let died_today = individual.date_of_death == Some(t);
                     if collect_testing_stats {
@@ -6025,6 +6065,7 @@ impl Simulation {
                 number_in_hospital,
                 number_severely_immunosuppressed,
                 number_with_sepsis,
+                new_sepsis_cases,
                 number_with_sepsis_by_bacteria,
                 new_sepsis_cases_by_bacteria,
                 sepsis_onset_context_counts,
@@ -6274,6 +6315,7 @@ impl Simulation {
                 number_in_hospital,
                 number_severely_immunosuppressed,
                 number_with_sepsis,
+                new_sepsis_cases,
                 number_with_sepsis_by_bacteria,
                 new_sepsis_cases_by_bacteria,
                 sepsis_onset_context_counts,
@@ -6946,7 +6988,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_taking_drug_count_other_no_active_modelled_infection,currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection,currently_taking_drug_count_other_unknown_or_legacy,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,local_persistence_profile_incorporations_total,local_persistence_profile_incorporations_infection,local_persistence_profile_incorporations_carriage,newly_infected_with_resistance_count,newly_infected_with_serious_resistance_count,newly_infected_serious_resistance_marker_eligible_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,diagnostic_cascade_eligible_symptomatic_infections,diagnostic_cascade_bacterial_identification_done,diagnostic_cascade_resistance_testing_done,diagnostic_cascade_targeted_treatment_started,diagnostic_cascade_effective_targeted_treatment_started,diagnostic_cascade_eligible_symptomatic_infections_community,diagnostic_cascade_bacterial_identification_done_community,diagnostic_cascade_resistance_testing_done_community,diagnostic_cascade_targeted_treatment_started_community,diagnostic_cascade_effective_targeted_treatment_started_community,diagnostic_cascade_eligible_symptomatic_infections_hospital,diagnostic_cascade_bacterial_identification_done_hospital,diagnostic_cascade_resistance_testing_done_hospital,diagnostic_cascade_targeted_treatment_started_hospital,diagnostic_cascade_effective_targeted_treatment_started_hospital,sepsis_onset_no_antibiotic_count,sepsis_onset_other_or_prophylaxis_only_count,sepsis_onset_empiric_not_effective_count,sepsis_onset_empiric_effective_count,sepsis_onset_targeted_not_effective_count,sepsis_onset_targeted_effective_count,sepsis_onset_unknown_legacy_count,sepsis_effective_therapy_on_or_before_onset_count,sepsis_effective_therapy_later_same_day_count,sepsis_effective_therapy_1_day_count,sepsis_effective_therapy_2_3_days_count,sepsis_effective_therapy_4plus_days_count,sepsis_no_effective_therapy_before_resolution_death_or_censoring_count,sepsis_no_effective_therapy_before_recovery_count,sepsis_no_effective_therapy_before_death_count,sepsis_no_effective_therapy_before_censoring_count,sepsis_no_effective_therapy_unknown_count,sepsis_effective_therapy_unknown_or_censored_count,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,new_sepsis_cases,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_taking_drug_count_empiric,currently_taking_drug_count_targeted,currently_taking_drug_count_prophylaxis,currently_taking_drug_count_other,currently_taking_drug_count_other_no_active_modelled_infection,currently_taking_drug_count_other_active_asymptomatic_modelled_bacterial_infection,currently_taking_drug_count_other_unknown_or_legacy,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,local_persistence_profile_incorporations_total,local_persistence_profile_incorporations_infection,local_persistence_profile_incorporations_carriage,newly_infected_with_resistance_count,newly_infected_with_serious_resistance_count,newly_infected_serious_resistance_marker_eligible_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,diagnostic_cascade_eligible_symptomatic_infections,diagnostic_cascade_bacterial_identification_done,diagnostic_cascade_resistance_testing_done,diagnostic_cascade_targeted_treatment_started,diagnostic_cascade_effective_targeted_treatment_started,diagnostic_cascade_eligible_symptomatic_infections_community,diagnostic_cascade_bacterial_identification_done_community,diagnostic_cascade_resistance_testing_done_community,diagnostic_cascade_targeted_treatment_started_community,diagnostic_cascade_effective_targeted_treatment_started_community,diagnostic_cascade_eligible_symptomatic_infections_hospital,diagnostic_cascade_bacterial_identification_done_hospital,diagnostic_cascade_resistance_testing_done_hospital,diagnostic_cascade_targeted_treatment_started_hospital,diagnostic_cascade_effective_targeted_treatment_started_hospital,sepsis_onset_no_antibiotic_count,sepsis_onset_other_or_prophylaxis_only_count,sepsis_onset_empiric_not_effective_count,sepsis_onset_empiric_effective_count,sepsis_onset_targeted_not_effective_count,sepsis_onset_targeted_effective_count,sepsis_onset_unknown_legacy_count,sepsis_effective_therapy_on_or_before_onset_count,sepsis_effective_therapy_later_same_day_count,sepsis_effective_therapy_1_day_count,sepsis_effective_therapy_2_3_days_count,sepsis_effective_therapy_4plus_days_count,sepsis_no_effective_therapy_before_resolution_death_or_censoring_count,sepsis_no_effective_therapy_before_recovery_count,sepsis_no_effective_therapy_before_death_count,sepsis_no_effective_therapy_before_censoring_count,sepsis_no_effective_therapy_unknown_count,sepsis_effective_therapy_unknown_or_censored_count,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -7738,6 +7780,7 @@ impl Simulation {
             append_scalar(format_args!("{}", summary.number_in_hospital))?;
             append_scalar(format_args!("{}", summary.number_severely_immunosuppressed))?;
             append_scalar(format_args!("{}", summary.number_with_sepsis))?;
+            append_scalar(format_args!("{}", summary.new_sepsis_cases))?;
             append_scalar(format_args!("{}", summary.total_currently_infected))?;
             append_scalar(format_args!("{}", summary.infected_10_days_count))?;
             append_scalar(format_args!("{}", summary.infected_21_days_count))?;
@@ -8569,8 +8612,9 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::{
-        current_antibiotic_context_priority, sample_hypergeometric_left_count, MechanismCache,
-        MechanismProfileCache, MAX_MECHANISM_PROFILES,
+        current_antibiotic_context_priority, is_new_person_level_sepsis_case,
+        sample_hypergeometric_left_count, MechanismCache, MechanismProfileCache,
+        MAX_MECHANISM_PROFILES,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
@@ -8589,6 +8633,22 @@ mod tests {
         cache.profiles[0][h][0] = profiles;
         cache.total_seen[0][h][0] = total_seen;
         cache
+    }
+
+    #[test]
+    fn person_level_sepsis_incidence_counts_one_transition_across_bacteria() {
+        let mut rng = SmallRng::seed_from_u64(73);
+        let mut individual = Individual::new(1, 40 * 365, "female".to_string(), &mut rng);
+        individual.level[0] = 2.0;
+        individual.level[1] = 3.0;
+        individual.sepsis[0] = true;
+        individual.sepsis[1] = true;
+        individual.sepsis_onset_day[0] = 12;
+        individual.sepsis_onset_day[1] = 12;
+
+        assert!(is_new_person_level_sepsis_case(&individual, false, 12));
+        assert!(!is_new_person_level_sepsis_case(&individual, true, 12));
+        assert!(!is_new_person_level_sepsis_case(&individual, false, 13));
     }
 
     #[test]

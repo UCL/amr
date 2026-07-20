@@ -1158,15 +1158,19 @@ def _build_headline_table(
         scaled_infection_deaths / 1e6 if scaled_infection_deaths else 0.0
     )
 
-    # Calculate incident cases of sepsis (summing per-bacteria incident cases)
-    sepsis_inc_cols = [c for c in year_df.columns if c.endswith("_new_sepsis_cases")]
-    if sepsis_inc_cols:
-        raw_sepsis_sum = float(year_df[sepsis_inc_cols].sum().sum())
+    # New outputs count each person once when they transition into active sepsis.
+    # Retain the per-bacterium sum only as a compatibility fallback for older CSVs.
+    if "new_sepsis_cases" in year_df.columns:
+        raw_sepsis_sum = float(year_df["new_sepsis_cases"].sum())
         annualized_sepsis = _annualize_sum(raw_sepsis_sum)
         scaled_sepsis = annualized_sepsis * scale_factor
         aggregations["sepsis_incident_cases_millions"] = scaled_sepsis / 1e6
     else:
-        aggregations["sepsis_incident_cases_millions"] = np.nan
+        sepsis_inc_cols = [c for c in year_df.columns if c.endswith("_new_sepsis_cases")]
+        raw_sepsis_sum = float(year_df[sepsis_inc_cols].sum().sum()) if sepsis_inc_cols else np.nan
+        annualized_sepsis = _annualize_sum(raw_sepsis_sum)
+        scaled_sepsis = annualized_sepsis * scale_factor
+        aggregations["sepsis_incident_cases_millions"] = scaled_sepsis / 1e6
 
     if "currently_taking_drug_count" in year_df:
         people_on_drug = year_df["currently_taking_drug_count"].mean(skipna=True)

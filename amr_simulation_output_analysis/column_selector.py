@@ -21,6 +21,7 @@ CORE_COLUMNS = {
     'number_in_hospital',
     'number_severely_immunosuppressed',
     'number_with_sepsis',
+    'new_sepsis_cases',
     'total_currently_infected',
     'infected_10_days_count',
     'infected_21_days_count',

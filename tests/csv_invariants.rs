@@ -360,6 +360,14 @@ fn assert_summary_has_figure_11_columns(path: &Path) {
     }
 }
 
+fn assert_summary_has_person_level_sepsis_incidence(path: &Path) {
+    let header = csv_header(path);
+    assert!(
+        header.iter().any(|column| column == "new_sepsis_cases"),
+        "summary CSV should include unique person-level sepsis incidence"
+    );
+}
+
 fn assert_summary_has_supplementary_figure_s1_columns(path: &Path) {
     let header = csv_header(path);
     let expected = [
@@ -526,6 +534,7 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     assert_antibiotic_context_counts_sum(&path);
     assert_new_infection_resistance_counts_bounded(&path);
     assert_resistance_care_setting_counts_bounded(&path);
+    assert_summary_has_person_level_sepsis_incidence(&path);
     assert_summary_has_figure_11_columns(&path);
     assert_summary_has_supplementary_figure_s1_columns(&path);
     assert_summary_has_supplementary_table_s1_columns(&path);
