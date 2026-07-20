@@ -2640,12 +2640,6 @@ pub struct TimeStepSummary {
     // per-bacteria, per-drug MIC sum values for infected individuals (flat, len = bacteria * drugs)
     pub mic_sum_by_bacteria_drug: Vec<f64>,
 
-    // per-region any_r sum values pooled across all bacteria and drugs (indexed by region)
-    pub any_r_sum_by_region: Vec<f64>,
-
-    // per-region count of infected individuals (for calculating mean) (indexed by region)
-    pub infected_count_by_region: Vec<usize>,
-
     // per-drug currently on drug counts (indexed by drug)
     pub currently_on_drug_by_drug: Vec<usize>,
 
@@ -3357,10 +3351,6 @@ impl Simulation {
                 infected_with_any_r_positive_community_by_bacteria_drug: Vec<usize>,
                 /// per-bacteria, per-drug sum of MIC values for infected individuals (flat, len = bacteria * drugs)
                 mic_sum_by_bacteria_drug: Vec<f64>,
-                /// per-region sum of any_r values pooled across all bacteria and drugs (indexed by region)
-                any_r_sum_by_region: Vec<f64>,
-                /// per-region count of infected individuals (for calculating mean) (indexed by region)
-                infected_count_by_region: Vec<usize>,
                 /// per-bacteria, per-resistance-mechanism counts (flat, len = bacteria * mechanisms)
                 infected_with_bacteria_and_mechanism: Vec<usize>,
                 /// per-bacteria active infection-days with at least one resistance mechanism
@@ -3729,8 +3719,6 @@ impl Simulation {
                                 Vec::new()
                             },
                         mic_sum_by_bacteria_drug: vec![0.0; bacteria_drug_len],
-                        any_r_sum_by_region: vec![0.0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania (excluding Home)
-                        infected_count_by_region: vec![0; 6], // 6 regions
                         infected_with_bacteria_and_mechanism: vec![
                             0;
                             num_bacteria
@@ -4483,20 +4471,6 @@ impl Simulation {
                         *a += b;
                     }
                     for (a, b) in self
-                        .any_r_sum_by_region
-                        .iter_mut()
-                        .zip(other.any_r_sum_by_region)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
-                        .infected_count_by_region
-                        .iter_mut()
-                        .zip(other.infected_count_by_region)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
                         .infected_with_bacteria_and_mechanism
                         .iter_mut()
                         .zip(other.infected_with_bacteria_and_mechanism)
@@ -4770,18 +4744,10 @@ impl Simulation {
                         let on_any_drug_current = individual.cur_use_drug.iter().any(|&x| x);
                         let has_active_drug_course = individual.date_drug_initiated.iter().any(|&day| day != i32::MIN);
 
-                        if has_any_infection {
-                            let effective_region = get_effective_region(individual);
-                            let region_idx = region_to_index(effective_region);
-                            lt.infected_count_by_region[region_idx] += 1;
-                        }
-
                         if has_any_infection || has_any_microbiome || on_any_drug_current || has_active_drug_course {
-                            let effective_region_idx_for_any_r = if has_any_infection {
-                                Some(region_to_index(get_effective_region(individual)))
-                            } else {
-                                None
-                            };
+                            let effective_region_idx_for_profiles = has_any_infection.then(|| {
+                                region_to_index(get_effective_region(individual))
+                            });
 
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
@@ -4821,9 +4787,6 @@ impl Simulation {
                                             if record_as_hosp {
                                                 lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += any_r;
                                             }
-                                        }
-                                        if let Some(region_idx) = effective_region_idx_for_any_r {
-                                            lt.any_r_sum_by_region[region_idx] += any_r;
                                         }
                                     }
 
@@ -4871,7 +4834,7 @@ impl Simulation {
                                     }
 
                                     // Record majority-strain mechanism profiles for acquisition sampling.
-                                    if let Some(r_idx) = effective_region_idx_for_any_r {
+                                    if let Some(r_idx) = effective_region_idx_for_profiles {
                                         lt.mechanism_profiles.record(
                                             r_idx,
                                             b_idx,
@@ -6211,8 +6174,6 @@ impl Simulation {
                 infected_with_any_r_positive_hospital_by_bacteria_drug,
                 infected_with_any_r_positive_community_by_bacteria_drug,
                 mic_sum_by_bacteria_drug,
-                any_r_sum_by_region,
-                infected_count_by_region,
                 infected_with_bacteria_and_mechanism,
                 infection_days_with_any_resistance_mechanism_by_bacteria,
                 infection_days_with_resistance_mechanism_family_by_bacteria,
@@ -6338,8 +6299,6 @@ impl Simulation {
                 infected_with_any_r_positive_hospital_by_bacteria_drug,
                 infected_with_any_r_positive_community_by_bacteria_drug,
                 mic_sum_by_bacteria_drug,
-                any_r_sum_by_region,
-                infected_count_by_region,
                 currently_on_drug_by_drug,
                 num_age_0_5,
                 num_age_6_14,
@@ -7440,7 +7399,6 @@ impl Simulation {
                 header.push_str(drug);
             }
         }
-        // Add per-region any_r sum columns (pooled across all bacteria and drugs)
         let region_names = [
             "north_america",
             "south_america",
@@ -7449,17 +7407,6 @@ impl Simulation {
             "europe",
             "oceania",
         ];
-        for region in region_names.iter() {
-            header.push(',');
-            header.push_str(region);
-            header.push_str("_any_r_sum");
-        }
-        // Add per-region infected count columns
-        for region in region_names.iter() {
-            header.push(',');
-            header.push_str(region);
-            header.push_str("_infected_count");
-        }
         // Add per-region, per-drug currently on drug columns
         for region in region_names.iter() {
             for drug in DRUG_SHORT_NAMES.iter() {
@@ -8444,14 +8391,6 @@ impl Simulation {
             }
 
             for value in &summary.any_r_sum_by_bacteria_drug_hospital {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.any_r_sum_by_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.infected_count_by_region {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

@@ -381,6 +381,26 @@ fn assert_summary_has_model_scope_infection_deaths(path: &Path) {
     }
 }
 
+fn assert_retired_regional_resistance_composite_is_absent(path: &Path) {
+    let header = csv_header(path);
+    for region in [
+        "north_america",
+        "south_america",
+        "africa",
+        "asia",
+        "europe",
+        "oceania",
+    ] {
+        for suffix in ["_any_r_sum", "_infected_count"] {
+            let column = format!("{region}{suffix}");
+            assert!(
+                !header.iter().any(|candidate| candidate == &column),
+                "retired regional resistance composite column {column} should be absent"
+            );
+        }
+    }
+}
+
 fn assert_summary_has_supplementary_figure_s1_columns(path: &Path) {
     let header = csv_header(path);
     let expected = [
@@ -549,6 +569,7 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     assert_resistance_care_setting_counts_bounded(&path);
     assert_summary_has_person_level_sepsis_incidence(&path);
     assert_summary_has_model_scope_infection_deaths(&path);
+    assert_retired_regional_resistance_composite_is_absent(&path);
     assert_summary_has_figure_11_columns(&path);
     assert_summary_has_supplementary_figure_s1_columns(&path);
     assert_summary_has_supplementary_table_s1_columns(&path);

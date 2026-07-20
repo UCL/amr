@@ -714,16 +714,6 @@ fn full_summary_rows_preserve_expected_vector_dimensions() {
         MODEL_REGION_COUNT * drugs,
     );
     assert_len(
-        "any_r_sum_by_region",
-        summary.any_r_sum_by_region.len(),
-        MODEL_REGION_COUNT,
-    );
-    assert_len(
-        "infected_count_by_region",
-        summary.infected_count_by_region.len(),
-        MODEL_REGION_COUNT,
-    );
-    assert_len(
         "living_population_by_region",
         summary.living_population_by_region.len(),
         MODEL_REGION_COUNT,

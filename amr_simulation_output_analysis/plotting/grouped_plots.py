@@ -712,7 +712,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
 
     # --- Figure 4: Resistance and Testing Metrics ---
     if config.create_grouped_figure_4:
-        fig4, axes4 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+        fig4, axes4 = plt.subplots(1, 3, figsize=(FIG_W, FIG_H * 0.6))
         axes4 = axes4.flatten()
         fig4.suptitle('Grouped Figure 4: Resistance and Testing Metrics', fontsize=16)
         
@@ -795,42 +795,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                         ha='center', va='center', fontsize=12, color='gray')
             axes4[2].set_axis_off()
         
-        # 4. Mean Any-R by Region (pooled across all bacteria and drugs)
-        region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
-        region_display_names = ['North America', 'South America', 'Africa', 'Asia', 'Europe', 'Oceania']
-        
-        found_region_data = False
-        region_colors = plt.cm.Set2(np.linspace(0, 1, len(region_names)))
-        for i, region in enumerate(region_names):
-            any_r_col = f"{region}_any_r_sum"
-            infected_col = f"{region}_infected_count"
-            
-            if any_r_col in df.columns and infected_col in df.columns:
-                # Calculate mean any_r using safe_divide
-                mean_any_r = safe_divide(df[any_r_col], df[infected_col], np.nan)
-
-                plotted_region = plot_segmented_series(
-                    axes4[3],
-                    series=pd.Series(mean_any_r, index=df.index),
-                    color=region_colors[i],
-                    label=region_display_names[i],
-                )
-                found_region_data = found_region_data or plotted_region
-        
-        if found_region_data:
-            axes4[3].set_title('Mean Total Resistance Burden Per Infected Person by Region\n(Sum of any_r values across all bacteria-drug combinations\ndivided by number of infected people)', fontsize=11)
-            axes4[3].set_xlabel('Time (Years)', fontsize=10)
-            axes4[3].set_ylabel('Mean Resistance Sum Per Person', fontsize=10)
-            axes4[3].set_ylim(bottom=0)
-            axes4[3].grid(True, alpha=0.3)
-            axes4[3].legend(fontsize=8, loc='upper left')
-            axes4[3].tick_params(axis='both', which='major', labelsize=9)
-        else:
-            axes4[3].text(0.5, 0.5, 'Region data not available', ha='center', va='center', fontsize=12, color='gray')
-            axes4[3].set_axis_off()
-            
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.subplots_adjust(hspace=0.65, wspace=0.4)
+        plt.subplots_adjust(wspace=0.4)
         figure_path = _grouped_figure_path(4, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close('all')
