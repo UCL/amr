@@ -371,21 +371,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
     );
 
     print_scalar_group(
-        "De Novo and HGT Multipliers",
-        &[
-            (
-                "infection_de_novo_multiplier",
-                g.infection_de_novo_multiplier,
-            ),
-            (
-                "microbiome_de_novo_multiplier",
-                g.microbiome_de_novo_multiplier,
-            ),
-            ("hgt_multiplier", g.hgt_multiplier),
-        ],
-    );
-
-    print_scalar_group(
         "Horizontal Gene Transfer Modifiers",
         &[
             ("hgt_hospital_multiplier", g.hgt_hospital_multiplier),

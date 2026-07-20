@@ -83,11 +83,8 @@
 use crate::config::{
     get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
     get_drug_introduction_time_step, get_global_param, parameter_store,
-    RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY, RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
     RUN_PATHWAY_HGT_MULTIPLIER_KEY, RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
-    RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
-    RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
-    RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
+    RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
     RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
@@ -2482,24 +2479,14 @@ pub(crate) fn apply_rules(
         .unwrap_or(store.globals.minimal_potency_threshold_for_drug_selection);
     let counterfactual_resistance_multiplier =
         policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
-    // Four-axis calibration mode: each retained axis is a single pathway-specific
-    // multiplier (no extra global compounding term).
+    // Neutral pathway controls support sensitivity analysis and diagnostic ablations.
     let infection_de_novo_multiplier =
         get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
-    let microbiome_de_novo_multiplier =
-        get_global_param(RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0)
-            * store.globals.microbiome_de_novo_multiplier;
     let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0);
     let reversion_rate_sampling_multiplier =
         get_global_param(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY).unwrap_or(1.0);
-    let carrier_inheritance_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY).unwrap_or(1.0);
-    let community_dilution_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY).unwrap_or(1.0);
     let microbiome_acquisition_sampling_multiplier =
         get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
-    let microbiome_disruption_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY).unwrap_or(1.0);
     let ratchet_enabled = get_global_param(RUN_PATHWAY_RATCHET_ENABLED_KEY).unwrap_or(1.0) > 0.5;
 
     // New stewardship policy levers
@@ -4893,8 +4880,7 @@ pub(crate) fn apply_rules(
     for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
         if drug_level > 0.1 {
             individual.microbiome_disruption_level +=
-                store.drug.microbiome_disruption_log_odds(d_idx)
-                    * microbiome_disruption_sampling_multiplier;
+                store.drug.microbiome_disruption_log_odds(d_idx);
         }
     }
 
@@ -5769,7 +5755,7 @@ pub(crate) fn apply_rules(
                         individual,
                         b_idx,
                         param_cache,
-                        microbiome_de_novo_multiplier * counterfactual_resistance_multiplier,
+                        counterfactual_resistance_multiplier,
                         rng,
                     );
 
@@ -5869,9 +5855,7 @@ pub(crate) fn apply_rules(
                     // Per-bacteria dilution factor reflects how much of the community reservoir
                     // is susceptible environmental/animal strains vs. human-circulating strains.
                     let community_dilution = if !is_hospital_acquired {
-                        (store.bacteria.community_resistance_dilution_factor[b_idx]
-                            * community_dilution_sampling_multiplier)
-                            .min(1.0)
+                        store.bacteria.community_resistance_dilution_factor[b_idx]
                     } else {
                         1.0
                     };
@@ -6034,9 +6018,7 @@ pub(crate) fn apply_rules(
                     // infection site, which is mechanism-native and composes cleanly.
                     if individual.presence_microbiome[b_idx] {
                         let inheritance_prob =
-                            (store.globals.carrier_resistance_inheritance_probability
-                                * carrier_inheritance_sampling_multiplier)
-                                .min(1.0);
+                            store.globals.carrier_resistance_inheritance_probability;
                         if rng.gen_bool(inheritance_prob) {
                             let dampening = store.globals.infection_from_microbiome_dampening;
                             let mut candidate_mask = param_cache.sanitize_mechanism_profile(

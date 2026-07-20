@@ -97,14 +97,6 @@ pub const RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY: &str = "run_pathway_reversi
 pub const RUN_PATHWAY_HGT_MULTIPLIER_KEY: &str = "run_pathway_hgt_multiplier";
 pub const RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY: &str =
     "run_pathway_microbiome_acquisition_multiplier";
-pub const RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY: &str =
-    "run_pathway_carrier_inheritance_multiplier";
-pub const RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY: &str =
-    "run_pathway_community_dilution_multiplier";
-pub const RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY: &str =
-    "run_pathway_microbiome_de_novo_multiplier";
-pub const RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY: &str =
-    "run_pathway_microbiome_disruption_multiplier";
 pub const RUN_PATHWAY_RATCHET_ENABLED_KEY: &str = "run_pathway_ratchet_enabled";
 
 const REGION_VARIANTS: [Region; 7] = [
@@ -360,9 +352,6 @@ pub struct GlobalScalars {
     pub hgt_microbiome_only_penalty: f64,
     pub hgt_gut_compartment_multiplier: f64,
     pub hgt_minority_donor_multiplier: f64,
-    pub infection_de_novo_multiplier: f64,
-    pub microbiome_de_novo_multiplier: f64,
-    pub hgt_multiplier: f64,
 }
 
 impl GlobalScalars {
@@ -1069,13 +1058,6 @@ impl GlobalScalars {
                 "hgt_minority_donor_multiplier",
                 0.20,
             ),
-            infection_de_novo_multiplier: get_or_default(map, "infection_de_novo_multiplier", 1.0),
-            microbiome_de_novo_multiplier: get_or_default(
-                map,
-                "microbiome_de_novo_multiplier",
-                1.0,
-            ),
-            hgt_multiplier: get_or_default(map, "hgt_multiplier", 1.0),
         }
     }
 }
@@ -12304,12 +12286,6 @@ lazy_static! {
         map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Hospital ecology retention raised from 0.995 (~139-day half-life) to 0.999 (~693-day half-life); endemic MRSA/VRE/CRE on wards persists for years, not months
         map.insert("opat_admission_probability".to_string(), 0.70);
 
-        // Pathway compatibility multipliers remain neutral while the run_pathway_* parameters
-        // provide the run-level calibration controls.
-        map.insert("infection_de_novo_multiplier".to_string(), 1.0);
-        map.insert("microbiome_de_novo_multiplier".to_string(), 1.0);
-        map.insert("hgt_multiplier".to_string(), 1.0);
-
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
         map.insert("majority_r_window_days".to_string(), 100.0);
         map.insert("majority_r_min_total_samples".to_string(), 10.0);
@@ -12910,21 +12886,17 @@ lazy_static! {
         map.insert("demo_oceania_age_28000_32000".to_string(), 0.001);
 
         // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
-        // CALIBRATION AXES - set one value per axis to define a calibrated world.
+        // PATHWAY SENSITIVITY CONTROLS
         //
-        // Each value is a plain multiplier (1.0 = baseline).  Change the number after
-        // the key to shift that pathway for the current world.  All four must be present;
-        // if a key is absent the code falls back to 1.0 via unwrap_or(1.0) in rules/mod.rs.
-        //
-        // To create a new named world, copy this block, change the four values, run
-        // cargo check, then re-run the simulation.  Per-bacteria emergence rates may
-        // also need re-tuning when these multipliers move far from 1.0.   !!!axes
+        // Neutral production defaults retained for pathway ablations and global
+        // sensitivity analysis. Their inclusion in a future calibration parameter set
+        // should be justified by the target review and an identifiability assessment.
         // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
-        map.insert(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY.to_string(),    1.0); // Axis 1: de-novo emergence during infections
-        map.insert(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY.to_string(),       1.0); // Axis 2: mechanism reversion rate
-        map.insert(RUN_PATHWAY_HGT_MULTIPLIER_KEY.to_string(),                  1.0); // Axis 3: HGT transfer rate
-        map.insert(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY.to_string(), 1.0); // Axis 4: microbiome seeding on colonisation
-        map.insert(RUN_PATHWAY_RATCHET_ENABLED_KEY.to_string(),                1.0); // Diagnostic switch: 1=on, 0=off; not a calibration axis
+        map.insert(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY.to_string(),    1.0); // Active-infection de novo emergence
+        map.insert(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY.to_string(),       1.0); // Mechanism reversion
+        map.insert(RUN_PATHWAY_HGT_MULTIPLIER_KEY.to_string(),                  1.0); // HGT transfer
+        map.insert(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY.to_string(), 1.0); // Resistant-profile seeding on carriage acquisition
+        map.insert(RUN_PATHWAY_RATCHET_ENABLED_KEY.to_string(),                1.0); // Diagnostic switch: 1=on, 0=off
         // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
 
         map
@@ -13467,34 +13439,31 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
     }
 }
 // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====
-// CALIBRATION AXES - global run-level multipliers sampled during search
+// PATHWAY SENSITIVITY CONTROLS
 //
-// These four axes define the space of calibrated parameter sets for policy
-// comparisons.  Each axis is mechanistically independent enough that calibration
-// can land in genuinely different regions of the space, producing sets that agree
-// on observed 2025 resistance prevalence but diverge in their predictions of how
-// resistance responds to interventions.
+// These neutral run-level multipliers support diagnostic ablations and global
+// sensitivity analysis without rewriting organism-specific parameter tables. They
+// are not a predetermined calibration scheme; any later calibration use should be
+// supported by target relevance and identifiability checks.
 //
-// AXIS 1 - de-novo emergence in infections  (run_pathway_infection_de_novo_multiplier)
+// Infection de-novo emergence  (run_pathway_infection_de_novo_multiplier)
 //   How strongly does antibiotic treatment select for resistance during active infection?
 //   If this is near-zero, resistance is almost entirely imported into infections from
 //   the community reservoir; if high, each treated episode is itself a selection event.
 //   Directly scales the resistance-selection benefit of getting the right drug sooner.
 //
-// AXIS 2 - resistance reversion rate  (run_pathway_reversion_rate_multiplier)
+// Resistance reversion rate  (run_pathway_reversion_rate_multiplier)
 //   Is acquired resistance ecologically stable or does it drift back when selection
 //   pressure is removed?  High reversion -> prescribing reduction gives a durable
 //   benefit; low reversion -> the community resistance pool is sticky regardless.
 //
-// AXIS 3 - horizontal gene transfer  (run_pathway_hgt_multiplier)
+// Horizontal gene transfer  (run_pathway_hgt_multiplier)
 //   How much does resistance propagate laterally via HGT, independently of treatment
 //   pressure in the infected individual?  High HGT -> resistance spreads regardless
 //   of prescribing behaviour; low HGT -> treatment decisions are the dominant driver.
 //
-// AXIS 4 - microbiome reservoir seeding  (run_pathway_microbiome_acquisition_multiplier)
+// Microbiome reservoir seeding  (run_pathway_microbiome_acquisition_multiplier)
 //   How readily do new colonisations acquire the resistance profile of the existing
 //   community microbiome pool?  Sets the background floor that cannot be moved by
-//   targeting individual infection episodes.  Note: infection_from_microbiome_dampening
-//   (currently configured at 0.70) is the complementary bridge parameter and is a
-//   candidate for a future axis 5 in organism-specific sensitivity work.
+//   targeting individual infection episodes.
 // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====

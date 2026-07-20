@@ -1,4 +1,9 @@
-use amr_project::config::{parameter_store, BacteriumMechanismStatus, PARAMETERS};
+use amr_project::config::{
+    parameter_store, BacteriumMechanismStatus, PARAMETERS, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
+    RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
+};
 use amr_project::simulation::population::{
     bacterium_mechanism_host_is_eligible, mechanism_is_hgt_transferable, ResistanceMechanism,
     BACTERIA_LIST, DRUG_SHORT_NAMES,
@@ -248,10 +253,34 @@ fn retired_resistance_parameter_names_are_absent() {
         "microbiome_majority_decay_half_life_days",
         "microbiome_minority_decay_half_life_days",
         "microbiome_majority_promotion_rate_per_day",
+        "run_pathway_microbiome_de_novo_multiplier",
+        "run_pathway_carrier_inheritance_multiplier",
+        "run_pathway_community_dilution_multiplier",
+        "run_pathway_microbiome_disruption_multiplier",
+        "infection_de_novo_multiplier",
+        "microbiome_de_novo_multiplier",
+        "hgt_multiplier",
     ] {
         assert!(
             !PARAMETERS.contains_key(key),
             "retired resistance parameter returned to PARAMETERS: {key}"
+        );
+    }
+}
+
+#[test]
+fn retained_pathway_sensitivity_controls_are_explicit_and_neutral() {
+    for key in [
+        RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+        RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
+        RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+        RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
+        RUN_PATHWAY_RATCHET_ENABLED_KEY,
+    ] {
+        assert_eq!(
+            PARAMETERS.get(key).map(|value| value.to_bits()),
+            Some(1.0_f64.to_bits()),
+            "pathway sensitivity control should be present and neutral: {key}"
         );
     }
 }
