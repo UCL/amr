@@ -1411,9 +1411,8 @@ impl MechanismProfileCache {
     /// marginal probability of surviving. Vacancies are filled with a uniform sample of
     /// the freshly collected reservoir up to `MAX_MECHANISM_PROFILES`.
     ///
-    /// Uses separate retention rates for hospital (h=1) and community (h=0) pools.
-    /// Hospital ecology persists for months (surfaces, devices, HCW colonisation)
-    /// while community resistance turns over with acute infections.
+    /// Supports separate retention rates for hospital (h=1) and community (h=0) pools;
+    /// the current configured rates are equal.
     pub fn blend_with_new<R: Rng + ?Sized>(
         &mut self,
         new_profiles: Self,
@@ -1454,31 +1453,14 @@ impl MechanismProfileCache {
                     }
 
                     // Uniform deletion makes survival independent of reservoir position and
-                    // susceptible/resistant status. Remember a randomly ordered removed
-                    // resistant profile solely for the explicit hospital persistence guard.
-                    let mut removed_resistant = None;
+                    // susceptible/resistant status.
                     while old_slot.len() > keep {
                         let remove_idx = rng.gen_range(0..old_slot.len());
-                        let removed = old_slot.swap_remove(remove_idx);
-                        if h == 1 && removed != 0 {
-                            removed_resistant = Some(removed);
-                        }
+                        old_slot.swap_remove(remove_idx);
                     }
 
                     let fresh_count = (MAX_MECHANISM_PROFILES - old_slot.len()).min(new_slot.len());
                     append_uniform_profile_sample(old_slot, new_slot, fresh_count, rng);
-
-                    // Keep at least one previously seen resistant hospital profile alive when
-                    // brief stochastic loss would otherwise leave the slot all-susceptible.
-                    if let Some(resistant_mask) = removed_resistant {
-                        if !old_slot.iter().any(|&mask| mask != 0) {
-                            if let Some(last_mask) = old_slot.last_mut() {
-                                *last_mask = resistant_mask;
-                            } else {
-                                old_slot.push(resistant_mask);
-                            }
-                        }
-                    }
 
                     // Reset total_seen to match actual slot length (reservoir invariant)
                     self.total_seen[r][h][b] = old_slot.len() as u64;
@@ -1788,7 +1770,7 @@ impl MechanismCache {
     }
 
     /// Update the profile cache with freshly-collected profiles from this simulation step.
-    /// Uses asymmetric retention: community profiles turn over quickly, hospital profiles persist.
+    /// Uses independently configurable community and hospital retention rates.
     pub fn update_profiles<R: Rng + ?Sized>(
         &mut self,
         community_retention: f64,
@@ -9105,14 +9087,24 @@ mod tests {
     }
 
     #[test]
-    fn hospital_resistant_profile_guard_remains_explicit() {
-        let mut old = cache_with_slot(vec![0, 8], 2, true);
-        let fresh = cache_with_slot(vec![0, 0], 2, true);
+    fn hospital_active_cache_can_clear_while_local_archive_retains_history() {
+        let param_cache = ParameterKeyCache::new();
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let resistant_mask = 1_u64 << 3;
+        let mut cache = MechanismCache::new(1, 1, num_mechanisms);
         let mut rng = SmallRng::seed_from_u64(17);
 
-        old.blend_with_new(fresh, 1.0, 0.0, &mut rng);
+        let mut resistant = MechanismProfileCache::new(1, 1, num_mechanisms);
+        resistant.profiles[0][1][0] = vec![resistant_mask];
+        resistant.total_seen[0][1][0] = 1;
+        cache.update_profiles(0.0, 0.0, resistant, &param_cache, &mut rng);
 
-        assert_eq!(old.profiles[0][1][0].len(), 2);
-        assert!(old.profiles[0][1][0].iter().any(|&mask| mask != 0));
+        let mut susceptible = MechanismProfileCache::new(1, 1, num_mechanisms);
+        susceptible.profiles[0][1][0] = vec![0];
+        susceptible.total_seen[0][1][0] = 1;
+        cache.update_profiles(0.0, 0.0, susceptible, &param_cache, &mut rng);
+
+        assert_eq!(cache.profiles.profiles[0][1][0], vec![0]);
+        assert_eq!(cache.persistence_profiles[0][1][0], vec![resistant_mask]);
     }
 }

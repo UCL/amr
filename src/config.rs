@@ -11360,7 +11360,7 @@ lazy_static! {
         map.insert("staph_aureus_lineage_enrichment_tet_m_probability".to_string(), 0.35); // Moderate tetracycline co-resistance in sampled resistant lineages
         map.insert("staph_aureus_lineage_enrichment_fus_b_probability".to_string(), 0.2); // Lower-frequency fusidic acid co-resistance
         map.insert("staph_aureus_lineage_enrichment_hospital_multiplier".to_string(), 1.2); // Hospital MRSA acquisitions are somewhat more likely to carry linked packages
-        map.insert("community_profile_cache_retention".to_string(), 0.999); // Community profile cache retention (~693-day half-life; raised from 0.99 - environmental resistance in wastewater/food-chain is not wild-type; longer retention better reflects multi-decade persistence of historically-selected resistance)
+        map.insert("community_profile_cache_retention".to_string(), 0.999); // Daily marginal retention of each stored community infection-day profile (~693-refresh half-life)
 
         // Mechanism-specific fitness costs (reversion rates per day when drug absent)   !!!reversion
 
@@ -12268,22 +12268,13 @@ lazy_static! {
         // activity_r already accounts for drug level, potency, and resistance, so this scales appropriately
         // Example: activity_r=2.0 -> +1.0 log-odds -> ~2.7x higher clearance probability
 
-        // --- CARRIER RESISTANCE INHERITANCE (CARRIER AMPLIFICATION EFFECT) ---
-        // Mechanism: When carriers develop infections, the infecting strain is usually their carried strain
-        // (endogenous infection), inheriting its resistance profile. This creates a "carrier amplification
-        // effect" where resistance rates in infections exceed population prevalence.
-        // Empirical basis:
-        // - MRSA carriers: 80-90% of S. aureus infections are MRSA (vs ~30% in non-carriers)
-        // - ESBL-E. coli carriers: 70-80% of UTIs are ESBL-positive (vs ~10-15% in non-carriers)
-        // - VRE carriers: >90% of subsequent bacteremias are VRE
-        // Population impact: Carriers maintain resistance without selective pressure (asymptomatic), then
-        // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
-        // spread in populations, more important than de novo emergence during treatment.
-        // Not one of the four sampled axes: structural microbiome->infection bridge parameter.
-        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);  // !!!micro
-        // Not one of the four sampled axes: structural community reservoir dilution parameter.
+        // Probability that pre-existing same-organism carriage contributes its mechanism
+        // profile to a newly established infection. Individual mechanisms then transfer
+        // according to infection_from_microbiome_dampening.
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);
+        // Direct structural community-reservoir dilution parameter.
         map.insert("community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Hospital ecology retention raised from 0.995 (~139-day half-life) to 0.999 (~693-day half-life); endemic MRSA/VRE/CRE on wards persists for years, not months
+        map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Daily marginal retention of each stored hospital infection-day profile (~693-refresh half-life)
         map.insert("opat_admission_probability".to_string(), 0.70);
 
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
