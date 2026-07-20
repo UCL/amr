@@ -5564,10 +5564,9 @@ pub(crate) fn apply_rules(
                             Region::Home => individual.region_living as usize,
                             r => r as usize,
                         };
-                        // Apply microbiome_resistance_multiplier_on_acquisition as a gate:
-                        // only a fraction of acquisitions inherit the circulating resistance profile.
+                        // Gate carriage profile sampling with the run-level acquisition multiplier.
                         // Hospitalized individuals get an extra per-bacterium boost because they are
-                        // exposed to ward-endemic MDR strains (ESKAPE pathogens, VRE, etc.).
+                        // exposed to ward-endemic resistant strains.
                         //
                         // Community dilution: when not hospitalised, apply the same per-bacteria
                         // community dilution factor used for infection acquisition.  This ensures

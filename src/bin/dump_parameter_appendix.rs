@@ -329,14 +329,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
                 "community_profile_cache_retention",
                 g.community_profile_cache_retention,
             ),
-            (
-                "mechanism_reversion_rate_global_multiplier",
-                g.mechanism_reversion_rate_global_multiplier,
-            ),
-            (
-                "majority_r_memory_retention_per_day",
-                g.majority_r_memory_retention_per_day,
-            ),
         ],
     );
 
@@ -350,10 +342,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
             (
                 "antibiotic_disruption_decay_half_life_days",
                 g.antibiotic_disruption_decay_half_life_days,
-            ),
-            (
-                "microbiome_resistance_multiplier_on_acquisition",
-                g.microbiome_resistance_multiplier_on_acquisition,
             ),
             (
                 "infection_from_microbiome_dampening",
@@ -378,18 +366,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
             (
                 "community_resistance_dilution_factor",
                 g.community_resistance_dilution_factor,
-            ),
-            (
-                "microbiome_majority_decay_half_life_days",
-                g.microbiome_majority_decay_half_life_days,
-            ),
-            (
-                "microbiome_minority_decay_half_life_days",
-                g.microbiome_minority_decay_half_life_days,
-            ),
-            (
-                "microbiome_majority_promotion_rate_per_day",
-                g.microbiome_majority_promotion_rate_per_day,
             ),
         ],
     );

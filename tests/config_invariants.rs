@@ -242,6 +242,12 @@ fn retired_resistance_parameter_names_are_absent() {
         "resistance_floor_all_bacteria_enabled",
         "resistance_floor_default_level",
         "local_mechanism_persistence_reactivation_probability",
+        "microbiome_resistance_multiplier_on_acquisition",
+        "mechanism_reversion_rate_global_multiplier",
+        "majority_r_memory_retention_per_day",
+        "microbiome_majority_decay_half_life_days",
+        "microbiome_minority_decay_half_life_days",
+        "microbiome_majority_promotion_rate_per_day",
     ] {
         assert!(
             !PARAMETERS.contains_key(key),

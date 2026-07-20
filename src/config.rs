@@ -347,7 +347,6 @@ pub struct GlobalScalars {
     // Enhanced microbiome/carriage model parameters
     #[allow(dead_code)]
     pub antibiotic_disruption_decay_half_life_days: f64,
-    pub microbiome_resistance_multiplier_on_acquisition: f64,
     pub infection_from_microbiome_dampening: f64,
     pub carriage_duration_log_odds_coefficient: f64,
     pub carriage_duration_max_log_odds_effect: f64,
@@ -361,18 +360,9 @@ pub struct GlobalScalars {
     pub hgt_microbiome_only_penalty: f64,
     pub hgt_gut_compartment_multiplier: f64,
     pub hgt_minority_donor_multiplier: f64,
-    pub mechanism_reversion_rate_global_multiplier: f64,
     pub infection_de_novo_multiplier: f64,
     pub microbiome_de_novo_multiplier: f64,
     pub hgt_multiplier: f64,
-    #[allow(dead_code)]
-    pub majority_r_memory_retention_per_day: f64,
-    #[allow(dead_code)]
-    pub microbiome_majority_decay_half_life_days: f64,
-    #[allow(dead_code)]
-    pub microbiome_minority_decay_half_life_days: f64,
-    #[allow(dead_code)]
-    pub microbiome_majority_promotion_rate_per_day: f64,
 }
 
 impl GlobalScalars {
@@ -1022,11 +1012,6 @@ impl GlobalScalars {
                 "antibiotic_disruption_decay_half_life_days",
                 30.0,
             ),
-            microbiome_resistance_multiplier_on_acquisition: get_or_default(
-                map,
-                "microbiome_resistance_multiplier_on_acquisition",
-                0.18,
-            ),
             infection_from_microbiome_dampening: get_or_default(
                 map,
                 "infection_from_microbiome_dampening",
@@ -1084,16 +1069,6 @@ impl GlobalScalars {
                 "hgt_minority_donor_multiplier",
                 0.20,
             ),
-            majority_r_memory_retention_per_day: get_or_default(
-                map,
-                "majority_r_memory_retention_per_day",
-                0.93,
-            ),
-            mechanism_reversion_rate_global_multiplier: get_or_default(
-                map,
-                "mechanism_reversion_rate_global_multiplier",
-                1.0,
-            ),
             infection_de_novo_multiplier: get_or_default(map, "infection_de_novo_multiplier", 1.0),
             microbiome_de_novo_multiplier: get_or_default(
                 map,
@@ -1101,21 +1076,6 @@ impl GlobalScalars {
                 1.0,
             ),
             hgt_multiplier: get_or_default(map, "hgt_multiplier", 1.0),
-            microbiome_majority_decay_half_life_days: get_or_default(
-                map,
-                "microbiome_majority_decay_half_life_days",
-                60.0,
-            ),
-            microbiome_minority_decay_half_life_days: get_or_default(
-                map,
-                "microbiome_minority_decay_half_life_days",
-                18.0,
-            ),
-            microbiome_majority_promotion_rate_per_day: get_or_default(
-                map,
-                "microbiome_majority_promotion_rate_per_day",
-                0.02,
-            ),
         }
     }
 }
@@ -2273,9 +2233,9 @@ pub struct BacteriaParameters {
     /// Positive = higher CFR given sepsis (e.g. N. meningitidis purpura fulminans).
     /// Negative = lower CFR given sepsis.  Default 0.0 (no adjustment).
     pub sepsis_death_log_odds_override: Vec<f64>,
-    /// Multiplier applied to microbiome_resistance_multiplier_on_acquisition when the individual
-    /// is currently hospitalised.  Captures the higher probability that a strain acquired in
-    /// hospital carries resistance mechanisms relative to a community-acquired colonisation.
+    /// Per-bacterium multiplier applied to the carriage profile-sampling probability when the
+    /// individual is currently hospitalised. Captures the higher probability that a strain
+    /// acquired in hospital carries resistance mechanisms relative to community colonisation.
     /// Default 1.0 (no hospital boost).  Set > 1.0 for ESKAPE / nosocomial-dominant bacteria.
     pub hospital_microbiome_r_multiplier: Vec<f64>,
     /// Per-bacteria community resistance dilution factor.
@@ -3646,10 +3606,6 @@ lazy_static! {
         map.insert("hgt_microbiome_only_penalty".to_string(), 0.65);
         map.insert("hgt_gut_compartment_multiplier".to_string(), 2.0);
         map.insert("hgt_minority_donor_multiplier".to_string(), 0.20);
-        map.insert("majority_r_memory_retention_per_day".to_string(), 0.93);
-        map.insert("microbiome_majority_decay_half_life_days".to_string(), 60.0);
-        map.insert("microbiome_minority_decay_half_life_days".to_string(), 18.0);
-        map.insert("microbiome_majority_promotion_rate_per_day".to_string(), 0.02);
         map.insert("mechanismless_resistance_reversion_rate".to_string(), 0.0004);
         map.insert("hospital_microbiome_r_multiplier".to_string(), 1.0);
         map.insert("community_mechanism_reversion_multiplier".to_string(), 1.0);
@@ -7921,8 +7877,8 @@ lazy_static! {
 
         // Per-bacterium hospital microbiome resistance multiplier.
         // When an individual is hospitalised and acquires a new microbiome colonisation, this factor
-        // boosts the probability that the colonising strain carries resistance mechanisms (on top of
-        // the global microbiome_resistance_multiplier_on_acquisition).  Default 1.0 (no boost).
+        // boosts the run-level probability that the colonising strain samples a circulating
+        // resistance profile. Default 1.0 (no boost).
         // Higher values for bacteria with endemic MDR strains on wards (ESKAPE pathogens, VRE, etc.).
         map.insert("acinetobacter_baumannii_hospital_microbiome_r_multiplier".to_string(), 8.0);
         map.insert("klebsiella_pneumoniae_hospital_microbiome_r_multiplier".to_string(), 7.0);
@@ -12296,7 +12252,6 @@ lazy_static! {
         // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
         // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
         map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3); // !!!micro
-        map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.50); // !!!micro
         map.insert("infection_from_microbiome_dampening".to_string(), 0.70); //  !!!micro
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
@@ -12349,17 +12304,11 @@ lazy_static! {
         map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Hospital ecology retention raised from 0.995 (~139-day half-life) to 0.999 (~693-day half-life); endemic MRSA/VRE/CRE on wards persists for years, not months
         map.insert("opat_admission_probability".to_string(), 0.70);
 
-        // Baseline global multipliers retained for compatibility. In four-axis calibration,
-        // run_pathway_* multipliers are the sampled axis knobs and these stay at 1.0.
-        map.insert("mechanism_reversion_rate_global_multiplier".to_string(), 1.0);
+        // Pathway compatibility multipliers remain neutral while the run_pathway_* parameters
+        // provide the run-level calibration controls.
         map.insert("infection_de_novo_multiplier".to_string(), 1.0);
         map.insert("microbiome_de_novo_multiplier".to_string(), 1.0);
         map.insert("hgt_multiplier".to_string(), 1.0);
-
- //     map.insert(
- //         "majority_r_memory_retention_per_day".to_string(),
- //         0.93,
- //     );  // note this is not currently implemented
 
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
         map.insert("majority_r_window_days".to_string(), 100.0);

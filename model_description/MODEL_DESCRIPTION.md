@@ -417,7 +417,7 @@ Rather than deciding each mechanism independently from a separate prevalence est
 
 **Hospital-acquired enriched sampling.** Hospital-acquired active infections can, when configured, draw from a hospital-weighted version of the stored local profile group. Early in a run, before the hospital profile group for that region and bacterium has accumulated a resistant example of its own, the model temporarily samples from the combined local community-plus-hospital set, so early hospital acquisitions can bootstrap from resistance already circulating nearby. Once resistant hospital profiles exist, sampling reverts to the hospital group alone. The model can also temporarily remove a chosen fraction of fully susceptible hospital profiles before the draw, while never removing resistant profiles. It can then apply the $f^k$ weighting described above, so profiles carrying more resistance mechanisms are more likely to be selected. If removing susceptible profiles would leave nothing to sample from, the unpruned set is used instead. The chosen profile is therefore always one that already exists in the stored library; this step changes the probability of selecting previously observed profiles, but does not create artificial new resistance combinations.
 
-Carriage acquisition (Section 8.2) is related but not identical. Hospitalized carriage acquisitions can use the same $f^k$ weighted sampling when `hospital_resistance_concentration_factor > 1`, but they do not use the additional susceptible-profile removal step reserved for active hospital infections. Carriage also has its own acquisition gate, `microbiome_resistance_multiplier_on_acquisition`, plus hospital and community dilution modifiers. A sampled carriage profile is recorded only in `mechanism_microbiome` and projected to `microbiome_r`; it does not create active-infection `mechanism_any` or `any_r` state. Transfer into a later same-organism infection occurs through the separate carrier-inheritance pathway.
+Carriage acquisition (Section 8.2) is related but not identical. Hospitalized carriage acquisitions can use the same $f^k$ weighted sampling when `hospital_resistance_concentration_factor > 1`, but they do not use the additional susceptible-profile removal step reserved for active hospital infections. Carriage gates profile sampling with `run_pathway_microbiome_acquisition_multiplier`, then applies the per-bacterium hospital boost or community dilution modifier. A sampled carriage profile is recorded only in `mechanism_microbiome` and projected to `microbiome_r`; it does not create active-infection `mechanism_any` or `any_r` state. Transfer into a later same-organism infection occurs through the separate carrier-inheritance pathway.
 
 If no profile exists in either relevant care-setting stratum for a given region and bacterium (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible through the profile-sampling pathway.
 
@@ -1653,7 +1653,7 @@ Key dynamics:
 
 | Process | Parameter | Value | Effect |
 |---------|-----------|-------|---------------|
-| Resistance seeding on acquisition | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | When a person acquires a new carriage episode, there is a 50% probability that the colonising strain inherits the circulating resistance profile (sampled from the stored profile library, just as for infection acquisition — see Section 3.4). If the draw fails, the strain arrives susceptible. The 0.50 value reflects the **colonisation bottleneck**: when a resistant strain from the community pool colonises a new host, only a fraction of transmission events successfully establish a resistant lineage, because susceptible strains in the incoming inoculum can outcompete resistant ones when antibiotic pressure is absent, and because small founding populations are subject to stochastic loss. Carriage acquisition studies consistently show that post-travel or post-admission ESBL carriage rates reach only 20–50% of the prevalence suggested by source-population data, supporting a sub-unity transfer probability (Arcilla MS et al., 2017; Buelow E et al., 2017). The parameter is therefore best interpreted as a colonisation-efficiency discount applied to the profile-sampling step. |
+| Resistance profile sampling on acquisition | `run_pathway_microbiome_acquisition_multiplier` | 1.0 | Scales the probability that a new carriage episode samples a resistance profile from the local circulating-strain library. The live probability also includes the per-bacterium hospital acquisition boost or, in the community, the community dilution factor. A value of 1.0 is neutral rather than an independent 50% colonisation bottleneck. |
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
 | Mechanism-level reversion | `run_pathway_reversion_rate_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates, pathway multiplier, and potency-filtered applicability predicate as in the infection compartment (Section 7.4). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium-mechanism pair; selection for another mechanism does not block reversion. |
 | De-novo emergence under treatment | `run_pathway_microbiome_de_novo_multiplier` | 1.0 | When at least one positive-level active drug applies to an absent carriage mechanism, that mechanism receives one daily emergence attempt via the microbiome pathway (Section 7.3), scaled by this multiplier and the compatibility multiplier `microbiome_de_novo_multiplier`. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
@@ -2288,8 +2288,6 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | hospital_profile_cache_retention | 0.999 |
 | hospital_resistance_concentration_factor | per-bacteria (1.0–2.25; see Section 3.4) |
 | run_pathway_reversion_rate_multiplier | 1 |
-| mechanism_reversion_rate_global_multiplier | 1 |
-| majority_r_memory_retention_per_day | 0.93 |
 
 #### Microbiome Dynamics
 
@@ -2297,16 +2295,12 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | --- | ---: |
 | microbiome_resistance_transfer_probability_per_day | 1e-4 |
 | antibiotic_disruption_decay_half_life_days | 30 |
-| microbiome_resistance_multiplier_on_acquisition | 0.5 |
 | infection_from_microbiome_dampening | 0.7 |
 | carriage_duration_log_odds_coefficient | -0.01 |
 | carriage_duration_max_log_odds_effect | -2 |
 | antibiotic_clearance_log_odds_per_unit_activity | 0.5 |
 | carrier_resistance_inheritance_probability | 0.5 |
 | community_resistance_dilution_factor | per-bacteria (0.03–1.00; see Section 3.4) |
-| microbiome_majority_decay_half_life_days | 60 |
-| microbiome_minority_decay_half_life_days | 18 |
-| microbiome_majority_promotion_rate_per_day | 0.02 |
 
 #### De Novo and HGT Multipliers
 
