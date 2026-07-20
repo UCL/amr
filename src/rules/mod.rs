@@ -1292,37 +1292,46 @@ fn bacteria_presence_compartment_mask(individual: &Individual, b_idx: usize) -> 
     mask
 }
 
+#[derive(Clone, Copy, Default)]
+struct HgtDonorMechanismSnapshot {
+    mechanism_mask: u64,
+    infection_majority_mask: u64,
+}
+
 #[inline]
-fn hgt_donor_mechanism_mask(individual: &Individual, bacteria_idx: usize) -> u64 {
-    let mut mechanism_mask = 0_u64;
-    if individual.level[bacteria_idx] > INFECTION_EPS {
-        mechanism_mask |= individual.any_mechanism_mask(bacteria_idx);
+fn hgt_donor_mechanism_snapshot(
+    individual: &Individual,
+    bacteria_idx: usize,
+) -> HgtDonorMechanismSnapshot {
+    let infection_mask = if individual.level[bacteria_idx] > INFECTION_EPS {
+        individual.any_mechanism_mask(bacteria_idx)
+    } else {
+        0
+    };
+    let microbiome_mask = if individual.presence_microbiome[bacteria_idx] {
+        individual.microbiome_mechanism_mask(bacteria_idx)
+    } else {
+        0
+    };
+
+    HgtDonorMechanismSnapshot {
+        mechanism_mask: infection_mask | microbiome_mask,
+        infection_majority_mask: individual.majority_mechanism_mask(bacteria_idx) & infection_mask,
     }
-    if individual.presence_microbiome[bacteria_idx] {
-        mechanism_mask |= individual.microbiome_mechanism_mask(bacteria_idx);
-    }
-    mechanism_mask
 }
 
 #[inline]
 fn hgt_donor_mechanism_multiplier(
-    individual: &Individual,
-    bacteria_idx: usize,
+    snapshot: HgtDonorMechanismSnapshot,
     mechanism_idx: usize,
     minority_multiplier: f64,
 ) -> Option<f64> {
-    let infection_has_mechanism = individual.level[bacteria_idx] > INFECTION_EPS
-        && individual.has_any_mechanism(bacteria_idx, mechanism_idx);
-    let microbiome_has_mechanism = individual.presence_microbiome[bacteria_idx]
-        && individual.has_microbiome_mechanism(bacteria_idx, mechanism_idx);
-
-    if !infection_has_mechanism && !microbiome_has_mechanism {
+    let mechanism_bit = 1_u64 << mechanism_idx;
+    if snapshot.mechanism_mask & mechanism_bit == 0 {
         return None;
     }
 
-    let is_infection_majority =
-        infection_has_mechanism && individual.has_majority_mechanism(bacteria_idx, mechanism_idx);
-    Some(if is_infection_majority {
+    Some(if snapshot.infection_majority_mask & mechanism_bit != 0 {
         1.0
     } else {
         minority_multiplier
@@ -6814,6 +6823,8 @@ pub(crate) fn apply_rules(
         let mut potential_recipients: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
         let mut compartment_masks = vec![0u32; BACTERIA_LIST.len()];
         let mut infection_presence = vec![false; BACTERIA_LIST.len()];
+        let mut donor_mechanism_snapshots =
+            [HgtDonorMechanismSnapshot::default(); BACTERIA_LIST.len()];
 
         for b_idx in 0..BACTERIA_LIST.len() {
             // Skip TB from HGT entirely
@@ -6834,7 +6845,9 @@ pub(crate) fn apply_rules(
                 compartment_masks[b_idx] = mask;
                 infection_presence[b_idx] = has_infection;
 
-                if hgt_donor_mechanism_mask(individual, b_idx) != 0 {
+                let donor_snapshot = hgt_donor_mechanism_snapshot(individual, b_idx);
+                donor_mechanism_snapshots[b_idx] = donor_snapshot;
+                if donor_snapshot.mechanism_mask != 0 {
                     potential_donors.push(b_idx);
                 }
 
@@ -6853,6 +6866,7 @@ pub(crate) fn apply_rules(
                     continue;
                 }
                 let donor_has_infection = infection_presence[donor_idx];
+                let donor_mechanism_snapshot = donor_mechanism_snapshots[donor_idx];
 
                 for &recipient_idx in &potential_recipients {
                     if recipient_idx == donor_idx {
@@ -6900,10 +6914,10 @@ pub(crate) fn apply_rules(
                             continue;
                         }
 
-                        // A present active infection or carriage compartment can donate.
+                        // Donation uses the pre-HGT snapshot, so a mechanism received during this
+                        // phase cannot be retransmitted until the next simulation day.
                         let Some(donor_multiplier) = hgt_donor_mechanism_multiplier(
-                            individual,
-                            donor_idx,
+                            donor_mechanism_snapshot,
                             mech_idx,
                             store.globals.hgt_minority_donor_multiplier,
                         ) else {
@@ -7416,7 +7430,7 @@ mod tests {
         collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
         emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
         exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
-        hgt_context_multiplier, hgt_donor_mechanism_mask, hgt_donor_mechanism_multiplier,
+        hgt_context_multiplier, hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
         identified_resistance_results_ready, is_under_medical_care, mechanism_applies_to_drug,
         mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
         prepare_individual_for_active_day, promote_minority_mechanisms_once,
@@ -9196,44 +9210,77 @@ mod tests {
         individual.clear_microbiome_mechanisms(bacteria_idx);
 
         individual.set_any_mechanism(bacteria_idx, mechanism_idx);
-        assert_eq!(hgt_donor_mechanism_mask(&individual, bacteria_idx), 0);
+        let snapshot = hgt_donor_mechanism_snapshot(&individual, bacteria_idx);
+        assert_eq!(snapshot.mechanism_mask, 0);
         assert_eq!(
-            hgt_donor_mechanism_multiplier(
-                &individual,
-                bacteria_idx,
-                mechanism_idx,
-                minority_multiplier,
-            ),
+            hgt_donor_mechanism_multiplier(snapshot, mechanism_idx, minority_multiplier),
             None
         );
 
         individual.clear_infection_mechanisms(bacteria_idx);
         individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+        let snapshot = hgt_donor_mechanism_snapshot(&individual, bacteria_idx);
+        assert_eq!(snapshot.mechanism_mask, mechanism_bit);
         assert_eq!(
-            hgt_donor_mechanism_mask(&individual, bacteria_idx),
-            mechanism_bit
-        );
-        assert_eq!(
-            hgt_donor_mechanism_multiplier(
-                &individual,
-                bacteria_idx,
-                mechanism_idx,
-                minority_multiplier,
-            ),
+            hgt_donor_mechanism_multiplier(snapshot, mechanism_idx, minority_multiplier),
             Some(minority_multiplier)
         );
 
         individual.level[bacteria_idx] = 1.0;
         individual.set_any_mechanism(bacteria_idx, mechanism_idx);
         individual.set_majority_mechanism(bacteria_idx, mechanism_idx);
+        let snapshot = hgt_donor_mechanism_snapshot(&individual, bacteria_idx);
+        assert_eq!(
+            hgt_donor_mechanism_multiplier(snapshot, mechanism_idx, minority_multiplier),
+            Some(1.0)
+        );
+    }
+
+    #[test]
+    fn hgt_donor_snapshot_blocks_same_day_retransmission() {
+        let param_cache = ParameterKeyCache::new();
+        let bacteria_idx = bacteria_idx("escherichia_coli");
+        let initial_mechanism_idx = super::mechanism_idx(ResistanceMechanism::EnzymeEsblCtxM);
+        let received_mechanism_idx = super::mechanism_idx(ResistanceMechanism::EnzymeKpc);
+        let minority_multiplier = parameter_store().globals.hgt_minority_donor_multiplier;
+        let (mut individual, _rng) = individual_with_seed(29);
+        individual.level[bacteria_idx] = 1.0;
+        individual.set_any_mechanism(bacteria_idx, initial_mechanism_idx);
+        individual.set_majority_mechanism(bacteria_idx, initial_mechanism_idx);
+
+        assert!(param_cache.mechanism_host_is_eligible(initial_mechanism_idx, bacteria_idx));
+        assert!(param_cache.mechanism_host_is_eligible(received_mechanism_idx, bacteria_idx));
+        assert!(mechanism_is_hgt_transferable(
+            ResistanceMechanism::EnzymeEsblCtxM
+        ));
+        assert!(mechanism_is_hgt_transferable(
+            ResistanceMechanism::EnzymeKpc
+        ));
+
+        let pre_hgt_snapshot = hgt_donor_mechanism_snapshot(&individual, bacteria_idx);
+        assert!(record_hgt_mechanism_in_present_compartments(
+            &mut individual,
+            bacteria_idx,
+            received_mechanism_idx,
+        ));
+        assert!(individual.has_any_mechanism(bacteria_idx, received_mechanism_idx));
         assert_eq!(
             hgt_donor_mechanism_multiplier(
-                &individual,
-                bacteria_idx,
-                mechanism_idx,
+                pre_hgt_snapshot,
+                received_mechanism_idx,
                 minority_multiplier,
             ),
-            Some(1.0)
+            None
+        );
+
+        let next_day_snapshot = hgt_donor_mechanism_snapshot(&individual, bacteria_idx);
+        assert_eq!(
+            hgt_donor_mechanism_multiplier(
+                next_day_snapshot,
+                received_mechanism_idx,
+                minority_multiplier,
+            ),
+            Some(minority_multiplier)
         );
     }
 
