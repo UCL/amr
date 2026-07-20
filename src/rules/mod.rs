@@ -2440,6 +2440,11 @@ fn collect_regional_surveillance_bacteria<'a>(
     &buffer[..len]
 }
 
+#[inline]
+fn is_non_negligible_active_drug(level: f64, potency: f64, potency_threshold: f64) -> bool {
+    level > 0.0 && potency >= potency_threshold
+}
+
 #[derive(Default)]
 pub(crate) struct RuleEvents {
     pub local_persistence_profile_incorporations_infection: usize,
@@ -6177,12 +6182,18 @@ pub(crate) fn apply_rules(
                             }
                         }
 
-                        // Count active drugs relevant to THIS bacterium (potency > 0)
-                        // Drugs targeting other bacteria should not influence the multi-drug penalty
+                        // Count only active drugs with non-negligible activity against this
+                        // bacterium. Intrinsically inactive drugs must not create a combination-
+                        // therapy penalty for emergence.
+                        let non_negligible_potency_threshold =
+                            store.globals.minimal_potency_threshold_for_drug_selection;
                         let active_relevant_drug_count: usize = (0..num_drugs)
                             .filter(|&d_i| {
-                                individual.cur_level_drug[d_i] > 0.0
-                                    && param_cache.potency(bacteria_full_idx, d_i) > 0.0
+                                is_non_negligible_active_drug(
+                                    individual.cur_level_drug[d_i],
+                                    param_cache.potency(bacteria_full_idx, d_i),
+                                    non_negligible_potency_threshold,
+                                )
                             })
                             .count();
                         let multi_drug_penalty_threshold =
@@ -6232,14 +6243,15 @@ pub(crate) fn apply_rules(
                             if active_relevant_drug_count >= multi_drug_penalty_threshold {
                                 let mut affected_count = 0;
                                 for d_i in 0..num_drugs {
-                                    if individual.cur_level_drug[d_i] > 0.0
-                                        && param_cache.potency(bacteria_full_idx, d_i) > 0.0
-                                        && param_cache.mechanism_applicable(
-                                            mechanism_idx,
-                                            bacteria_full_idx,
-                                            d_i,
-                                        )
-                                    {
+                                    if is_non_negligible_active_drug(
+                                        individual.cur_level_drug[d_i],
+                                        param_cache.potency(bacteria_full_idx, d_i),
+                                        non_negligible_potency_threshold,
+                                    ) && param_cache.mechanism_applicable(
+                                        mechanism_idx,
+                                        bacteria_full_idx,
+                                        d_i,
+                                    ) {
                                         affected_count += 1;
                                     }
                                 }
@@ -7442,6 +7454,25 @@ mod tests {
             .iter()
             .position(|&candidate| candidate == name)
             .unwrap_or_else(|| panic!("missing drug {name}"))
+    }
+
+    #[test]
+    fn de_novo_multidrug_count_ignores_negligible_potency_drugs() {
+        let threshold = parameter_store()
+            .globals
+            .minimal_potency_threshold_for_drug_selection;
+        let count_relevant = |drug_states: &[(f64, f64)]| {
+            drug_states
+                .iter()
+                .filter(|&&(level, potency)| {
+                    super::is_non_negligible_active_drug(level, potency, threshold)
+                })
+                .count()
+        };
+
+        assert_eq!(count_relevant(&[(1.0, 0.8), (1.0, threshold / 3.0)]), 1);
+        assert_eq!(count_relevant(&[(1.0, 0.8), (1.0, threshold)]), 2);
+        assert_eq!(count_relevant(&[(1.0, 0.8), (0.0, 0.8)]), 1);
     }
 
     #[test]

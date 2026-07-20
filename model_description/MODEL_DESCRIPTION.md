@@ -1364,7 +1364,7 @@ The additional terms do distinct jobs:
 | `mechanism_rate` | Organism-specific baseline for that exact mechanism |
 | `bacteria_level_factor` | Log-scaled increase with within-host bacterial burden, bounded by the configured organism maximum |
 | `max_emergence_drug_factor` | Drug-exposure effect, highest at intermediate site concentrations and low at both minimal and fully suppressive exposure |
-| `multi_drug_penalty_factor` | Suppression of emergence when two or more relevant drugs are active and the candidate mechanism covers only part of the regimen |
+| `multi_drug_penalty_factor` | Suppression of emergence when two or more drugs with non-negligible susceptible-organism potency (at least `minimal_potency_threshold_for_drug_selection`, currently 0.15) are active and the candidate mechanism covers only part of that regimen |
 | `run_pathway_infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level or scenario-level scaling applied without changing the organism-specific baseline table |
 
 **Minority-to-majority evolution.** A mechanism newly present in `mechanism_any` but not yet in `mechanism_majority` receives one daily promotion attempt with probability `majority_r_evolution_rate_per_day_when_drug_present` (default 0.18) whenever at least one drug with a positive current level is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. A successful transition affects the dominant profile contributed to the circulating-strain cache and the mechanism's HGT donor strength; it does not change the already mechanism-derived `any_r` value.
