@@ -62,6 +62,19 @@ class HeadlineNumeratorTests(unittest.TestCase):
             ]
         )
 
+    @staticmethod
+    def _death_targets():
+        return SimpleNamespace(
+            headline_metrics=[
+                {
+                    "key": "infection_deaths_millions",
+                    "label": "Infection deaths",
+                    "target": 6.4,
+                    "unit": "millions",
+                }
+            ]
+        )
+
     def test_person_level_sepsis_counter_takes_precedence(self) -> None:
         year_df = pd.DataFrame(
             {
@@ -90,6 +103,48 @@ class HeadlineNumeratorTests(unittest.TestCase):
         )
 
         self.assertEqual(result.loc[0, "Simulation"], 3.0)
+
+    def test_model_scope_death_counters_take_precedence(self) -> None:
+        year_df = pd.DataFrame(
+            {
+                "deaths_sepsis": [10.0],
+                "deaths_infection_non_sepsis": [8.0],
+                "deaths_sepsis_model_scope": [2.0],
+                "deaths_infection_non_sepsis_model_scope": [3.0],
+                "helicobacter_pylori_deaths": [7.0],
+                "mdr_mycobacterium_tuberculosis_deaths": [6.0],
+            }
+        )
+
+        result = _build_headline_table(
+            year_df,
+            year_df,
+            self._death_targets(),
+            scale_factor=1_000_000.0,
+            window_years=1.0,
+        )
+
+        self.assertEqual(result.loc[0, "Simulation"], 5.0)
+
+    def test_old_csv_retains_concurrent_bacteria_subtraction_fallback(self) -> None:
+        year_df = pd.DataFrame(
+            {
+                "deaths_sepsis": [4.0],
+                "deaths_infection_non_sepsis": [3.0],
+                "helicobacter_pylori_deaths": [2.0],
+                "mdr_mycobacterium_tuberculosis_deaths": [1.0],
+            }
+        )
+
+        result = _build_headline_table(
+            year_df,
+            year_df,
+            self._death_targets(),
+            scale_factor=1_000_000.0,
+            window_years=1.0,
+        )
+
+        self.assertEqual(result.loc[0, "Simulation"], 4.0)
 
 
 if __name__ == "__main__":

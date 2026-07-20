@@ -38,6 +38,8 @@ CORE_COLUMNS = {
     'deaths_background',
     'deaths_sepsis',
     'deaths_infection_non_sepsis',
+    'deaths_sepsis_model_scope',
+    'deaths_infection_non_sepsis_model_scope',
     'deaths_drug_toxicity',
     'deaths_past_year',
     'deaths_background_past_year',

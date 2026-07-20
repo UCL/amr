@@ -1136,22 +1136,33 @@ def _build_headline_table(
 
     aggregations: Dict[str, Optional[float]] = {}
 
-    sepsis_deaths_total = _annualize_sum(
-        float(year_df.get("deaths_sepsis", pd.Series(dtype=float)).sum())
+    scope_death_columns = (
+        "deaths_sepsis_model_scope",
+        "deaths_infection_non_sepsis_model_scope",
     )
-    inf_deaths_total = _annualize_sum(
-        float(year_df.get("deaths_infection_non_sepsis", pd.Series(dtype=float)).sum())
-    )
-    excluded_bacteria_deaths_total = _annualize_sum(
-        sum(
-            float(year_df.get(f"{slug}_deaths", pd.Series(dtype=float)).sum())
-            for slug in INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS
+    if set(scope_death_columns).issubset(year_df.columns):
+        total_infection_deaths = _annualize_sum(
+            float(year_df[list(scope_death_columns)].sum().sum())
         )
-    )
-    total_infection_deaths = max(
-        0.0,
-        sepsis_deaths_total + inf_deaths_total - excluded_bacteria_deaths_total,
-    )
+    else:
+        # Compatibility fallback for old CSVs. This can subtract concurrent excluded
+        # infections and is retained only so historical outputs remain readable.
+        sepsis_deaths_total = _annualize_sum(
+            float(year_df.get("deaths_sepsis", pd.Series(dtype=float)).sum())
+        )
+        inf_deaths_total = _annualize_sum(
+            float(year_df.get("deaths_infection_non_sepsis", pd.Series(dtype=float)).sum())
+        )
+        excluded_bacteria_deaths_total = _annualize_sum(
+            sum(
+                float(year_df.get(f"{slug}_deaths", pd.Series(dtype=float)).sum())
+                for slug in INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS
+            )
+        )
+        total_infection_deaths = max(
+            0.0,
+            sepsis_deaths_total + inf_deaths_total - excluded_bacteria_deaths_total,
+        )
 
     scaled_infection_deaths = total_infection_deaths * scale_factor
     aggregations["infection_deaths_millions"] = (
@@ -4409,8 +4420,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         handle.write("\n---\nFootnotes\n\n")
         handle.write(
             "(1) Infection deaths target: 6.4 million model-scope bacterial infection deaths per year.\n"
-            "    The target is aligned to the simulation numerator: sepsis-related plus non-sepsis\n"
-            "    infection deaths, excluding H. pylori and MDR-TB. GBD 2019 estimated 13.7 million\n"
+            "    The target is aligned to a person-level simulation numerator: sepsis-related plus\n"
+            "    non-sepsis infection deaths with at least one contributing infection other than\n"
+            "    H. pylori or MDR-TB. Concurrent excluded infections do not remove an otherwise\n"
+            "    in-scope death. GBD 2019 estimated 13.7 million\n"
             "    total infection-related deaths globally, including viral, parasitic, and fungal\n"
             "    causes. The 33-pathogen bacterial analysis estimated approximately 7.7 million\n"
             "    bacterial-pathogen-associated deaths, while Murray et al. (2022, Lancet 399:629-655,\n"

@@ -40,6 +40,8 @@ const DEATH_CAUSE_BACKGROUND_IDX: usize = 0;
 const DEATH_CAUSE_SEPSIS_IDX: usize = 1;
 const DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX: usize = 2;
 const DEATH_CAUSE_DRUG_TOXICITY_IDX: usize = 3;
+const INFECTION_DEATH_EXCLUDED_BACTERIA: [&str; 2] =
+    ["helicobacter_pylori", "mdr_mycobacterium_tuberculosis"];
 const CLEARANCE_MICROBIOME_CATEGORY_COUNT: usize = MICROBIOME_RESISTANCE_LEVEL_COUNT;
 const CLEARANCE_CATEGORY_SUFFIXES: [&str; CLEARANCE_MICROBIOME_CATEGORY_COUNT] = [
     "_cleared_any_r_no_microbiome",
@@ -827,6 +829,32 @@ fn is_new_person_level_sepsis_case(
                     && individual.level[b_idx] > INFECTION_EPS
                     && individual.sepsis_onset_day[b_idx] == time_step as i32
             })
+}
+
+fn infection_death_has_model_scope_contributor(
+    individual: &Individual,
+    cause: &str,
+    non_sepsis_level_threshold: f64,
+) -> bool {
+    match cause {
+        "sepsis_related" => individual
+            .sepsis
+            .iter()
+            .enumerate()
+            .any(|(b_idx, &is_septic)| {
+                is_septic
+                    && individual.level[b_idx] > INFECTION_EPS
+                    && !INFECTION_DEATH_EXCLUDED_BACTERIA.contains(&BACTERIA_LIST[b_idx])
+            }),
+        "infection_non_sepsis_related" => {
+            individual.level.iter().enumerate().any(|(b_idx, &level)| {
+                level > non_sepsis_level_threshold
+                    && !individual.sepsis[b_idx]
+                    && !INFECTION_DEATH_EXCLUDED_BACTERIA.contains(&BACTERIA_LIST[b_idx])
+            })
+        }
+        _ => false,
+    }
 }
 
 fn ensure_diagnostic_cascade_state(individual: &mut Individual, num_bacteria: usize) {
@@ -2433,9 +2461,15 @@ pub struct TimeStepSummary {
     pub deaths_background: usize, // Deaths from background mortality
     pub deaths_sepsis: usize,     // Deaths from sepsis
     pub deaths_infection_non_sepsis: usize, // Deaths from infection without sepsis
+    /// Sepsis deaths with at least one model-scope septic infection.
+    #[serde(default)]
+    pub deaths_sepsis_model_scope: usize,
+    /// Non-sepsis infection deaths with at least one model-scope contributing infection.
+    #[serde(default)]
+    pub deaths_infection_non_sepsis_model_scope: usize,
     pub deaths_drug_toxicity: usize, // Deaths from drug toxicity
     pub drug_stops_due_to_toxicity: usize, // Drug discontinuations triggered by sub-lethal toxicity
-    pub deaths_past_year: usize,  // all-cause     // Rolling 1-year (365 days) death counts
+    pub deaths_past_year: usize,     // all-cause     // Rolling 1-year (365 days) death counts
     pub deaths_background_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_infection_non_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
@@ -3202,6 +3236,8 @@ impl Simulation {
                 deaths_background: usize,
                 deaths_sepsis: usize,
                 deaths_infection_non_sepsis: usize,
+                deaths_sepsis_model_scope: usize,
+                deaths_infection_non_sepsis_model_scope: usize,
                 deaths_drug_toxicity: usize,
                 drug_stops_due_to_toxicity: usize,
                 currently_taking_drug_count: usize,
@@ -3452,6 +3488,8 @@ impl Simulation {
                         deaths_background: 0,
                         deaths_sepsis: 0,
                         deaths_infection_non_sepsis: 0,
+                        deaths_sepsis_model_scope: 0,
+                        deaths_infection_non_sepsis_model_scope: 0,
                         deaths_drug_toxicity: 0,
                         drug_stops_due_to_toxicity: 0,
                         currently_taking_drug_count: 0,
@@ -4001,6 +4039,9 @@ impl Simulation {
                     self.deaths_background += other.deaths_background;
                     self.deaths_sepsis += other.deaths_sepsis;
                     self.deaths_infection_non_sepsis += other.deaths_infection_non_sepsis;
+                    self.deaths_sepsis_model_scope += other.deaths_sepsis_model_scope;
+                    self.deaths_infection_non_sepsis_model_scope +=
+                        other.deaths_infection_non_sepsis_model_scope;
                     self.deaths_drug_toxicity += other.deaths_drug_toxicity;
                     self.drug_stops_due_to_toxicity += other.drug_stops_due_to_toxicity;
                     self.currently_taking_drug_count += other.currently_taking_drug_count;
@@ -4653,6 +4694,9 @@ impl Simulation {
             let potential_activity_potency_threshold = config::parameter_store()
                 .globals
                 .minimal_potency_threshold_for_drug_selection;
+            let infection_non_sepsis_minimum_bacteria_level = config::parameter_store()
+                .globals
+                .infection_non_sepsis_minimum_bacteria_level;
             let max_resistance_level = self.param_cache.max_resistance_level;
             // Grouped figures and downstream Python analysis expect a fixed-width CSV row for
             // every stored timestep. Keep the full summary field set for CalibrationMode::None
@@ -5211,6 +5255,13 @@ impl Simulation {
                                     }
                                     "sepsis_related" => {
                                         lt.deaths_sepsis += 1;
+                                        if infection_death_has_model_scope_contributor(
+                                            individual,
+                                            cause,
+                                            infection_non_sepsis_minimum_bacteria_level,
+                                        ) {
+                                            lt.deaths_sepsis_model_scope += 1;
+                                        }
                                         if collect_regional_stats {
                                             lt.deaths_by_region
                                                 [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_SEPSIS_IDX]
@@ -5236,6 +5287,13 @@ impl Simulation {
                                     }
                                     "infection_non_sepsis_related" => {
                                         lt.deaths_infection_non_sepsis += 1;
+                                        if infection_death_has_model_scope_contributor(
+                                            individual,
+                                            cause,
+                                            infection_non_sepsis_minimum_bacteria_level,
+                                        ) {
+                                            lt.deaths_infection_non_sepsis_model_scope += 1;
+                                        }
                                         if collect_regional_stats {
                                             lt.deaths_by_region[region_idx * NUM_DEATH_CAUSES
                                                 + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
@@ -6049,6 +6107,8 @@ impl Simulation {
                 deaths_background,
                 deaths_sepsis,
                 deaths_infection_non_sepsis,
+                deaths_sepsis_model_scope,
+                deaths_infection_non_sepsis_model_scope,
                 deaths_drug_toxicity,
                 drug_stops_due_to_toxicity,
                 currently_taking_drug_count,
@@ -6370,6 +6430,8 @@ impl Simulation {
                 deaths_background,
                 deaths_sepsis,
                 deaths_infection_non_sepsis,
+                deaths_sepsis_model_scope,
+                deaths_infection_non_sepsis_model_scope,
                 deaths_drug_toxicity,
                 drug_stops_due_to_toxicity,
                 // Rolling 1-year death/infection counts — single pass over history
@@ -7640,6 +7702,7 @@ impl Simulation {
             header.push(',');
             header.push_str(label);
         }
+        header.push_str(",deaths_sepsis_model_scope,deaths_infection_non_sepsis_model_scope");
 
         header.push('\n');
         writer.write_all(header.as_bytes())?;
@@ -8597,6 +8660,10 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&count.to_string());
             }
+            row.push(',');
+            row.push_str(&summary.deaths_sepsis_model_scope.to_string());
+            row.push(',');
+            row.push_str(&summary.deaths_infection_non_sepsis_model_scope.to_string());
 
             row.push('\n');
 
@@ -8612,9 +8679,9 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::{
-        current_antibiotic_context_priority, is_new_person_level_sepsis_case,
-        sample_hypergeometric_left_count, MechanismCache, MechanismProfileCache,
-        MAX_MECHANISM_PROFILES,
+        current_antibiotic_context_priority, infection_death_has_model_scope_contributor,
+        is_new_person_level_sepsis_case, sample_hypergeometric_left_count, MechanismCache,
+        MechanismProfileCache, MAX_MECHANISM_PROFILES,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
@@ -8649,6 +8716,62 @@ mod tests {
         assert!(is_new_person_level_sepsis_case(&individual, false, 12));
         assert!(!is_new_person_level_sepsis_case(&individual, true, 12));
         assert!(!is_new_person_level_sepsis_case(&individual, false, 13));
+    }
+
+    #[test]
+    fn infection_death_scope_uses_pathway_contributors_not_concurrent_exclusions() {
+        let mut rng = SmallRng::seed_from_u64(79);
+        let mut individual = Individual::new(1, 40 * 365, "female".to_string(), &mut rng);
+        let e_coli_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .unwrap();
+        let h_pylori_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "helicobacter_pylori")
+            .unwrap();
+        let mdr_tb_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "mdr_mycobacterium_tuberculosis")
+            .unwrap();
+
+        individual.level[h_pylori_idx] = 3.0;
+        individual.sepsis[h_pylori_idx] = true;
+        assert!(!infection_death_has_model_scope_contributor(
+            &individual,
+            "sepsis_related",
+            1.0,
+        ));
+
+        individual.level[e_coli_idx] = 2.0;
+        individual.sepsis[e_coli_idx] = true;
+        assert!(infection_death_has_model_scope_contributor(
+            &individual,
+            "sepsis_related",
+            1.0,
+        ));
+
+        individual.sepsis.fill(false);
+        individual.level.fill(0.0);
+        individual.level[h_pylori_idx] = 3.0;
+        individual.level[mdr_tb_idx] = 3.0;
+        assert!(!infection_death_has_model_scope_contributor(
+            &individual,
+            "infection_non_sepsis_related",
+            1.0,
+        ));
+
+        individual.level[e_coli_idx] = 2.0;
+        assert!(infection_death_has_model_scope_contributor(
+            &individual,
+            "infection_non_sepsis_related",
+            1.0,
+        ));
+        assert!(!infection_death_has_model_scope_contributor(
+            &individual,
+            "background_mortality",
+            1.0,
+        ));
     }
 
     #[test]
