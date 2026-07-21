@@ -1262,6 +1262,8 @@ Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` 
 
 Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For *P. aeruginosa*, the non-transferable `mutation_ampc_derepression` slot is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental *K. pneumoniae* work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because the model does not implement mechanism epistasis, the interaction is not converted into a positive standalone `any_r` phenotype.
 
+Baseline ceftolozane/tazobactam potency is represented separately from acquired resistance. Reviewed model-scale values retain activity against susceptible Enterobacterales, *P. aeruginosa*, selected streptococci, and *B. fragilis*, while staphylococci, *C. jejuni*, and intracellular *L. pneumophila* receive poor-activity values. These are coarse activity categories informed by the FDA microbiology review, prescribing information, and published susceptibility studies; they are not direct MIC or breakpoint conversions.
+
 | Mechanism | Multiplier | Clinical interpretation |
 |-----------|-----------|----------------------|
 | NDM/VIM | 0.95 | Near-complete resistance — these metallo-β-lactamases destroy almost all β-lactams |
@@ -3360,7 +3362,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | staphylococcus_aureus | ceftazidime | 0.1 | 1 |
 | staphylococcus_aureus | cefepime | 0.6 | 1 |
 | staphylococcus_aureus | ceftaroline | 0.95 | 1 |
-| staphylococcus_aureus | ceftolozane_tazobactam | 0.75 | 1 |
+| staphylococcus_aureus | ceftolozane_tazobactam | 0.1 | 1 |
 | staphylococcus_aureus | cefiderocol | 0.75 | 1 |
 | staphylococcus_aureus | meropenem | 0.7 | 0.005 |
 | staphylococcus_aureus | imipenem_c | 0.7 | 0.005 |
@@ -3420,7 +3422,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | staphylococcus_epidermidis | ceftazidime | 0.1 | 1 |
 | staphylococcus_epidermidis | cefepime | 0.15 | 1 |
 | staphylococcus_epidermidis | ceftaroline | 0.75 | 1 |
-| staphylococcus_epidermidis | ceftolozane_tazobactam | 0.75 | 1 |
+| staphylococcus_epidermidis | ceftolozane_tazobactam | 0.1 | 1 |
 | staphylococcus_epidermidis | cefiderocol | 0.75 | 1 |
 | staphylococcus_epidermidis | meropenem | 0.4 | 0.005 |
 | staphylococcus_epidermidis | imipenem_c | 0.5 | 0.005 |
@@ -4423,7 +4425,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | campylobacter_jejuni | ceftazidime | 0.1 | 1 |
 | campylobacter_jejuni | cefepime | 0.1 | 1 |
 | campylobacter_jejuni | ceftaroline | 0.1 | 1 |
-| campylobacter_jejuni | ceftolozane_tazobactam | 0.75 | 1 |
+| campylobacter_jejuni | ceftolozane_tazobactam | 0.1 | 1 |
 | campylobacter_jejuni | cefiderocol | 0.75 | 1 |
 | campylobacter_jejuni | meropenem | 0.1 | 0.005 |
 | campylobacter_jejuni | imipenem_c | 0.1 | 0.005 |
@@ -4972,7 +4974,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | ceftazidime | 0.05 | 1 |
 | legionella_pneumophila | cefepime | 0.05 | 1 |
 | legionella_pneumophila | ceftaroline | 0.05 | 1 |
-| legionella_pneumophila | ceftolozane_tazobactam | 0.8 | 1 |
+| legionella_pneumophila | ceftolozane_tazobactam | 0.05 | 1 |
 | legionella_pneumophila | cefiderocol | 0.8 | 1 |
 | legionella_pneumophila | meropenem | 0.05 | 0.001 |
 | legionella_pneumophila | imipenem_c | 0.05 | 0.005 |
@@ -9233,7 +9235,11 @@ When enabled, individual infection journeys are logged to the `infection_journey
 
 - U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised September 2020. https://www.accessdata.fda.gov/drugsatfda_docs/label/2020/209445s002lbl.pdf
 
-- U.S. Food and Drug Administration. *Zerbaxa (ceftolozane and tazobactam) prescribing information.* Revised April 2022. https://www.accessdata.fda.gov/drugsatfda_docs/label/2022/206829s011s012lbl.pdf
+- U.S. Food and Drug Administration. *Zerbaxa (ceftolozane and tazobactam) prescribing information.* Revised May 2026. https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/206829s023lbl.pdf
+
+- U.S. Food and Drug Administration. *Ceftolozane-tazobactam clinical microbiology review, NDA 206829.* Completed September 26, 2014. https://www.accessdata.fda.gov/drugsatfda_docs/nda/2014/206829Orig1s000MicroR.pdf
+
+- Snydman DR, McDermott LA, Jacobus NV. Activity of ceftolozane-tazobactam against a broad spectrum of recent clinical anaerobic isolates. *Antimicrob Agents Chemother.* 2014;58(2):1218-1223. doi:10.1128/AAC.02253-13
 
 - Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in *Klebsiella pneumoniae*. *Front Microbiol.* 2018;9:1422. doi:10.3389/fmicb.2018.01422
 

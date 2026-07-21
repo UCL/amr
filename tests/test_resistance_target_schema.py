@@ -140,14 +140,14 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
     def test_cell_statuses_make_legacy_missingness_explicit(self) -> None:
         counts = Counter((row["component"], row["cell_status"]) for row in self.rows)
-        self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1246)
+        self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1244)
         self.assertEqual(
-            counts[(PREVALENCE_COMPONENT, "inactive_model_unrepresentable")], 48
+            counts[(PREVALENCE_COMPONENT, "inactive_model_unrepresentable")], 50
         )
         self.assertEqual(
             counts[(PREVALENCE_COMPONENT, "legacy_unclassified_missing")], 1268
         )
-        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1168)
+        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1167)
         self.assertEqual(
             counts[
                 (
@@ -155,10 +155,10 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                     "inactive_above_model_representable_maximum",
                 )
             ],
-            77,
+            76,
         )
         self.assertEqual(
-            counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 47
+            counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 49
         )
         self.assertEqual(
             counts[(SEVERITY_COMPONENT, "inactive_unpaired_legacy_benchmark")],
@@ -174,8 +174,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             for row in self.rows
             if row["include_in_score"] == "true"
         )
-        self.assertEqual(included[PREVALENCE_COMPONENT], 1194)
-        self.assertEqual(included[SEVERITY_COMPONENT], 1117)
+        self.assertEqual(included[PREVALENCE_COMPONENT], 1192)
+        self.assertEqual(included[SEVERITY_COMPONENT], 1116)
 
         allowed_reasons = {
             "legacy_prevalence_target_missing",
@@ -200,8 +200,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
         self.assertEqual(len(prevalence), 42 * 61)
         self.assertEqual(len(severity), 42 * 61)
-        self.assertEqual(int(prevalence["include_in_score"].sum()), 1194)
-        self.assertEqual(int(severity["include_in_score"].sum()), 1117)
+        self.assertEqual(int(prevalence["include_in_score"].sum()), 1192)
+        self.assertEqual(int(severity["include_in_score"].sum()), 1116)
 
         excluded = prevalence.loc[
             prevalence["Bacteria"].eq("Providencia stuartii")

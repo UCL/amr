@@ -4768,7 +4768,7 @@ lazy_static! {
         map.insert("drug_ceftazidime_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefepime_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_ceftaroline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_ceftolozane_tazobactam_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ceftolozane_tazobactam_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefiderocol_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_meropenem_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_imipenem_c_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
@@ -4831,7 +4831,7 @@ lazy_static! {
         map.insert("drug_ceftazidime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefepime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
         map.insert("drug_ceftaroline_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_ceftolozane_tazobactam_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ceftolozane_tazobactam_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefiderocol_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_meropenem_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.25);
         map.insert("drug_imipenem_c_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.30);
@@ -5903,7 +5903,7 @@ lazy_static! {
         map.insert("drug_ceftazidime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefepime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftaroline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ceftolozane_tazobactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ceftolozane_tazobactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefiderocol_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_meropenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_imipenem_c_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
@@ -6470,7 +6470,7 @@ lazy_static! {
         map.insert("drug_ceftazidime_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_cefepime_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ceftaroline_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_ceftolozane_tazobactam_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_ceftolozane_tazobactam_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_cefiderocol_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_meropenem_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_imipenem_c_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);

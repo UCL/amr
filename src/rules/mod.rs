@@ -7505,7 +7505,7 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_595,
+            applicable_cells, 5_584,
             "applicability count should include the corrected reserve-drug routes"
         );
     }

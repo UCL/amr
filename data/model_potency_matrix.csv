@@ -818,7 +818,7 @@ staphylococcus_aureus,ceftriaxone,0.7
 staphylococcus_aureus,ceftazidime,0.1
 staphylococcus_aureus,cefepime,0.6
 staphylococcus_aureus,ceftaroline,0.95
-staphylococcus_aureus,ceftolozane_tazobactam,0.75
+staphylococcus_aureus,ceftolozane_tazobactam,0.1
 staphylococcus_aureus,cefiderocol,0.75
 staphylococcus_aureus,meropenem,0.7
 staphylococcus_aureus,imipenem_c,0.7
@@ -880,7 +880,7 @@ staphylococcus_epidermidis,ceftriaxone,0.1
 staphylococcus_epidermidis,ceftazidime,0.1
 staphylococcus_epidermidis,cefepime,0.15
 staphylococcus_epidermidis,ceftaroline,0.5
-staphylococcus_epidermidis,ceftolozane_tazobactam,0.75
+staphylococcus_epidermidis,ceftolozane_tazobactam,0.1
 staphylococcus_epidermidis,cefiderocol,0.75
 staphylococcus_epidermidis,meropenem,0.25
 staphylococcus_epidermidis,imipenem_c,0.3
@@ -1934,7 +1934,7 @@ campylobacter_jejuni,ceftriaxone,0.1
 campylobacter_jejuni,ceftazidime,0.1
 campylobacter_jejuni,cefepime,0.1
 campylobacter_jejuni,ceftaroline,0.1
-campylobacter_jejuni,ceftolozane_tazobactam,0.75
+campylobacter_jejuni,ceftolozane_tazobactam,0.1
 campylobacter_jejuni,cefiderocol,0.75
 campylobacter_jejuni,meropenem,0.1
 campylobacter_jejuni,imipenem_c,0.1
@@ -2492,7 +2492,7 @@ legionella_pneumophila,ceftriaxone,0.05
 legionella_pneumophila,ceftazidime,0.05
 legionella_pneumophila,cefepime,0.05
 legionella_pneumophila,ceftaroline,0.05
-legionella_pneumophila,ceftolozane_tazobactam,0.8
+legionella_pneumophila,ceftolozane_tazobactam,0.05
 legionella_pneumophila,cefiderocol,0.8
 legionella_pneumophila,meropenem,0.05
 legionella_pneumophila,imipenem_c,0.05

@@ -818,7 +818,7 @@ staphylococcus_aureus,ceftriaxone,true,0.993,target_site_pbp2a_meca;mutation_pbp
 staphylococcus_aureus,ceftazidime,false,0,
 staphylococcus_aureus,cefepime,true,0.745,target_site_pbp2a_meca;mutation_pbp_mosaic
 staphylococcus_aureus,ceftaroline,true,0.15000000000000002,mutation_pbp_mosaic
-staphylococcus_aureus,ceftolozane_tazobactam,true,0.993,target_site_pbp2a_meca;mutation_pbp_mosaic
+staphylococcus_aureus,ceftolozane_tazobactam,false,0,
 staphylococcus_aureus,cefiderocol,false,0,
 staphylococcus_aureus,meropenem,true,0.85,target_site_pbp2a_meca
 staphylococcus_aureus,imipenem_c,true,0.85,target_site_pbp2a_meca
@@ -880,7 +880,7 @@ staphylococcus_epidermidis,ceftriaxone,false,0,
 staphylococcus_epidermidis,ceftazidime,false,0,
 staphylococcus_epidermidis,cefepime,true,0.745,target_site_pbp2a_meca;mutation_pbp_mosaic
 staphylococcus_epidermidis,ceftaroline,true,0.15000000000000002,mutation_pbp_mosaic
-staphylococcus_epidermidis,ceftolozane_tazobactam,true,0.993,target_site_pbp2a_meca;mutation_pbp_mosaic
+staphylococcus_epidermidis,ceftolozane_tazobactam,false,0,
 staphylococcus_epidermidis,cefiderocol,false,0,
 staphylococcus_epidermidis,meropenem,true,0.85,target_site_pbp2a_meca
 staphylococcus_epidermidis,imipenem_c,true,0.85,target_site_pbp2a_meca
@@ -1934,7 +1934,7 @@ campylobacter_jejuni,ceftriaxone,false,0,
 campylobacter_jejuni,ceftazidime,false,0,
 campylobacter_jejuni,cefepime,false,0,
 campylobacter_jejuni,ceftaroline,false,0,
-campylobacter_jejuni,ceftolozane_tazobactam,true,0.30000000000000004,mutation_pbp_mosaic
+campylobacter_jejuni,ceftolozane_tazobactam,false,0,
 campylobacter_jejuni,cefiderocol,false,0,
 campylobacter_jejuni,meropenem,false,0,
 campylobacter_jejuni,imipenem_c,false,0,
@@ -2492,7 +2492,7 @@ legionella_pneumophila,ceftriaxone,false,0,
 legionella_pneumophila,ceftazidime,false,0,
 legionella_pneumophila,cefepime,false,0,
 legionella_pneumophila,ceftaroline,false,0,
-legionella_pneumophila,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
+legionella_pneumophila,ceftolozane_tazobactam,false,0,
 legionella_pneumophila,cefiderocol,false,0,
 legionella_pneumophila,meropenem,false,0,
 legionella_pneumophila,imipenem_c,false,0,

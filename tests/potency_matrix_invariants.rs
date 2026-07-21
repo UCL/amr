@@ -4,6 +4,20 @@ use csv::ReaderBuilder;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+fn potency(bacterium: &str, drug: &str) -> f64 {
+    let bacteria_idx = BACTERIA_LIST
+        .iter()
+        .position(|name| *name == bacterium)
+        .unwrap_or_else(|| panic!("unknown bacterium {bacterium}"));
+    let drug_idx = DRUG_SHORT_NAMES
+        .iter()
+        .position(|name| *name == drug)
+        .unwrap_or_else(|| panic!("unknown drug {drug}"));
+    PARAMETER_STORE
+        .drug_bacteria
+        .potency(bacteria_idx, drug_idx)
+}
+
 #[test]
 fn exported_model_potencies_match_the_typed_rust_matrix() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -54,4 +68,27 @@ fn exported_model_potencies_match_the_typed_rust_matrix() {
         BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len(),
         "potency projection must contain every typed bacterium-drug pair"
     );
+}
+
+#[test]
+fn ceftolozane_tazobactam_potencies_match_reviewed_spectrum() {
+    let reviewed = [
+        ("staphylococcus_aureus", 0.10),
+        ("staphylococcus_epidermidis", 0.10),
+        ("campylobacter_jejuni", 0.10),
+        ("legionella_pneumophila", 0.05),
+        ("streptococcus_pneumoniae", 0.75),
+        ("streptococcus_pyogenes", 0.75),
+        ("streptococcus_agalactiae", 0.75),
+        ("bacteroides_fragilis", 0.45),
+        ("pseudomonas_aeruginosa", 0.65),
+    ];
+
+    for (bacterium, expected) in reviewed {
+        assert_eq!(
+            potency(bacterium, "ceftolozane_tazobactam"),
+            expected,
+            "reviewed ceftolozane/tazobactam potency drift for {bacterium}"
+        );
+    }
 }
