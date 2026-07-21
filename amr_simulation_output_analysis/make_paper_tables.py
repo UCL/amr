@@ -2884,7 +2884,7 @@ def _f2_load_baseline_potency_lookup() -> dict[tuple[str, str], float]:
     if _F2_BASELINE_POTENCY_LOOKUP_CACHE is not None:
         return _F2_BASELINE_POTENCY_LOOKUP_CACHE
 
-    path = REPO_ROOT / "data" / "potency_audit_matrix.csv"
+    path = REPO_ROOT / "data" / "model_potency_matrix.csv"
     if not path.exists():
         print(
             f"  Figure 2: {path} not found; potency display threshold "
@@ -2903,7 +2903,7 @@ def _f2_load_baseline_potency_lookup() -> dict[tuple[str, str], float]:
         _F2_BASELINE_POTENCY_LOOKUP_CACHE = {}
         return _F2_BASELINE_POTENCY_LOOKUP_CACHE
 
-    required = {"bacteria", "drug", "potency_no_r"}
+    required = {"bacteria", "drug", "potency_when_no_r"}
     if potency_df.empty or not required.issubset(potency_df.columns):
         print(
             f"  Figure 2: {path.name} is missing required columns; potency "
@@ -2916,7 +2916,7 @@ def _f2_load_baseline_potency_lookup() -> dict[tuple[str, str], float]:
     for _, row in potency_df.iterrows():
         bacteria = row.get("bacteria")
         drug = row.get("drug")
-        potency = row.get("potency_no_r")
+        potency = row.get("potency_when_no_r")
         if pd.isna(bacteria) or pd.isna(drug) or pd.isna(potency):
             continue
         lookup[(_f2_slugify_bacteria_value(bacteria), _f2_normalize_drug_slug(drug))] = float(potency)

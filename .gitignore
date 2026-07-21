@@ -51,6 +51,7 @@ Thumbs.db
 !/data/resistance_target_sources_v1.csv
 !/data/resistance_targets_v1.schema.json
 !/data/RESISTANCE_TARGETS.md
+!/data/model_potency_matrix.csv
 !/data/microbiome_resistance_resident_values.csv
 !/data/infection_incidence_by_bacteria.csv
 !/data/microbiome_carriage_by_bacteria.csv
