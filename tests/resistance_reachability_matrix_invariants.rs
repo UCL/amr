@@ -26,6 +26,7 @@ fn exported_resistance_reachability_matches_the_typed_rust_model() {
             "bacteria",
             "drug",
             "resistance_representable",
+            "maximum_any_r",
             "positive_effect_mechanisms",
         ]
     );
@@ -70,7 +71,27 @@ fn exported_resistance_reachability_matches_the_typed_rust_model() {
             "projected resistance reachability drift for {bacterium}/{drug}"
         );
         assert_eq!(
-            &record[3],
+            record[3]
+                .parse::<f64>()
+                .unwrap_or_else(|_| panic!("invalid maximum any_r for {bacterium}/{drug}")),
+            ResistanceMechanism::all()
+                .iter()
+                .enumerate()
+                .filter_map(|(mechanism_idx, _)| {
+                    let effect = PARAMETER_STORE
+                        .resistance_mechanism
+                        .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_idx]);
+                    (cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                        && effect > 0.0)
+                        .then_some(effect)
+                })
+                .fold(0.0, |combined, effect| {
+                    1.0 - (1.0 - combined) * (1.0 - effect)
+                }),
+            "projected maximum any_r drift for {bacterium}/{drug}"
+        );
+        assert_eq!(
+            &record[4],
             expected_mechanisms.join(";"),
             "projected mechanism list drift for {bacterium}/{drug}"
         );

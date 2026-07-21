@@ -1305,6 +1305,8 @@ def _load_resistance_target_set(
                 reasons.append("negligible potency (baseline potency < 0.15)")
             if "model_resistance_phenotype_not_representable" in exclusions:
                 reasons.append("resistance phenotype not represented by model mechanisms")
+            if "severity_benchmark_above_model_representable_maximum" in exclusions:
+                reasons.append("severity benchmark exceeds model-representable maximum")
             if component == RESISTANCE_PREVALENCE_COMPONENT and row["value"] == "":
                 reasons.append("infection-resistance benchmark not assigned")
             return "; ".join(reasons)

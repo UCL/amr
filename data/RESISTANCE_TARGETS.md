@@ -22,8 +22,10 @@ baseline-potency, and phenotype-representability exclusions. Potency and resista
 checks are materialized from
 `model_potency_matrix.csv`, a deterministic projection of the typed Rust matrix that is checked
 against Rust in the test suite, and `model_resistance_reachability_matrix.csv`, a checked projection
-of whether any applicable mechanism has a positive phenotypic effect for each pair. A retained
-benchmark is not scored when the current mechanism architecture cannot represent resistance to it.
+of whether any applicable mechanism has a positive phenotypic effect for each pair and the maximum
+`any_r` attainable if every such mechanism is present. A retained benchmark is not scored when the
+current mechanism architecture cannot represent resistance to it, or when a conditional-severity
+benchmark exceeds that structural maximum.
 Unavailable simulation denominators can still exclude a row from a particular analysis.
 `evidence_weight` remains blank because evidence quality has not yet been assessed;
 `score_row_weight` records equal static row weighting only.

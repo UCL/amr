@@ -143,19 +143,20 @@ def _read_rust_potencies(path: Path) -> Dict[Tuple[str, str], Decimal]:
 
 def _read_rust_resistance_reachability(
     path: Path,
-) -> Dict[Tuple[str, str], bool]:
+) -> Dict[Tuple[str, str], Tuple[bool, Decimal]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         required = {
             "bacteria",
             "drug",
             "resistance_representable",
+            "maximum_any_r",
             "positive_effect_mechanisms",
         }
         if reader.fieldnames is None or set(reader.fieldnames) != required:
             raise ValueError(f"{path} must contain exactly {sorted(required)}")
 
-        result: Dict[Tuple[str, str], bool] = {}
+        result: Dict[Tuple[str, str], Tuple[bool, Decimal]] = {}
         for row_number, row in enumerate(reader, start=2):
             bacteria = _potency_bacteria_slug(row["bacteria"])
             drug = row["drug"].strip().lower()
@@ -168,12 +169,24 @@ def _read_rust_resistance_reachability(
                     f"{path}:{row_number} has invalid representability {token!r}"
                 )
             representable = token == "true"
+            try:
+                maximum_any_r = Decimal(row["maximum_any_r"])
+            except InvalidOperation as error:
+                raise ValueError(
+                    f"{path}:{row_number} has invalid maximum_any_r"
+                ) from error
+            if not maximum_any_r.is_finite() or not Decimal("0") <= maximum_any_r <= Decimal("1"):
+                raise ValueError(f"{path}:{row_number} maximum_any_r is outside [0, 1]")
             has_mechanisms = bool(row["positive_effect_mechanisms"].strip())
             if representable != has_mechanisms:
                 raise ValueError(
                     f"{path}:{row_number} representability disagrees with mechanism list"
                 )
-            result[key] = representable
+            if representable != (maximum_any_r > 0):
+                raise ValueError(
+                    f"{path}:{row_number} representability disagrees with maximum_any_r"
+                )
+            result[key] = (representable, maximum_any_r)
     return result
 
 
@@ -182,7 +195,7 @@ def _static_score_exclusions(
     drug: str,
     prevalence_token: str,
     potencies: Mapping[Tuple[str, str], Decimal],
-    resistance_reachability: Mapping[Tuple[str, str], bool],
+    resistance_reachability: Mapping[Tuple[str, str], Tuple[bool, Decimal]],
 ) -> List[str]:
     reasons: List[str] = []
     bacterium_slug = _target_bacteria_slug(bacterium)
@@ -199,12 +212,12 @@ def _static_score_exclusions(
         raise ValueError(f"Rust potency projection lacks {bacterium_slug}/{drug}")
     if potency < POTENCY_CUTOFF:
         reasons.append("model_baseline_potency_below_0.15")
-    representable = resistance_reachability.get((bacterium_slug, drug))
-    if representable is None:
+    reachability = resistance_reachability.get((bacterium_slug, drug))
+    if reachability is None:
         raise ValueError(
             f"Rust resistance reachability projection lacks {bacterium_slug}/{drug}"
         )
-    if prevalence_token != "." and not representable:
+    if prevalence_token != "." and not reachability[0]:
         reasons.append("model_resistance_phenotype_not_representable")
     return reasons
 
@@ -333,6 +346,15 @@ def build_resistance_targets_v1(
                 potencies,
                 resistance_reachability,
             )
+            if token != ".":
+                maximum_any_r = resistance_reachability[
+                    (_target_bacteria_slug(bacterium), drug)
+                ][1]
+                if Decimal(token) > maximum_any_r + Decimal("1e-12"):
+                    exclusions = [
+                        *exclusions,
+                        "severity_benchmark_above_model_representable_maximum",
+                    ]
             if token == ".":
                 status = "legacy_unclassified_missing"
                 if "legacy_prevalence_target_missing" not in exclusions:
@@ -341,6 +363,8 @@ def build_resistance_targets_v1(
                 status = "inactive_legacy_prevalence_gate"
             elif "model_resistance_phenotype_not_representable" in exclusions:
                 status = "inactive_model_unrepresentable"
+            elif "severity_benchmark_above_model_representable_maximum" in exclusions:
+                status = "inactive_above_model_representable_maximum"
             else:
                 status = "active_target"
             rows.append(
