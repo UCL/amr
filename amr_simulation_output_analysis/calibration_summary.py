@@ -17,9 +17,11 @@ from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 REPO_ROOT = Path(__file__).resolve().parents[1]
-POTENCY_AUDIT_MATRIX_PATH = REPO_ROOT / "data" / "potency_audit_matrix.csv"
-NON_NEGLIGIBLE_POTENCY_CUTOFF = 0.15
-_BASELINE_POTENCY_LOOKUP_CACHE: Optional[Dict[Tuple[str, str], float]] = None
+RESISTANCE_TARGET_SET_VERSION = "resistance_targets_v1"
+RESISTANCE_PREVALENCE_COMPONENT = "resistance_prevalence_any_r_positive"
+RESISTANCE_SEVERITY_COMPONENT = "resistance_severity_conditional_mean_any_r"
+RESISTANCE_TARGET_INCLUDED_COL = "Infection target included in score"
+RESISTANCE_AVERAGE_TARGET_INCLUDED_COL = "Average target included in score"
 
 DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     "enabled": True,
@@ -214,6 +216,7 @@ class CalibrationTargets:
     headline_metrics: Iterable[Dict[str, object]]
     resistance_target_path: Path
     resistance_average_path: Optional[Path] = None
+    resistance_long_form_path: Optional[Path] = None
     microbiome_resident_path: Optional[Path] = None
     infection_incidence_path: Optional[Path] = None
     microbiome_carriage_path: Optional[Path] = None
@@ -240,6 +243,9 @@ class CalibrationTargets:
         resistance_path = resistance_section.get("path", "resistance_prevalence_values.csv")
         average_path = resistance_section.get(
             "average_path", "data/resistance_average_resistant_values.csv"
+        )
+        long_form_path = resistance_section.get(
+            "long_form_path", "data/resistance_targets_v1.csv"
         )
         microbiome_resident_path = resistance_section.get(
             "microbiome_resident_path", "data/microbiome_resistance_resident_values.csv"
@@ -296,6 +302,9 @@ class CalibrationTargets:
             headline_metrics=payload.get("headline_metrics", []),
             resistance_target_path=(root / resistance_path).resolve(),
             resistance_average_path=(root / average_path).resolve() if average_path else None,
+            resistance_long_form_path=(root / long_form_path).resolve()
+            if long_form_path
+            else None,
             microbiome_resident_path=(root / microbiome_resident_path).resolve()
             if microbiome_resident_path
             else None,
@@ -491,10 +500,9 @@ def _gather_calibration_context(
         df["calendar_year"],
         targets.drug_class_targets,
     )
-    resistance_targets = _load_bacteria_drug_matrix(
-        targets.resistance_target_path, dot_reason="negligible potency"
+    resistance_targets, resistance_average_targets = _load_resistance_target_set(
+        targets.resistance_long_form_path
     )
-    resistance_average_targets = _load_bacteria_drug_matrix(targets.resistance_average_path)
     microbiome_resident_targets = _load_bacteria_drug_matrix(targets.microbiome_resident_path)
     resistance_df = _calculate_resistance_table(
         df,
@@ -1019,41 +1027,6 @@ def _normalize_drug_slug(name: str) -> str:
     return DRUG_SLUG_NORMALIZATION_OVERRIDES.get(slug, slug)
 
 
-def _load_baseline_potency_lookup() -> Dict[Tuple[str, str], float]:
-    global _BASELINE_POTENCY_LOOKUP_CACHE
-
-    if _BASELINE_POTENCY_LOOKUP_CACHE is not None:
-        return _BASELINE_POTENCY_LOOKUP_CACHE
-
-    if not POTENCY_AUDIT_MATRIX_PATH.exists():
-        _BASELINE_POTENCY_LOOKUP_CACHE = {}
-        return _BASELINE_POTENCY_LOOKUP_CACHE
-
-    audit_df = pd.read_csv(POTENCY_AUDIT_MATRIX_PATH)
-    required_columns = {"bacteria", "drug", "potency_no_r"}
-    if audit_df.empty or not required_columns.issubset(audit_df.columns):
-        _BASELINE_POTENCY_LOOKUP_CACHE = {}
-        return _BASELINE_POTENCY_LOOKUP_CACHE
-
-    lookup: Dict[Tuple[str, str], float] = {}
-    for _, row in audit_df.iterrows():
-        bacteria_value = row.get("bacteria")
-        drug_value = row.get("drug")
-        potency_value = row.get("potency_no_r")
-        if pd.isna(bacteria_value) or pd.isna(drug_value) or pd.isna(potency_value):
-            continue
-        lookup[
-            (_slugify_bacteria_value(str(bacteria_value)), _normalize_drug_slug(str(drug_value)))
-        ] = float(potency_value)
-
-    _BASELINE_POTENCY_LOOKUP_CACHE = lookup
-    return _BASELINE_POTENCY_LOOKUP_CACHE
-
-
-def _baseline_potency_for_pair(bacteria_slug: str, drug_slug: str) -> Optional[float]:
-    return _load_baseline_potency_lookup().get((bacteria_slug, _normalize_drug_slug(drug_slug)))
-
-
 def _compute_population_scale(year_df: pd.DataFrame, world_population: Optional[float]) -> float:
     if world_population is None or world_population <= 0:
         return 1.0
@@ -1223,12 +1196,22 @@ def _load_bacteria_drug_matrix(
     path: Path,
     dot_reason: Optional[str] = None,
 ) -> pd.DataFrame:
+    columns = [
+        "Bacteria",
+        "drug",
+        "target_raw",
+        "target",
+        "reason",
+        "include_in_score",
+        "bacteria_slug",
+        "drug_slug",
+    ]
     if path is None or not path.exists():
-        return pd.DataFrame(columns=["Bacteria", "drug", "target_raw", "target", "reason", "bacteria_slug", "drug_slug"])
+        return pd.DataFrame(columns=columns)
 
     df = pd.read_csv(path)
     if df.empty:
-        return pd.DataFrame(columns=["Bacteria", "drug", "target_raw", "target", "reason", "bacteria_slug", "drug_slug"])
+        return pd.DataFrame(columns=columns)
 
     # Drop metadata columns before melting (these are not drugs)
     metadata_columns = ["notes", "Notes", "NOTES", "note", "Note"]
@@ -1237,14 +1220,115 @@ def _load_bacteria_drug_matrix(
     df = df.melt(id_vars="Bacteria", var_name="drug", value_name="target_raw")
     df["target"] = pd.to_numeric(df["target_raw"], errors="coerce")
     df["reason"] = ""
+    df["include_in_score"] = df["target"].notna()
 
     if dot_reason:
         dot_mask = df["target_raw"].astype(str).str.strip() == "."
         df.loc[dot_mask, "reason"] = dot_reason
 
     df["bacteria_slug"] = df["Bacteria"].apply(_slugify_bacteria_value)
-    df["drug_slug"] = df["drug"].apply(_slugify_value)
-    return df
+    df["drug_slug"] = df["drug"].apply(_normalize_drug_slug)
+    return df[columns]
+
+
+def _load_resistance_target_set(
+    path: Optional[Path],
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Load the versioned resistance targets and their explicit score eligibility."""
+
+    if path is None or not path.exists():
+        raise FileNotFoundError(f"Missing versioned resistance target file: {path}")
+
+    target_set = pd.read_csv(path, dtype=str, keep_default_na=False)
+    required_columns = {
+        "target_set_version",
+        "component",
+        "bacteria",
+        "drug",
+        "value",
+        "cell_status",
+        "include_in_score",
+        "score_exclusion_reason",
+    }
+    missing_columns = required_columns.difference(target_set.columns)
+    if missing_columns:
+        raise ValueError(
+            f"{path} is missing required columns: {', '.join(sorted(missing_columns))}"
+        )
+    if target_set.empty:
+        raise ValueError(f"{path} contains no resistance targets")
+
+    versions = set(target_set["target_set_version"])
+    if versions != {RESISTANCE_TARGET_SET_VERSION}:
+        raise ValueError(
+            f"{path} must contain only target set {RESISTANCE_TARGET_SET_VERSION!r}; "
+            f"found {sorted(versions)}"
+        )
+    expected_components = {
+        RESISTANCE_PREVALENCE_COMPONENT,
+        RESISTANCE_SEVERITY_COMPONENT,
+    }
+    components = set(target_set["component"])
+    if components != expected_components:
+        raise ValueError(
+            f"{path} must contain components {sorted(expected_components)}; "
+            f"found {sorted(components)}"
+        )
+    if target_set.duplicated(["component", "bacteria", "drug"]).any():
+        raise ValueError(f"{path} contains duplicate component/bacterium/drug rows")
+
+    include_tokens = set(target_set["include_in_score"])
+    if not include_tokens.issubset({"true", "false"}):
+        raise ValueError(f"{path} include_in_score values must be true or false")
+    numeric_values = pd.to_numeric(
+        target_set["value"].replace("", np.nan), errors="coerce"
+    )
+    invalid_numeric = target_set["value"].ne("") & numeric_values.isna()
+    if invalid_numeric.any():
+        raise ValueError(f"{path} contains a non-numeric resistance target value")
+    included = target_set["include_in_score"].eq("true")
+    if (included & numeric_values.isna()).any():
+        raise ValueError(f"{path} includes score rows without numeric target values")
+
+    def _component_frame(component: str) -> pd.DataFrame:
+        subset = target_set.loc[target_set["component"].eq(component)].copy()
+        subset["target_raw"] = subset["value"].where(subset["value"].ne(""), ".")
+        subset["target"] = pd.to_numeric(
+            subset["value"].replace("", np.nan), errors="coerce"
+        )
+        subset["include_in_score"] = subset["include_in_score"].eq("true")
+
+        def _display_reason(row: pd.Series) -> str:
+            reasons: List[str] = []
+            exclusions = str(row.get("score_exclusion_reason") or "").split(";")
+            if "model_baseline_potency_below_0.15" in exclusions:
+                reasons.append("negligible potency (baseline potency < 0.15)")
+            if component == RESISTANCE_PREVALENCE_COMPONENT and row["value"] == "":
+                reasons.append("negligible potency")
+            return "; ".join(reasons)
+
+        subset["reason"] = subset.apply(_display_reason, axis=1)
+        subset.rename(columns={"bacteria": "Bacteria"}, inplace=True)
+        subset["bacteria_slug"] = subset["Bacteria"].apply(_slugify_bacteria_value)
+        subset["drug_slug"] = subset["drug"].apply(_normalize_drug_slug)
+        return subset[
+            [
+                "Bacteria",
+                "drug",
+                "target_raw",
+                "target",
+                "reason",
+                "include_in_score",
+                "score_exclusion_reason",
+                "bacteria_slug",
+                "drug_slug",
+            ]
+        ]
+
+    return (
+        _component_frame(RESISTANCE_PREVALENCE_COMPONENT),
+        _component_frame(RESISTANCE_SEVERITY_COMPONENT),
+    )
 
 
 def _load_bacteria_metric_values(
@@ -1400,13 +1484,35 @@ def _calculate_resistance_table(
         "Infected person-days",
         "Resistant person-days",
         "Microbiome carrier-days",
+        RESISTANCE_TARGET_INCLUDED_COL,
+        RESISTANCE_AVERAGE_TARGET_INCLUDED_COL,
         "Note",
     ]
     if resistance_targets is None or resistance_targets.empty:
-        resistance_targets = pd.DataFrame(columns=["Bacteria", "drug", "target", "reason", "bacteria_slug", "drug_slug"])
+        resistance_targets = pd.DataFrame(
+            columns=[
+                "Bacteria",
+                "drug",
+                "target",
+                "reason",
+                "include_in_score",
+                "bacteria_slug",
+                "drug_slug",
+            ]
+        )
 
     if average_targets is None or average_targets.empty:
-        average_targets = pd.DataFrame(columns=["Bacteria", "drug", "target", "reason", "bacteria_slug", "drug_slug"])
+        average_targets = pd.DataFrame(
+            columns=[
+                "Bacteria",
+                "drug",
+                "target",
+                "reason",
+                "include_in_score",
+                "bacteria_slug",
+                "drug_slug",
+            ]
+        )
 
     if microbiome_targets is None or microbiome_targets.empty:
         microbiome_targets = pd.DataFrame(columns=["Bacteria", "drug", "target", "reason", "bacteria_slug", "drug_slug"])
@@ -1423,21 +1529,31 @@ def _calculate_resistance_table(
     }
 
     combo_display: Dict[Tuple[str, str], Tuple[str, str]] = {}
-    prevalence_lookup: Dict[Tuple[str, str], Tuple[Optional[float], str]] = {}
-    average_lookup: Dict[Tuple[str, str], Optional[float]] = {}
+    prevalence_lookup: Dict[Tuple[str, str], Tuple[Optional[float], str, bool]] = {}
+    average_lookup: Dict[Tuple[str, str], Tuple[Optional[float], bool]] = {}
     microbiome_lookup: Dict[Tuple[str, str], Optional[float]] = {}
+
+    def _target_is_included(row: pd.Series) -> bool:
+        value = row.get("include_in_score", not pd.isna(row.get("target")))
+        if isinstance(value, str):
+            return value.strip().lower() == "true"
+        return bool(value) if not pd.isna(value) else False
 
     for _, row in resistance_targets.iterrows():
         key = (row["bacteria_slug"], row["drug_slug"])
         if key not in combo_display:
             combo_display[key] = (row.get("Bacteria", key[0]), row.get("drug", key[1]))
-        prevalence_lookup[key] = (row.get("target"), str(row.get("reason") or ""))
+        prevalence_lookup[key] = (
+            row.get("target"),
+            str(row.get("reason") or ""),
+            _target_is_included(row),
+        )
 
     for _, row in average_targets.iterrows():
         key = (row["bacteria_slug"], row["drug_slug"])
         if key not in combo_display:
             combo_display[key] = (row.get("Bacteria", key[0]), row.get("drug", key[1]))
-        average_lookup[key] = row.get("target")
+        average_lookup[key] = (row.get("target"), _target_is_included(row))
 
     for _, row in microbiome_targets.iterrows():
         key = (row["bacteria_slug"], row["drug_slug"])
@@ -1456,13 +1572,9 @@ def _calculate_resistance_table(
         bacteria_name, drug_name = combo_display.get((b_slug, d_slug), (b_slug.replace("_", " "), d_slug.replace("_", " ")))
 
         note_parts = []
-        baseline_potency = _baseline_potency_for_pair(b_slug, d_slug)
-        if baseline_potency is not None and baseline_potency < NON_NEGLIGIBLE_POTENCY_CUTOFF:
-            note_parts.append(
-                f"negligible potency (baseline potency < {NON_NEGLIGIBLE_POTENCY_CUTOFF:.2f})"
-            )
-
-        prevalence_target_raw, prevalence_reason = prevalence_lookup.get((b_slug, d_slug), (np.nan, ""))
+        prevalence_target_raw, prevalence_reason, prevalence_target_included = (
+            prevalence_lookup.get((b_slug, d_slug), (np.nan, "", False))
+        )
         if prevalence_reason:
             note_parts.append(prevalence_reason)
         prevalence_target = (
@@ -1471,7 +1583,9 @@ def _calculate_resistance_table(
             else np.nan
         )
 
-        average_target_raw = average_lookup.get((b_slug, d_slug))
+        average_target_raw, average_target_included = average_lookup.get(
+            (b_slug, d_slug), (np.nan, False)
+        )
         average_target = (
             float(average_target_raw * 100.0)
             if average_target_raw is not None and not pd.isna(average_target_raw)
@@ -1502,6 +1616,8 @@ def _calculate_resistance_table(
                 "Infected person-days": np.nan,
                 "Resistant person-days": np.nan,
                 "Microbiome carrier-days": np.nan,
+                RESISTANCE_TARGET_INCLUDED_COL: prevalence_target_included,
+                RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: average_target_included,
                 "Note": "; ".join(note_parts) if note_parts else "",
             })
             continue
@@ -1529,6 +1645,8 @@ def _calculate_resistance_table(
                 "Infected person-days": np.nan,
                 "Resistant person-days": np.nan,
                 "Microbiome carrier-days": np.nan,
+                RESISTANCE_TARGET_INCLUDED_COL: prevalence_target_included,
+                RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: average_target_included,
                 "Note": "; ".join(note_parts) if note_parts else "",
             })
             continue
@@ -1660,6 +1778,8 @@ def _calculate_resistance_table(
             "Infected person-days": infected_person_days,
             "Resistant person-days": resistant_person_days,
             "Microbiome carrier-days": microbiome_carrier_days,
+            RESISTANCE_TARGET_INCLUDED_COL: prevalence_target_included,
+            RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: average_target_included,
             "Note": "; ".join(list(dict.fromkeys(note_parts))) if note_parts else "",
         })
 
@@ -2876,37 +2996,58 @@ def _build_drug_class_lookup(
     return lookup
 
 
-def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame:
-    """Filter resistance rows for fit metrics, excluding rifampicin, MDR-TB, and Listeria.
-    
-    MDR-TB has guaranteed ~90% rifampicin resistance which would skew overall 
-    resistance metrics.  Listeria monocytogenes generates too few infections for
-    stable resistance percentages at typical simulation population sizes.
-    Both are excluded from the calibration summary metrics.
-    """
+def _filter_resistance_rows_for_fit(
+    resistance_df: pd.DataFrame,
+    component: Optional[str] = "infection",
+) -> pd.DataFrame:
+    """Apply explicit target eligibility and run-dependent availability filters."""
     if resistance_df.empty or "Note" not in resistance_df:
         return pd.DataFrame()
 
     filtered = resistance_df.copy()
-    
-    # Exclude rifampicin (TB-specific drug)
-    if "Drug" in filtered:
-        drug_series = filtered["Drug"].astype(str).str.lower()
-        filtered = filtered[~drug_series.str.contains("rifampicin", na=False)]
 
-    # Exclude MDR-TB bacteria (has guaranteed rifampicin resistance)
-    # Exclude Listeria monocytogenes (too few infections for reliable resistance stats)
-    if "Bacteria" in filtered:
-        bacteria_series = filtered["Bacteria"].astype(str).str.lower()
+    include_columns = {
+        "infection": RESISTANCE_TARGET_INCLUDED_COL,
+        "average": RESISTANCE_AVERAGE_TARGET_INCLUDED_COL,
+    }
+    if component not in (*include_columns, None):
+        raise ValueError(f"Unknown resistance component: {component}")
+
+    explicit_columns = [
+        column for column in include_columns.values() if column in filtered.columns
+    ]
+    if component is None and explicit_columns:
+        include_mask = pd.Series(False, index=filtered.index)
+        for column in explicit_columns:
+            include_mask |= filtered[column].fillna(False).astype(bool)
+        filtered = filtered.loc[include_mask]
+    elif component is not None and include_columns[component] in filtered.columns:
+        include_mask = filtered[include_columns[component]].fillna(False).astype(bool)
+        filtered = filtered.loc[include_mask]
+    else:
+        # Compatibility path for resistance tables created before explicit target
+        # eligibility was carried into the calculated table.
+        if "Drug" in filtered:
+            drug_series = filtered["Drug"].astype(str).str.lower()
+            filtered = filtered[
+                ~drug_series.str.contains("rifampicin", na=False)
+            ]
+        if "Bacteria" in filtered:
+            bacteria_series = filtered["Bacteria"].astype(str).str.lower()
+            filtered = filtered[
+                ~bacteria_series.str.contains("tuberculosis", na=False)
+                & ~bacteria_series.str.contains("listeria", na=False)
+            ]
+        note_series = filtered["Note"].astype(str)
         filtered = filtered[
-            ~bacteria_series.str.contains("tuberculosis", na=False)
-            & ~bacteria_series.str.contains("listeria", na=False)
+            ~note_series.str.contains("negligible potency", case=False, na=False)
         ]
 
-    note_series = filtered["Note"].astype(str)
-    for phrase in ("negligible potency", "no infections", "not modelled"):
+    for phrase in ("no infections", "not modelled"):
         note_series = filtered["Note"].astype(str)
-        filtered = filtered[~note_series.str.contains(phrase, case=False, na=False)]
+        filtered = filtered[
+            ~note_series.str.contains(phrase, case=False, na=False)
+        ]
     return filtered
 
 
@@ -2948,7 +3089,12 @@ def _compute_resistance_component_stats(
     rows = []
 
     for key, label, sim_col, target_col in component_config:
-        if sim_col not in eligible.columns or target_col not in eligible.columns:
+        component_rows = _filter_resistance_rows_for_fit(eligible, component=key)
+        if (
+            component_rows.empty
+            or sim_col not in component_rows.columns
+            or target_col not in component_rows.columns
+        ):
             component_lookup[key] = {"abs_delta": None, "sqrt_abs_delta": None}
             rows.append({
                 "Component": label,
@@ -2960,7 +3106,7 @@ def _compute_resistance_component_stats(
             })
             continue
 
-        mask = (~eligible[sim_col].isna()) & (~eligible[target_col].isna())
+        mask = (~component_rows[sim_col].isna()) & (~component_rows[target_col].isna())
         if not mask.any():
             component_lookup[key] = {"abs_delta": None, "sqrt_abs_delta": None}
             rows.append({
@@ -2973,7 +3119,7 @@ def _compute_resistance_component_stats(
             })
             continue
 
-        subset = eligible.loc[mask, [sim_col, target_col]].astype(float)
+        subset = component_rows.loc[mask, [sim_col, target_col]].astype(float)
         sim_mean = float(subset[sim_col].mean(skipna=True))
         target_mean = float(subset[target_col].mean(skipna=True))
         abs_delta = float((subset[sim_col] - subset[target_col]).abs().mean(skipna=True))
@@ -3008,7 +3154,7 @@ def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional
     ):
         return None, None, 0
 
-    eligible = _filter_resistance_rows_for_fit(resistance_df)
+    eligible = _filter_resistance_rows_for_fit(resistance_df, component="infection")
     if eligible.empty:
         return None, None, 0
 
@@ -3082,7 +3228,7 @@ def _calculate_resistance_fit_metrics(
     if resistance_df.empty:
         return empty_result
 
-    eligible = _filter_resistance_rows_for_fit(resistance_df)
+    eligible = _filter_resistance_rows_for_fit(resistance_df, component=None)
     if eligible.empty:
         return empty_result
 
@@ -3175,27 +3321,15 @@ def _build_mean_abs_gap_tables(
     if resistance_df is None or resistance_df.empty:
         return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
 
-    working = resistance_df.copy()
+    working = _filter_resistance_rows_for_fit(
+        resistance_df, component="infection"
+    ).copy()
+    if working.empty:
+        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
+
     working[RESISTANCE_SIM_COL] = pd.to_numeric(working.get(RESISTANCE_SIM_COL), errors="coerce")
     working[RESISTANCE_TARGET_COL] = pd.to_numeric(working.get(RESISTANCE_TARGET_COL), errors="coerce")
     working[RESISTANCE_DELTA_COL] = pd.to_numeric(working.get(RESISTANCE_DELTA_COL), errors="coerce")
-    note_series = working.get("Note", "").astype(str)
-    potency_mask = ~note_series.str.contains("negligible potency", case=False, na=False)
-    working = working.loc[potency_mask]
-
-    if working.empty:
-        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
-
-    # Exclude all MDR-TB rows: resistance metrics are not meaningful for TB in this
-    # context (guaranteed rifampicin resistance, FQ resistance not yet seeded).
-    # Exclude Listeria: too few infections for stable resistance percentages.
-    _bact_lower = working.get("Bacteria", pd.Series(dtype=str)).astype(str).str.lower()
-    _tb_mask = _bact_lower.str.contains("tuberculosis", na=False)
-    _listeria_mask = _bact_lower.str.contains("listeria", na=False)
-    working = working.loc[~_tb_mask & ~_listeria_mask]
-
-    if working.empty:
-        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
 
     working["abs_delta"] = (working[RESISTANCE_SIM_COL] - working[RESISTANCE_TARGET_COL]).abs()
     working = working.dropna(subset=["abs_delta", "Bacteria", "Drug"])
@@ -3400,13 +3534,19 @@ def _calculate_calibration_score(
     resistance_values: List[Tuple[Optional[float], float]] = []
     resistance_target_count = 0
     worst_infection_distance: Optional[float] = None
-    eligible = _filter_resistance_rows_for_fit(resistance_df)
     component_columns = [
         ("infection", "Infection resistance", RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL),
         ("average", "Average resistant", "Average resistant simulation", "Average resistant target"),
     ]
     for component_key, component_label, sim_col, target_col_name in component_columns:
-        if eligible.empty or sim_col not in eligible.columns or target_col_name not in eligible.columns:
+        eligible = _filter_resistance_rows_for_fit(
+            resistance_df, component=component_key
+        )
+        if (
+            eligible.empty
+            or sim_col not in eligible.columns
+            or target_col_name not in eligible.columns
+        ):
             continue
         tolerance = _coerce_float(resistance_tolerances.get(component_key)) or 10.0
         component_weight = resistance_weights[component_key]
@@ -4302,6 +4442,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 columns=[
                     RESISTANCE_DELTA_COL,
                     "Average resistant delta",
+                    RESISTANCE_TARGET_INCLUDED_COL,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL,
                 ],
                 errors="ignore",
                 inplace=True,

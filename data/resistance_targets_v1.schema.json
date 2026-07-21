@@ -59,7 +59,7 @@
     },
     "include_in_score": {
       "enum": ["true", "false"],
-      "description": "Target-side eligibility under v1. Model-potency and run-dependent data filters can still exclude a row."
+      "description": "Static v1 eligibility, including potency-informed exclusions materialized from the typed Rust matrix. Run-dependent data filters can still exclude a row."
     },
     "score_exclusion_reason": {
       "type": "string",
@@ -111,7 +111,7 @@
     },
     "score_row_weight": {
       "enum": ["0.0", "1.0"],
-      "description": "Documents equal target-side row weighting before component weights; it is not read by the production scorer in this migration step."
+      "description": "Documents equal static row weighting before component weights."
     }
   }
 }

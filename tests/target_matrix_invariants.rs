@@ -1,3 +1,4 @@
+use amr_project::config::PARAMETER_STORE;
 use amr_project::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES};
 use csv::ReaderBuilder;
 use std::collections::BTreeSet;
@@ -194,5 +195,78 @@ fn resistance_target_matrices_are_valid_and_match_model_dimensions() {
     assert_eq!(
         prevalence.drugs, current_target_drugs,
         "target matrices must cover every current model drug except documented exclusions"
+    );
+}
+
+#[test]
+fn potency_informed_target_exclusions_match_the_typed_rust_matrix() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("resistance_targets_v1.csv");
+    let mut reader = ReaderBuilder::new()
+        .from_path(&path)
+        .unwrap_or_else(|error| panic!("failed to open {}: {error}", path.display()));
+    let headers = reader.headers().expect("long-form target header").clone();
+    let column = |name: &str| {
+        headers
+            .iter()
+            .position(|header| header == name)
+            .unwrap_or_else(|| panic!("long-form targets lack {name}"))
+    };
+    let component_col = column("component");
+    let bacteria_col = column("bacteria");
+    let drug_col = column("drug");
+    let value_col = column("value");
+    let included_col = column("include_in_score");
+    let reason_col = column("score_exclusion_reason");
+
+    let mut low_potency_numeric_targets = 0;
+    for record in reader.records() {
+        let record = record.expect("valid long-form target row");
+        if &record[component_col] != "resistance_prevalence_any_r_positive" {
+            continue;
+        }
+
+        let model_slug = target_name_to_model_slug(&record[bacteria_col]);
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|name| *name == model_slug)
+            .unwrap_or_else(|| panic!("unknown target bacterium {model_slug}"));
+        let drug = &record[drug_col];
+        let drug_idx = DRUG_SHORT_NAMES
+            .iter()
+            .position(|name| *name == drug)
+            .unwrap_or_else(|| panic!("unknown target drug {drug}"));
+        let has_value = !record[value_col].is_empty();
+        let low_potency = PARAMETER_STORE
+            .drug_bacteria
+            .potency(bacteria_idx, drug_idx)
+            < 0.15;
+        let records_potency_exclusion = record[reason_col]
+            .split(';')
+            .any(|reason| reason == "model_baseline_potency_below_0.15");
+        assert_eq!(
+            records_potency_exclusion, low_potency,
+            "potency exclusion drift for {model_slug}/{drug}"
+        );
+
+        if has_value && low_potency {
+            low_potency_numeric_targets += 1;
+        }
+        let expected_included = has_value
+            && drug != "rifampicin"
+            && !model_slug.contains("tuberculosis")
+            && !model_slug.contains("listeria")
+            && !low_potency;
+        assert_eq!(
+            &record[included_col],
+            if expected_included { "true" } else { "false" },
+            "static inclusion drift for {model_slug}/{drug}"
+        );
+    }
+
+    assert_eq!(
+        low_potency_numeric_targets, 9,
+        "review low-potency numeric targets when this count changes"
     );
 }

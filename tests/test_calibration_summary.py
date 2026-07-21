@@ -6,8 +6,10 @@ from types import SimpleNamespace
 import pandas as pd
 
 from amr_simulation_output_analysis.calibration_summary import (
+    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL,
     RESISTANCE_SIM_COL,
     RESISTANCE_TARGET_COL,
+    RESISTANCE_TARGET_INCLUDED_COL,
     _HOSP_COMM_ANY_R_RATIO_TARGETS,
     _build_headline_table,
     _calculate_resistance_fit_metrics,
@@ -53,6 +55,44 @@ class ResistanceWeightTests(unittest.TestCase):
         self.assertEqual(metrics["infection_weight"], 2.0)
         self.assertEqual(metrics["average_resistant_weight"], 1.0)
         self.assertAlmostEqual(metrics["weighted_overall_abs_delta"], 40.0 / 3.0)
+
+
+class ResistanceEligibilityTests(unittest.TestCase):
+    def test_component_flags_control_scoring_independently(self) -> None:
+        resistance_df = pd.DataFrame(
+            [
+                {
+                    "Bacteria": "Escherichia coli",
+                    "Drug": "ampicillin",
+                    "Note": "",
+                    RESISTANCE_SIM_COL: 20.0,
+                    RESISTANCE_TARGET_COL: 10.0,
+                    "Average resistant simulation": 40.0,
+                    "Average resistant target": 20.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: False,
+                },
+                {
+                    "Bacteria": "Providencia stuartii",
+                    "Drug": "ampicillin",
+                    "Note": "",
+                    RESISTANCE_SIM_COL: 90.0,
+                    RESISTANCE_TARGET_COL: 65.0,
+                    "Average resistant simulation": 90.0,
+                    "Average resistant target": 85.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: False,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: False,
+                },
+            ]
+        )
+
+        metrics, components = _calculate_resistance_fit_metrics(resistance_df)
+
+        self.assertEqual(metrics["infection_abs_delta"], 10.0)
+        self.assertIsNone(metrics["average_resistant_abs_delta"])
+        counted = dict(zip(components["Component"], components["Combinations counted"]))
+        self.assertEqual(counted["Infection resistance"], 1)
+        self.assertEqual(counted["Resistant level (among positives)"], 0)
 
 
 class HeadlineNumeratorTests(unittest.TestCase):

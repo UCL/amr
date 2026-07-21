@@ -12,6 +12,9 @@ from amr_simulation_output_analysis.build_resistance_targets_v1 import (
     TARGET_SET_VERSION,
     build_resistance_targets_v1,
 )
+from amr_simulation_output_analysis.calibration_summary import (
+    _load_resistance_target_set,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -123,14 +126,14 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             counts[(SEVERITY_COMPONENT, "legacy_unclassified_missing")], 1152
         )
 
-    def test_include_flags_capture_target_side_score_eligibility(self) -> None:
+    def test_include_flags_capture_static_score_eligibility(self) -> None:
         included = Counter(
             row["component"]
             for row in self.rows
             if row["include_in_score"] == "true"
         )
-        self.assertEqual(included[PREVALENCE_COMPONENT], 1241)
-        self.assertEqual(included[SEVERITY_COMPONENT], 1240)
+        self.assertEqual(included[PREVALENCE_COMPONENT], 1233)
+        self.assertEqual(included[SEVERITY_COMPONENT], 1232)
 
         allowed_reasons = {
             "legacy_prevalence_target_missing",
@@ -138,6 +141,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             "hard_exclusion_rifampicin",
             "hard_exclusion_mdr_tb",
             "hard_exclusion_listeria",
+            "model_baseline_potency_below_0.15",
         }
         for row in self.rows:
             reasons = {
@@ -146,6 +150,29 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                 if reason
             }
             self.assertTrue(reasons.issubset(allowed_reasons))
+
+    def test_production_loader_preserves_component_values_and_inclusion(self) -> None:
+        prevalence, severity = _load_resistance_target_set(TARGET_PATH)
+
+        self.assertEqual(len(prevalence), 42 * 61)
+        self.assertEqual(len(severity), 42 * 61)
+        self.assertEqual(int(prevalence["include_in_score"].sum()), 1233)
+        self.assertEqual(int(severity["include_in_score"].sum()), 1232)
+
+        excluded = prevalence.loc[
+            prevalence["Bacteria"].eq("Providencia stuartii")
+            & prevalence["drug"].eq("ampicillin")
+        ].iloc[0]
+        self.assertEqual(excluded["target"], 0.65)
+        self.assertFalse(excluded["include_in_score"])
+        self.assertIn("negligible potency", excluded["reason"])
+
+        included = prevalence.loc[
+            prevalence["Bacteria"].eq("Escherichia coli")
+            & prevalence["drug"].eq("ampicillin")
+        ].iloc[0]
+        self.assertEqual(included["target"], 0.58)
+        self.assertTrue(included["include_in_score"])
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 """Build the versioned long-form resistance target baseline.
 
-The wide matrices remain the production calibration inputs during this first,
-behaviour-neutral migration step. This builder makes their values, missing
-cells, provenance class, and target-side score eligibility explicit in a
-deterministic companion dataset. Model-potency and run-data filters remain
-outside the target schema.
+The cleaned wide matrices remain the editable value sources. This builder
+materializes their values, missing cells, provenance class, and score
+eligibility in the long-form dataset consumed by calibration. Potency-informed
+exclusions come from a Rust-generated projection; run-data filters remain
+outside the schema.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 TARGET_SET_VERSION = "resistance_targets_v1"
 TARGET_YEAR = "2025"
+POTENCY_CUTOFF = Decimal("0.15")
 
 PREVALENCE_COMPONENT = "resistance_prevalence_any_r_positive"
 SEVERITY_COMPONENT = "resistance_severity_conditional_mean_any_r"
@@ -55,6 +56,11 @@ def _source_slug(value: str) -> str:
 
 def _target_bacteria_slug(value: str) -> str:
     return value.strip().lower().replace(" ", "_")
+
+
+def _potency_bacteria_slug(value: str) -> str:
+    slug = value.strip().lower()
+    return "providencia_stuartii" if slug == "p_stuartii" else slug
 
 
 def _read_wide_matrix(
@@ -117,10 +123,29 @@ def _read_wide_matrix(
     return bacteria_order, drug_names, values, notes
 
 
+def _read_rust_potencies(path: Path) -> Dict[Tuple[str, str], Decimal]:
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        required = {"bacteria", "drug", "potency_when_no_r"}
+        if reader.fieldnames is None or set(reader.fieldnames) != required:
+            raise ValueError(f"{path} must contain exactly {sorted(required)}")
+
+        result: Dict[Tuple[str, str], Decimal] = {}
+        for row_number, row in enumerate(reader, start=2):
+            bacteria = _potency_bacteria_slug(row["bacteria"])
+            drug = row["drug"].strip().lower()
+            key = (bacteria, drug)
+            if key in result:
+                raise ValueError(f"{path}:{row_number} duplicates {bacteria}/{drug}")
+            result[key] = Decimal(row["potency_when_no_r"])
+    return result
+
+
 def _static_score_exclusions(
     bacterium: str,
     drug: str,
     prevalence_token: str,
+    potencies: Mapping[Tuple[str, str], Decimal],
 ) -> List[str]:
     reasons: List[str] = []
     bacterium_slug = _target_bacteria_slug(bacterium)
@@ -132,6 +157,11 @@ def _static_score_exclusions(
         reasons.append("hard_exclusion_mdr_tb")
     if "listeria" in bacterium_slug:
         reasons.append("hard_exclusion_listeria")
+    potency = potencies.get((bacterium_slug, drug))
+    if potency is None:
+        raise ValueError(f"Rust potency projection lacks {bacterium_slug}/{drug}")
+    if potency < POTENCY_CUTOFF:
+        reasons.append("model_baseline_potency_below_0.15")
     return reasons
 
 
@@ -193,6 +223,7 @@ def build_resistance_targets_v1(
     data_dir = project_root / "data"
     prevalence_path = data_dir / "resistance_prevalence_values.csv"
     severity_path = data_dir / "resistance_average_resistant_values.csv"
+    potency_path = data_dir / "model_potency_matrix.csv"
 
     bacteria_order, drugs, prevalence, notes = _read_wide_matrix(
         prevalence_path, expects_notes=True
@@ -205,13 +236,14 @@ def build_resistance_targets_v1(
     if drugs != severity_drugs:
         raise ValueError("prevalence and severity matrices cover different drugs or order")
 
+    potencies = _read_rust_potencies(potency_path)
     rows: List[Dict[str, str]] = []
 
     for bacterium in bacteria_order:
         source_id = f"legacy_prevalence_note__{_source_slug(bacterium)}"
         for drug in drugs:
             token = prevalence[bacterium][drug]
-            exclusions = _static_score_exclusions(bacterium, drug, token)
+            exclusions = _static_score_exclusions(bacterium, drug, token, potencies)
             rows.append(
                 _base_row(
                     component=PREVALENCE_COMPONENT,
@@ -235,7 +267,9 @@ def build_resistance_targets_v1(
         for drug in drugs:
             token = severity[bacterium][drug]
             prevalence_token = prevalence[bacterium][drug]
-            exclusions = _static_score_exclusions(bacterium, drug, prevalence_token)
+            exclusions = _static_score_exclusions(
+                bacterium, drug, prevalence_token, potencies
+            )
             if token == ".":
                 status = "legacy_unclassified_missing"
                 if "legacy_prevalence_target_missing" not in exclusions:
