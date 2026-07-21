@@ -1260,6 +1260,8 @@ The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for t
 
 Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` route with an expert model-scale effect of `0.60`. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is `0.0001` per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss no longer project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.
 
+Baseline cefiderocol potency is correspondingly limited to susceptible aerobic Gram-negative bacteria. *S. maltophilia* and the *B. cepacia* complex use a conservative active value of `0.55`, matching the existing *P. aeruginosa* and *A. baumannii* model bucket, because activity is supported principally by in vitro and animal data rather than established clinical efficacy. Gram-positive bacteria, *B. fragilis*, *C. jejuni*, and intracellular *L. pneumophila* receive poor-activity values. The categories follow the FDA spectrum statement and primary susceptibility data and are not direct MIC or breakpoint conversions.
+
 Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For *P. aeruginosa*, the non-transferable `mutation_ampc_derepression` slot is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental *K. pneumoniae* work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because the model does not implement mechanism epistasis, the interaction is not converted into a positive standalone `any_r` phenotype.
 
 Baseline ceftolozane/tazobactam potency is represented separately from acquired resistance. Reviewed model-scale values retain activity against susceptible Enterobacterales, *P. aeruginosa*, selected streptococci, and *B. fragilis*, while staphylococci, *C. jejuni*, and intracellular *L. pneumophila* receive poor-activity values. These are coarse activity categories informed by the FDA microbiology review, prescribing information, and published susceptibility studies; they are not direct MIC or breakpoint conversions.
@@ -3302,7 +3304,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | stenotrophomonas_maltophilia | cefepime | 0.15 | 1 |
 | stenotrophomonas_maltophilia | ceftaroline | 0.05 | 1 |
 | stenotrophomonas_maltophilia | ceftolozane_tazobactam | 0.1 | 1 |
-| stenotrophomonas_maltophilia | cefiderocol | 0.1 | 1 |
+| stenotrophomonas_maltophilia | cefiderocol | 0.55 | 1 |
 | stenotrophomonas_maltophilia | meropenem | 0.05 | 0.01 |
 | stenotrophomonas_maltophilia | imipenem_c | 0.05 | 0.01 |
 | stenotrophomonas_maltophilia | ertapenem | 0.05 | 0.005 |
@@ -3363,7 +3365,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | staphylococcus_aureus | cefepime | 0.6 | 1 |
 | staphylococcus_aureus | ceftaroline | 0.95 | 1 |
 | staphylococcus_aureus | ceftolozane_tazobactam | 0.1 | 1 |
-| staphylococcus_aureus | cefiderocol | 0.75 | 1 |
+| staphylococcus_aureus | cefiderocol | 0.05 | 1 |
 | staphylococcus_aureus | meropenem | 0.7 | 0.005 |
 | staphylococcus_aureus | imipenem_c | 0.7 | 0.005 |
 | staphylococcus_aureus | ertapenem | 0.7 | 0.005 |
@@ -3423,7 +3425,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | staphylococcus_epidermidis | cefepime | 0.15 | 1 |
 | staphylococcus_epidermidis | ceftaroline | 0.75 | 1 |
 | staphylococcus_epidermidis | ceftolozane_tazobactam | 0.1 | 1 |
-| staphylococcus_epidermidis | cefiderocol | 0.75 | 1 |
+| staphylococcus_epidermidis | cefiderocol | 0.05 | 1 |
 | staphylococcus_epidermidis | meropenem | 0.4 | 0.005 |
 | staphylococcus_epidermidis | imipenem_c | 0.5 | 0.005 |
 | staphylococcus_epidermidis | ertapenem | 0.4 | 0.005 |
@@ -3484,7 +3486,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pneumoniae | cefepime | 0.8 | 1 |
 | streptococcus_pneumoniae | ceftaroline | 0.95 | 1 |
 | streptococcus_pneumoniae | ceftolozane_tazobactam | 0.75 | 1 |
-| streptococcus_pneumoniae | cefiderocol | 0.75 | 1 |
+| streptococcus_pneumoniae | cefiderocol | 0.1 | 1 |
 | streptococcus_pneumoniae | meropenem | 0.95 | 0.005 |
 | streptococcus_pneumoniae | imipenem_c | 0.95 | 0.005 |
 | streptococcus_pneumoniae | ertapenem | 0.95 | 0.005 |
@@ -3824,7 +3826,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pyogenes | cefepime | 0.8 | 1 |
 | streptococcus_pyogenes | ceftaroline | 0.95 | 1 |
 | streptococcus_pyogenes | ceftolozane_tazobactam | 0.75 | 1 |
-| streptococcus_pyogenes | cefiderocol | 0.75 | 1 |
+| streptococcus_pyogenes | cefiderocol | 0.1 | 1 |
 | streptococcus_pyogenes | meropenem | 0.95 | 0.005 |
 | streptococcus_pyogenes | imipenem_c | 0.95 | 0.005 |
 | streptococcus_pyogenes | ertapenem | 0.95 | 0.005 |
@@ -3884,7 +3886,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_agalactiae | cefepime | 0.8 | 1 |
 | streptococcus_agalactiae | ceftaroline | 0.95 | 1 |
 | streptococcus_agalactiae | ceftolozane_tazobactam | 0.75 | 1 |
-| streptococcus_agalactiae | cefiderocol | 0.75 | 1 |
+| streptococcus_agalactiae | cefiderocol | 0.1 | 1 |
 | streptococcus_agalactiae | meropenem | 0.95 | 0.005 |
 | streptococcus_agalactiae | imipenem_c | 0.95 | 0.005 |
 | streptococcus_agalactiae | ertapenem | 0.95 | 0.005 |
@@ -4365,7 +4367,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bacteroides_fragilis | cefepime | 0.25 | 1 |
 | bacteroides_fragilis | ceftaroline | 0.2 | 1 |
 | bacteroides_fragilis | ceftolozane_tazobactam | 0.45 | 1 |
-| bacteroides_fragilis | cefiderocol | 0.45 | 1 |
+| bacteroides_fragilis | cefiderocol | 0.05 | 1 |
 | bacteroides_fragilis | meropenem | 0.95 | 0.005 |
 | bacteroides_fragilis | imipenem_c | 0.95 | 0.005 |
 | bacteroides_fragilis | ertapenem | 0.95 | 0.005 |
@@ -4426,7 +4428,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | campylobacter_jejuni | cefepime | 0.1 | 1 |
 | campylobacter_jejuni | ceftaroline | 0.1 | 1 |
 | campylobacter_jejuni | ceftolozane_tazobactam | 0.1 | 1 |
-| campylobacter_jejuni | cefiderocol | 0.75 | 1 |
+| campylobacter_jejuni | cefiderocol | 0.1 | 1 |
 | campylobacter_jejuni | meropenem | 0.1 | 0.005 |
 | campylobacter_jejuni | imipenem_c | 0.1 | 0.005 |
 | campylobacter_jejuni | ertapenem | 0.1 | 0.005 |
@@ -4975,7 +4977,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | cefepime | 0.05 | 1 |
 | legionella_pneumophila | ceftaroline | 0.05 | 1 |
 | legionella_pneumophila | ceftolozane_tazobactam | 0.05 | 1 |
-| legionella_pneumophila | cefiderocol | 0.8 | 1 |
+| legionella_pneumophila | cefiderocol | 0.05 | 1 |
 | legionella_pneumophila | meropenem | 0.05 | 0.001 |
 | legionella_pneumophila | imipenem_c | 0.05 | 0.005 |
 | legionella_pneumophila | ertapenem | 0.05 | 0.001 |
@@ -5036,7 +5038,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | cefepime | 0.75 | 1 |
 | burkholderia_cepacia_complex | ceftaroline | 0.1 | 1 |
 | burkholderia_cepacia_complex | ceftolozane_tazobactam | 0.1 | 1 |
-| burkholderia_cepacia_complex | cefiderocol | 0.1 | 1 |
+| burkholderia_cepacia_complex | cefiderocol | 0.55 | 1 |
 | burkholderia_cepacia_complex | meropenem | 0.8 | 0.005 |
 | burkholderia_cepacia_complex | imipenem_c | 0.8 | 0.005 |
 | burkholderia_cepacia_complex | ertapenem | 0.1 | 0.005 |
@@ -9049,6 +9051,7 @@ See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT 
 | shigella_spp. | mutation_siderophore_uptake | 1e-4 |
 | enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 |
 | yersinia_enterocolitica | mutation_siderophore_uptake | 1e-4 |
+| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 |
 
 ## Appendix C — Output Specification
 
@@ -9233,7 +9236,9 @@ When enabled, individual infection journeys are logged to the `infection_journey
 
 - Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. *Intensive Care Med.* 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y
 
-- U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised September 2020. https://www.accessdata.fda.gov/drugsatfda_docs/label/2020/209445s002lbl.pdf
+- U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised June 2025. https://www.accessdata.fda.gov/drugsatfda_docs/label/2025/209445s009lbl.pdf
+
+- Ito A, Sato T, Ota M, et al. In vitro antibacterial properties of cefiderocol, a novel siderophore cephalosporin, against Gram-negative bacteria. *Antimicrob Agents Chemother.* 2018;62(1):e01454-17. doi:10.1128/AAC.01454-17
 
 - U.S. Food and Drug Administration. *Zerbaxa (ceftolozane and tazobactam) prescribing information.* Revised May 2026. https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/206829s023lbl.pdf
 

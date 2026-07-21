@@ -294,7 +294,7 @@ fn model_informed_target_exclusions_match_the_typed_rust_matrices() {
     }
 
     assert_eq!(
-        low_potency_numeric_targets, 11,
+        low_potency_numeric_targets, 14,
         "review low-potency numeric targets when this count changes"
     );
     assert_eq!(

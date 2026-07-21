@@ -92,3 +92,29 @@ fn ceftolozane_tazobactam_potencies_match_reviewed_spectrum() {
         );
     }
 }
+
+#[test]
+fn cefiderocol_potencies_match_reviewed_aerobic_gram_negative_spectrum() {
+    let reviewed = [
+        ("staphylococcus_aureus", 0.05),
+        ("staphylococcus_epidermidis", 0.05),
+        ("streptococcus_pneumoniae", 0.10),
+        ("streptococcus_pyogenes", 0.10),
+        ("streptococcus_agalactiae", 0.10),
+        ("bacteroides_fragilis", 0.05),
+        ("campylobacter_jejuni", 0.10),
+        ("legionella_pneumophila", 0.05),
+        ("stenotrophomonas_maltophilia", 0.55),
+        ("burkholderia_cepacia_complex", 0.55),
+        ("acinetobacter_baumannii", 0.55),
+        ("pseudomonas_aeruginosa", 0.55),
+    ];
+
+    for (bacterium, expected) in reviewed {
+        assert_eq!(
+            potency(bacterium, "cefiderocol"),
+            expected,
+            "reviewed cefiderocol potency drift for {bacterium}"
+        );
+    }
+}

@@ -757,7 +757,7 @@ stenotrophomonas_maltophilia,ceftazidime,0.15
 stenotrophomonas_maltophilia,cefepime,0.05
 stenotrophomonas_maltophilia,ceftaroline,0.02
 stenotrophomonas_maltophilia,ceftolozane_tazobactam,0.05
-stenotrophomonas_maltophilia,cefiderocol,0.15
+stenotrophomonas_maltophilia,cefiderocol,0.55
 stenotrophomonas_maltophilia,meropenem,0.01
 stenotrophomonas_maltophilia,imipenem_c,0.05
 stenotrophomonas_maltophilia,ertapenem,0.01
@@ -819,7 +819,7 @@ staphylococcus_aureus,ceftazidime,0.1
 staphylococcus_aureus,cefepime,0.6
 staphylococcus_aureus,ceftaroline,0.95
 staphylococcus_aureus,ceftolozane_tazobactam,0.1
-staphylococcus_aureus,cefiderocol,0.75
+staphylococcus_aureus,cefiderocol,0.05
 staphylococcus_aureus,meropenem,0.7
 staphylococcus_aureus,imipenem_c,0.7
 staphylococcus_aureus,ertapenem,0.7
@@ -881,7 +881,7 @@ staphylococcus_epidermidis,ceftazidime,0.1
 staphylococcus_epidermidis,cefepime,0.15
 staphylococcus_epidermidis,ceftaroline,0.5
 staphylococcus_epidermidis,ceftolozane_tazobactam,0.1
-staphylococcus_epidermidis,cefiderocol,0.75
+staphylococcus_epidermidis,cefiderocol,0.05
 staphylococcus_epidermidis,meropenem,0.25
 staphylococcus_epidermidis,imipenem_c,0.3
 staphylococcus_epidermidis,ertapenem,0.4
@@ -943,7 +943,7 @@ streptococcus_pneumoniae,ceftazidime,0.25
 streptococcus_pneumoniae,cefepime,0.8
 streptococcus_pneumoniae,ceftaroline,0.95
 streptococcus_pneumoniae,ceftolozane_tazobactam,0.75
-streptococcus_pneumoniae,cefiderocol,0.75
+streptococcus_pneumoniae,cefiderocol,0.1
 streptococcus_pneumoniae,meropenem,0.95
 streptococcus_pneumoniae,imipenem_c,0.95
 streptococcus_pneumoniae,ertapenem,0.95
@@ -1315,7 +1315,7 @@ streptococcus_pyogenes,ceftazidime,0.25
 streptococcus_pyogenes,cefepime,0.8
 streptococcus_pyogenes,ceftaroline,0.95
 streptococcus_pyogenes,ceftolozane_tazobactam,0.75
-streptococcus_pyogenes,cefiderocol,0.75
+streptococcus_pyogenes,cefiderocol,0.1
 streptococcus_pyogenes,meropenem,0.95
 streptococcus_pyogenes,imipenem_c,0.95
 streptococcus_pyogenes,ertapenem,0.95
@@ -1377,7 +1377,7 @@ streptococcus_agalactiae,ceftazidime,0.25
 streptococcus_agalactiae,cefepime,0.8
 streptococcus_agalactiae,ceftaroline,0.95
 streptococcus_agalactiae,ceftolozane_tazobactam,0.75
-streptococcus_agalactiae,cefiderocol,0.75
+streptococcus_agalactiae,cefiderocol,0.1
 streptococcus_agalactiae,meropenem,0.95
 streptococcus_agalactiae,imipenem_c,0.95
 streptococcus_agalactiae,ertapenem,0.95
@@ -1873,7 +1873,7 @@ bacteroides_fragilis,ceftazidime,0.25
 bacteroides_fragilis,cefepime,0.25
 bacteroides_fragilis,ceftaroline,0.2
 bacteroides_fragilis,ceftolozane_tazobactam,0.45
-bacteroides_fragilis,cefiderocol,0.45
+bacteroides_fragilis,cefiderocol,0.05
 bacteroides_fragilis,meropenem,0.85
 bacteroides_fragilis,imipenem_c,0.85
 bacteroides_fragilis,ertapenem,0.8
@@ -1935,7 +1935,7 @@ campylobacter_jejuni,ceftazidime,0.1
 campylobacter_jejuni,cefepime,0.1
 campylobacter_jejuni,ceftaroline,0.1
 campylobacter_jejuni,ceftolozane_tazobactam,0.1
-campylobacter_jejuni,cefiderocol,0.75
+campylobacter_jejuni,cefiderocol,0.1
 campylobacter_jejuni,meropenem,0.1
 campylobacter_jejuni,imipenem_c,0.1
 campylobacter_jejuni,ertapenem,0.1
@@ -2493,7 +2493,7 @@ legionella_pneumophila,ceftazidime,0.05
 legionella_pneumophila,cefepime,0.05
 legionella_pneumophila,ceftaroline,0.05
 legionella_pneumophila,ceftolozane_tazobactam,0.05
-legionella_pneumophila,cefiderocol,0.8
+legionella_pneumophila,cefiderocol,0.05
 legionella_pneumophila,meropenem,0.05
 legionella_pneumophila,imipenem_c,0.05
 legionella_pneumophila,ertapenem,0.05
@@ -2555,7 +2555,7 @@ burkholderia_cepacia_complex,ceftazidime,0.7
 burkholderia_cepacia_complex,cefepime,0.75
 burkholderia_cepacia_complex,ceftaroline,0.1
 burkholderia_cepacia_complex,ceftolozane_tazobactam,0.1
-burkholderia_cepacia_complex,cefiderocol,0.1
+burkholderia_cepacia_complex,cefiderocol,0.55
 burkholderia_cepacia_complex,meropenem,0.8
 burkholderia_cepacia_complex,imipenem_c,0.8
 burkholderia_cepacia_complex,ertapenem,0.1

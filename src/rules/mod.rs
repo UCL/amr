@@ -7505,7 +7505,7 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_584,
+            applicable_cells, 5_585,
             "applicability count should include the corrected reserve-drug routes"
         );
     }
@@ -7587,16 +7587,12 @@ mod tests {
             burkholderia_idx,
             mechanism
         ));
-        assert!(!param_cache.mechanism_applicable(
-            mechanism_idx,
-            burkholderia_idx,
-            cefiderocol_idx
-        ));
+        assert!(param_cache.mechanism_applicable(mechanism_idx, burkholderia_idx, cefiderocol_idx));
         assert_eq!(
             store
                 .bacteria_mechanism_emergence
                 .rate(burkholderia_idx, mechanism_idx),
-            0.0
+            0.0001
         );
 
         assert!(!mechanism_applies_to_drug(

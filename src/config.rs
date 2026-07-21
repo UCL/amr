@@ -4706,7 +4706,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ceftaroline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.02);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefiderocol_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15);
+        map.insert("drug_cefiderocol_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.55);
         map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
         map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ertapenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
@@ -4769,7 +4769,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_ceftaroline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefiderocol_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefiderocol_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_meropenem_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_imipenem_c_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ertapenem_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
@@ -4832,7 +4832,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.15);
         map.insert("drug_ceftaroline_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefiderocol_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefiderocol_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_meropenem_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.25);
         map.insert("drug_imipenem_c_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.30);
         map.insert("drug_ertapenem_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.40);
@@ -4895,7 +4895,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftaroline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_cefiderocol_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefiderocol_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_meropenem_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_imipenem_c_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ertapenem_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.95);
@@ -5273,7 +5273,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftaroline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_cefiderocol_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefiderocol_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_meropenem_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_imipenem_c_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ertapenem_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95);
@@ -5336,7 +5336,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftaroline_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_cefiderocol_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefiderocol_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_meropenem_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_imipenem_c_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ertapenem_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.95);
@@ -5841,7 +5841,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.25);
         map.insert("drug_ceftaroline_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.45);
-        map.insert("drug_cefiderocol_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.45);
+        map.insert("drug_cefiderocol_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_meropenem_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_imipenem_c_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ertapenem_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.80);
@@ -5904,7 +5904,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftaroline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefiderocol_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefiderocol_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_meropenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_imipenem_c_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ertapenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
@@ -6471,7 +6471,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ceftaroline_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_cefiderocol_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_cefiderocol_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_meropenem_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_imipenem_c_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ertapenem_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.05);
@@ -6534,7 +6534,7 @@ lazy_static! {
         map.insert("drug_cefepime_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ceftaroline_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefiderocol_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefiderocol_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.55);
         map.insert("drug_meropenem_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_imipenem_c_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ertapenem_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.10);
@@ -9177,7 +9177,7 @@ lazy_static! {
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // eligible route; current cefiderocol potency is below the active threshold
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // ======================================================================
         // Other Gram-Negatives                                                         HEREHEREHERE
