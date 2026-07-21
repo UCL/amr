@@ -154,6 +154,74 @@ class CalibrationGateTests(unittest.TestCase):
         self.assertEqual(worst_gate["Passed"], "no")
         self.assertIn("6.00", worst_gate["Detail"])
 
+    def test_burden_score_excludes_out_of_scope_death_targets(self) -> None:
+        targets = SimpleNamespace(
+            target_year=2025,
+            headline_metrics=[],
+            calibration_score_config={
+                "cap": 4.0,
+                "weights": {"burden": 1.0},
+                "thresholds": {},
+                "gates": {},
+                "burden": {
+                    "relative_tolerance": 0.5,
+                    "minimum_absolute_scales": {
+                        "infection": 0.05,
+                        "carriage": 0.05,
+                        "deaths": 0.01,
+                    },
+                },
+            },
+        )
+        burden_df = pd.DataFrame(
+            [
+                {
+                    "Bacteria": "Escherichia coli",
+                    "Infection target (%)": None,
+                    "Infection simulation (%)": None,
+                    "Carriage target (%)": None,
+                    "Carriage simulation (%)": None,
+                    "Deaths target (millions)": 0.83,
+                    "Deaths simulation (millions)": 0.83,
+                },
+                {
+                    "Bacteria": "Helicobacter pylori",
+                    "Infection target (%)": None,
+                    "Infection simulation (%)": None,
+                    "Carriage target (%)": None,
+                    "Carriage simulation (%)": None,
+                    "Deaths target (millions)": 0.80,
+                    "Deaths simulation (millions)": 0.0,
+                },
+                {
+                    "Bacteria": "mdr Mycobacterium tuberculosis",
+                    "Infection target (%)": None,
+                    "Infection simulation (%)": None,
+                    "Carriage target (%)": None,
+                    "Carriage simulation (%)": None,
+                    "Deaths target (millions)": 0.19,
+                    "Deaths simulation (millions)": 0.0,
+                },
+            ]
+        )
+
+        result = _calculate_calibration_score(
+            targets,
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            burden_df,
+            {},
+        )
+
+        burden_block = result["block_rows"].loc[
+            lambda frame: frame["Block"] == "Bacteria burden consistency"
+        ].iloc[0]
+
+        self.assertEqual(burden_block["Score"], 0.0)
+        self.assertEqual(burden_block["Targets"], 1)
+
 
 class ResistancePublicationTerminologyTests(unittest.TestCase):
     def test_resistance_tables_can_use_benchmark_label(self) -> None:

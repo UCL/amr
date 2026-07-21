@@ -3628,16 +3628,26 @@ def _calculate_calibration_score(
         else {}
     )
     burden_metrics = [
-        ("By-bacteria infection incidence", "Infection target (%)", "Infection simulation (%)", burden_min_scales.get("infection", 0.05)),
-        ("By-bacteria carriage", "Carriage target (%)", "Carriage simulation (%)", burden_min_scales.get("carriage", 0.05)),
-        ("By-bacteria deaths", "Deaths target (millions)", "Deaths simulation (millions)", burden_min_scales.get("deaths", 0.01)),
+        ("By-bacteria infection incidence", "Infection target (%)", "Infection simulation (%)", burden_min_scales.get("infection", 0.05), False),
+        ("By-bacteria carriage", "Carriage target (%)", "Carriage simulation (%)", burden_min_scales.get("carriage", 0.05), False),
+        ("By-bacteria deaths", "Deaths target (millions)", "Deaths simulation (millions)", burden_min_scales.get("deaths", 0.01), True),
     ]
-    for label, target_column_name, simulation_column_name, minimum_scale in burden_metrics:
+    for (
+        label,
+        target_column_name,
+        simulation_column_name,
+        minimum_scale,
+        exclude_out_of_scope_deaths,
+    ) in burden_metrics:
         if bacteria_burden_df.empty:
             continue
         target_series = pd.to_numeric(bacteria_burden_df.get(target_column_name), errors="coerce")
         simulation_series = pd.to_numeric(bacteria_burden_df.get(simulation_column_name), errors="coerce")
         valid_mask = target_series.notna() & simulation_series.notna()
+        if exclude_out_of_scope_deaths and "Bacteria" in bacteria_burden_df.columns:
+            valid_mask &= ~bacteria_burden_df["Bacteria"].apply(
+                _is_infection_death_excluded_bacteria
+            )
         if not valid_mask.any():
             continue
         target_values = target_series[valid_mask]
