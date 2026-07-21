@@ -360,16 +360,24 @@ def _coerce_float(value: object) -> Optional[float]:
     return numeric if np.isfinite(numeric) else None
 
 
-def _capped_distance(
+def _normalized_distance(
     delta: Optional[float],
     scale: Optional[float],
-    cap: float,
 ) -> Optional[float]:
     if delta is None or scale is None or scale <= 0 or not np.isfinite(scale):
         return None
     if not np.isfinite(delta):
         return None
-    return float(min(abs(delta) / scale, cap))
+    return float(abs(delta) / scale)
+
+
+def _capped_distance(
+    delta: Optional[float],
+    scale: Optional[float],
+    cap: float,
+) -> Optional[float]:
+    distance = _normalized_distance(delta, scale)
+    return None if distance is None else float(min(distance, cap))
 
 
 def _relative_scale(
@@ -3568,14 +3576,18 @@ def _calculate_calibration_score(
             target = _coerce_float(row.get(target_col_name))
             if simulation is None or target is None:
                 continue
-            distance = _capped_distance(simulation - target, tolerance, cap)
-            if distance is None:
+            normalized_distance = _normalized_distance(simulation - target, tolerance)
+            if normalized_distance is None:
                 continue
+            distance = float(min(normalized_distance, cap))
             resistance_values.append((distance, component_weight))
             resistance_target_count += 1
             if component_key == "infection":
-                if worst_infection_distance is None or distance > worst_infection_distance:
-                    worst_infection_distance = distance
+                if (
+                    worst_infection_distance is None
+                    or normalized_distance > worst_infection_distance
+                ):
+                    worst_infection_distance = normalized_distance
             contributors.append({
                 "Block": CALIBRATION_SCORE_BLOCK_LABELS["resistance"],
                 "Target": f"{row.get('Bacteria')} / {row.get('Drug')} ({component_label})",

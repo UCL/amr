@@ -12,6 +12,7 @@ from amr_simulation_output_analysis.calibration_summary import (
     RESISTANCE_TARGET_INCLUDED_COL,
     _HOSP_COMM_ANY_R_RATIO_TARGETS,
     _build_headline_table,
+    _calculate_calibration_score,
     _calculate_resistance_fit_metrics,
     _calculate_serious_resistance_locus_table,
 )
@@ -95,6 +96,63 @@ class ResistanceEligibilityTests(unittest.TestCase):
         counted = dict(zip(components["Component"], components["Combinations counted"]))
         self.assertEqual(counted["Infection resistance"], 1)
         self.assertEqual(counted["Resistant level (among positives)"], 0)
+
+
+class CalibrationGateTests(unittest.TestCase):
+    def test_worst_resistance_gate_uses_uncapped_distance(self) -> None:
+        resistance_df = pd.DataFrame(
+            [
+                {
+                    "Bacteria": "Escherichia coli",
+                    "Drug": "ampicillin",
+                    "Note": "",
+                    RESISTANCE_SIM_COL: 60.0,
+                    RESISTANCE_TARGET_COL: 0.0,
+                    "Average resistant simulation": 0.0,
+                    "Average resistant target": 0.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: False,
+                }
+            ]
+        )
+        targets = SimpleNamespace(
+            target_year=2025,
+            headline_metrics=[],
+            calibration_score_config={
+                "cap": 4.0,
+                "weights": {"resistance": 1.0},
+                "thresholds": {},
+                "gates": {
+                    "worst_infection_resistance_distance": {"max": 4.0}
+                },
+                "resistance": {
+                    "component_weights": {"infection": 4.0, "average": 1.0},
+                    "tolerances_pp": {"infection": 10.0, "average": 10.0},
+                },
+            },
+        )
+
+        result = _calculate_calibration_score(
+            targets,
+            pd.DataFrame(),
+            pd.DataFrame(),
+            resistance_df,
+            pd.DataFrame(),
+            pd.DataFrame(),
+            {"weighted_overall_abs_delta": 60.0},
+        )
+
+        resistance_block = result["block_rows"].loc[
+            lambda frame: frame["Block"] == "Infection resistance"
+        ].iloc[0]
+        worst_gate = result["gate_rows"].loc[
+            lambda frame: frame["Gate"]
+            == "Worst infection-resistance normalized distance"
+        ].iloc[0]
+
+        self.assertEqual(resistance_block["Score"], 4.0)
+        self.assertEqual(worst_gate["Passed"], "no")
+        self.assertIn("6.00", worst_gate["Detail"])
 
 
 class ResistancePublicationTerminologyTests(unittest.TestCase):
