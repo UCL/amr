@@ -5297,6 +5297,12 @@ pub(crate) fn apply_rules(
     }
     // --- death logic end
 
+    // Death is terminal for this person-day. Preserve infection state at the moment of death for
+    // attribution and do not consume random draws in rules that can no longer affect the person.
+    if individual.date_of_death.is_some() {
+        return events;
+    }
+
     // --- sepsis recovery logic (applied after death risk, only if individual is alive) ---
     if individual.date_of_death.is_none() {
         for b_idx in 0..BACTERIA_LIST.len() {
@@ -7408,7 +7414,7 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        clear_microbiome_compartment, collect_active_symptomatic_syndromes,
+        apply_rules, clear_microbiome_compartment, collect_active_symptomatic_syndromes,
         collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
         emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
         exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
@@ -7428,9 +7434,10 @@ mod tests {
         store_float, DrugClass, HospitalStatus, Individual, ResistanceMechanism, BACTERIA_LIST,
         DRUG_SHORT_NAMES,
     };
-    use crate::simulation::simulation::MechanismCache;
+    use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
     use rand::SeedableRng;
+    use std::collections::HashMap;
 
     fn individual_with_seed(seed: u64) -> (Individual, SmallRng) {
         let mut rng = SmallRng::seed_from_u64(seed);
@@ -7450,6 +7457,68 @@ mod tests {
             .iter()
             .position(|&candidate| candidate == name)
             .unwrap_or_else(|| panic!("missing drug {name}"))
+    }
+
+    #[test]
+    fn newly_recorded_death_stops_remaining_person_day_rules() {
+        let time_step = 70 * 365;
+        let (mut individual, _) = individual_with_seed(90);
+        let e_coli_idx = bacteria_idx("escherichia_coli");
+        individual.level[e_coli_idx] = 2.0;
+        individual.date_last_infected[e_coli_idx] = time_step as i32 - 30;
+        individual.date_last_infected_keep[e_coli_idx] = time_step as i32 - 30;
+        individual.clearance_ready_day[e_coli_idx] = time_step as i32 - 1;
+        individual.infectious_syndrome[e_coli_idx] = 2;
+        individual.predicted_infection_risk[e_coli_idx] = 0.375;
+        individual.infection_resolution_this_timestep[e_coli_idx].fill(0);
+
+        let bacteria_indices: HashMap<&'static str, usize> = BACTERIA_LIST
+            .iter()
+            .enumerate()
+            .map(|(idx, &name)| (name, idx))
+            .collect();
+        let drug_indices: HashMap<&'static str, usize> = DRUG_SHORT_NAMES
+            .iter()
+            .enumerate()
+            .map(|(idx, &name)| (name, idx))
+            .collect();
+        let param_cache = ParameterKeyCache::new();
+        let mechanism_cache =
+            MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
+        let policy = PolicyAdjustments {
+            policy_option: 0,
+            drug_selection_temperature: None,
+            minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: None,
+            resistance_testing_rate_multiplier: None,
+            counterfactual_resistance_multiplier: None,
+            clear_all_resistance_on_branch_start: false,
+            reserve_drug_penalty_multiplier: None,
+            drug_initiation_rate_multiplier: None,
+            drug_cessation_rate_multiplier: None,
+            equalize_regional_access: false,
+        };
+        let mut rng = StepRng::new(0, 0);
+
+        apply_rules(
+            &mut individual,
+            time_step,
+            &mut rng,
+            &mechanism_cache,
+            &bacteria_indices,
+            &drug_indices,
+            &param_cache,
+            &policy,
+        );
+
+        assert_eq!(individual.date_of_death, Some(time_step));
+        assert_eq!(individual.level[e_coli_idx], 2.0);
+        assert_eq!(individual.predicted_infection_risk[e_coli_idx], 0.375);
+
+        let resolutions = &individual.infection_resolution_this_timestep[e_coli_idx];
+        assert_eq!(resolutions.iter().sum::<u32>(), 1);
+        assert_eq!(resolutions[0] + resolutions[1], 0);
+        assert_eq!(resolutions[2..].iter().sum::<u32>(), 1);
     }
 
     #[test]

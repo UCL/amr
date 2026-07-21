@@ -1744,6 +1744,8 @@ In the current implementation, the sex term is a lifelong multiplicative shift r
 
 Background mortality is treated as a competing risk alongside infection-specific death pathways rather than being added on top of them. Each day, the model checks for death in the following order: sepsis, drug toxicity, non-sepsis infection death, then background mortality. This means acute infectious deaths displace some deaths that would otherwise have been labelled as background mortality, ensuring each person receives at most one cause of death per time step.
 
+Once a death is recorded, processing for that person stops immediately for the current day. Infection, sepsis, treatment, carriage, resistance, testing, and resolution states therefore remain as they were at the moment of death, and no later rules consume random draws for that person.
+
 
 ### 10.2 Sepsis mortality
 
