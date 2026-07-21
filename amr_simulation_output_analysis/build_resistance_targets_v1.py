@@ -141,11 +141,48 @@ def _read_rust_potencies(path: Path) -> Dict[Tuple[str, str], Decimal]:
     return result
 
 
+def _read_rust_resistance_reachability(
+    path: Path,
+) -> Dict[Tuple[str, str], bool]:
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        required = {
+            "bacteria",
+            "drug",
+            "resistance_representable",
+            "positive_effect_mechanisms",
+        }
+        if reader.fieldnames is None or set(reader.fieldnames) != required:
+            raise ValueError(f"{path} must contain exactly {sorted(required)}")
+
+        result: Dict[Tuple[str, str], bool] = {}
+        for row_number, row in enumerate(reader, start=2):
+            bacteria = _potency_bacteria_slug(row["bacteria"])
+            drug = row["drug"].strip().lower()
+            key = (bacteria, drug)
+            if key in result:
+                raise ValueError(f"{path}:{row_number} duplicates {bacteria}/{drug}")
+            token = row["resistance_representable"].strip().lower()
+            if token not in {"true", "false"}:
+                raise ValueError(
+                    f"{path}:{row_number} has invalid representability {token!r}"
+                )
+            representable = token == "true"
+            has_mechanisms = bool(row["positive_effect_mechanisms"].strip())
+            if representable != has_mechanisms:
+                raise ValueError(
+                    f"{path}:{row_number} representability disagrees with mechanism list"
+                )
+            result[key] = representable
+    return result
+
+
 def _static_score_exclusions(
     bacterium: str,
     drug: str,
     prevalence_token: str,
     potencies: Mapping[Tuple[str, str], Decimal],
+    resistance_reachability: Mapping[Tuple[str, str], bool],
 ) -> List[str]:
     reasons: List[str] = []
     bacterium_slug = _target_bacteria_slug(bacterium)
@@ -162,6 +199,13 @@ def _static_score_exclusions(
         raise ValueError(f"Rust potency projection lacks {bacterium_slug}/{drug}")
     if potency < POTENCY_CUTOFF:
         reasons.append("model_baseline_potency_below_0.15")
+    representable = resistance_reachability.get((bacterium_slug, drug))
+    if representable is None:
+        raise ValueError(
+            f"Rust resistance reachability projection lacks {bacterium_slug}/{drug}"
+        )
+    if prevalence_token != "." and not representable:
+        reasons.append("model_resistance_phenotype_not_representable")
     return reasons
 
 
@@ -224,6 +268,7 @@ def build_resistance_targets_v1(
     prevalence_path = data_dir / "resistance_prevalence_values.csv"
     severity_path = data_dir / "resistance_average_resistant_values.csv"
     potency_path = data_dir / "model_potency_matrix.csv"
+    reachability_path = data_dir / "model_resistance_reachability_matrix.csv"
 
     bacteria_order, drugs, prevalence, notes = _read_wide_matrix(
         prevalence_path, expects_notes=True
@@ -237,20 +282,32 @@ def build_resistance_targets_v1(
         raise ValueError("prevalence and severity matrices cover different drugs or order")
 
     potencies = _read_rust_potencies(potency_path)
+    resistance_reachability = _read_rust_resistance_reachability(reachability_path)
     rows: List[Dict[str, str]] = []
 
     for bacterium in bacteria_order:
         source_id = f"legacy_prevalence_note__{_source_slug(bacterium)}"
         for drug in drugs:
             token = prevalence[bacterium][drug]
-            exclusions = _static_score_exclusions(bacterium, drug, token, potencies)
+            exclusions = _static_score_exclusions(
+                bacterium,
+                drug,
+                token,
+                potencies,
+                resistance_reachability,
+            )
+            status = "active_target"
+            if token == ".":
+                status = "legacy_unclassified_missing"
+            elif "model_resistance_phenotype_not_representable" in exclusions:
+                status = "inactive_model_unrepresentable"
             rows.append(
                 _base_row(
                     component=PREVALENCE_COMPONENT,
                     bacterium=bacterium,
                     drug=drug,
                     value=token,
-                    status="active_target" if token != "." else "legacy_unclassified_missing",
+                    status=status,
                     exclusions=exclusions,
                     target_type=(
                         "evidence_informed_calibration_benchmark"
@@ -270,7 +327,11 @@ def build_resistance_targets_v1(
             token = severity[bacterium][drug]
             prevalence_token = prevalence[bacterium][drug]
             exclusions = _static_score_exclusions(
-                bacterium, drug, prevalence_token, potencies
+                bacterium,
+                drug,
+                prevalence_token,
+                potencies,
+                resistance_reachability,
             )
             if token == ".":
                 status = "legacy_unclassified_missing"
@@ -278,6 +339,8 @@ def build_resistance_targets_v1(
                     exclusions = [*exclusions, "severity_target_missing"]
             elif prevalence_token == ".":
                 status = "inactive_legacy_prevalence_gate"
+            elif "model_resistance_phenotype_not_representable" in exclusions:
+                status = "inactive_model_unrepresentable"
             else:
                 status = "active_target"
             rows.append(

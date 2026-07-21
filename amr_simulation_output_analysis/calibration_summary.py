@@ -1303,6 +1303,8 @@ def _load_resistance_target_set(
             exclusions = str(row.get("score_exclusion_reason") or "").split(";")
             if "model_baseline_potency_below_0.15" in exclusions:
                 reasons.append("negligible potency (baseline potency < 0.15)")
+            if "model_resistance_phenotype_not_representable" in exclusions:
+                reasons.append("resistance phenotype not represented by model mechanisms")
             if component == RESISTANCE_PREVALENCE_COMPONENT and row["value"] == "":
                 reasons.append("infection-resistance benchmark not assigned")
             return "; ".join(reasons)

@@ -1,5 +1,8 @@
 use amr_project::config::PARAMETER_STORE;
-use amr_project::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES};
+use amr_project::rules::ParameterKeyCache;
+use amr_project::simulation::population::{
+    ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES,
+};
 use csv::ReaderBuilder;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -199,7 +202,7 @@ fn resistance_target_matrices_are_valid_and_match_model_dimensions() {
 }
 
 #[test]
-fn potency_informed_target_exclusions_match_the_typed_rust_matrix() {
+fn model_informed_target_exclusions_match_the_typed_rust_matrices() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("resistance_targets_v1.csv");
@@ -220,7 +223,9 @@ fn potency_informed_target_exclusions_match_the_typed_rust_matrix() {
     let included_col = column("include_in_score");
     let reason_col = column("score_exclusion_reason");
 
+    let cache = ParameterKeyCache::new();
     let mut low_potency_numeric_targets = 0;
+    let mut unrepresentable_numeric_targets = 0;
     for record in reader.records() {
         let record = record.expect("valid long-form target row");
         if &record[component_col] != "resistance_prevalence_any_r_positive" {
@@ -249,15 +254,38 @@ fn potency_informed_target_exclusions_match_the_typed_rust_matrix() {
             records_potency_exclusion, low_potency,
             "potency exclusion drift for {model_slug}/{drug}"
         );
+        let resistance_representable =
+            ResistanceMechanism::all()
+                .iter()
+                .enumerate()
+                .any(|(mechanism_idx, _)| {
+                    cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                        && PARAMETER_STORE
+                            .resistance_mechanism
+                            .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_idx])
+                            > 0.0
+                });
+        let records_reachability_exclusion = record[reason_col]
+            .split(';')
+            .any(|reason| reason == "model_resistance_phenotype_not_representable");
+        assert_eq!(
+            records_reachability_exclusion,
+            has_value && !resistance_representable,
+            "resistance representability exclusion drift for {model_slug}/{drug}"
+        );
 
         if has_value && low_potency {
             low_potency_numeric_targets += 1;
+        }
+        if has_value && !resistance_representable {
+            unrepresentable_numeric_targets += 1;
         }
         let expected_included = has_value
             && drug != "rifampicin"
             && !model_slug.contains("tuberculosis")
             && !model_slug.contains("listeria")
-            && !low_potency;
+            && !low_potency
+            && resistance_representable;
         assert_eq!(
             &record[included_col],
             if expected_included { "true" } else { "false" },
@@ -268,5 +296,9 @@ fn potency_informed_target_exclusions_match_the_typed_rust_matrix() {
     assert_eq!(
         low_potency_numeric_targets, 9,
         "review low-potency numeric targets when this count changes"
+    );
+    assert_eq!(
+        unrepresentable_numeric_targets, 64,
+        "review unrepresentable numeric targets when this count changes"
     );
 }
