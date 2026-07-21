@@ -917,7 +917,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime"
-            | "ceftolozane_tazobactam" | "cefiderocol" | "ceftazidime_avibactam" | "meropenem_vaborbactam" // PBP2a does not bind to these
+            | "ceftolozane_tazobactam" | "ceftazidime_avibactam" | "meropenem_vaborbactam" // PBP2a does not bind to these
             | "aztreonam" | "aztreonam_avibactam"
               | "meropenem" | "imipenem_c" | "ertapenem"
         ),
@@ -1005,7 +1005,6 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "cefepime"
                 | "ceftolozane_tazobactam"
                 | "ceftaroline"
-                | "cefiderocol"
                 | "ceftazidime_avibactam"
                 | "meropenem_vaborbactam"
                 | "aztreonam"
@@ -1128,8 +1127,10 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         Mutation16sRrnaTetracycline => {
             matches!(drug, "tetracycline" | "doxycycline" | "minocycline")
         }
-        // Placeholder: still dormant.
-        AsYetUnknown => false,
+        // Cefiderocol-specific chromosomal changes that reduce ferric-siderophore
+        // uptake. Other beta-lactam mechanisms are not treated as sufficient by
+        // themselves because cefiderocol resistance is commonly combinatorial.
+        MutationSiderophoreUptake => drug == "cefiderocol",
     }
 }
 
@@ -5830,14 +5831,9 @@ pub(crate) fn apply_rules(
                         {
                             // Seed the rifampicin-resistance mechanism(s) instead of injecting floats
                             use crate::simulation::population::ResistanceMechanism;
-                            for (mech_idx, mechanism) in
+                            for (mech_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
-                                // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                                if mechanism.is_as_yet_unknown() {
-                                    continue;
-                                }
-
                                 if !param_cache.mechanism_applicable(
                                     mech_idx,
                                     b_idx,
@@ -6736,11 +6732,6 @@ pub(crate) fn apply_rules(
                     let mut any_mechanism_transferred = false;
 
                     for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                        // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                        if mechanism.is_as_yet_unknown() {
-                            continue;
-                        }
-
                         // Donation uses the pre-HGT snapshot, so a mechanism received during this
                         // phase cannot be retransmitted until the next simulation day.
                         let Some(donor_multiplier) = hgt_donor_mechanism_multiplier(
@@ -7454,7 +7445,6 @@ mod tests {
         let mechanism_mask = ResistanceMechanism::all()
             .iter()
             .enumerate()
-            .filter(|(_, mechanism)| !mechanism.is_as_yet_unknown())
             .fold(0u64, |mask, (mechanism_idx, _)| {
                 mask | (1u64 << mechanism_idx)
             });
@@ -7516,9 +7506,115 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_582,
-            "nalidixic acid should add primary-GyrA applicability for its 18 active bacterial hosts"
+            applicable_cells, 5_596,
+            "applicability count should include the cefiderocol siderophore-uptake route"
         );
+    }
+
+    #[test]
+    fn cefiderocol_uses_the_siderophore_uptake_route() {
+        let store = parameter_store();
+        let param_cache = ParameterKeyCache::new();
+        let cefiderocol_idx = drug_idx("cefiderocol");
+        let mechanism = ResistanceMechanism::MutationSiderophoreUptake;
+        let mechanism_idx = super::mechanism_idx(mechanism);
+
+        assert!(!mechanism_is_hgt_transferable(mechanism));
+        assert_eq!(
+            store.resistance_mechanism.enhancement_multiplier(
+                mechanism_idx,
+                DrugClass::SiderophoreCephalosporins.index(),
+            ),
+            0.60
+        );
+
+        for bacterium in [
+            "acinetobacter_baumannii",
+            "citrobacter_spp.",
+            "enterobacter_spp.",
+            "escherichia_coli",
+            "klebsiella_pneumoniae",
+            "morganella_spp.",
+            "proteus_spp.",
+            "serratia_spp.",
+            "p_stuartii",
+            "pseudomonas_aeruginosa",
+            "stenotrophomonas_maltophilia",
+            "salmonella_enterica_serovar_typhi",
+            "salmonella_enterica_serovar_paratyphi_a",
+            "invasive_non-typhoidal_salmonella_spp.",
+            "shigella_spp.",
+            "enterobacter_cloacae",
+            "yersinia_enterocolitica",
+        ] {
+            let bacteria_idx = bacteria_idx(bacterium);
+            assert!(bacterium_mechanism_host_is_eligible(
+                bacteria_idx,
+                mechanism
+            ));
+            assert!(mechanism_applies_to_drug(
+                mechanism,
+                bacterium,
+                "cefiderocol"
+            ));
+            assert!(param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, cefiderocol_idx));
+            assert_eq!(
+                store
+                    .bacteria_mechanism_emergence
+                    .rate(bacteria_idx, mechanism_idx),
+                0.0001
+            );
+        }
+
+        for bacterium in [
+            "staphylococcus_aureus",
+            "neisseria_gonorrhoeae",
+            "bacteroides_fragilis",
+        ] {
+            let bacteria_idx = bacteria_idx(bacterium);
+            assert!(!bacterium_mechanism_host_is_eligible(
+                bacteria_idx,
+                mechanism
+            ));
+            assert!(!param_cache.mechanism_applicable(
+                mechanism_idx,
+                bacteria_idx,
+                cefiderocol_idx
+            ));
+        }
+
+        let burkholderia_idx = bacteria_idx("burkholderia_cepacia_complex");
+        assert!(bacterium_mechanism_host_is_eligible(
+            burkholderia_idx,
+            mechanism
+        ));
+        assert!(!param_cache.mechanism_applicable(
+            mechanism_idx,
+            burkholderia_idx,
+            cefiderocol_idx
+        ));
+        assert_eq!(
+            store
+                .bacteria_mechanism_emergence
+                .rate(burkholderia_idx, mechanism_idx),
+            0.0
+        );
+
+        assert!(!mechanism_applies_to_drug(
+            ResistanceMechanism::TargetSitePbp2aMecA,
+            "staphylococcus_aureus",
+            "cefiderocol"
+        ));
+        assert!(!mechanism_applies_to_drug(
+            ResistanceMechanism::PorinLossOmpk35_36,
+            "klebsiella_pneumoniae",
+            "cefiderocol"
+        ));
+        assert!(!mechanism_applies_to_drug(
+            mechanism,
+            "escherichia_coli",
+            "ceftolozane_tazobactam"
+        ));
     }
 
     #[test]
@@ -8349,10 +8445,8 @@ mod tests {
                 }
                 let drug_level = 0.55 / potency;
 
-                for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                    if mechanism.is_as_yet_unknown()
-                        || !param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
-                    {
+                for (mechanism_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                    if !param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx) {
                         continue;
                     }
 
@@ -8377,11 +8471,7 @@ mod tests {
 
     fn multi_drug_promotion_case(param_cache: &ParameterKeyCache) -> (usize, usize, [usize; 2]) {
         for bacteria_idx in 0..BACTERIA_LIST.len() {
-            for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                if mechanism.is_as_yet_unknown() {
-                    continue;
-                }
-
+            for (mechanism_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
                 let applicable_drugs: Vec<usize> = (0..DRUG_SHORT_NAMES.len())
                     .filter(|&drug_idx| {
                         param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
@@ -8406,11 +8496,7 @@ mod tests {
     ) -> (usize, usize, [usize; 2], f64) {
         let store = parameter_store();
         for bacteria_idx in 0..BACTERIA_LIST.len() {
-            for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                if mechanism.is_as_yet_unknown() {
-                    continue;
-                }
-
+            for (mechanism_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
                 let mechanism_rate = store
                     .bacteria_mechanism_emergence
                     .rate(bacteria_idx, mechanism_idx);
@@ -8461,9 +8547,8 @@ mod tests {
                 }
 
                 let selected_mechanism = ResistanceMechanism::all().iter().enumerate().find(
-                    |(mechanism_idx, mechanism)| {
-                        !mechanism.is_as_yet_unknown()
-                            && store.resistance_mechanism.reversion_rate(*mechanism_idx) > 0.0
+                    |(mechanism_idx, _mechanism)| {
+                        store.resistance_mechanism.reversion_rate(*mechanism_idx) > 0.0
                             && param_cache.mechanism_applicable(
                                 *mechanism_idx,
                                 bacteria_idx,
@@ -8472,9 +8557,8 @@ mod tests {
                     },
                 );
                 let unrelated_mechanism = ResistanceMechanism::all().iter().enumerate().find(
-                    |(mechanism_idx, mechanism)| {
-                        !mechanism.is_as_yet_unknown()
-                            && store.resistance_mechanism.reversion_rate(*mechanism_idx) > 0.0
+                    |(mechanism_idx, _mechanism)| {
+                        store.resistance_mechanism.reversion_rate(*mechanism_idx) > 0.0
                             && !param_cache.mechanism_applicable(
                                 *mechanism_idx,
                                 bacteria_idx,
@@ -8513,9 +8597,7 @@ mod tests {
         let store = parameter_store();
         for (bacteria_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
             for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                if mechanism.is_as_yet_unknown()
-                    || store.resistance_mechanism.reversion_rate(mechanism_idx) <= 0.0
-                {
+                if store.resistance_mechanism.reversion_rate(mechanism_idx) <= 0.0 {
                     continue;
                 }
 
@@ -8557,8 +8639,7 @@ mod tests {
         ResistanceMechanism::all()
             .iter()
             .position(|&mechanism| {
-                !mechanism.is_as_yet_unknown()
-                    && crate::simulation::population::mechanism_is_hgt_transferable(mechanism)
+                crate::simulation::population::mechanism_is_hgt_transferable(mechanism)
             })
             .expect("at least one HGT-transferable mechanism")
     }
@@ -8900,11 +8981,10 @@ mod tests {
             .iter()
             .enumerate()
             .filter_map(|(mechanism_idx, &mechanism)| {
-                (!mechanism.is_as_yet_unknown()
-                    && !ratchet_mechanism_is_eligible(
-                        mechanism,
-                        store.resistance_mechanism.reversion_rate(mechanism_idx),
-                    ))
+                (!ratchet_mechanism_is_eligible(
+                    mechanism,
+                    store.resistance_mechanism.reversion_rate(mechanism_idx),
+                ))
                 .then_some(mechanism)
             })
             .collect::<Vec<_>>();

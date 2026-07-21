@@ -8768,7 +8768,7 @@ _SF4_MECHANISM_FAMILIES: list[dict[str, object]] = [
             "ResistanceMechanism::EnzymeEsblShv",
             "ResistanceMechanism::TargetSitePbp2aMecA",
             "ResistanceMechanism::EnzymeBlaZ",
-            "ResistanceMechanism::EnzymeTem1",
+            "ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase",
             "ResistanceMechanism::MutationPbpMosaic",
         ],
         "notes": "Includes ESBL enzymes and broad beta-lactam target/penicillinase mechanisms.",
@@ -8798,14 +8798,14 @@ _SF4_MECHANISM_FAMILIES: list[dict[str, object]] = [
     },
     {
         "slug": "porin_loss",
-        "label": "Porin loss",
-        "short_label": "Porin\nloss",
+        "label": "Porin / siderophore uptake",
+        "short_label": "Porin /\nuptake",
         "variants": [
             "ResistanceMechanism::PorinLossOmpk35_36",
             "ResistanceMechanism::PorinLossOprd",
-            "ResistanceMechanism::GlobalPorinLoss",
+            "ResistanceMechanism::MutationSiderophoreUptake",
         ],
-        "notes": "Specific and global porin-loss mechanisms.",
+        "notes": "Specific porin-loss mechanisms and reduced cefiderocol siderophore uptake.",
     },
     {
         "slug": "efflux",
@@ -8869,8 +8869,9 @@ _SF4_MECHANISM_FAMILIES: list[dict[str, object]] = [
         "variants": [
             "ResistanceMechanism::ProtectionTetM",
             "ResistanceMechanism::EffluxTetAbc",
+            "ResistanceMechanism::Mutation16sRrnaTetracycline",
         ],
-        "notes": "Ribosomal protection and tetracycline efflux.",
+        "notes": "Ribosomal protection, tetracycline efflux, and 16S rRNA target mutation.",
     },
     {
         "slug": "folate_pathway",
@@ -8924,9 +8925,8 @@ _SF4_MECHANISM_FAMILIES: list[dict[str, object]] = [
         "variants": [
             "ResistanceMechanism::TargetSiteVanA",
             "ResistanceMechanism::TargetSiteVanB",
-            "ResistanceMechanism::AsYetUnknown",
         ],
-        "notes": "Compact bucket for glycopeptide targets and calibration placeholder mechanisms.",
+        "notes": "Compact bucket for glycopeptide target mechanisms.",
     },
 ]
 
@@ -8958,7 +8958,7 @@ _SF4_EXACT_MECHANISMS: list[dict[str, str]] = [
     {"variant": "ResistanceMechanism::ModificationMcr1", "slug": "modification_mcr_1", "label": "mcr-1"},
     {"variant": "ResistanceMechanism::MutationPolymyxinRegulatory", "slug": "mutation_polymyxin_regulatory", "label": "polymyxin regulatory"},
     {"variant": "ResistanceMechanism::GlobalEffluxPump", "slug": "global_efflux_pump", "label": "global efflux pump"},
-    {"variant": "ResistanceMechanism::GlobalPorinLoss", "slug": "global_porin_loss", "label": "global porin loss"},
+    {"variant": "ResistanceMechanism::MutationSiderophoreUptake", "slug": "mutation_siderophore_uptake", "label": "siderophore uptake"},
     {"variant": "ResistanceMechanism::MutationFolatePathway", "slug": "mutation_folate_pathway", "label": "folate pathway"},
     {"variant": "ResistanceMechanism::MutationNitroreductase", "slug": "mutation_nitroreductase", "label": "nitroreductase"},
     {"variant": "ResistanceMechanism::EnzymeFos", "slug": "enzyme_fos", "label": "Fos enzyme"},
@@ -8969,7 +8969,7 @@ _SF4_EXACT_MECHANISMS: list[dict[str, str]] = [
     {"variant": "ResistanceMechanism::ProtectionTetM", "slug": "protection_tet_m", "label": "tetM protection"},
     {"variant": "ResistanceMechanism::EnzymeAacAph", "slug": "enzyme_aac_aph", "label": "AAC/APH"},
     {"variant": "ResistanceMechanism::EnzymeBlaZ", "slug": "enzyme_bla_z", "label": "blaZ"},
-    {"variant": "ResistanceMechanism::EnzymeTem1", "slug": "enzyme_tem_1", "label": "TEM-1"},
+    {"variant": "ResistanceMechanism::EnzymeNarrowSpectrumGramNegativePenicillinase", "slug": "enzyme_narrow_spectrum_gram_negative_penicillinase", "label": "narrow-spectrum Gram-negative penicillinase"},
     {"variant": "ResistanceMechanism::EnzymeMphA", "slug": "enzyme_mph_a", "label": "mphA"},
     {"variant": "ResistanceMechanism::EnzymeOxaAcinetobacter", "slug": "enzyme_oxa_acinetobacter", "label": "Acinetobacter OXA"},
     {"variant": "ResistanceMechanism::Mutation23sRrna", "slug": "mutation_23s_rrna", "label": "23S rRNA macrolide"},
@@ -8977,7 +8977,7 @@ _SF4_EXACT_MECHANISMS: list[dict[str, str]] = [
     {"variant": "ResistanceMechanism::EffluxTetAbc", "slug": "efflux_tet_abc", "label": "TetABC efflux"},
     {"variant": "ResistanceMechanism::MutationPbpMosaic", "slug": "mutation_pbp_mosaic", "label": "PBP mosaic"},
     {"variant": "ResistanceMechanism::EffluxMtrCde", "slug": "efflux_mtr_cde", "label": "MtrCDE efflux"},
-    {"variant": "ResistanceMechanism::AsYetUnknown", "slug": "as_yet_unknown", "label": "as-yet-unknown"},
+    {"variant": "ResistanceMechanism::Mutation16sRrnaTetracycline", "slug": "mutation_16s_rrna_tetracycline", "label": "16S rRNA tetracycline"},
 ]
 
 

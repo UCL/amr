@@ -8333,7 +8333,7 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_003       ); // classes: pen, flu, bli, ceph, mono; tiny beta-lactam seed ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_escherichia_coli_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_escherichia_coli_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
 
          // K. pneumoniae - Gram-negative, Enterobacterales
@@ -8383,7 +8383,7 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
 
 
@@ -8434,7 +8434,7 @@ lazy_static! {
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_08    ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without rebuilding broad efflux resistance ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
       map.insert("bacteria_citrobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-      map.insert("bacteria_citrobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+      map.insert("bacteria_citrobacter_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
  // Enterobacter spp. - Gram-negative, Enterobacterales
       // Band 8 (x125)
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01      ); // classes: pen, flu, ceph, mono ***changed: bli->removed (BLI combos inhibit ESBLs - not substrates); flu->added (ESBLs hydrolyze flucloxacillin)
@@ -8482,7 +8482,7 @@ lazy_static! {
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_005   ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without rebuilding broad non-beta-lactam resistance ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
       map.insert("bacteria_enterobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-      map.insert("bacteria_enterobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+      map.insert("bacteria_enterobacter_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
 
       // E. cloacae - Gram-negative, Enterobacterales
@@ -8532,7 +8532,7 @@ lazy_static! {
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_002              ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without overdriving other classes ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-    map.insert("bacteria_enterobacter_cloacae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // Morganella spp. - Gram-negative, Enterobacterales
         // Band 8 (x300)
@@ -8581,7 +8581,7 @@ lazy_static! {
         map.insert("bacteria_morganella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_1       ); // classes: pen, flu, bli, ceph, mono; tiny seed; not treated as impossible ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_morganella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_morganella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_morganella_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // Proteus spp. - Gram-negative, Enterobacterales
         // Band 8 (x50)
@@ -8630,7 +8630,7 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_proteus_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_proteus_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // Serratia spp. - Gram-negative, Enterobacterales
         // Band 8 (x250)
@@ -8679,7 +8679,7 @@ lazy_static! {
         map.insert("bacteria_serratia_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_05   ); // classes: pen, flu, bli, ceph, mono ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_serratia_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_serratia_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_serratia_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // P. stuartii - Gram-negative, Enterobacterales
         // Band 9 (x375)
@@ -8728,7 +8728,7 @@ lazy_static! {
         map.insert("bacteria_p_stuartii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_p_stuartii_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_p_stuartii_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // S. Typhi - Gram-negative, Enterobacterales
         // Band 7 (x7.9)
@@ -8777,7 +8777,7 @@ lazy_static! {
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0  ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // S. Paratyphi A - Gram-negative, Enterobacterales
         // Band 7 (x25)
@@ -8826,7 +8826,7 @@ lazy_static! {
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, bli, ceph, mono ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0      ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // iNTS - Gram-negative, Enterobacterales
         // Band 8 (x37.5)
@@ -8875,7 +8875,7 @@ lazy_static! {
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0          ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
           // Band 6 (x0.625)
         // NOTE on Shigella beta-lactam rates: ESBL for Shigella has a special rules/mod.rs exception
@@ -8930,7 +8930,7 @@ lazy_static! {
         map.insert("bacteria_shigella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0 — PBP mosaic recombination is a Streptococcus/Haemophilus mechanism; Shigella (Enterobacterales) lacks natural competence for this type of recombination
         map.insert("bacteria_shigella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0        ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_shigella_spp._mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_shigella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_shigella_spp._mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // Band 8 (x300)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_03         ); // classes: pen, flu, ceph, mono ***changed: bli->removed (BLI combos inhibit ESBLs - not substrates); flu->added (ESBLs hydrolyze flucloxacillin)
@@ -8978,7 +8978,7 @@ lazy_static! {
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.002          ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // ======================================================================
         // Non-fermenting Gram-Negatives
@@ -9030,7 +9030,7 @@ lazy_static! {
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_05      ); // classes: pen, flu, bli, ceph, mono ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0; mtrCDE is a Neisseria-specific efflux system, not present in P. aeruginosa
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; deactivated
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
        // A. baumannii - Gram-negative, NonFermenter
         // Band 8 (x100)
@@ -9079,7 +9079,7 @@ lazy_static! {
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_06  ); // classes: pen, flu, bli, ceph, mono ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // S. maltophilia - Gram-negative, NonFermenter
         // Band 9 (x500)
@@ -9128,7 +9128,7 @@ lazy_static! {
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0001); // classes: siderophore_ceph; provisional chromosomal uptake-mutation rate under cefiderocol pressure
 
         // B. cepacia complex - Gram-negative, NonFermenter
         // Band 9 (x750)
@@ -9177,7 +9177,7 @@ lazy_static! {
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // eligible route; current cefiderocol potency is below the active threshold
 
         // ======================================================================
         // Other Gram-Negatives                                                         HEREHEREHERE
@@ -9229,7 +9229,7 @@ lazy_static! {
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_1      ); // classes: pen, mac, tet, chl; low broad-efflux proxy ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_vibrio_cholerae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // C. jejuni - Gram-negative, Helicobacter group
         // Band 6 (x1.2)
@@ -9278,7 +9278,7 @@ lazy_static! {
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0; PBP mosaic: not a relevant resistance mechanism in Campylobacter
         map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0       ); // tier 0 by group; C. jejuni is Helicobacter; EffluxMtrCde group mask excludes Helicobacter ***changed: CmeABC efflux has no model equivalent here; mechanism cannot fire (and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation; Campylobacter uses TetO/other routes
-        map.insert("bacteria_campylobacter_jejuni_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // H. pylori - Gram-negative, Helicobacter group
         // Band 6 (x0.6)
@@ -9327,7 +9327,7 @@ lazy_static! {
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.3); // classes: pen, flu, bli, ceph, mono; PBP1A-dominant amoxicillin-resistance route
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 30.0); // classes: tet; calibration-ceiling rate migrated unchanged from the former TetM proxy
-        map.insert("bacteria_helicobacter_pylori_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // N. gonorrhoeae - Gram-negative, Fastidious
         // Band 6 (x1.5)
@@ -9376,7 +9376,7 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.05          ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: penA mosaic alleles, major contributor to pen/ceph R ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.2         ); // classes: pen, mac, tet, chl; mtrCDE efflux: common, broad GC resistance driver ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0 ); // classes: broad placeholder;
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0 ); // tier 0
 
         // N. meningitidis - Gram-negative, Fastidious
         // Band 8 (x250)
@@ -9425,7 +9425,7 @@ lazy_static! {
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_15            ); // classes: pen, bli, ceph, mono; penA/PBP2 mosaic route for reduced beta-lactam susceptibility
         map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0                ); // classes: pen, mac, tet, chl; mtrCDE-like efflux: present but less clinically significant ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_neisseria_meningitidis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
        // M. catarrhalis - Gram-negative, Fastidious
         // Band 7 (x18.8)
@@ -9474,7 +9474,7 @@ lazy_static! {
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_000_001    ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: some PBP modifications reported ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_000_01      ); // classes: pen, mac, tet, chl; mtrCDE-like efflux: contributes to macrolide/pen R ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
                // H. influenzae - Gram-negative, Fastidious
         // Band 7 (x18.8)
@@ -9523,7 +9523,7 @@ lazy_static! {
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_001_5      ); // classes: pen, flu, bli, ceph, mono ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_001      ); // classes: pen, mac, tet, chl ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_haemophilus_influenzae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
 
         // L. pneumophila - Gram-negative, Fastidious
@@ -9573,7 +9573,7 @@ lazy_static! {
         map.insert("bacteria_legionella_pneumophila_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_legionella_pneumophila_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_legionella_pneumophila_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_legionella_pneumophila_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_legionella_pneumophila_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Gram-Positive Bacteria - Staphylococci
@@ -9625,7 +9625,7 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0; beta-lactam target resistance is represented by PBP2a/mecA
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_staphylococcus_aureus_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0; placeholder disabled
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // S. epidermidis - Gram-positive, Staphylococcus
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.0); // tier 0
@@ -9673,7 +9673,7 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_staphylococcus_epidermidis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Streptococci
@@ -9725,7 +9725,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_002        ); // classes: pen, flu, bli, ceph, mono; PBP mosaic remains the primary pen-R lever, but was strongly overcalled ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0; mtrCDE is a Neisseria-specific efflux system, not present in Gram-positives
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // S. pyogenes - Gram-positive, Streptococcus
         // Band 7 (x7.5)
@@ -9774,7 +9774,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // S. agalactiae - Gram-positive, Streptococcus
         // Band 8 (x50)
@@ -9823,7 +9823,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_01  ); // classes: pen, flu, bli, ceph, mono; tiny seed for rare reduced beta-lactam susceptibility ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Enterococci
@@ -9875,7 +9875,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_01       ); // classes: pen, flu, bli, ceph, mono; low-level PBP contribution, much weaker than E. faecium ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_enterococcus_faecalis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
 
         // E. faecium - Gram-positive, Enterococcus
@@ -9925,7 +9925,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.001               ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: PBP5 mutations -> intrinsic ampicillin R ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.001           ); // classes: pen, mac, tet, chl; mtrCDE: not relevant (GramPositive group excluded) ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_enterococcus_faecium_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; deactivated
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Other Gram-Positives and Anaerobes
@@ -9977,7 +9977,7 @@ lazy_static! {
         map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_listeria_monocytogenes_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // C. difficile - Anaerobe
         // Band 8 (x60)
@@ -10026,7 +10026,7 @@ lazy_static! {
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_clostridioides_difficile_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
          // B. fragilis - Anaerobe
         // Band 8 (x37.5)
@@ -10075,7 +10075,7 @@ lazy_static! {
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_15   ); // classes: pen, flu, bli, ceph, mono ***changed: flu->added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_bacteroides_fragilis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
 
         // ======================================================================
@@ -10128,7 +10128,7 @@ lazy_static! {
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.001        ); // classes: pen, mac, tet, chl ***changed: mls->mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_bordetella_pertussis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
            // M. genitalium - Atypical (no cell wall), Fastidious
         // Band 7 (x3.8)
@@ -10177,7 +10177,7 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // M. pneumoniae - Atypical (no cell wall), Fastidious
         // Band 6 (x3)
@@ -10226,7 +10226,7 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_1); // pen etc
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Obligate Intracellular and Special Cases
@@ -10278,7 +10278,7 @@ lazy_static! {
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // T. pallidum - Spirochete
         // Band 7 (x15)
@@ -10327,7 +10327,7 @@ lazy_static! {
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_treponema_pallidum_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Acid-Fast Bacteria
@@ -10350,7 +10350,7 @@ lazy_static! {
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.0 ); // rate currently 0.0 — M. tuberculosis FQ resistance modelled via as_yet_unknown or organism-specific pathway; standard GyrA/ParC not used here
+        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.0 ); // rate currently 0.0 — M. tuberculosis FQ resistance is modelled through its organism-specific pathway; standard GyrA/ParC is not used here
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.0 ); // rate currently 0.0 — same as above
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
@@ -10379,7 +10379,7 @@ lazy_static! {
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder;
+        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
 
 
 
@@ -10752,7 +10752,7 @@ lazy_static! {
         map.insert("resistance_mechanism_mutation_23s_rrna_oxazolidinone_enhancement_multiplier".to_string(), 0.85); // Oxazolidinone target-site mutation
         map.insert("resistance_mechanism_mutation_pbp_mosaic_enhancement_multiplier".to_string(), 0.5);      // PBP mosaic: moderate beta-lactam resistance via target modification
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_multiplier".to_string(), 0.4);      // mtrCDE efflux: moderate broad efflux (macrolides, penicillins, tetracyclines, chloramphenicol)
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_multiplier".to_string(), 0.5);      // Calibration placeholder 3: partial resistance
+        map.insert("resistance_mechanism_mutation_siderophore_uptake_enhancement_multiplier".to_string(), 0.0); // explicit cefiderocol-class effect below; zero prevents fallback leakage
 
         // --- Additional mechanisms (5 new) ---
         map.insert("resistance_mechanism_enzyme_aac_aph_enhancement_multiplier".to_string(), 0.85);       // AAC/APH/ANT: strong aminoglycoside inactivation
@@ -11167,37 +11167,9 @@ lazy_static! {
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_sulf".to_string(), 0.0);
         map.insert("resistance_mechanism_efflux_mtr_cde_enhancement_other".to_string(), 0.0);
 
-            // AsYetUnknown: placeholder - 0.5 across all classes (dormant, no emergence rates set)
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_pen".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli_anti_pseudomonal".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_bli_sulbactam".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_c1_2g".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_c3g".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_c3g_bli".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_c4g".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_anti_mrsa_ceph".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_siderophore_ceph".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_cft_avi".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_mer_vab".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_azt_avi".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_carb_group1".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_carb_group2".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_mono".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_fq".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_ag_group1".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_ag_group2".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_mls".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_lincosamides".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_glyc".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_lipoglycopeptides".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_tet".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_glycylcyclines".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_poly".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_oxa".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_chl".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_sulf".to_string(), 0.5);
-        map.insert("resistance_mechanism_as_yet_unknown_enhancement_other".to_string(), 0.5);
+        // Reduced ferric-siderophore uptake: a cefiderocol-specific compressed route.
+        // The 0.60 any_r effect is an expert model-scale placeholder, not an MIC shift.
+        map.insert("resistance_mechanism_mutation_siderophore_uptake_enhancement_siderophore_ceph".to_string(), 0.60);
 
         map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
         map.insert("community_profile_cache_retention".to_string(), 0.999); // Daily marginal retention of each stored community infection-day profile (~693-refresh half-life)
@@ -11260,7 +11232,7 @@ lazy_static! {
         map.insert("resistance_mechanism_mutation_23s_rrna_oxazolidinone_reversion_rate".to_string(), 0.001); // Target-site mutations carry measurable cost
         map.insert("resistance_mechanism_mutation_pbp_mosaic_reversion_rate".to_string(), 0.001);
         map.insert("resistance_mechanism_efflux_mtr_cde_reversion_rate".to_string(), 0.001);
-        map.insert("resistance_mechanism_as_yet_unknown_reversion_rate".to_string(), 0.001);
+        map.insert("resistance_mechanism_mutation_siderophore_uptake_reversion_rate".to_string(), 0.001); // chromosomal uptake changes can carry an effective cost when cefiderocol pressure is absent
 
         // Testing Parameters
         map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available

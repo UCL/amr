@@ -142,9 +142,9 @@ fn resistance_mechanism_family_idx(mechanism: ResistanceMechanism) -> usize {
         | ResistanceMechanism::EnzymeNdmVim
         | ResistanceMechanism::EnzymeOxa48
         | ResistanceMechanism::EnzymeOxaAcinetobacter => MECH_FAMILY_CARBAPENEMASE,
-        ResistanceMechanism::PorinLossOmpk35_36 | ResistanceMechanism::PorinLossOprd => {
-            MECH_FAMILY_PORIN_LOSS
-        }
+        ResistanceMechanism::PorinLossOmpk35_36
+        | ResistanceMechanism::PorinLossOprd
+        | ResistanceMechanism::MutationSiderophoreUptake => MECH_FAMILY_PORIN_LOSS,
         ResistanceMechanism::EffluxAcrabTolc
         | ResistanceMechanism::EffluxMexxyOprm
         | ResistanceMechanism::GlobalEffluxPump
@@ -174,9 +174,9 @@ fn resistance_mechanism_family_idx(mechanism: ResistanceMechanism) -> usize {
         ResistanceMechanism::MutationMprF
         | ResistanceMechanism::MutationLiafsrCls
         | ResistanceMechanism::ProtectionFusB => MECH_FAMILY_DAPTOMYCIN_FUSIDIC,
-        ResistanceMechanism::TargetSiteVanA
-        | ResistanceMechanism::TargetSiteVanB
-        | ResistanceMechanism::AsYetUnknown => MECH_FAMILY_OTHER_UNKNOWN,
+        ResistanceMechanism::TargetSiteVanA | ResistanceMechanism::TargetSiteVanB => {
+            MECH_FAMILY_OTHER_UNKNOWN
+        }
     }
 }
 
@@ -1771,11 +1771,7 @@ impl MechanismCache {
                 let seeded_mask = crate::simulation::population::ResistanceMechanism::all()
                     .iter()
                     .enumerate()
-                    .find_map(|(mechanism_idx, mechanism)| {
-                        if mechanism.is_as_yet_unknown() {
-                            return None;
-                        }
-
+                    .find_map(|(mechanism_idx, _mechanism)| {
                         let applies_to_any_drug = (0..DRUG_SHORT_NAMES.len()).any(|drug_idx| {
                             param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
                         });

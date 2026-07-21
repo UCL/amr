@@ -140,14 +140,14 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
     def test_cell_statuses_make_legacy_missingness_explicit(self) -> None:
         counts = Counter((row["component"], row["cell_status"]) for row in self.rows)
-        self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1230)
+        self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1246)
         self.assertEqual(
-            counts[(PREVALENCE_COMPONENT, "inactive_model_unrepresentable")], 64
+            counts[(PREVALENCE_COMPONENT, "inactive_model_unrepresentable")], 48
         )
         self.assertEqual(
             counts[(PREVALENCE_COMPONENT, "legacy_unclassified_missing")], 1268
         )
-        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1151)
+        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1168)
         self.assertEqual(
             counts[
                 (
@@ -155,10 +155,10 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                     "inactive_above_model_representable_maximum",
                 )
             ],
-            78,
+            77,
         )
         self.assertEqual(
-            counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 63
+            counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 47
         )
         self.assertEqual(
             counts[(SEVERITY_COMPONENT, "inactive_unpaired_legacy_benchmark")],
@@ -174,8 +174,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             for row in self.rows
             if row["include_in_score"] == "true"
         )
-        self.assertEqual(included[PREVALENCE_COMPONENT], 1178)
-        self.assertEqual(included[SEVERITY_COMPONENT], 1100)
+        self.assertEqual(included[PREVALENCE_COMPONENT], 1194)
+        self.assertEqual(included[SEVERITY_COMPONENT], 1117)
 
         allowed_reasons = {
             "legacy_prevalence_target_missing",
@@ -200,8 +200,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
         self.assertEqual(len(prevalence), 42 * 61)
         self.assertEqual(len(severity), 42 * 61)
-        self.assertEqual(int(prevalence["include_in_score"].sum()), 1178)
-        self.assertEqual(int(severity["include_in_score"].sum()), 1100)
+        self.assertEqual(int(prevalence["include_in_score"].sum()), 1194)
+        self.assertEqual(int(severity["include_in_score"].sum()), 1117)
 
         excluded = prevalence.loc[
             prevalence["Bacteria"].eq("Providencia stuartii")
@@ -234,11 +234,18 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         self.assertEqual(included["target"], 0.58)
         self.assertTrue(included["include_in_score"])
 
-        unrepresentable = prevalence.loc[
+        represented = prevalence.loc[
             prevalence["Bacteria"].eq("Acinetobacter baumannii")
             & prevalence["drug"].eq("cefiderocol")
         ].iloc[0]
-        self.assertEqual(unrepresentable["target"], 0.05)
+        self.assertEqual(represented["target"], 0.05)
+        self.assertTrue(represented["include_in_score"])
+
+        unrepresentable = prevalence.loc[
+            prevalence["Bacteria"].eq("Neisseria gonorrhoeae")
+            & prevalence["drug"].eq("cefiderocol")
+        ].iloc[0]
+        self.assertEqual(unrepresentable["target"], 0.01)
         self.assertFalse(unrepresentable["include_in_score"])
         self.assertIn("phenotype not represented", unrepresentable["reason"])
 

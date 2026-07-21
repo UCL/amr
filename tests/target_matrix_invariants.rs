@@ -298,7 +298,7 @@ fn model_informed_target_exclusions_match_the_typed_rust_matrices() {
         "review low-potency numeric targets when this count changes"
     );
     assert_eq!(
-        unrepresentable_numeric_targets, 64,
+        unrepresentable_numeric_targets, 48,
         "review unrepresentable numeric targets when this count changes"
     );
 }

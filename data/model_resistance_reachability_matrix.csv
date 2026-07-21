@@ -13,7 +13,7 @@ acinetobacter_baumannii,ceftazidime,true,0.999999945334375,enzyme_esbl_ctx_m;enz
 acinetobacter_baumannii,cefepime,true,0.9995473284624999,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;enzyme_oxa_acinetobacter;mutation_pbp_mosaic
 acinetobacter_baumannii,ceftaroline,false,0,
 acinetobacter_baumannii,ceftolozane_tazobactam,false,0,
-acinetobacter_baumannii,cefiderocol,false,0,
+acinetobacter_baumannii,cefiderocol,true,0.6,mutation_siderophore_uptake
 acinetobacter_baumannii,meropenem,true,0.9997,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_oxa_acinetobacter
 acinetobacter_baumannii,imipenem_c,true,0.9997,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_oxa_acinetobacter
 acinetobacter_baumannii,ertapenem,false,0,
@@ -75,7 +75,7 @@ citrobacter_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esb
 citrobacter_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 citrobacter_spp.,ceftaroline,false,0,
 citrobacter_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-citrobacter_spp.,cefiderocol,false,0,
+citrobacter_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 citrobacter_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 citrobacter_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 citrobacter_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -137,7 +137,7 @@ enterobacter_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_es
 enterobacter_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 enterobacter_spp.,ceftaroline,false,0,
 enterobacter_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-enterobacter_spp.,cefiderocol,false,0,
+enterobacter_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 enterobacter_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 enterobacter_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 enterobacter_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -323,7 +323,7 @@ escherichia_coli,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esb
 escherichia_coli,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 escherichia_coli,ceftaroline,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 escherichia_coli,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-escherichia_coli,cefiderocol,false,0,
+escherichia_coli,cefiderocol,true,0.6,mutation_siderophore_uptake
 escherichia_coli,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 escherichia_coli,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 escherichia_coli,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -385,7 +385,7 @@ klebsiella_pneumoniae,ceftazidime,true,0.999999836003125,enzyme_esbl_ctx_m;enzym
 klebsiella_pneumoniae,cefepime,true,0.9984156496187501,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;porin_loss_ompk35_36;mutation_pbp_mosaic
 klebsiella_pneumoniae,ceftaroline,true,0.9984156496187501,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;porin_loss_ompk35_36;mutation_pbp_mosaic
 klebsiella_pneumoniae,ceftolozane_tazobactam,true,0.9999895,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;porin_loss_ompk35_36;mutation_pbp_mosaic
-klebsiella_pneumoniae,cefiderocol,true,0.30000000000000004,porin_loss_ompk35_36
+klebsiella_pneumoniae,cefiderocol,true,0.6,mutation_siderophore_uptake
 klebsiella_pneumoniae,meropenem,true,0.9991,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;porin_loss_ompk35_36
 klebsiella_pneumoniae,imipenem_c,true,0.9991,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;porin_loss_ompk35_36
 klebsiella_pneumoniae,ertapenem,true,0.9991,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;porin_loss_ompk35_36
@@ -447,7 +447,7 @@ morganella_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl
 morganella_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 morganella_spp.,ceftaroline,false,0,
 morganella_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-morganella_spp.,cefiderocol,false,0,
+morganella_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 morganella_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 morganella_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 morganella_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -509,7 +509,7 @@ proteus_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl_te
 proteus_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 proteus_spp.,ceftaroline,false,0,
 proteus_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-proteus_spp.,cefiderocol,false,0,
+proteus_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 proteus_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 proteus_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 proteus_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -571,7 +571,7 @@ serratia_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl_t
 serratia_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 serratia_spp.,ceftaroline,false,0,
 serratia_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-serratia_spp.,cefiderocol,false,0,
+serratia_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 serratia_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 serratia_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 serratia_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -633,7 +633,7 @@ p_stuartii,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl_tem;
 p_stuartii,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 p_stuartii,ceftaroline,false,0,
 p_stuartii,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-p_stuartii,cefiderocol,false,0,
+p_stuartii,cefiderocol,true,0.6,mutation_siderophore_uptake
 p_stuartii,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 p_stuartii,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 p_stuartii,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -695,7 +695,7 @@ pseudomonas_aeruginosa,ceftazidime,true,0.999999945334375,enzyme_esbl_ctx_m;enzy
 pseudomonas_aeruginosa,cefepime,true,0.9995473284624999,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;enzyme_oxa_acinetobacter;mutation_pbp_mosaic
 pseudomonas_aeruginosa,ceftaroline,false,0,
 pseudomonas_aeruginosa,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-pseudomonas_aeruginosa,cefiderocol,false,0,
+pseudomonas_aeruginosa,cefiderocol,true,0.6,mutation_siderophore_uptake
 pseudomonas_aeruginosa,meropenem,true,0.99994,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;porin_loss_oprd;enzyme_oxa_acinetobacter
 pseudomonas_aeruginosa,imipenem_c,true,0.99994,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;porin_loss_oprd;enzyme_oxa_acinetobacter
 pseudomonas_aeruginosa,ertapenem,false,0,
@@ -757,7 +757,7 @@ stenotrophomonas_maltophilia,ceftazidime,true,0.999999945334375,enzyme_esbl_ctx_
 stenotrophomonas_maltophilia,cefepime,false,0,
 stenotrophomonas_maltophilia,ceftaroline,false,0,
 stenotrophomonas_maltophilia,ceftolozane_tazobactam,false,0,
-stenotrophomonas_maltophilia,cefiderocol,false,0,
+stenotrophomonas_maltophilia,cefiderocol,true,0.6,mutation_siderophore_uptake
 stenotrophomonas_maltophilia,meropenem,false,0,
 stenotrophomonas_maltophilia,imipenem_c,false,0,
 stenotrophomonas_maltophilia,ertapenem,false,0,
@@ -819,7 +819,7 @@ staphylococcus_aureus,ceftazidime,false,0,
 staphylococcus_aureus,cefepime,true,0.745,target_site_pbp2a_meca;mutation_pbp_mosaic
 staphylococcus_aureus,ceftaroline,true,0.15000000000000002,mutation_pbp_mosaic
 staphylococcus_aureus,ceftolozane_tazobactam,true,0.993,target_site_pbp2a_meca;mutation_pbp_mosaic
-staphylococcus_aureus,cefiderocol,true,0.7,target_site_pbp2a_meca
+staphylococcus_aureus,cefiderocol,false,0,
 staphylococcus_aureus,meropenem,true,0.85,target_site_pbp2a_meca
 staphylococcus_aureus,imipenem_c,true,0.85,target_site_pbp2a_meca
 staphylococcus_aureus,ertapenem,true,0.85,target_site_pbp2a_meca
@@ -881,7 +881,7 @@ staphylococcus_epidermidis,ceftazidime,false,0,
 staphylococcus_epidermidis,cefepime,true,0.745,target_site_pbp2a_meca;mutation_pbp_mosaic
 staphylococcus_epidermidis,ceftaroline,true,0.15000000000000002,mutation_pbp_mosaic
 staphylococcus_epidermidis,ceftolozane_tazobactam,true,0.993,target_site_pbp2a_meca;mutation_pbp_mosaic
-staphylococcus_epidermidis,cefiderocol,true,0.7,target_site_pbp2a_meca
+staphylococcus_epidermidis,cefiderocol,false,0,
 staphylococcus_epidermidis,meropenem,true,0.85,target_site_pbp2a_meca
 staphylococcus_epidermidis,imipenem_c,true,0.85,target_site_pbp2a_meca
 staphylococcus_epidermidis,ertapenem,true,0.85,target_site_pbp2a_meca
@@ -1005,7 +1005,7 @@ salmonella_enterica_serovar_typhi,ceftazidime,true,0.999999726671875,enzyme_esbl
 salmonella_enterica_serovar_typhi,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 salmonella_enterica_serovar_typhi,ceftaroline,false,0,
 salmonella_enterica_serovar_typhi,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-salmonella_enterica_serovar_typhi,cefiderocol,false,0,
+salmonella_enterica_serovar_typhi,cefiderocol,true,0.6,mutation_siderophore_uptake
 salmonella_enterica_serovar_typhi,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 salmonella_enterica_serovar_typhi,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 salmonella_enterica_serovar_typhi,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -1067,7 +1067,7 @@ salmonella_enterica_serovar_paratyphi_a,ceftazidime,true,0.999999726671875,enzym
 salmonella_enterica_serovar_paratyphi_a,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 salmonella_enterica_serovar_paratyphi_a,ceftaroline,false,0,
 salmonella_enterica_serovar_paratyphi_a,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-salmonella_enterica_serovar_paratyphi_a,cefiderocol,false,0,
+salmonella_enterica_serovar_paratyphi_a,cefiderocol,true,0.6,mutation_siderophore_uptake
 salmonella_enterica_serovar_paratyphi_a,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 salmonella_enterica_serovar_paratyphi_a,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 salmonella_enterica_serovar_paratyphi_a,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -1129,7 +1129,7 @@ invasive_non-typhoidal_salmonella_spp.,ceftazidime,true,0.999999726671875,enzyme
 invasive_non-typhoidal_salmonella_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 invasive_non-typhoidal_salmonella_spp.,ceftaroline,false,0,
 invasive_non-typhoidal_salmonella_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-invasive_non-typhoidal_salmonella_spp.,cefiderocol,false,0,
+invasive_non-typhoidal_salmonella_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 invasive_non-typhoidal_salmonella_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 invasive_non-typhoidal_salmonella_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 invasive_non-typhoidal_salmonella_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -1191,7 +1191,7 @@ shigella_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl_t
 shigella_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 shigella_spp.,ceftaroline,false,0,
 shigella_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-shigella_spp.,cefiderocol,false,0,
+shigella_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 shigella_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 shigella_spp.,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 shigella_spp.,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -1997,7 +1997,7 @@ enterobacter_cloacae,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme
 enterobacter_cloacae,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 enterobacter_cloacae,ceftaroline,false,0,
 enterobacter_cloacae,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-enterobacter_cloacae,cefiderocol,false,0,
+enterobacter_cloacae,cefiderocol,true,0.6,mutation_siderophore_uptake
 enterobacter_cloacae,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 enterobacter_cloacae,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 enterobacter_cloacae,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -2059,7 +2059,7 @@ yersinia_enterocolitica,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enz
 yersinia_enterocolitica,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 yersinia_enterocolitica,ceftaroline,false,0,
 yersinia_enterocolitica,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-yersinia_enterocolitica,cefiderocol,false,0,
+yersinia_enterocolitica,cefiderocol,true,0.6,mutation_siderophore_uptake
 yersinia_enterocolitica,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 yersinia_enterocolitica,imipenem_c,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
 yersinia_enterocolitica,ertapenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48

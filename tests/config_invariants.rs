@@ -275,6 +275,15 @@ fn retired_resistance_parameter_names_are_absent() {
             "retired resistance parameter returned to PARAMETERS: {key}"
         );
     }
+
+    assert!(
+        PARAMETERS.keys().all(|key| !key.contains("as_yet_unknown")),
+        "retired as-yet-unknown mechanism keys returned to PARAMETERS"
+    );
+    assert!(
+        !CONFIG_RS.contains("as_yet_unknown"),
+        "retired as-yet-unknown mechanism surface returned to config.rs"
+    );
 }
 
 #[test]

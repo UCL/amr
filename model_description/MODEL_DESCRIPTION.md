@@ -1208,7 +1208,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
   | blaZ | `enzyme_bla_z` | Inhibitor-susceptible staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | *S. aureus*, *S. epidermidis* |
   | Narrow-spectrum Gram-negative penicillinase | `enzyme_narrow_spectrum_gram_negative_penicillinase` | Policy-scale inhibitor-susceptible route representing TEM-1 and, where explicitly assigned, related ROB/BRO enzymes | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | Reviewed Enterobacterales/enteric hosts, *N. gonorrhoeae*, *H. influenzae*, *M. catarrhalis* |
-  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *S. aureus*, *S. epidermidis* |
+  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *S. aureus*, *S. epidermidis* |
   | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci |
   | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci |
   | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `nalidixic_acid`, `ciprofloxacin`, `ofloxacin` | All |
@@ -1229,7 +1229,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | TetA/B/C | `tet_abc` | Gram-negative tetracycline efflux | `tetracycline`, `doxycycline` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious |
   | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All eligible hosts except *H. pylori* |
   | 16S rRNA (tetracycline) | `mutation_16s_rrna_tetracycline` | Chromosomal 16S rRNA target-site mutation in both *H. pylori* rRNA copies | `tetracycline`, `doxycycline`, `minocycline` | *H. pylori* only |
-  | OmpK35/36 | `ompk35_36` | Combined loss of the two major *K. pneumoniae* outer-membrane porins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *K. pneumoniae* only |
+  | OmpK35/36 | `ompk35_36` | Combined loss of the two major *K. pneumoniae* outer-membrane porins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *K. pneumoniae* only |
   | OprD | `oprd` | Loss of the carbapenem uptake porin in *P. aeruginosa* | `meropenem`, `imipenem_c`, `meropenem_vaborbactam` | *P. aeruginosa* only |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
@@ -1240,7 +1240,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Staphylococci |
   | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam`, `aztreonam_avibactam` | All |
   | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
-   | Unknown | `as_yet_unknown` | Placeholder mechanism (dormant) | No live drug projection | `ExcludedHost` for all bacteria |
+  | Siderophore uptake | `mutation_siderophore_uptake` | Chromosomal alteration or loss of ferric-siderophore uptake used by cefiderocol | `cefiderocol` | Enterobacterales and Nonfermenters |
 
 
 
@@ -1257,6 +1257,8 @@ There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table 
 These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.
 
 The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for the plain-penicillin class and a zero legacy fallback. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.
+
+Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` route with an expert model-scale effect of `0.60`. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is `0.0001` per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss no longer project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.
 
 | Mechanism | Multiplier | Clinical interpretation |
 |-----------|-----------|----------------------|
@@ -1478,7 +1480,7 @@ The multiplier can also be set **below 1.0** to slow effective community turnove
 | *N. gonorrhoeae* | 0.01 | ~0.000001/day for primary gyrA (nominal half-life ~1,900 years when other multipliers are 1) | Strong effective persistence of gonococcal FQ-resistant lineages; surveillance shows no susceptibility rebound after FQ withdrawal |
 
 
-*Note: The system reserves one remaining placeholder variable (`as_yet_unknown`, baseline rate `0.001`) designated for future empirical calibration.
+*Note: The former dormant `as_yet_unknown` state slot has been retired and repurposed as the explicit `mutation_siderophore_uptake` mechanism. This preserves the fixed mechanism-state width while removing an uninterpretable calibration placeholder.*
 
 ### 7.5 Local finite-population mechanism persistence
 
@@ -6109,7 +6111,7 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | efflux_tet_abc | 1e-4 |
 | mutation_pbp_mosaic | 0.001 |
 | efflux_mtr_cde | 0.001 |
-| as_yet_unknown | 0.001 |
+| mutation_siderophore_uptake | 0.001 |
 
 #### Mechanism Enhancement Multipliers by Drug Class
 
@@ -7310,45 +7312,7 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | efflux_mtr_cde | steroid_antibacterials | 0.4 |
 | efflux_mtr_cde | pleuromutilins | 0.4 |
 | mutation_16s_rrna_tetracycline | tet | 0.9 |
-| as_yet_unknown | pen | 0.5 |
-| as_yet_unknown | bli | 0.5 |
-| as_yet_unknown | bli_anti_pseudomonal | 0.5 |
-| as_yet_unknown | bli_sulbactam | 0.5 |
-| as_yet_unknown | c1_2g | 0.5 |
-| as_yet_unknown | c3g | 0.5 |
-| as_yet_unknown | c3g_bli | 0.5 |
-| as_yet_unknown | c4g | 0.5 |
-| as_yet_unknown | anti_mrsa_ceph | 0.5 |
-| as_yet_unknown | siderophore_ceph | 0.5 |
-| as_yet_unknown | cft_avi | 0.5 |
-| as_yet_unknown | mer_vab | 0.5 |
-| as_yet_unknown | azt_avi | 0.5 |
-| as_yet_unknown | carb_group1 | 0.5 |
-| as_yet_unknown | carb_group2 | 0.5 |
-| as_yet_unknown | mono | 0.5 |
-| as_yet_unknown | fq | 0.5 |
-| as_yet_unknown | ag_group1 | 0.5 |
-| as_yet_unknown | ag_group2 | 0.5 |
-| as_yet_unknown | mls | 0.5 |
-| as_yet_unknown | lincosamides | 0.5 |
-| as_yet_unknown | glyc | 0.5 |
-| as_yet_unknown | lipoglycopeptides | 0.5 |
-| as_yet_unknown | tet | 0.5 |
-| as_yet_unknown | glycylcyclines | 0.5 |
-| as_yet_unknown | poly | 0.5 |
-| as_yet_unknown | oxa | 0.5 |
-| as_yet_unknown | chl | 0.5 |
-| as_yet_unknown | sulf | 0.5 |
-| as_yet_unknown | lipopeptides | 0.5 |
-| as_yet_unknown | streptogramins | 0.5 |
-| as_yet_unknown | nitrofurans | 0.5 |
-| as_yet_unknown | phosphonic_acids | 0.5 |
-| as_yet_unknown | nitroimidazoles | 0.5 |
-| as_yet_unknown | rifamycins | 0.5 |
-| as_yet_unknown | macrocycles | 0.5 |
-| as_yet_unknown | steroid_antibacterials | 0.5 |
-| as_yet_unknown | pleuromutilins | 0.5 |
-| as_yet_unknown | other | 0.5 |
+| mutation_siderophore_uptake | siderophore_ceph | 0.6 |
 
 #### Bacteria–Mechanism Emergence Rates
 
@@ -9064,6 +9028,23 @@ See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT 
 | burkholderia_cepacia_complex | bordetella_pertussis | 3e-11 |
 | burkholderia_cepacia_complex | mycoplasma_pneumoniae | 3e-11 |
 | burkholderia_cepacia_complex | legionella_pneumophila | 3e-11 |
+| acinetobacter_baumannii | mutation_siderophore_uptake | 1e-4 |
+| citrobacter_spp. | mutation_siderophore_uptake | 1e-4 |
+| enterobacter_spp. | mutation_siderophore_uptake | 1e-4 |
+| escherichia_coli | mutation_siderophore_uptake | 1e-4 |
+| klebsiella_pneumoniae | mutation_siderophore_uptake | 1e-4 |
+| morganella_spp. | mutation_siderophore_uptake | 1e-4 |
+| proteus_spp. | mutation_siderophore_uptake | 1e-4 |
+| serratia_spp. | mutation_siderophore_uptake | 1e-4 |
+| p_stuartii | mutation_siderophore_uptake | 1e-4 |
+| pseudomonas_aeruginosa | mutation_siderophore_uptake | 1e-4 |
+| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 1e-4 |
+| salmonella_enterica_serovar_typhi | mutation_siderophore_uptake | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_siderophore_uptake | 1e-4 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_siderophore_uptake | 1e-4 |
+| shigella_spp. | mutation_siderophore_uptake | 1e-4 |
+| enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 |
+| yersinia_enterocolitica | mutation_siderophore_uptake | 1e-4 |
 
 ## Appendix C — Output Specification
 
@@ -9247,6 +9228,8 @@ When enabled, individual infection journeys are logged to the `infection_journey
 - European Committee on Antimicrobial Susceptibility Testing (EUCAST). *Breakpoint tables for interpretation of MICs and zone diameters.* Version 13.0; 2023. https://www.eucast.org/clinical_breakpoints
 
 - Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. *Intensive Care Med.* 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y
+
+- U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised September 2020. https://www.accessdata.fda.gov/drugsatfda_docs/label/2020/209445s002lbl.pdf
 
 - Fishman JA. Infection in solid-organ transplant recipients. *N Engl J Med.* 2007;357(25):2601–2614. doi:10.1056/NEJMra064928
 

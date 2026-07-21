@@ -193,7 +193,7 @@ pub enum ResistanceMechanism {
     MutationPbpMosaic, // PBP mosaic mutations: reduced β-lactam affinity (penicillins, cephalosporins, aztreonam)
     EffluxMtrCde, // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
     Mutation16sRrnaTetracycline, // H. pylori 16S rRNA target mutation
-    AsYetUnknown, // Calibration placeholder: drug specificity set via config overrides
+    MutationSiderophoreUptake, // Chromosomal loss or alteration of ferric-siderophore uptake used by cefiderocol
 }
 
 impl ResistanceMechanism {
@@ -245,14 +245,8 @@ impl ResistanceMechanism {
             ResistanceMechanism::MutationPbpMosaic,
             ResistanceMechanism::EffluxMtrCde,
             ResistanceMechanism::Mutation16sRrnaTetracycline,
-            ResistanceMechanism::AsYetUnknown,
+            ResistanceMechanism::MutationSiderophoreUptake,
         ]
-    }
-
-    /// Returns true for placeholder mechanisms that are still dormant.
-    /// MutationPbpMosaic (PBP mosaic) and EffluxMtrCde (mtrCDE efflux) are now active.
-    pub fn is_as_yet_unknown(&self) -> bool {
-        matches!(self, ResistanceMechanism::AsYetUnknown)
     }
 
     /// Returns the mechanism name as a string for configuration lookups
@@ -305,7 +299,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::MutationPbpMosaic => "mutation_pbp_mosaic",
             ResistanceMechanism::EffluxMtrCde => "efflux_mtr_cde",
             ResistanceMechanism::Mutation16sRrnaTetracycline => "mutation_16s_rrna_tetracycline",
-            ResistanceMechanism::AsYetUnknown => "as_yet_unknown",
+            ResistanceMechanism::MutationSiderophoreUptake => "mutation_siderophore_uptake",
         }
     }
 }
@@ -882,8 +876,13 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         ]),
         // H. pylori tetracycline target-site mutations in both 16S rRNA copies.
         Mutation16sRrnaTetracycline => mask_for_groups(&[BacteriaGroup::Helicobacter]),
-        // Placeholder 3: still dormant
-        AsYetUnknown => mask_for_groups(BacteriaGroup::all()),
+        // Cefiderocol enters through ferric-siderophore uptake systems in aerobic
+        // Gram-negative bacteria. Keep this compressed route to the model's core
+        // Enterobacterales and non-fermenter groups.
+        MutationSiderophoreUptake => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::NonFermenter,
+        ]),
     }
 }
 
@@ -891,7 +890,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
 ///
 /// Group masks provide the broad default. Exact host restrictions that were previously
 /// embedded in drug mapping live here so every acquisition and projection pathway can use
-/// the same decision. `AsYetUnknown` remains dormant regardless of its placeholder metadata.
+/// the same decision.
 pub fn bacterium_mechanism_host_is_eligible(
     bacteria_idx: usize,
     mechanism: ResistanceMechanism,
@@ -899,9 +898,7 @@ pub fn bacterium_mechanism_host_is_eligible(
     let Some(&bacteria) = BACTERIA_LIST.get(bacteria_idx) else {
         return false;
     };
-    if mechanism.is_as_yet_unknown()
-        || mechanism_allowed_group_mask(mechanism) & bacteria_group_mask(bacteria_idx) == 0
-    {
+    if mechanism_allowed_group_mask(mechanism) & bacteria_group_mask(bacteria_idx) == 0 {
         return false;
     }
 
@@ -971,7 +968,7 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         MutationPbpMosaic => false, // PBP mosaic: chromosomal point mutations, not transferable
         EffluxMtrCde => false, // mtrCDE efflux: chromosomal regulatory mutations, not transferable
         Mutation16sRrnaTetracycline => false, // chromosomal 16S rRNA target mutation
-        AsYetUnknown => true,  // conservative default for remaining placeholder
+        MutationSiderophoreUptake => false, // chromosomal iron-uptake receptor/regulatory changes
         EnzymeAacAph => true,  // AAC/APH/ANT on integrons / plasmids
         EnzymeBlaZ => true,    // blaZ on plasmids in Staphylococci
         EnzymeNarrowSpectrumGramNegativePenicillinase => true, // TEM/ROB-family mobile enzymes; BRO is represented as a policy-scale proxy
