@@ -1309,6 +1309,11 @@ def _load_resistance_target_set(
                 reasons.append("severity benchmark exceeds model-representable maximum")
             if component == RESISTANCE_PREVALENCE_COMPONENT and row["value"] == "":
                 reasons.append("infection-resistance benchmark not assigned")
+            if (
+                component == RESISTANCE_SEVERITY_COMPONENT
+                and "legacy_prevalence_target_missing" in exclusions
+            ):
+                reasons.append("paired prevalence benchmark not assigned")
             return "; ".join(reasons)
 
         subset["reason"] = subset.apply(_display_reason, axis=1)

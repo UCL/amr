@@ -16,6 +16,13 @@ Conditional mean `any_r` values are **expert-informed model-scale resistance-sev
 placeholders**. They constrain a unitless internal model quantity among resistant-positive active
 infection person-days and are not direct MIC or breakpoint-surveillance estimates.
 
+Two subsets have more specific provenance. Forty-eight legacy reserve-drug cells that had copied
+their prevalence values now use coarse best-guess placeholders: `0.60` for cefiderocol and `0.70`
+for ceftolozane/tazobactam. Five `0.60` values paired with zero prevalence benchmarks are retained
+as rare-positive structural priors: they specify conditional severity if a positive phenotype is
+simulated, rather than asserting that resistant infections are observed. Both subsets have their
+own source and rationale identifiers in the long-form files.
+
 Every bacterium-drug-component cell has a row, including cells represented by `.` in the legacy
 matrices. `include_in_score` records static v1 eligibility after the target, organism, rifampicin,
 baseline-potency, and phenotype-representability exclusions. Potency and resistance-mechanism
@@ -26,6 +33,8 @@ of whether any applicable mechanism has a positive phenotypic effect for each pa
 `any_r` attainable if every such mechanism is present. A retained benchmark is not scored when the
 current mechanism architecture cannot represent resistance to it, or when a conditional-severity
 benchmark exceeds that structural maximum.
+Numeric severity values without a paired prevalence benchmark are retained for provenance but are
+also inactive, with status `inactive_unpaired_legacy_benchmark`.
 Unavailable simulation denominators can still exclude a row from a particular analysis.
 `evidence_weight` remains blank because evidence quality has not yet been assessed;
 `score_row_weight` records equal static row weighting only.

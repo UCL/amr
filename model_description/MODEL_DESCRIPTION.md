@@ -1924,7 +1924,14 @@ calibration benchmarks. Until cell-level provenance is reconstructed, these valu
 transformed or expert-assigned comparisons rather than direct global surveillance estimates. The
 second component compares mean unitless `any_r` among resistant-positive infection-days with
 expert-assigned model benchmarks. That conditional model quantity has no direct clinical
-surveillance or MIC counterpart. A missing benchmark means that no comparison value was assigned;
+surveillance or MIC counterpart. These values should therefore be described as expert best-guess
+model placeholders, not empirical measurements. In particular, 48 reserve-drug cells use coarse
+conditional-severity placeholders of 0.60 for cefiderocol and 0.70 for
+ceftolozane/tazobactam; they replace legacy values that had simply duplicated the corresponding
+prevalence targets. Five 0.60 values paired with zero prevalence benchmarks are explicit
+rare-positive structural priors: they define conditional severity if the simulation produces a
+positive phenotype and do not assert nonzero observed prevalence. A missing benchmark means that
+no comparison value was assigned;
 it does not by itself mean that the drug has negligible model potency. Potency-based exclusions are
 recorded separately from benchmark availability. A benchmark is also retained but excluded from
 the score when no host-eligible mechanism with a positive effect can produce resistance for that
@@ -1933,6 +1940,8 @@ the Rust mechanism applicability and effect matrices. Conditional-severity bench
 maximum `any_r` obtainable even if every applicable mechanism is present are excluded for the same
 reason. These checks prevent calibration pressure towards a phenotype the implemented architecture
 cannot express while preserving the benchmark for later mechanism review.
+Conditional-severity values that lack a paired prevalence benchmark are likewise retained for
+provenance but excluded from scoring until the pair is completed.
 
 1. **Abstract drug levels**: Antibiotic concentrations are modelled as dimensionless units rather than true pharmacokinetic concentrations (mg/L). This allows the model to capture the *relative* dynamics of drug accumulation and clearance, but it means model values cannot be compared directly with MIC breakpoints, therapeutic drug monitoring results, or compartment-specific pharmacokinetic measurements from clinical microbiology or pharmacology practice. In particular, the model does not implement pharmacokinetic/pharmacodynamic (PK/PD) target-attainment analysis — it does not compute AUC/MIC or T>MIC indices, nor does it model the Cmax and distribution volume differences between patient subgroups (e.g., critically ill patients with altered volumes of distribution, or renal impairment affecting aminoglycoside and vancomycin clearance). Full mechanistic PK/PD frameworks can generate organism-specific probability-of-target-attainment curves and inform optimal dosing regimens (Nielsen EI & Friberg LE, 2013), which is beyond the scope of this policy-comparison model. The practical consequence is that the model's drug-level dynamics can reproduce the broad direction of resistance selection associated with sub-therapeutic exposure, but cannot support dosing-optimisation analyses or precisely model regimens where PK/PD target attainment drives clinical outcome.
 

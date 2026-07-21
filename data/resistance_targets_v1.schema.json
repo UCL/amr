@@ -53,7 +53,9 @@
     "cell_status": {
       "enum": [
         "active_target",
-        "inactive_legacy_prevalence_gate",
+        "inactive_above_model_representable_maximum",
+        "inactive_model_unrepresentable",
+        "inactive_unpaired_legacy_benchmark",
         "legacy_unclassified_missing"
       ]
     },

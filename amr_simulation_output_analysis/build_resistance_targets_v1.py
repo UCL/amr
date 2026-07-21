@@ -23,6 +23,61 @@ POTENCY_CUTOFF = Decimal("0.15")
 PREVALENCE_COMPONENT = "resistance_prevalence_any_r_positive"
 SEVERITY_COMPONENT = "resistance_severity_conditional_mean_any_r"
 
+DEFAULT_SEVERITY_SOURCE = "expert_model_scale_any_r_v1"
+RESERVE_DRUG_SEVERITY_SOURCE = "expert_reserve_drug_any_r_placeholders_v1"
+RARE_POSITIVE_SEVERITY_SOURCE = "expert_rare_positive_any_r_prior_v1"
+
+_SHARED_RESERVE_DRUG_PLACEHOLDER_BACTERIA = frozenset(
+    {
+        "Citrobacter spp.",
+        "Enterobacter spp.",
+        "Escherichia coli",
+        "Klebsiella pneumoniae",
+        "Morganella spp.",
+        "Proteus spp.",
+        "Serratia spp.",
+        "Pseudomonas aeruginosa",
+        "Salmonella enterica serovar typhi",
+        "Salmonella enterica serovar paratyphi a",
+        "Invasive non-typhoidal Salmonella spp.",
+        "Shigella spp.",
+        "Neisseria gonorrhoeae",
+        "Haemophilus influenzae",
+        "Vibrio cholerae",
+        "Neisseria meningitidis",
+        "Campylobacter jejuni",
+        "Enterobacter cloacae",
+        "Yersinia enterocolitica",
+        "Moraxella catarrhalis",
+        "Bordetella pertussis",
+        "Bacteroides fragilis",
+        "Providencia stuartii",
+    }
+)
+RESERVE_DRUG_SEVERITY_PLACEHOLDER_PAIRS = frozenset(
+    {
+        *(
+            (bacterium, "cefiderocol")
+            for bacterium in _SHARED_RESERVE_DRUG_PLACEHOLDER_BACTERIA
+        ),
+        ("Acinetobacter baumannii", "cefiderocol"),
+        *(
+            (bacterium, "ceftolozane_tazobactam")
+            for bacterium in _SHARED_RESERVE_DRUG_PLACEHOLDER_BACTERIA
+        ),
+        ("Legionella pneumophila", "ceftolozane_tazobactam"),
+    }
+)
+RARE_POSITIVE_SEVERITY_PRIOR_PAIRS = frozenset(
+    {
+        ("Staphylococcus aureus", "vancomycin"),
+        ("Staphylococcus epidermidis", "vancomycin"),
+        ("Streptococcus pneumoniae", "vancomycin"),
+        ("Streptococcus pneumoniae", "linezolid"),
+        ("Streptococcus pneumoniae", "daptomycin"),
+    }
+)
+
 TARGET_COLUMNS = [
     "target_set_version",
     "component",
@@ -222,6 +277,21 @@ def _static_score_exclusions(
     return reasons
 
 
+def _severity_provenance(bacterium: str, drug: str) -> Tuple[str, str]:
+    pair = (bacterium, drug)
+    if pair in RESERVE_DRUG_SEVERITY_PLACEHOLDER_PAIRS:
+        return (
+            RESERVE_DRUG_SEVERITY_SOURCE,
+            "expert_best_guess_reserve_drug_any_r_placeholder",
+        )
+    if pair in RARE_POSITIVE_SEVERITY_PRIOR_PAIRS:
+        return (
+            RARE_POSITIVE_SEVERITY_SOURCE,
+            "expert_rare_positive_any_r_structural_prior",
+        )
+    return DEFAULT_SEVERITY_SOURCE, "model_scale_resistance_severity_constraint"
+
+
 def _base_row(
     *,
     component: str,
@@ -334,11 +404,13 @@ def build_resistance_targets_v1(
                 )
             )
 
-    severity_source = "expert_model_scale_any_r_v1"
     for bacterium in bacteria_order:
         for drug in drugs:
             token = severity[bacterium][drug]
             prevalence_token = prevalence[bacterium][drug]
+            severity_source, severity_rationale = _severity_provenance(
+                bacterium, drug
+            )
             exclusions = _static_score_exclusions(
                 bacterium,
                 drug,
@@ -360,7 +432,7 @@ def build_resistance_targets_v1(
                 if "legacy_prevalence_target_missing" not in exclusions:
                     exclusions = [*exclusions, "severity_target_missing"]
             elif prevalence_token == ".":
-                status = "inactive_legacy_prevalence_gate"
+                status = "inactive_unpaired_legacy_benchmark"
             elif "model_resistance_phenotype_not_representable" in exclusions:
                 status = "inactive_model_unrepresentable"
             elif "severity_benchmark_above_model_representable_maximum" in exclusions:
@@ -383,7 +455,7 @@ def build_resistance_targets_v1(
                     source_id=severity_source if token != "." else "",
                     denominator="model_active_infection_person_days_with_any_r_positive",
                     transformation="expert_assignment_on_unitless_model_any_r_scale",
-                    rationale="model_scale_resistance_severity_constraint",
+                    rationale=severity_rationale,
                 )
             )
 
@@ -398,11 +470,37 @@ def build_resistance_targets_v1(
     ]
     source_rows.append(
         {
-            "source_id": severity_source,
+            "source_id": DEFAULT_SEVERITY_SOURCE,
             "source_type": "expert_model_design",
             "description": (
                 "Expert-assigned model benchmarks for mean any_r "
                 "conditional on any_r > 0; these are not direct clinical surveillance estimates."
+            ),
+            "url": "",
+        }
+    )
+    source_rows.append(
+        {
+            "source_id": RESERVE_DRUG_SEVERITY_SOURCE,
+            "source_type": "expert_model_design",
+            "description": (
+                "Coarse expert best-guess placeholders for mean any_r conditional on "
+                "any_r > 0: 0.60 for cefiderocol and 0.70 for "
+                "ceftolozane/tazobactam. They replace legacy cells that duplicated "
+                "resistance-prevalence benchmarks and are not empirical estimates."
+            ),
+            "url": "",
+        }
+    )
+    source_rows.append(
+        {
+            "source_id": RARE_POSITIVE_SEVERITY_SOURCE,
+            "source_type": "expert_model_design",
+            "description": (
+                "Expert best-guess structural priors for mean any_r conditional on "
+                "any_r > 0 in five bacterium-drug pairs with a zero prevalence "
+                "benchmark. They define severity if rare simulated positives occur "
+                "and are not empirical prevalence estimates."
             ),
             "url": "",
         }

@@ -95,9 +95,14 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         )
         self.assertEqual(schema["required"], TARGET_COLUMNS)
         self.assertEqual(set(schema["properties"]), set(TARGET_COLUMNS))
+        self.assertTrue(
+            {row["cell_status"] for row in self.rows}.issubset(
+                set(schema["properties"]["cell_status"]["enum"])
+            )
+        )
 
         source_ids = [row["source_id"] for row in self.sources]
-        self.assertEqual(len(source_ids), 43)
+        self.assertEqual(len(source_ids), 45)
         self.assertEqual(len(source_ids), len(set(source_ids)))
         known_sources = set(source_ids)
 
@@ -142,7 +147,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         self.assertEqual(
             counts[(PREVALENCE_COMPONENT, "legacy_unclassified_missing")], 1268
         )
-        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1153)
+        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1151)
         self.assertEqual(
             counts[
                 (
@@ -150,13 +155,14 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                     "inactive_above_model_representable_maximum",
                 )
             ],
-            76,
+            78,
         )
         self.assertEqual(
             counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 63
         )
         self.assertEqual(
-            counts[(SEVERITY_COMPONENT, "inactive_legacy_prevalence_gate")], 118
+            counts[(SEVERITY_COMPONENT, "inactive_unpaired_legacy_benchmark")],
+            118,
         )
         self.assertEqual(
             counts[(SEVERITY_COMPONENT, "legacy_unclassified_missing")], 1152
@@ -169,7 +175,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             if row["include_in_score"] == "true"
         )
         self.assertEqual(included[PREVALENCE_COMPONENT], 1178)
-        self.assertEqual(included[SEVERITY_COMPONENT], 1102)
+        self.assertEqual(included[SEVERITY_COMPONENT], 1100)
 
         allowed_reasons = {
             "legacy_prevalence_target_missing",
@@ -195,7 +201,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         self.assertEqual(len(prevalence), 42 * 61)
         self.assertEqual(len(severity), 42 * 61)
         self.assertEqual(int(prevalence["include_in_score"].sum()), 1178)
-        self.assertEqual(int(severity["include_in_score"].sum()), 1102)
+        self.assertEqual(int(severity["include_in_score"].sum()), 1100)
 
         excluded = prevalence.loc[
             prevalence["Bacteria"].eq("Providencia stuartii")
@@ -235,6 +241,58 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         self.assertEqual(unrepresentable["target"], 0.05)
         self.assertFalse(unrepresentable["include_in_score"])
         self.assertIn("phenotype not represented", unrepresentable["reason"])
+
+        unpaired = severity.loc[
+            severity["Bacteria"].eq("Helicobacter pylori")
+            & severity["drug"].eq("cefiderocol")
+        ].iloc[0]
+        self.assertFalse(unpaired["include_in_score"])
+        self.assertIn("paired prevalence benchmark not assigned", unpaired["reason"])
+
+    def test_expert_severity_placeholder_provenance_is_explicit(self) -> None:
+        severity = [
+            row for row in self.rows if row["component"] == SEVERITY_COMPONENT
+        ]
+        reserve = [
+            row
+            for row in severity
+            if row["source_id"] == "expert_reserve_drug_any_r_placeholders_v1"
+        ]
+        self.assertEqual(len(reserve), 48)
+        self.assertEqual(
+            Counter((row["drug"], row["value"]) for row in reserve),
+            Counter(
+                {
+                    ("cefiderocol", "0.60"): 24,
+                    ("ceftolozane_tazobactam", "0.70"): 24,
+                }
+            ),
+        )
+        self.assertEqual(
+            {row["rationale"] for row in reserve},
+            {"expert_best_guess_reserve_drug_any_r_placeholder"},
+        )
+
+        rare_positive = [
+            row
+            for row in severity
+            if row["source_id"] == "expert_rare_positive_any_r_prior_v1"
+        ]
+        self.assertEqual(
+            {(row["bacteria"], row["drug"]) for row in rare_positive},
+            {
+                ("Staphylococcus aureus", "vancomycin"),
+                ("Staphylococcus epidermidis", "vancomycin"),
+                ("Streptococcus pneumoniae", "vancomycin"),
+                ("Streptococcus pneumoniae", "linezolid"),
+                ("Streptococcus pneumoniae", "daptomycin"),
+            },
+        )
+        self.assertEqual({row["value"] for row in rare_positive}, {"0.60"})
+        self.assertEqual(
+            {row["rationale"] for row in rare_positive},
+            {"expert_rare_positive_any_r_structural_prior"},
+        )
 
 
 if __name__ == "__main__":
