@@ -260,6 +260,15 @@ fn retired_resistance_parameter_names_are_absent() {
         "infection_de_novo_multiplier",
         "microbiome_de_novo_multiplier",
         "hgt_multiplier",
+        "staph_aureus_lineage_enrichment_enabled",
+        "staph_aureus_lineage_enrichment_bla_z_probability",
+        "staph_aureus_lineage_enrichment_erm_b_probability",
+        "staph_aureus_lineage_enrichment_aac_aph_probability",
+        "staph_aureus_lineage_enrichment_gyra_primary_probability",
+        "staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability",
+        "staph_aureus_lineage_enrichment_tet_m_probability",
+        "staph_aureus_lineage_enrichment_fus_b_probability",
+        "staph_aureus_lineage_enrichment_hospital_multiplier",
     ] {
         assert!(
             !PARAMETERS.contains_key(key),

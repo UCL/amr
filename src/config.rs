@@ -244,16 +244,7 @@ pub struct GlobalScalars {
     pub log_odds_sepsis_onset_region_asia: f64,
     pub log_odds_sepsis_onset_region_south_america: f64,
     pub log_odds_sepsis_onset_region_africa: f64,
-    // Early/legacy pathogen-specific calibration toggles and cache controls
-    pub staph_aureus_lineage_enrichment_enabled: bool,
-    pub staph_aureus_lineage_enrichment_bla_z_probability: f64,
-    pub staph_aureus_lineage_enrichment_erm_b_probability: f64,
-    pub staph_aureus_lineage_enrichment_aac_aph_probability: f64,
-    pub staph_aureus_lineage_enrichment_gyra_primary_probability: f64,
-    pub staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability: f64,
-    pub staph_aureus_lineage_enrichment_tet_m_probability: f64,
-    pub staph_aureus_lineage_enrichment_fus_b_probability: f64,
-    pub staph_aureus_lineage_enrichment_hospital_multiplier: f64,
+    // Cache controls
     pub community_profile_cache_retention: f64,
     pub local_mechanism_persistence_enabled: bool,
     pub local_mechanism_persistence_virtual_profile_mass: f64,
@@ -513,51 +504,6 @@ impl GlobalScalars {
                 map,
                 "mechanism_assignment_probability_on_any_r_gain",
                 0.8,
-            ),
-            staph_aureus_lineage_enrichment_enabled: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_enabled",
-                1.0,
-            ) > 0.5,
-            staph_aureus_lineage_enrichment_bla_z_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_bla_z_probability",
-                0.9,
-            ),
-            staph_aureus_lineage_enrichment_erm_b_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_erm_b_probability",
-                0.6,
-            ),
-            staph_aureus_lineage_enrichment_aac_aph_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_aac_aph_probability",
-                0.5,
-            ),
-            staph_aureus_lineage_enrichment_gyra_primary_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_gyra_primary_probability",
-                0.55,
-            ),
-            staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability",
-                0.25,
-            ),
-            staph_aureus_lineage_enrichment_tet_m_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_tet_m_probability",
-                0.35,
-            ),
-            staph_aureus_lineage_enrichment_fus_b_probability: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_fus_b_probability",
-                0.2,
-            ),
-            staph_aureus_lineage_enrichment_hospital_multiplier: get_or_default(
-                map,
-                "staph_aureus_lineage_enrichment_hospital_multiplier",
-                1.2,
             ),
             community_profile_cache_retention: get_or_default(
                 map,
@@ -11351,15 +11297,6 @@ lazy_static! {
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_other".to_string(), 0.5);
 
         map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
-        map.insert("staph_aureus_lineage_enrichment_enabled".to_string(), 1.0); // Enable cache-gated MRSA lineage package completion at infection acquisition
-        map.insert("staph_aureus_lineage_enrichment_bla_z_probability".to_string(), 0.9); // Most mecA-positive S. aureus lineages also carry penicillinase
-        map.insert("staph_aureus_lineage_enrichment_erm_b_probability".to_string(), 0.6); // Moderate MLSB co-resistance in circulating MRSA lineages
-        map.insert("staph_aureus_lineage_enrichment_aac_aph_probability".to_string(), 0.5); // Frequent aminoglycoside co-resistance in hospital-adapted MRSA clones
-        map.insert("staph_aureus_lineage_enrichment_gyra_primary_probability".to_string(), 0.55); // Common fluoroquinolone co-resistance in established MRSA lineages
-        map.insert("staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability".to_string(), 0.25); // Higher-grade FQ resistance only on a subset of gyrA-positive lineages
-        map.insert("staph_aureus_lineage_enrichment_tet_m_probability".to_string(), 0.35); // Moderate tetracycline co-resistance in sampled resistant lineages
-        map.insert("staph_aureus_lineage_enrichment_fus_b_probability".to_string(), 0.2); // Lower-frequency fusidic acid co-resistance
-        map.insert("staph_aureus_lineage_enrichment_hospital_multiplier".to_string(), 1.2); // Hospital MRSA acquisitions are somewhat more likely to carry linked packages
         map.insert("community_profile_cache_retention".to_string(), 0.999); // Daily marginal retention of each stored community infection-day profile (~693-refresh half-life)
 
         // Mechanism-specific fitness costs (reversion rates per day when drug absent)   !!!reversion

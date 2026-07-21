@@ -807,140 +807,13 @@ fn exogenous_mechanism_floor_probability(
     static_floor.max(ratchet_floor)
 }
 
+#[cfg(test)]
 #[inline]
 fn mechanism_idx(target: ResistanceMechanism) -> usize {
     ResistanceMechanism::all()
         .iter()
         .position(|&mechanism| mechanism == target)
         .expect("mechanism must exist in ResistanceMechanism::all()")
-}
-
-fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
-    mechanism_mask: &mut u64,
-    b_idx: usize,
-    mechanism_cache: &MechanismCache,
-    is_hospital_acquired: bool,
-    rng: &mut R,
-) -> bool {
-    let store = parameter_store();
-    if !store.globals.staph_aureus_lineage_enrichment_enabled {
-        return false;
-    }
-    if BACTERIA_LIST[b_idx] != "staphylococcus_aureus" {
-        return false;
-    }
-
-    let mec_a_idx = mechanism_idx(ResistanceMechanism::TargetSitePbp2aMecA);
-    if *mechanism_mask & (1u64 << mec_a_idx) == 0 {
-        return false;
-    }
-
-    let hospital_multiplier = if is_hospital_acquired {
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_hospital_multiplier
-            .max(0.0)
-    } else {
-        1.0
-    };
-
-    let maybe_add = |mechanism_mask: &mut u64,
-                     mechanism_cache: &MechanismCache,
-                     mechanism: ResistanceMechanism,
-                     base_probability: f64,
-                     rng: &mut R|
-     -> bool {
-        let mech_idx = mechanism_idx(mechanism);
-        let mechanism_bit = 1u64 << mech_idx;
-        if *mechanism_mask & mechanism_bit != 0 {
-            return false;
-        }
-        if !store
-            .bacteria_mechanism_status
-            .status(b_idx, mech_idx)
-            .host_is_eligible()
-        {
-            return false;
-        }
-        if !mechanism_cache.mechanism_is_present_in_active_cache_globally(b_idx, mech_idx) {
-            return false;
-        }
-        let probability = (base_probability * hospital_multiplier).clamp(0.0, 1.0);
-        if probability <= 0.0 || !rng.gen_bool(probability) {
-            return false;
-        }
-        *mechanism_mask |= mechanism_bit;
-        true
-    };
-
-    let mut enriched = false;
-    enriched |= maybe_add(
-        mechanism_mask,
-        mechanism_cache,
-        ResistanceMechanism::EnzymeBlaZ,
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_bla_z_probability,
-        rng,
-    );
-    enriched |= maybe_add(
-        mechanism_mask,
-        mechanism_cache,
-        ResistanceMechanism::TargetSiteErmB,
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_erm_b_probability,
-        rng,
-    );
-    enriched |= maybe_add(
-        mechanism_mask,
-        mechanism_cache,
-        ResistanceMechanism::EnzymeAacAph,
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_aac_aph_probability,
-        rng,
-    );
-    enriched |= maybe_add(
-        mechanism_mask,
-        mechanism_cache,
-        ResistanceMechanism::MutationGyrAPrimary,
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_gyra_primary_probability,
-        rng,
-    );
-    if *mechanism_mask & (1u64 << mechanism_idx(ResistanceMechanism::MutationGyrAPrimary)) != 0 {
-        enriched |= maybe_add(
-            mechanism_mask,
-            mechanism_cache,
-            ResistanceMechanism::MutationGyrAParCSecondary,
-            store
-                .globals
-                .staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability,
-            rng,
-        );
-    }
-    enriched |= maybe_add(
-        mechanism_mask,
-        mechanism_cache,
-        ResistanceMechanism::ProtectionTetM,
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_tet_m_probability,
-        rng,
-    );
-    enriched |= maybe_add(
-        mechanism_mask,
-        mechanism_cache,
-        ResistanceMechanism::ProtectionFusB,
-        store
-            .globals
-            .staph_aureus_lineage_enrichment_fus_b_probability,
-        rng,
-    );
-
-    enriched
 }
 
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
@@ -5885,7 +5758,7 @@ pub(crate) fn apply_rules(
                         store.bacteria.hospital_resistance_concentration_factor[b_idx];
                     let prune_susceptible_percent =
                         store.bacteria.hospital_resistance_prune_susceptible_percent[b_idx];
-                    let profile_sampled = if from_human_reservoir {
+                    if from_human_reservoir {
                         let sampled_profile = if is_hospital_acquired
                             && (conc_factor > 1.0 || prune_susceptible_percent > 0.0)
                         {
@@ -5915,28 +5788,7 @@ pub(crate) fn apply_rules(
                                 sampled_from_local_persistence =
                                     profile.from_local_persistence && eligible_profile != 0;
                             }
-                            true
-                        } else {
-                            false
                         }
-                    } else {
-                        false
-                    };
-
-                    // S. aureus lineage enrichment: if a human-reservoir acquisition already
-                    // sampled mecA, probabilistically complete the rest of an MRSA-like
-                    // co-resistance package. This is cache-gated, so linked mechanisms can only
-                    // be added if they have already emerged somewhere in circulating S. aureus.
-                    if from_human_reservoir && profile_sampled {
-                        let mask_before_enrichment = incoming_any_mask;
-                        apply_staph_aureus_lineage_enrichment(
-                            &mut incoming_any_mask,
-                            b_idx,
-                            mechanism_cache,
-                            is_hospital_acquired,
-                            rng,
-                        );
-                        incoming_majority_mask |= incoming_any_mask & !mask_before_enrichment;
                     }
                     community_acquired_mask |= incoming_any_mask;
 
