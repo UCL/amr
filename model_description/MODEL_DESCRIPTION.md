@@ -1229,7 +1229,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | TetA/B/C | `tet_abc` | Gram-negative tetracycline efflux | `tetracycline`, `doxycycline` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious |
   | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All eligible hosts except *H. pylori* |
   | 16S rRNA (tetracycline) | `mutation_16s_rrna_tetracycline` | Chromosomal 16S rRNA target-site mutation in both *H. pylori* rRNA copies | `tetracycline`, `doxycycline`, `minocycline` | *H. pylori* only |
-  | OmpK35/36 | `ompk35_36` | Combined loss of the two major *K. pneumoniae* outer-membrane porins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *K. pneumoniae* only |
+  | OmpK35/36 | `ompk35_36` | Combined loss of the two major *K. pneumoniae* outer-membrane porins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | *K. pneumoniae* only |
   | OprD | `oprd` | Loss of the carbapenem uptake porin in *P. aeruginosa* | `meropenem`, `imipenem_c`, `meropenem_vaborbactam` | *P. aeruginosa* only |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
@@ -1259,6 +1259,8 @@ These enhancement multipliers should be interpreted as qualitative within-model 
 The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for the plain-penicillin class and a zero legacy fallback. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.
 
 Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` route with an expert model-scale effect of `0.60`. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is `0.0001` per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss no longer project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.
+
+Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For *P. aeruginosa*, the non-transferable `mutation_ampc_derepression` slot is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental *K. pneumoniae* work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because the model does not implement mechanism epistasis, the interaction is not converted into a positive standalone `any_r` phenotype.
 
 | Mechanism | Multiplier | Clinical interpretation |
 |-----------|-----------|----------------------|
@@ -9230,6 +9232,10 @@ When enabled, individual infection journeys are logged to the `infection_journey
 - Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. *Intensive Care Med.* 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y
 
 - U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised September 2020. https://www.accessdata.fda.gov/drugsatfda_docs/label/2020/209445s002lbl.pdf
+
+- U.S. Food and Drug Administration. *Zerbaxa (ceftolozane and tazobactam) prescribing information.* Revised April 2022. https://www.accessdata.fda.gov/drugsatfda_docs/label/2022/206829s011s012lbl.pdf
+
+- Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in *Klebsiella pneumoniae*. *Front Microbiol.* 2018;9:1422. doi:10.3389/fmicb.2018.01422
 
 - Fishman JA. Infection in solid-organ transplant recipients. *N Engl J Med.* 2007;357(25):2601–2614. doi:10.1056/NEJMra064928
 

@@ -1003,7 +1003,6 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "ceftazidime"
                 | "cefixime"
                 | "cefepime"
-                | "ceftolozane_tazobactam"
                 | "ceftaroline"
                 | "ceftazidime_avibactam"
                 | "meropenem_vaborbactam"
@@ -7506,8 +7505,8 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_596,
-            "applicability count should include the cefiderocol siderophore-uptake route"
+            applicable_cells, 5_595,
+            "applicability count should include the corrected reserve-drug routes"
         );
     }
 
@@ -7614,6 +7613,58 @@ mod tests {
             mechanism,
             "escherichia_coli",
             "ceftolozane_tazobactam"
+        ));
+    }
+
+    #[test]
+    fn ceftolozane_tazobactam_excludes_standalone_permeability_routes() {
+        let drug = "ceftolozane_tazobactam";
+
+        for (mechanism, bacterium) in [
+            (ResistanceMechanism::EnzymeKpc, "klebsiella_pneumoniae"),
+            (ResistanceMechanism::EnzymeNdmVim, "pseudomonas_aeruginosa"),
+            (ResistanceMechanism::EnzymeAmpcDha, "enterobacter_cloacae"),
+            (
+                ResistanceMechanism::MutationAmpCDerepression,
+                "enterobacter_cloacae",
+            ),
+            (
+                ResistanceMechanism::MutationPbpMosaic,
+                "pseudomonas_aeruginosa",
+            ),
+        ] {
+            assert!(
+                mechanism_applies_to_drug(mechanism, bacterium, drug),
+                "missing supported C/T route: {bacterium} / {}",
+                mechanism.as_str()
+            );
+        }
+
+        for (mechanism, bacterium) in [
+            (
+                ResistanceMechanism::PorinLossOmpk35_36,
+                "klebsiella_pneumoniae",
+            ),
+            (ResistanceMechanism::PorinLossOprd, "pseudomonas_aeruginosa"),
+            (
+                ResistanceMechanism::EffluxMexxyOprm,
+                "pseudomonas_aeruginosa",
+            ),
+            (ResistanceMechanism::EnzymeEsblCtxM, "escherichia_coli"),
+            (ResistanceMechanism::EnzymeOxa48, "klebsiella_pneumoniae"),
+        ] {
+            assert!(
+                !mechanism_applies_to_drug(mechanism, bacterium, drug),
+                "unsupported standalone C/T route: {bacterium} / {}",
+                mechanism.as_str()
+            );
+        }
+
+        let cache = ParameterKeyCache::new();
+        assert!(!cache.mechanism_applicable(
+            super::mechanism_idx(ResistanceMechanism::PorinLossOmpk35_36),
+            bacteria_idx("klebsiella_pneumoniae"),
+            drug_idx(drug),
         ));
     }
 
