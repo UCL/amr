@@ -278,6 +278,20 @@ fn retired_resistance_parameter_names_are_absent() {
 }
 
 #[test]
+fn retired_coselection_floor_suffix_is_absent() {
+    assert!(
+        PARAMETERS
+            .keys()
+            .all(|key| !key.contains("_coselection_floor")),
+        "retired _coselection_floor key returned to PARAMETERS"
+    );
+    assert!(
+        !CONFIG_RS.contains("_coselection_floor"),
+        "retired _coselection_floor parser surface returned to config.rs"
+    );
+}
+
+#[test]
 fn retained_pathway_sensitivity_controls_are_explicit_and_neutral() {
     for key in [
         RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,

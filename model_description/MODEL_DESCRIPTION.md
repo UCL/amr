@@ -1541,7 +1541,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor
 bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 ```
 
-Era-specific `_before_{YYYY}` overrides allow the exogenous reservoir to change through time. The parser also recognises `_coselection_floor` and `_coselection_floor_before_{YYYY}` keys for potential cross-organism gut co-selection, but there are no active entries with those suffixes in the default configuration.
+Era-specific `_before_{YYYY}` overrides allow the exogenous reservoir to change through time. Co-selection between organisms is represented through the model's explicit HGT and complete-profile pathways rather than a second static-floor suffix with identical execution semantics.
 
 **Which organisms currently use them.** The live configuration now contains explicit environmental-floor entries for:
 

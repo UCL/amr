@@ -3359,12 +3359,7 @@ impl BacteriaMechanismStatuses {
 /// animal/food-chain reservoirs, global importation, and explicitly represented off-model
 /// selection pathways.
 ///
-/// Two parameter suffixes are recognised (mechanistically identical; conceptually distinct):
-///   `_environmental_floor`  - exogenous reservoir or off-model selection pathway
-///   `_coselection_floor`    - cross-organism intra-gut co-selection (added for Shigella; not
-///                              currently active - see comment in `from_map` for rationale)
-///
-/// Both support `_before_{YYYY}` era overrides.
+/// Configuration uses `_environmental_floor` keys, with optional `_before_{YYYY}` era overrides.
 /// Default = 0.0 - no probability is added by this static-floor source.
 #[derive(Debug)]
 pub struct EnvironmentalMechanismFloors {
@@ -3378,71 +3373,46 @@ impl EnvironmentalMechanismFloors {
         let mechanisms = ResistanceMechanism::all();
         let num_mechanisms = mechanisms.len();
 
-        // Two recognised base suffixes - mechanistically identical (both fire on the
-        // (1-D) exogenous fraction), but conceptually distinct:
-        //   _environmental_floor  - exogenous reservoir or off-model selection pathway
-        //   _coselection_floor    - cross-organism intra-gut plasmid co-selection
-        //
-        // NOTE: _coselection_floor was added to support Shigella calibration (the idea being
-        // that the same IncF/IncI plasmids circulate in both E. coli and Shigella within the
-        // gut, so resistance built up in the E. coli reservoir co-selects Shigella resistance
-        // without requiring a livestock source). It was ultimately not activated because the
-        // model already has cross-organism HGT between EntericGramNegative organisms
-        // (PlasmidPool::EntericGramNegative, rate 0.000_001-0.000_01), which partially covers
-        // the same pathway. No parameters with this suffix are currently defined in config.rs;
-        // the suffix is parsed but will have no effect until parameters are added.
-        //
-        // If both keys exist for the same bacteriaxmechanism, the last one parsed wins
-        // (in practice no organism uses both).
-        let base_suffixes: &[(&str, &str)] = &[
-            ("_environmental_floor", "_environmental_floor_before_"),
-            ("_coselection_floor", "_coselection_floor_before_"),
-        ];
+        let base_suffix = "_environmental_floor";
+        let era_suffix = "_environmental_floor_before_";
 
-        // Initialise base from _environmental_floor keys first, then overlay _coselection_floor
         let mut base = vec![0.0f64; num_bacteria * num_mechanisms];
-        for &(base_suffix, _) in base_suffixes {
-            for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
-                for (m_idx, mechanism) in mechanisms.iter().enumerate() {
-                    let key = format!(
-                        "bacteria_{}_mechanism_{}{}",
-                        bacteria,
-                        mechanism.as_str(),
-                        base_suffix,
-                    );
-                    if let Some(&v) = map.get(&key) {
-                        base[b_idx * num_mechanisms + m_idx] = v.clamp(0.0, 1.0);
-                    }
+        for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+            for (m_idx, mechanism) in mechanisms.iter().enumerate() {
+                let key = format!(
+                    "bacteria_{}_mechanism_{}{}",
+                    bacteria,
+                    mechanism.as_str(),
+                    base_suffix,
+                );
+                if let Some(&v) = map.get(&key) {
+                    base[b_idx * num_mechanisms + m_idx] = v.clamp(0.0, 1.0);
                 }
             }
         }
 
-        // Parse era-override keys for both suffix families
         let mut era_overrides: HashMap<usize, Vec<(f64, f64)>> = HashMap::new();
         for (key, &value) in map.iter() {
-            for &(_, era_suffix) in base_suffixes {
-                if let Some(pos) = key.find(era_suffix) {
-                    let prefix = &key[..pos];
-                    let year_str = &key[pos + era_suffix.len()..];
-                    if let Ok(cutoff_year) = year_str.parse::<f64>() {
-                        if let Some(rest) = prefix.strip_prefix("bacteria_") {
-                            if let Some(mech_pos) = rest.find("_mechanism_") {
-                                let bacteria_name = &rest[..mech_pos];
-                                let mech_name = &rest[mech_pos + "_mechanism_".len()..];
-                                if let (Some(bacteria_idx), Some(mechanism_idx)) = (
-                                    BACTERIA_LIST.iter().position(|&b| b == bacteria_name),
-                                    mechanisms.iter().position(|m| m.as_str() == mech_name),
-                                ) {
-                                    let flat_idx = bacteria_idx * num_mechanisms + mechanism_idx;
-                                    era_overrides
-                                        .entry(flat_idx)
-                                        .or_default()
-                                        .push((cutoff_year, value.clamp(0.0, 1.0)));
-                                }
+            if let Some(pos) = key.find(era_suffix) {
+                let prefix = &key[..pos];
+                let year_str = &key[pos + era_suffix.len()..];
+                if let Ok(cutoff_year) = year_str.parse::<f64>() {
+                    if let Some(rest) = prefix.strip_prefix("bacteria_") {
+                        if let Some(mech_pos) = rest.find("_mechanism_") {
+                            let bacteria_name = &rest[..mech_pos];
+                            let mech_name = &rest[mech_pos + "_mechanism_".len()..];
+                            if let (Some(bacteria_idx), Some(mechanism_idx)) = (
+                                BACTERIA_LIST.iter().position(|&b| b == bacteria_name),
+                                mechanisms.iter().position(|m| m.as_str() == mech_name),
+                            ) {
+                                let flat_idx = bacteria_idx * num_mechanisms + mechanism_idx;
+                                era_overrides
+                                    .entry(flat_idx)
+                                    .or_default()
+                                    .push((cutoff_year, value.clamp(0.0, 1.0)));
                             }
                         }
                     }
-                    break; // matched one suffix; no need to check the other
                 }
             }
         }
