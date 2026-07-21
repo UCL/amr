@@ -88,10 +88,10 @@ use crate::config::{
     RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
-    self, load_float, store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus,
-    ImmunodeficiencyType, Individual, InfectionResolutionType, Region, ResistanceAcquisitionType,
-    ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
-    MICROBIOME_MAJORITY_THRESHOLD,
+    self, days_since_recorded_event, load_float, store_float, AntibioticUseContext,
+    CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType,
+    Region, ResistanceAcquisitionType, ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD, MISSING_EVENT_DATE,
 };
 use rand::Rng;
 
@@ -608,7 +608,7 @@ fn record_sampled_microbiome_profile(
 
 fn clear_microbiome_compartment(individual: &mut Individual, b_idx: usize) {
     individual.presence_microbiome[b_idx] = false;
-    individual.date_microbiome_acquired[b_idx] = 0;
+    individual.date_microbiome_acquired[b_idx] = MISSING_EVENT_DATE;
     individual.clear_microbiome_mechanisms(b_idx);
     for resistance in &mut individual.resistances[b_idx] {
         resistance.microbiome_r = store_float(0.0);
@@ -5677,9 +5677,11 @@ pub(crate) fn apply_rules(
                 // S. aureus carriage often persists for months to years once established.
                 // IMPLEMENTATION: Negative coefficient (longer duration → lower clearance probability),
                 // with maximum effect cap to prevent unrealistic persistence.
-                if individual.date_microbiome_acquired[b_idx] > 0 {
-                    let days_carried =
-                        (time_step as i32 - individual.date_microbiome_acquired[b_idx]) as f64;
+                if let Some(days_carried) = days_since_recorded_event(
+                    individual.date_microbiome_acquired[b_idx],
+                    time_step as i32,
+                ) {
+                    let days_carried = days_carried.max(0) as f64;
                     let duration_coefficient = store.globals.carriage_duration_log_odds_coefficient; // Negative value
                     let max_duration_effect = store.globals.carriage_duration_max_log_odds_effect; // Negative cap
                     let duration_effect =
@@ -6373,8 +6375,8 @@ pub(crate) fn apply_rules(
 
         if is_infected
             && !individual.test_identified_infection[b_idx]
-            && last_infected_time > 0
-            && (time_step as i32) >= (last_infected_time + test_delay_days)
+            && days_since_recorded_event(last_infected_time, time_step as i32)
+                .is_some_and(|days| days >= test_delay_days)
             && bacterial_testing_available
             && bacteria_specific_available
             && individual.infection_has_caused_symptoms[b_idx]
@@ -6732,7 +6734,7 @@ pub(crate) fn apply_rules(
                 individual.clear_infection_mechanisms(b_idx);
                 individual.level[b_idx] = 0.0;
                 individual.infectious_syndrome[b_idx] = 0;
-                individual.date_last_infected[b_idx] = 0;
+                individual.date_last_infected[b_idx] = MISSING_EVENT_DATE;
                 individual.clearance_hazard[b_idx] = 0.0;
                 individual.clearance_ready_day[b_idx] = -1;
                 individual.sepsis[b_idx] = false;
@@ -6984,7 +6986,7 @@ pub(crate) fn apply_rules(
         let infection_start_day = individual.date_last_infected_keep[b_idx];
 
         // Only evaluate if there was an infection and today is exactly the evaluation day after infection start
-        if infection_start_day > 0 && (time_step as i32) == (infection_start_day + evaluation_days)
+        if days_since_recorded_event(infection_start_day, time_step as i32) == Some(evaluation_days)
         {
             // Check if any drug was initiated since the infection started
             let mut drug_used_since_infection = false;
@@ -7430,9 +7432,9 @@ mod tests {
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
-        bacterium_mechanism_host_is_eligible, load_float, mechanism_is_hgt_transferable,
-        store_float, DrugClass, HospitalStatus, Individual, ResistanceMechanism, BACTERIA_LIST,
-        DRUG_SHORT_NAMES,
+        bacterium_mechanism_host_is_eligible, days_since_recorded_event, load_float,
+        mechanism_is_hgt_transferable, store_float, DrugClass, HospitalStatus, Individual,
+        ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, MISSING_EVENT_DATE,
     };
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -7459,6 +7461,60 @@ mod tests {
             .unwrap_or_else(|| panic!("missing drug {name}"))
     }
 
+    fn test_indices() -> (HashMap<&'static str, usize>, HashMap<&'static str, usize>) {
+        let bacteria_indices = BACTERIA_LIST
+            .iter()
+            .enumerate()
+            .map(|(idx, &name)| (name, idx))
+            .collect();
+        let drug_indices = DRUG_SHORT_NAMES
+            .iter()
+            .enumerate()
+            .map(|(idx, &name)| (name, idx))
+            .collect();
+        (bacteria_indices, drug_indices)
+    }
+
+    fn test_policy_adjustments() -> PolicyAdjustments {
+        PolicyAdjustments {
+            policy_option: 0,
+            drug_selection_temperature: None,
+            minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: None,
+            resistance_testing_rate_multiplier: None,
+            counterfactual_resistance_multiplier: None,
+            clear_all_resistance_on_branch_start: false,
+            reserve_drug_penalty_multiplier: None,
+            drug_initiation_rate_multiplier: None,
+            drug_cessation_rate_multiplier: None,
+            equalize_regional_access: false,
+        }
+    }
+
+    #[test]
+    fn infection_and_carriage_dates_default_to_missing() {
+        let (individual, _) = individual_with_seed(89);
+
+        assert!(individual
+            .date_last_infected
+            .iter()
+            .all(|&day| day == MISSING_EVENT_DATE));
+        assert!(individual
+            .date_last_infected_keep
+            .iter()
+            .all(|&day| day == MISSING_EVENT_DATE));
+        assert!(individual
+            .date_microbiome_acquired
+            .iter()
+            .all(|&day| day == MISSING_EVENT_DATE));
+    }
+
+    #[test]
+    fn day_zero_carriage_has_elapsed_duration() {
+        assert_eq!(days_since_recorded_event(0, 90), Some(90));
+        assert_eq!(days_since_recorded_event(MISSING_EVENT_DATE, 90), None);
+    }
+
     #[test]
     fn newly_recorded_death_stops_remaining_person_day_rules() {
         let time_step = 70 * 365;
@@ -7472,32 +7528,11 @@ mod tests {
         individual.predicted_infection_risk[e_coli_idx] = 0.375;
         individual.infection_resolution_this_timestep[e_coli_idx].fill(0);
 
-        let bacteria_indices: HashMap<&'static str, usize> = BACTERIA_LIST
-            .iter()
-            .enumerate()
-            .map(|(idx, &name)| (name, idx))
-            .collect();
-        let drug_indices: HashMap<&'static str, usize> = DRUG_SHORT_NAMES
-            .iter()
-            .enumerate()
-            .map(|(idx, &name)| (name, idx))
-            .collect();
+        let (bacteria_indices, drug_indices) = test_indices();
         let param_cache = ParameterKeyCache::new();
         let mechanism_cache =
             MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
-        let policy = PolicyAdjustments {
-            policy_option: 0,
-            drug_selection_temperature: None,
-            minimal_potency_threshold_for_drug_selection: None,
-            bacterial_testing_rate_multiplier: None,
-            resistance_testing_rate_multiplier: None,
-            counterfactual_resistance_multiplier: None,
-            clear_all_resistance_on_branch_start: false,
-            reserve_drug_penalty_multiplier: None,
-            drug_initiation_rate_multiplier: None,
-            drug_cessation_rate_multiplier: None,
-            equalize_regional_access: false,
-        };
+        let policy = test_policy_adjustments();
         let mut rng = StepRng::new(0, 0);
 
         apply_rules(
@@ -7519,6 +7554,40 @@ mod tests {
         assert_eq!(resolutions.iter().sum::<u32>(), 1);
         assert_eq!(resolutions[0] + resolutions[1], 0);
         assert_eq!(resolutions[2..].iter().sum::<u32>(), 1);
+    }
+
+    #[test]
+    fn day_zero_infection_receives_post_infection_drug_evaluation() {
+        let (mut individual, _) = individual_with_seed(91);
+        let e_coli_idx = bacteria_idx("escherichia_coli");
+        let amoxicillin_idx = drug_idx("amoxicillin");
+        let (bacteria_indices, drug_indices) = test_indices();
+        let param_cache = ParameterKeyCache::new();
+        let evaluation_day = usize::try_from(param_cache.drug_evaluation_days)
+            .expect("drug evaluation delay must be non-negative");
+        let mechanism_cache =
+            MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
+        let policy = test_policy_adjustments();
+        let mut rng = StepRng::new(u64::MAX, 0);
+
+        individual.date_last_infected_keep[e_coli_idx] = 0;
+        individual.date_drug_initiated_keep[amoxicillin_idx] = 0;
+
+        apply_rules(
+            &mut individual,
+            evaluation_day,
+            &mut rng,
+            &mechanism_cache,
+            &bacteria_indices,
+            &drug_indices,
+            &param_cache,
+            &policy,
+        );
+
+        assert_eq!(
+            individual.day_7_since_last_infection_drug_used[e_coli_idx],
+            Some(true)
+        );
     }
 
     #[test]
@@ -8705,7 +8774,10 @@ mod tests {
         clear_microbiome_compartment(&mut individual, bacteria_idx);
 
         assert!(!individual.presence_microbiome[bacteria_idx]);
-        assert_eq!(individual.date_microbiome_acquired[bacteria_idx], 0);
+        assert_eq!(
+            individual.date_microbiome_acquired[bacteria_idx],
+            MISSING_EVENT_DATE
+        );
         assert_eq!(individual.microbiome_mechanism_mask(bacteria_idx), 0);
         assert_eq!(individual.any_mechanism_mask(bacteria_idx), mechanism_mask);
         assert_eq!(

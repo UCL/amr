@@ -64,6 +64,13 @@ use std::fmt;
 
 // Minimum infection/drug level threshold; values below this are treated as cleared to avoid floating-point noise.
 pub const INFECTION_EPS: f64 = 0.001;
+/// Missing infection or carriage event date. Simulation day zero is a valid recorded date.
+pub(crate) const MISSING_EVENT_DATE: i32 = -1;
+
+#[inline]
+pub(crate) fn days_since_recorded_event(event_day: i32, current_day: i32) -> Option<i32> {
+    (event_day >= 0).then(|| current_day - event_day)
+}
 
 pub trait StoredFloatRepr: Copy {
     fn store(value: f64) -> Self;
@@ -1554,12 +1561,12 @@ pub struct Individual {
     // -------------------------------------------------------------------------
     // INFECTION STATE (per-bacteria arrays, size = BACTERIA_COUNT = 39)
     // -------------------------------------------------------------------------
-    /// Day (time_step) when infection started for each bacteria. 0 = no infection.
-    /// Reset to 0 when infection clears.
+    /// Day (time_step) when infection started for each bacteria. -1 = no active infection.
+    /// Reset to -1 when infection clears; day 0 is a valid infection date.
     pub date_last_infected: Vec<i32>,
 
     /// Persistent record of last infection start date (NOT reset when infection clears).
-    /// Used for tracking infection history over time.
+    /// Used for tracking infection history over time. -1 = no recorded infection.
     pub date_last_infected_keep: Vec<i32>,
 
     /// Clinical syndrome type for each active infection.
@@ -1668,7 +1675,7 @@ pub struct Individual {
     /// Accumulates with antibiotic use and decays logarithmically. Promotes carriage acquisition.
     pub microbiome_disruption_level: f64,
 
-    /// Day when microbiome carriage was acquired. 0 = never acquired or cleared.
+    /// Day when microbiome carriage was acquired. -1 = never acquired or cleared.
     pub date_microbiome_acquired: Vec<i32>,
 
     /// Flags new microbiome acquisition events for this timestep (cleared after aggregation).
@@ -1963,8 +1970,8 @@ impl Individual {
             .globals
             .drug_activity_to_bacteria_level_multiplier;
 
-        let date_last_infected = vec![0; num_bacteria];
-        let date_last_infected_keep = vec![0; num_bacteria];
+        let date_last_infected = vec![MISSING_EVENT_DATE; num_bacteria];
+        let date_last_infected_keep = vec![MISSING_EVENT_DATE; num_bacteria];
         let infectious_syndrome = vec![0; num_bacteria];
         let level = vec![0.0; num_bacteria];
         let predicted_infection_risk = vec![0.0; num_bacteria];
@@ -1991,7 +1998,7 @@ impl Individual {
 
         let presence_microbiome = vec![false; num_bacteria];
         let microbiome_disruption_level = 0.0;
-        let date_microbiome_acquired = vec![0; num_bacteria]; // 0 means never acquired or cleared
+        let date_microbiome_acquired = vec![MISSING_EVENT_DATE; num_bacteria];
         let microbiome_acquired_today = vec![false; num_bacteria];
         let microbiome_acquired_on_drug_today = vec![false; num_bacteria];
         let microbiome_cleared_today = vec![false; num_bacteria];

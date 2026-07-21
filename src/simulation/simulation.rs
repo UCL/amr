@@ -16,9 +16,10 @@ use crate::observability;
 use crate::rules::{apply_rules, serious_resistance_marker_drugs};
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    load_float, store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel,
-    Population, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
-    MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT,
+    days_since_recorded_event, load_float, store_float, AntibioticUseContext, Individual,
+    MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism, BACTERIA_LIST,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    MICROBIOME_RESISTANCE_LEVEL_COUNT, MISSING_EVENT_DATE,
 };
 use crate::simulation::rng::{
     model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
@@ -929,9 +930,9 @@ fn diagnostic_cascade_entry_eligible(
         .date_last_infected
         .get(bacteria_idx)
         .copied()
-        .unwrap_or(0);
-    if last_infected_time <= 0
-        || (time_step as i32) < last_infected_time + param_cache.test_delay_days
+        .unwrap_or(MISSING_EVENT_DATE);
+    if !days_since_recorded_event(last_infected_time, time_step as i32)
+        .is_some_and(|days| days >= param_cache.test_delay_days)
     {
         return false;
     }
@@ -5508,11 +5509,11 @@ impl Simulation {
                                     }
                                     if !lt.carriage_duration_bins_by_bacteria.is_empty() {
                                         let acquisition_day = individual.date_microbiome_acquired[b_idx];
-                                        let duration_days = if acquisition_day > 0 {
-                                            (t as i32 - acquisition_day).max(0)
-                                        } else {
-                                            0
-                                        };
+                                        let duration_days = days_since_recorded_event(
+                                            acquisition_day,
+                                            t as i32,
+                                        )
+                                        .map_or(0, |days| days.max(0));
                                         let bin_idx = carriage_duration_bin(duration_days);
                                         let idx = b_idx * CARRIAGE_DURATION_BIN_COUNT + bin_idx;
                                         lt.carriage_duration_bins_by_bacteria[idx] += 1;
@@ -5949,8 +5950,8 @@ impl Simulation {
                         // day-7 post-infection evaluation tracking
                         for b_idx in 0..num_bacteria {
                             let infection_start_day = individual.date_last_infected_keep[b_idx];
-                            if infection_start_day > 0
-                                && (t as i32) == (infection_start_day + evaluation_days)
+                            if days_since_recorded_event(infection_start_day, t as i32)
+                                == Some(evaluation_days)
                             {
                                 if collect_day7_stats {
                                     lt.day_7_evaluations_by_bacteria[b_idx] += 1;
@@ -8618,13 +8619,15 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::{
-        current_antibiotic_context_priority, infection_death_has_model_scope_contributor,
-        is_new_person_level_sepsis_case, sample_hypergeometric_left_count, MechanismCache,
-        MechanismProfileCache, MAX_MECHANISM_PROFILES,
+        current_antibiotic_context_priority, diagnostic_cascade_entry_eligible,
+        infection_death_has_model_scope_contributor, is_new_person_level_sepsis_case,
+        sample_hypergeometric_left_count, MechanismCache, MechanismProfileCache,
+        MAX_MECHANISM_PROFILES,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
         AntibioticUseContext, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
+        MISSING_EVENT_DATE,
     };
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
@@ -8655,6 +8658,39 @@ mod tests {
         assert!(is_new_person_level_sepsis_case(&individual, false, 12));
         assert!(!is_new_person_level_sepsis_case(&individual, true, 12));
         assert!(!is_new_person_level_sepsis_case(&individual, false, 13));
+    }
+
+    #[test]
+    fn day_zero_symptomatic_infection_is_diagnostic_cascade_eligible() {
+        let mut rng = SmallRng::seed_from_u64(74);
+        let mut individual = Individual::new(1, 40 * 365, "female".to_string(), &mut rng);
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        let param_cache = ParameterKeyCache::new();
+        let availability_day = param_cache.bacteria_test_availability_day[bacteria_idx]
+            .unwrap_or(param_cache.bacterial_testing_available_from_day as usize);
+        let eligible_day = availability_day.max(param_cache.test_delay_days as usize);
+
+        individual.level[bacteria_idx] = 1.0;
+        individual.infection_has_caused_symptoms[bacteria_idx] = true;
+        individual.date_last_infected[bacteria_idx] = 0;
+
+        assert!(diagnostic_cascade_entry_eligible(
+            &individual,
+            bacteria_idx,
+            eligible_day,
+            &param_cache,
+        ));
+
+        individual.date_last_infected[bacteria_idx] = MISSING_EVENT_DATE;
+        assert!(!diagnostic_cascade_entry_eligible(
+            &individual,
+            bacteria_idx,
+            eligible_day,
+            &param_cache,
+        ));
     }
 
     #[test]
