@@ -16,6 +16,8 @@ from amr_simulation_output_analysis.calibration_summary import (
     _calculate_serious_resistance_locus_table,
 )
 from amr_simulation_output_analysis.make_paper_tables import (
+    _RESISTANCE_TARGET_SOURCE_NOTES,
+    _clean_df,
     _figure_20_parse_calibration_summary,
 )
 
@@ -93,6 +95,35 @@ class ResistanceEligibilityTests(unittest.TestCase):
         counted = dict(zip(components["Component"], components["Combinations counted"]))
         self.assertEqual(counted["Infection resistance"], 1)
         self.assertEqual(counted["Resistant level (among positives)"], 0)
+
+
+class ResistancePublicationTerminologyTests(unittest.TestCase):
+    def test_resistance_tables_can_use_benchmark_label(self) -> None:
+        result = _clean_df(
+            pd.DataFrame({"Inf target (%)": [10.0]}),
+            target_label="Calibration benchmark",
+        )
+
+        self.assertEqual(list(result.columns), ["Inf calibration benchmark (%)"])
+
+    def test_resistance_notes_state_benchmark_provenance(self) -> None:
+        notes = " ".join(_RESISTANCE_TARGET_SOURCE_NOTES)
+
+        self.assertIn("evidence-informed calibration benchmarks", notes)
+        self.assertIn("expert-assigned model benchmarks", notes)
+        self.assertNotIn("WHO GLASS 2026", notes)
+        self.assertNotIn("observed-estimate", notes)
+
+    def test_publication_source_does_not_label_resistance_as_surveillance_target(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "amr_simulation_output_analysis"
+            / "make_paper_tables.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("Surveillance target", source)
+        self.assertNotIn("surveillance-target", source)
+        self.assertNotIn("WHO GLASS 2026", source)
 
 
 class HeadlineNumeratorTests(unittest.TestCase):

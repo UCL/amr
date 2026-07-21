@@ -67,8 +67,8 @@
     },
     "target_type": {
       "enum": [
-        "source_informed_expert_anchor",
-        "expert_informed_model_scale_resistance_severity_placeholder",
+        "evidence_informed_calibration_benchmark",
+        "expert_assigned_model_benchmark",
         "not_assigned"
       ]
     },

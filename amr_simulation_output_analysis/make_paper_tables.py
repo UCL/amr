@@ -330,8 +330,12 @@ _HA_PCT_TARGETS: dict[str, float] = {
 }
 
 
-def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop delta columns; rename 'Target' → 'Observed estimate' in column names."""
+def _clean_df(
+    df: pd.DataFrame,
+    *,
+    target_label: str = "Observed estimate",
+) -> pd.DataFrame:
+    """Drop delta columns and replace 'Target' with the requested display label."""
     if df is None or df.empty:
         return df
     df = df.copy()
@@ -339,7 +343,7 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=drop, errors='ignore')
     def _rename_col(c: str) -> str:
         def repl(m):
-            return 'Observed estimate' if m.group(0)[0].isupper() else 'observed estimate'
+            return target_label if m.group(0)[0].isupper() else target_label.lower()
         return re.sub(r'(?i)\btarget\b', repl, c)
     df.columns = [_rename_col(c) for c in df.columns]
     return df
@@ -375,11 +379,13 @@ _HEADLINE_TARGET_SOURCE_NOTES = [
 ]
 
 _RESISTANCE_TARGET_SOURCE_NOTES = [
-    "Resistance target/observed-estimate values are based on surveillance benchmarks "
-    "including ECDC EARS-Net, WHO GLASS 2026, and bacterium-drug-specific published "
-    "literature encoded in the calibration summary.",
-    "Targets are calibration anchors for simulated infection resistance, not claims that "
-    "surveillance coverage is uniform across organisms, drugs, regions, or care settings.",
+    "Resistance-prevalence values are evidence-informed calibration benchmarks. ECDC "
+    "EARS-Net, WHO GLASS reports, and organism-drug literature informed the legacy matrix, "
+    "but cell-level citations and harmonised denominator definitions were not retained.",
+    "Conditional mean any_r values are expert-assigned model benchmarks on the model's "
+    "unitless resistance scale; they are not MIC values or direct surveillance estimates.",
+    "Both benchmark families compare with simulated active-infection person-days and should "
+    "not be interpreted as a harmonised global clinical-isolate surveillance dataset.",
 ]
 
 _DRUG_CLASS_TARGET_SOURCE_NOTES = [
@@ -544,7 +550,8 @@ _T1_ROWS: list[tuple[str, str, str]] = [
 
     ("Calibration", "Calibration targets",
      "Antibiotic consumption (ECDC ESAC-Net, WHO AWaRe consumption data); infection "
-     "resistance prevalence (ECDC EARS-Net, WHO GLASS 2026); infection incidence and "
+     "resistance benchmarks informed by ECDC EARS-Net, WHO GLASS reports, and "
+     "organism-specific literature; infection incidence and "
      "deaths (IHME Global Burden of Disease 2019); sepsis incidence (Rudd et al. 2020); "
      "carriage and hospital-acquired infection rates (published HAI epidemiology)."),
 
@@ -914,9 +921,9 @@ def make_t5(agg: dict, out_dir: Path) -> None:
     if srl is None or srl.empty:
         return
 
-    # Filter on the any-R H:C anchor BEFORE _clean_df, because _clean_df renames every
+    # Filter on the any-R H:C benchmark BEFORE _clean_df, because _clean_df renames every
     # column containing "target" → "observed estimate", which would break the lookup.
-    # Select on the any-R structural anchor; it is not a serious-R target.
+    # Select on the any-R structural benchmark; it is not a serious-R target.
     target_col = "Target H:C ratio"
     first_col = srl.columns[0]
     summary_mask = srl[first_col].astype(str).str.match(
@@ -992,7 +999,7 @@ def make_t5(agg: dict, out_dir: Path) -> None:
     summary_row = pd.DataFrame([summary], columns=out.columns)
     out = pd.concat([out, summary_row], ignore_index=True)
 
-    # Footnote: list organisms whose structural any-R anchor is 1.0.
+    # Footnote: list organisms whose structural any-R benchmark is 1.0.
     if not excluded.empty and "Bacteria" in excluded.columns:
         excl_names = sorted(str(v) for v in excluded["Bacteria"].dropna().unique())
         excl_list = "; ".join(excl_names)
@@ -1001,12 +1008,12 @@ def make_t5(agg: dict, out_dir: Path) -> None:
 
     footnotes = [
         _window_note(n),
-        "This table includes organisms whose expert-informed structural any-R anchor indicates "
-        "higher resistance among hospital-acquired than community-acquired cases. These anchors "
+        "This table includes organisms whose expert-assigned structural any-R benchmark indicates "
+        "higher resistance among hospital-acquired than community-acquired cases. These benchmarks "
         "encode a qualitative expected setting gradient and are not direct harmonised empirical "
         "estimates or marker-drug serious-R targets. Operationally, inclusion requires an any-R "
-        "hospital:community (H:C) anchor greater than 1.0. "
-        f"Organisms with an any-R H:C anchor of 1.0 are excluded ({excl_list}).",
+        "hospital:community (H:C) benchmark greater than 1.0. "
+        f"Organisms with an any-R H:C benchmark of 1.0 are excluded ({excl_list}).",
         "Hospital-acquired (%) is the simulated proportion of new infections acquired during "
         "hospitalisation.",
         "Hospital any-R (%) and Community any-R (%) are the percentages of new hospital- and "
@@ -1187,21 +1194,21 @@ def make_s4(agg: dict, out_dir: Path) -> None:
     else:
         rb_nonneg = rb_all.copy()
 
-    rb_nonneg = _clean_df(rb_nonneg)
+    rb_nonneg = _clean_df(rb_nonneg, target_label="Calibration benchmark")
     rb_nonneg = rb_nonneg.rename(columns={
         "Inf sim (%)":               "Percent of infections with resistance — simulation (%)",
-        "Inf observed estimate (%)": "Percent of infections with resistance — observed estimate (%)",
+        "Inf calibration benchmark (%)": "Percent of infections with resistance — evidence-informed calibration benchmark (%)",
         "Avg sim (%)":               "Average resistance level among resistant infection-days — simulation (%)",
-        "Avg observed estimate (%)": "Average resistance level among resistant infection-days — observed estimate (%)",
+        "Avg calibration benchmark (%)": "Average resistance level among resistant infection-days — expert-assigned model benchmark (%)",
         "Micro sim (%)":             "Percent of people carrying the bacterium in whom a resistant strain is present (%)",
     })
 
     display_cols = [c for c in [
         "Drug", "Class",
         "Percent of infections with resistance — simulation (%)",
-        "Percent of infections with resistance — observed estimate (%)",
+        "Percent of infections with resistance — evidence-informed calibration benchmark (%)",
         "Average resistance level among resistant infection-days — simulation (%)",
-        "Average resistance level among resistant infection-days — observed estimate (%)",
+        "Average resistance level among resistant infection-days — expert-assigned model benchmark (%)",
         "Percent of people carrying the bacterium in whom a resistant strain is present (%)",
     ] if c in rb_nonneg.columns]
 
@@ -1211,12 +1218,13 @@ def make_s4(agg: dict, out_dir: Path) -> None:
         "(baseline potency >= 0.15) are shown.",
         "<em>Percent of infections with resistance</em>: percentage of active infections "
         "carrying any resistance to this drug at a point in time "
-        "(simulated vs. surveillance estimate).",
+        "(simulation vs. evidence-informed calibration benchmark).",
         "<em>Average resistance level among resistant infection-days</em>: among infection-days "
         "where any resistance is present, the mean resistance level expressed as a percentage (0–100%). "
         "A value near 100% indicates that resistance, when present, is essentially complete; "
         "lower values indicate partial resistance. This is distinct from the prevalence column above, "
-        "which measures the proportion of infection-days with any resistance.",
+        "which measures the proportion of infection-days with any resistance. Its comparison value is "
+        "an expert-assigned model benchmark, not a direct surveillance estimate.",
         "<em>Percent of people carrying the bacterium in whom a resistant strain is present</em>: "
         "percentage of the global population carrying a resistant strain of this organism "
         "in the gut or upper respiratory microbiome.",
@@ -2616,7 +2624,7 @@ _F2_BASELINE_POTENCY_LOOKUP_CACHE: dict[tuple[str, str], float] | None = None
 
 # Colour scheme
 _F2_COLOUR_SIM    = "#2196F3"   # blue — simulation
-_F2_COLOUR_TARGET = "#FF7043"   # deep orange — surveillance target
+_F2_COLOUR_TARGET = "#FF7043"   # deep orange - calibration benchmark
 
 
 def _parse_interval_val(v: object) -> tuple[float, float, float] | None:
@@ -3005,7 +3013,7 @@ def _make_figure_2_calibration_resistance_fit_legacy(agg: dict, out_dir: Path) -
       x-axis — drug classes present for that organism
       y-axis — % resistant infections
       Blue bar + error bars — simulation (median ± 5th–95th percentile range)
-      Orange bar           — surveillance target
+      Orange bar           — calibration benchmark
     """
     rb = agg.get("resistance_benchmarks", pd.DataFrame())
     if rb is None or rb.empty:
@@ -3135,7 +3143,7 @@ def _make_figure_2_calibration_resistance_fit_legacy(agg: dict, out_dir: Path) -
 
     # Figure-level legend and title
     sim_patch = mpatches.Patch(color=_F2_COLOUR_SIM,   alpha=0.85, label="Simulation")
-    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Surveillance target")
+    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Calibration benchmark")
     ci_note   = (
         f"Error bars: 5th–95th percentile across {n_runs} run{'s' if n_runs > 1 else ''}."
         if n_runs > 1 else "Single run; no uncertainty interval shown."
@@ -3170,7 +3178,7 @@ def _make_figure_2_calibration_resistance_fit_legacy(agg: dict, out_dir: Path) -
     body  = _html_head("Figure 2. Calibration: Resistance Fit")
     body += _back_link()
     figure_note = (
-        "Each panel shows the simulated (blue) and surveillance-target (orange) "
+        "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
         "infection resistance percentage by drug class for one bacterium. "
         "Simulation bars show the mean across all drugs in the class; "
         f"error bars span the 5th–95th percentile range across {n_runs} accepted run"
@@ -3379,7 +3387,7 @@ def make_figure_2_calibration_resistance_fit(
 
     sim_label = "Simulation mean" if mode == _F2_SUMMARY_MEAN_CI else "Simulation median"
     sim_patch = mpatches.Patch(color=_F2_COLOUR_SIM, alpha=0.85, label=sim_label)
-    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Surveillance target")
+    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Calibration benchmark")
     if mode == _F2_SUMMARY_MEAN_CI:
         ci_note = (
             f"Error bars: 95% confidence interval for the mean across {n_runs} stochastic run"
@@ -3427,7 +3435,7 @@ def make_figure_2_calibration_resistance_fit(
     body += _back_link()
     if mode == _F2_SUMMARY_MEAN_CI:
         figure_note = (
-            "Each panel shows the simulated (blue) and surveillance-target (orange) "
+            "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
             "infection resistance percentage by drug class for one bacterium. "
             "Simulation bars show the mean of run-level class means; error bars show "
             "a two-sided 95% t confidence interval across stochastic runs. "
@@ -3435,7 +3443,7 @@ def make_figure_2_calibration_resistance_fit(
         )
     else:
         figure_note = (
-            "Each panel shows the simulated (blue) and surveillance-target (orange) "
+            "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
             "infection resistance percentage by drug class for one bacterium. "
             "Simulation bars show the mean across all drugs in the class using the "
             "aggregated calibration-summary median; error bars retain the aggregated "
@@ -3888,7 +3896,7 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
     if srl is None or srl.empty:
         print("  F7: no serious_resistance_locus data — skipping.")
         return
-    # Filter on the any-R structural anchor (same as T5).
+    # Filter on the any-R structural benchmark (same as T5).
     first_col = srl.columns[0]
     summary_mask = srl[first_col].astype(str).str.match(
         r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False)
@@ -3956,8 +3964,8 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
         fig, out_dir, "F7_hc_resistance_heatmap",
         "Figure F7 \u2014 Hospital vs. Community Resistance and Acquisition Rates",
         "Figure version of Table T5. Colour scale: 0\u2013100%. "
-        "Only organisms with an expert-informed any-R structural H:C anchor > 1.0 are shown; "
-        "the anchor is not a marker-drug serious-R target.",
+        "Only organisms with an expert-assigned any-R structural H:C benchmark > 1.0 are shown; "
+        "the benchmark is not a marker-drug serious-R target.",
         ["Hosp/Comm any-R: percentage of new hospital/community-acquired infections "
          "carrying any resistance mechanism.",
          "Hosp/Comm serious-R: percentage with resistance to the marker drug for that organism "
@@ -7174,11 +7182,11 @@ def _st2_derived_flags(row: pd.Series) -> str:
     if "negligible potency" in original:
         flags.append("negligible potency")
     if not np.isfinite(_st2_numeric(row.get("inf_target"))):
-        flags.append("missing infection-resistance target")
+        flags.append("infection-resistance benchmark not assigned")
     if not np.isfinite(_st2_numeric(row.get("inf_sim_median"))):
         flags.append("missing infection-resistance simulation")
     if not np.isfinite(_st2_numeric(row.get("avg_target"))):
-        flags.append("missing average resistant-level target")
+        flags.append("average resistant-level benchmark not assigned")
     if "no resistant infections" in original or (np.isfinite(res_days) and res_days <= 0):
         flags.append("no resistant infections for average metric")
     if "low resistant sample" in original:
@@ -7195,7 +7203,7 @@ def _st2_derived_flags(row: pd.Series) -> str:
     if "expanded window" in original:
         flags.append("expanded window")
     if bool(row.get("target_inconsistent", False)):
-        flags.append("target value varied across runs")
+        flags.append("benchmark value varied across runs")
 
     seen: set[str] = set()
     unique = [flag for flag in flags if not (flag in seen or seen.add(flag))]
@@ -7311,8 +7319,8 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
                 lambda row: _st2_format_interval(row["inf_sim_p5"], row["inf_sim_p95"]),
                 axis=1,
             ),
-            "Infection resistance target (%)": summary["inf_target"].map(_st2_format_number),
-            "Infection resistance difference, median simulation minus target (pp)": summary[
+            "Infection resistance calibration benchmark (%)": summary["inf_target"].map(_st2_format_number),
+            "Infection resistance difference, median simulation minus benchmark (pp)": summary[
                 "infection_resistance_delta_pp"
             ].map(_st2_format_number),
             "Absolute infection-resistance difference (pp)": summary[
@@ -7323,8 +7331,8 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
                 lambda row: _st2_format_interval(row["avg_sim_p5"], row["avg_sim_p95"]),
                 axis=1,
             ),
-            "Average resistant level target (%)": summary["avg_target"].map(_st2_format_number),
-            "Average resistant-level difference, median simulation minus target (pp)": summary[
+            "Average resistant level expert-assigned model benchmark (%)": summary["avg_target"].map(_st2_format_number),
+            "Average resistant-level difference, median simulation minus benchmark (pp)": summary[
                 "avg_resistant_level_delta_pp"
             ].map(_st2_format_number),
             "Microbiome/carriage resistance simulation median (%)": summary["micro_sim_median"].map(_st2_format_number),
@@ -7345,16 +7353,16 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
         "Drug": summary["drug"],
         "Drug class": summary["drug_class"],
         "Infection resistance, simulation (%)": summary["inf_sim_median"].map(_st2_format_number),
-        "Infection resistance, target (%)": summary["inf_target"].map(_st2_format_number),
-        "Infection resistance difference, simulation minus target (pp)": summary[
+        "Infection resistance, calibration benchmark (%)": summary["inf_target"].map(_st2_format_number),
+        "Infection resistance difference, simulation minus benchmark (pp)": summary[
             "infection_resistance_delta_pp"
         ].map(_st2_format_number),
         "Absolute infection-resistance difference (pp)": summary[
             "abs_infection_resistance_delta_pp"
         ].map(_st2_format_number),
         "Average resistant level, simulation (%)": summary["avg_sim_median"].map(_st2_format_number),
-        "Average resistant level, target (%)": summary["avg_target"].map(_st2_format_number),
-        "Average resistant-level difference, simulation minus target (pp)": summary[
+        "Average resistant level, expert-assigned model benchmark (%)": summary["avg_target"].map(_st2_format_number),
+        "Average resistant-level difference, simulation minus benchmark (pp)": summary[
             "avg_resistant_level_delta_pp"
         ].map(_st2_format_number),
         "Microbiome/carriage resistance, simulation (%)": summary["micro_sim_median"].map(_st2_format_number),
@@ -7387,7 +7395,7 @@ def _st2_largest_differences_table(summary: pd.DataFrame) -> pd.DataFrame:
         "Drug": eligible["drug"],
         "Drug class": eligible["drug_class"],
         "Infection resistance simulation (%)": eligible["inf_sim_median"].map(_st2_format_number),
-        "Infection resistance target (%)": eligible["inf_target"].map(_st2_format_number),
+        "Infection resistance calibration benchmark (%)": eligible["inf_target"].map(_st2_format_number),
         "Difference (pp)": eligible["infection_resistance_delta_pp"].map(_st2_format_number),
         "Absolute difference (pp)": eligible["abs_infection_resistance_delta_pp"].map(_st2_format_number),
         "Flags": eligible["original_flags"],
@@ -7397,9 +7405,9 @@ def _st2_largest_differences_table(summary: pd.DataFrame) -> pd.DataFrame:
 def _st2_flag_legend_html() -> str:
     legend = pd.DataFrame([
         ("negligible potency", "Baseline potency was too low for the benchmark row to be meaningful."),
-        ("missing infection-resistance target", "No infection-resistance target value was encoded for the row."),
+        ("infection-resistance benchmark not assigned", "No infection-resistance calibration benchmark was assigned to the row."),
         ("missing infection-resistance simulation", "The simulation infection-resistance metric was not defined or calculable."),
-        ("missing average resistant-level target", "No target value was encoded for the average resistant-level metric."),
+        ("average resistant-level benchmark not assigned", "No expert-assigned model benchmark was assigned to the average resistant-level metric."),
         ("no resistant infections for average metric", "Average resistant level is not meaningful because no resistant infection-days were observed."),
         ("low resistant sample", "Resistant infection-days were below 50 or the original summary flagged a low sample."),
         ("low infection-days", "Infection-days were below 100."),
@@ -7407,7 +7415,7 @@ def _st2_flag_legend_html() -> str:
         ("missing microbiome denominator", "Carrier-days were missing, so microbiome/carriage resistance is not interpretable."),
         ("missing carrier-days", "Carrier-day denominator was missing."),
         ("expanded window", "The original calibration summary flagged an expanded observation window."),
-        ("target value varied across runs", "Targets differed across supplied calibration summaries; the first non-missing target is displayed."),
+        ("benchmark value varied across runs", "Benchmarks differed across supplied calibration summaries; the first non-missing benchmark is displayed."),
         ("no caveat", "No derived caveat was added."),
     ], columns=["Derived flag", "Meaning"])
     return "<h2>Flag Legend</h2>\n" + _html_table(legend)
@@ -7419,16 +7427,17 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
         "calibration_summary_*.txt is an internal diagnostic file and is not required to interpret this page.",
         "Values refer to the shared calibration window reported in the source calibration summaries.",
         "Infection resistance simulation (%) is the simulated percentage of infection-days for the bacterium-drug combination classified as resistant.",
-        "Infection resistance target (%) is the target or benchmark value used for calibration comparison where available.",
+        "Infection resistance calibration benchmark (%) is an evidence-informed comparison value, not a direct harmonised surveillance estimate.",
+        "Average resistant-level comparison values are expert-assigned model benchmarks for mean any_r conditional on any_r > 0; they are not MIC values or direct surveillance estimates.",
         "Average resistant level is summarised among resistant positives where defined; rows with no resistant infections do not have a meaningful average resistant level.",
         "Microbiome resistance simulation (%) describes simulated resistance in the microbiome/carriage reservoir and is not clinical isolate resistance.",
         "Infection-days, resistant infection-days, and carrier-days are the denominators used for infection resistance, average resistant-level, and microbiome-resistance summaries respectively.",
         "Flags are copied from the calibration summary and supplemented with simple display reliability flags.",
         "Rows flagged as negligible potency correspond to bacterium-drug combinations where baseline potency was too low for the benchmark to be meaningful.",
-        "Missing values indicate that the metric was not defined, not targeted, or not calculable for that bacterium-drug combination.",
+        "Missing values indicate that a benchmark was not assigned or that the simulated metric was not defined or calculable for that bacterium-drug combination.",
         "This table is detailed calibration support. It should not be interpreted as an independent surveillance dataset.",
-        "Detailed bibliographic source attribution for each target value is not encoded in the generated calibration outputs and is therefore not shown here.",
-        "Rows excluded from the largest-differences summary because simulation or target values are missing are still retained in the full table.",
+        "Detailed bibliographic source attribution for each benchmark value is not encoded in the generated calibration outputs and is therefore not shown here.",
+        "Rows excluded from the largest-differences summary because simulation or benchmark values are missing are still retained in the full table.",
     ]
     if multiple_runs:
         notes.append(
@@ -7441,8 +7450,8 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
         notes.append("Missing expected source columns in at least one parsed table: " + ", ".join(missing_columns) + ".")
     if target_inconsistency_count:
         notes.append(
-            f"{target_inconsistency_count} row{'s' if target_inconsistency_count != 1 else ''} had target values that varied across runs; "
-            "the first non-missing target is displayed and the row is flagged."
+            f"{target_inconsistency_count} row{'s' if target_inconsistency_count != 1 else ''} had benchmark values that varied across runs; "
+            "the first non-missing benchmark is displayed and the row is flagged."
         )
     return _html_footnotes(notes)
 
@@ -7458,7 +7467,7 @@ def _st2_meta_box(agg: dict | None, stats: dict[str, object]) -> str:
         f"<strong>Bacterium-drug rows:</strong> {stats['n_rows']:,}",
         f"<strong>Bacteria:</strong> {stats['n_bacteria']:,}",
         f"<strong>Drugs:</strong> {stats['n_drugs']:,}",
-        f"<strong>Rows with infection simulation and target:</strong> {stats['n_complete_inf']:,}",
+        f"<strong>Rows with infection simulation and benchmark:</strong> {stats['n_complete_inf']:,}",
         f"<strong>Negligible potency rows:</strong> {stats['n_negligible']:,}",
         f"<strong>Low resistant-sample rows:</strong> {stats['n_low_resistant_sample']:,}",
     ]
@@ -11544,7 +11553,7 @@ def make_legacy_index(agg: dict, out_dir: Path) -> None:
          "42 organisms: infection%, carriage%"),
         ("main/T5_resistance_fit.html",
          "Table 5 — Hospital vs. community resistance by organism",
-         "Organisms with any-R structural H:C anchor &gt; 1: hospital-acquired%, any-R%, serious-R% by locus"),
+         "Organisms with any-R structural H:C benchmark &gt; 1: hospital-acquired%, any-R%, serious-R% by locus"),
         ("main/T6_amr_attributable_deaths_PLACEHOLDER.html",
          "Table 6 — AMR-attributable deaths",
          "Placeholder — requires completed counterfactual runs"),
@@ -11559,7 +11568,7 @@ def make_legacy_index(agg: dict, out_dir: Path) -> None:
          "Historical resistance trend: mean + 90% interval across accepted runs"),
         ("main/F2_resistance_fit.html",
          "Figure F2 \u2014 Resistance calibration fit by organism",
-         "Multi-panel bar chart: simulated vs. surveillance-target infection resistance "
+         "Multi-panel bar chart: simulated vs. calibration-benchmark infection resistance "
          "by drug class for IHME-priority pathogens"),
         ("main/F3_calibration_scores.html",
          "Figure F3 \u2014 Calibration block scores",

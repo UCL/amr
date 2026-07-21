@@ -41,4 +41,4 @@ legacy_prevalence_note__providencia_stuartii,legacy_bacterium_level_note,Placeho
 legacy_prevalence_note__mycoplasma_pneumoniae,legacy_bacterium_level_note,Intrinsic R to Beta-lactams. Macrolide resistance rising.,
 legacy_prevalence_note__legionella_pneumophila,legacy_bacterium_level_note,Intracellular pathogen. Beta-lactams ineffective. amoxicillin_clavulanate dotted (pass 1): beta-lactam/BLI not active against Legionella (potency 0.050).,
 legacy_prevalence_note__burkholderia_cepacia_complex,legacy_bacterium_level_note,Intrinsic R to Aminoglycosides/Colistin. MDR common. AGs/tigecycline/cefiderocol/ceftolozane set to dot - potency below 0.15 threshold (drug not used for BCC).,
-expert_model_scale_any_r_v1,expert_model_design,Expert-informed model-scale resistance-severity placeholders for mean any_r conditional on any_r > 0; these are not direct clinical surveillance estimates.,
+expert_model_scale_any_r_v1,expert_model_design,Expert-assigned model benchmarks for mean any_r conditional on any_r > 0; these are not direct clinical surveillance estimates.,

@@ -379,7 +379,10 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         mask = ~note_series.astype(str).str.contains("negligible potency", case=False, na=False)
         table = table[mask]
 
-    table = table.dropna(subset=[RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL], how="all")
+    # These charts compare simulations with assigned benchmarks. Keep simulation-only
+    # rows in the diagnostic table, but do not render a missing benchmark as a zero bar.
+    table = table[table[RESISTANCE_TARGET_COL].notna()]
+    table = table.dropna(subset=[RESISTANCE_SIM_COL])
     if table.empty:
         logger.warning("No resistance benchmark rows eligible for plotting after filtering.")
         return

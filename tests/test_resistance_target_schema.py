@@ -5,6 +5,8 @@ from collections import Counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pandas as pd
+
 from amr_simulation_output_analysis.build_resistance_targets_v1 import (
     PREVALENCE_COMPONENT,
     SEVERITY_COMPONENT,
@@ -112,6 +114,25 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                 self.assertNotEqual(row["score_exclusion_reason"], "")
                 self.assertEqual(row["score_row_weight"], "0.0")
 
+        numeric_prevalence_types = {
+            row["target_type"]
+            for row in self.rows
+            if row["component"] == PREVALENCE_COMPONENT and row["value"]
+        }
+        numeric_severity_types = {
+            row["target_type"]
+            for row in self.rows
+            if row["component"] == SEVERITY_COMPONENT and row["value"]
+        }
+        self.assertEqual(
+            numeric_prevalence_types,
+            {"evidence_informed_calibration_benchmark"},
+        )
+        self.assertEqual(
+            numeric_severity_types,
+            {"expert_assigned_model_benchmark"},
+        )
+
     def test_cell_statuses_make_legacy_missingness_explicit(self) -> None:
         counts = Counter((row["component"], row["cell_status"]) for row in self.rows)
         self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1294)
@@ -166,6 +187,22 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         self.assertEqual(excluded["target"], 0.65)
         self.assertFalse(excluded["include_in_score"])
         self.assertIn("negligible potency", excluded["reason"])
+
+        missing_with_potency = prevalence.loc[
+            prevalence["Bacteria"].eq("Acinetobacter baumannii")
+            & prevalence["drug"].eq("fosfomycin")
+        ].iloc[0]
+        self.assertTrue(pd.isna(missing_with_potency["target"]))
+        self.assertFalse(missing_with_potency["include_in_score"])
+        self.assertIn("benchmark not assigned", missing_with_potency["reason"])
+        self.assertNotIn("negligible potency", missing_with_potency["reason"])
+
+        missing_with_low_potency = prevalence.loc[
+            prevalence["Bacteria"].eq("Acinetobacter baumannii")
+            & prevalence["drug"].eq("ampicillin")
+        ].iloc[0]
+        self.assertIn("benchmark not assigned", missing_with_low_potency["reason"])
+        self.assertIn("negligible potency", missing_with_low_potency["reason"])
 
         included = prevalence.loc[
             prevalence["Bacteria"].eq("Escherichia coli")

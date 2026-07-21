@@ -253,7 +253,9 @@ def build_resistance_targets_v1(
                     status="active_target" if token != "." else "legacy_unclassified_missing",
                     exclusions=exclusions,
                     target_type=(
-                        "source_informed_expert_anchor" if token != "." else "not_assigned"
+                        "evidence_informed_calibration_benchmark"
+                        if token != "."
+                        else "not_assigned"
                     ),
                     source_id=source_id,
                     denominator="source_definition_unrecovered",
@@ -287,7 +289,7 @@ def build_resistance_targets_v1(
                     status=status,
                     exclusions=exclusions,
                     target_type=(
-                        "expert_informed_model_scale_resistance_severity_placeholder"
+                        "expert_assigned_model_benchmark"
                         if token != "."
                         else "not_assigned"
                     ),
@@ -312,7 +314,7 @@ def build_resistance_targets_v1(
             "source_id": severity_source,
             "source_type": "expert_model_design",
             "description": (
-                "Expert-informed model-scale resistance-severity placeholders for mean any_r "
+                "Expert-assigned model benchmarks for mean any_r "
                 "conditional on any_r > 0; these are not direct clinical surveillance estimates."
             ),
             "url": "",
