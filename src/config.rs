@@ -2161,11 +2161,6 @@ pub struct BacteriaParameters {
     /// Positive = higher CFR given sepsis (e.g. N. meningitidis purpura fulminans).
     /// Negative = lower CFR given sepsis.  Default 0.0 (no adjustment).
     pub sepsis_death_log_odds_override: Vec<f64>,
-    /// Per-bacterium multiplier applied to the carriage profile-sampling probability when the
-    /// individual is currently hospitalised. Captures the higher probability that a strain
-    /// acquired in hospital carries resistance mechanisms relative to community colonisation.
-    /// Default 1.0 (no hospital boost).  Set > 1.0 for ESKAPE / nosocomial-dominant bacteria.
-    pub hospital_microbiome_r_multiplier: Vec<f64>,
     /// Per-bacteria community resistance dilution factor.
     /// Probability that a community-acquired infection (or microbiome acquisition) draws its
     /// resistance profile from the human circulating-strain pool rather than being wild-type.
@@ -2220,7 +2215,6 @@ impl BacteriaParameters {
         let mut sepsis_log_odds_infection_duration = Vec::with_capacity(num_bacteria);
         let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
         let mut sepsis_death_log_odds_override = Vec::with_capacity(num_bacteria);
-        let mut hospital_microbiome_r_multiplier = Vec::with_capacity(num_bacteria);
         let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
         let mut hospital_resistance_prune_susceptible_percent = Vec::with_capacity(num_bacteria);
         let mut community_mechanism_reversion_multiplier = Vec::with_capacity(num_bacteria);
@@ -2331,11 +2325,6 @@ impl BacteriaParameters {
                 &format!("{}_sepsis_death_log_odds_override", prefix),
                 0.0,
             ));
-            hospital_microbiome_r_multiplier.push(get_or_default(
-                map,
-                &format!("{}_hospital_microbiome_r_multiplier", prefix),
-                get_or_default(map, "hospital_microbiome_r_multiplier", 1.0),
-            ));
             community_resistance_dilution_factor.push(get_or_default(
                 map,
                 &format!("{}_community_resistance_dilution_factor", prefix),
@@ -2380,7 +2369,6 @@ impl BacteriaParameters {
             sepsis_log_odds_infection_duration,
             infection_non_sepsis_mortality_log_odds,
             sepsis_death_log_odds_override,
-            hospital_microbiome_r_multiplier,
             community_resistance_dilution_factor,
             hospital_resistance_prune_susceptible_percent,
             community_mechanism_reversion_multiplier,
@@ -3491,7 +3479,6 @@ lazy_static! {
         map.insert("hgt_gut_compartment_multiplier".to_string(), 2.0);
         map.insert("hgt_minority_donor_multiplier".to_string(), 0.20);
         map.insert("mechanismless_resistance_reversion_rate".to_string(), 0.0004);
-        map.insert("hospital_microbiome_r_multiplier".to_string(), 1.0);
         map.insert("community_mechanism_reversion_multiplier".to_string(), 1.0);
 
         map.insert("default_clearance_delay_days".to_string(), 3.0);
@@ -7758,25 +7745,6 @@ lazy_static! {
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
-
-        // Per-bacterium hospital microbiome resistance multiplier.
-        // When an individual is hospitalised and acquires a new microbiome colonisation, this factor
-        // boosts the run-level probability that the colonising strain samples a circulating
-        // resistance profile. Default 1.0 (no boost).
-        // Higher values for bacteria with endemic MDR strains on wards (ESKAPE pathogens, VRE, etc.).
-        map.insert("acinetobacter_baumannii_hospital_microbiome_r_multiplier".to_string(), 8.0);
-        map.insert("klebsiella_pneumoniae_hospital_microbiome_r_multiplier".to_string(), 7.0);
-        map.insert("enterococcus_faecium_hospital_microbiome_r_multiplier".to_string(), 6.5);
-        map.insert("enterococcus_faecalis_hospital_microbiome_r_multiplier".to_string(), 5.5);
-        map.insert("staphylococcus_epidermidis_hospital_microbiome_r_multiplier".to_string(), 7.0);
-        map.insert("p_stuartii_hospital_microbiome_r_multiplier".to_string(), 7.0);
-        map.insert("stenotrophomonas_maltophilia_hospital_microbiome_r_multiplier".to_string(), 7.0);
-        map.insert("pseudomonas_aeruginosa_hospital_microbiome_r_multiplier".to_string(), 6.0);
-        map.insert("enterobacter_spp._hospital_microbiome_r_multiplier".to_string(), 6.0);
-        map.insert("enterobacter_cloacae_hospital_microbiome_r_multiplier".to_string(), 6.5);
-        map.insert("serratia_spp._hospital_microbiome_r_multiplier".to_string(), 6.0);
-        map.insert("staphylococcus_aureus_hospital_microbiome_r_multiplier".to_string(), 5.0);
-        map.insert("citrobacter_spp._hospital_microbiome_r_multiplier".to_string(), 5.0);
 
         // Per-bacterium community resistance dilution factor.
         // Probability that a community-acquired infection or microbiome colonisation draws its
@@ -13326,7 +13294,7 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
 //   of prescribing behaviour; low HGT -> treatment decisions are the dominant driver.
 //
 // Microbiome reservoir seeding  (run_pathway_microbiome_acquisition_multiplier)
-//   How readily do new colonisations acquire the resistance profile of the existing
-//   community microbiome pool?  Sets the background floor that cannot be moved by
-//   targeting individual infection episodes.
+//   How readily do new carriage episodes sample a complete profile from the local
+//   circulating-strain library? Community acquisitions are additionally gated by the
+//   bacterium-specific community dilution factor.
 // ========================================================================================================================================================================================================================================================================================================================ÃƒÂ¢Ã¢â====

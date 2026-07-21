@@ -606,6 +606,21 @@ fn record_sampled_microbiome_profile(
     }
 }
 
+#[inline]
+fn carriage_profile_sampling_probability(
+    pathway_multiplier: f64,
+    counterfactual_multiplier: f64,
+    is_hospitalized: bool,
+    community_dilution_factor: f64,
+) -> f64 {
+    let source_profile_fraction = if is_hospitalized {
+        1.0
+    } else {
+        community_dilution_factor
+    };
+    (pathway_multiplier * source_profile_fraction * counterfactual_multiplier).clamp(0.0, 1.0)
+}
+
 fn clear_microbiome_compartment(individual: &mut Individual, b_idx: usize) {
     individual.presence_microbiome[b_idx] = false;
     individual.date_microbiome_acquired[b_idx] = MISSING_EVENT_DATE;
@@ -5444,31 +5459,18 @@ pub(crate) fn apply_rules(
                             r => r as usize,
                         };
                         // Gate carriage profile sampling with the run-level acquisition multiplier.
-                        // Hospitalized individuals get an extra per-bacterium boost because they are
-                        // exposed to ward-endemic resistant strains.
-                        //
-                        // Community dilution: when not hospitalised, apply the same per-bacteria
-                        // community dilution factor used for infection acquisition.  This ensures
-                        // that community-acquired carriage is also drawn from the broader (mostly
-                        // susceptible) environmental pool, consistent with infection-side dilution.
+                        // Hospital acquisitions draw from the hospital profile stratum without an
+                        // additional source dilution. Community acquisitions also apply the same
+                        // per-bacterium source-mixture factor used for infection acquisition.
                         let is_hospitalized = individual.hospital_status.is_hospitalized();
-                        let community_microbiome_dilution = if !is_hospitalized {
-                            store.bacteria.community_resistance_dilution_factor[b_idx]
-                        } else {
-                            1.0
-                        };
-                        let hospital_r_boost = if is_hospitalized {
-                            store.bacteria.hospital_microbiome_r_multiplier[b_idx]
-                        } else {
-                            1.0
-                        };
-                        let microbiome_r_multiplier = microbiome_acquisition_sampling_multiplier
-                            * hospital_r_boost
-                            * community_microbiome_dilution;
+                        let profile_sampling_probability = carriage_profile_sampling_probability(
+                            microbiome_acquisition_sampling_multiplier,
+                            counterfactual_resistance_multiplier,
+                            is_hospitalized,
+                            store.bacteria.community_resistance_dilution_factor[b_idx],
+                        );
 
-                        if rng.gen::<f64>()
-                            < (microbiome_r_multiplier * counterfactual_resistance_multiplier)
-                        {
+                        if rng.gen::<f64>() < profile_sampling_probability {
                             // Sample a complete profile from the hospital or community pool.
                             // Hospital carriage uses its hospital profile stratum but not the
                             // active-infection-only susceptible-profile pruning step.
@@ -7251,11 +7253,12 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_rules, clear_microbiome_compartment, collect_active_symptomatic_syndromes,
-        collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
-        emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
-        exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
-        hgt_context_multiplier, hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
+        apply_rules, carriage_profile_sampling_probability, clear_microbiome_compartment,
+        collect_active_symptomatic_syndromes, collect_regional_surveillance_bacteria,
+        complete_resistance_test_if_ready, emerge_microbiome_mechanisms_once,
+        existing_therapy_prevents_incoming_infection, exogenous_mechanism_floor_probability,
+        has_serious_resistance_test_positive, hgt_context_multiplier,
+        hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
         identified_resistance_results_ready, is_under_medical_care, mechanism_applies_to_drug,
         mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
         prepare_individual_for_active_day, promote_minority_mechanisms_once,
@@ -8586,6 +8589,26 @@ mod tests {
         assert!(individual.resistances[bacteria_idx]
             .iter()
             .all(|resistance| load_float(resistance.any_r) == 0.0));
+    }
+
+    #[test]
+    fn carriage_profile_sampling_gate_uses_one_hospital_probability_axis() {
+        assert_eq!(
+            carriage_profile_sampling_probability(1.0, 1.0, true, 0.2),
+            1.0
+        );
+        assert_eq!(
+            carriage_profile_sampling_probability(0.25, 1.0, true, 0.2),
+            0.25
+        );
+        assert_eq!(
+            carriage_profile_sampling_probability(1.0, 1.0, false, 0.2),
+            0.2
+        );
+        assert_eq!(
+            carriage_profile_sampling_probability(1.0, 0.0, true, 0.2),
+            0.0
+        );
     }
 
     #[test]
