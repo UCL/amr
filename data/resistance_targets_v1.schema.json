@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UCL/amr/data/resistance_targets_v1.schema.json",
+  "title": "UCL AMR resistance target row v1",
+  "description": "Schema for each row of resistance_targets_v1.csv. CSV blanks are represented as empty strings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "target_set_version",
+    "component",
+    "bacteria",
+    "drug",
+    "value",
+    "cell_status",
+    "include_in_score",
+    "score_exclusion_reason",
+    "target_type",
+    "source_id",
+    "reference_year",
+    "geography",
+    "infection_or_specimen",
+    "care_setting",
+    "target_denominator",
+    "uncertainty_lower",
+    "uncertainty_upper",
+    "transformation",
+    "rationale",
+    "evidence_weight",
+    "score_row_weight"
+  ],
+  "properties": {
+    "target_set_version": {
+      "const": "resistance_targets_v1"
+    },
+    "component": {
+      "enum": [
+        "resistance_prevalence_any_r_positive",
+        "resistance_severity_conditional_mean_any_r"
+      ]
+    },
+    "bacteria": {
+      "type": "string",
+      "minLength": 1
+    },
+    "drug": {
+      "type": "string",
+      "minLength": 1
+    },
+    "value": {
+      "type": "string",
+      "description": "Unit-interval target value, or blank when no target is assigned."
+    },
+    "cell_status": {
+      "enum": [
+        "active_target",
+        "inactive_legacy_prevalence_gate",
+        "legacy_unclassified_missing"
+      ]
+    },
+    "include_in_score": {
+      "enum": ["true", "false"],
+      "description": "Target-side eligibility under v1. Model-potency and run-dependent data filters can still exclude a row."
+    },
+    "score_exclusion_reason": {
+      "type": "string",
+      "description": "Semicolon-delimited stable reason codes when include_in_score is false."
+    },
+    "target_type": {
+      "enum": [
+        "source_informed_expert_anchor",
+        "expert_informed_model_scale_resistance_severity_placeholder",
+        "not_assigned"
+      ]
+    },
+    "source_id": {
+      "type": "string",
+      "description": "Foreign key to resistance_target_sources_v1.csv, or blank when no source/provenance record is assigned."
+    },
+    "reference_year": {
+      "type": "string"
+    },
+    "geography": {
+      "type": "string"
+    },
+    "infection_or_specimen": {
+      "type": "string"
+    },
+    "care_setting": {
+      "type": "string"
+    },
+    "target_denominator": {
+      "type": "string"
+    },
+    "uncertainty_lower": {
+      "type": "string",
+      "description": "Blank in the legacy v1 baseline unless recoverable uncertainty is later supplied."
+    },
+    "uncertainty_upper": {
+      "type": "string",
+      "description": "Blank in the legacy v1 baseline unless recoverable uncertainty is later supplied."
+    },
+    "transformation": {
+      "type": "string"
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "evidence_weight": {
+      "type": "string",
+      "description": "Reserved for a future evidence-quality decision; blank throughout the v1 baseline."
+    },
+    "score_row_weight": {
+      "enum": ["0.0", "1.0"],
+      "description": "Documents equal target-side row weighting before component weights; it is not read by the production scorer in this migration step."
+    }
+  }
+}
