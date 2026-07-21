@@ -2173,13 +2173,6 @@ pub struct BacteriaParameters {
     /// overwhelmingly susceptible; higher for endogenous flora (E. coli, S. aureus) whose
     /// community reservoir closely reflects recent human-to-human transmission.
     pub community_resistance_dilution_factor: Vec<f64>,
-    /// Per-bacteria hospital resistance concentration factor.
-    /// Multiplier applied to observed hospital resistance prevalence during EWMA update.
-    /// Captures population-ecology effects that an individual-based model cannot represent:
-    /// cross-transmission via surfaces/HCW hands, device/biofilm reservoirs, and reduced
-    /// infectious dose thresholds in immunocompromised co-located patients.
-    /// Default 1.0 (no amplification).  Set > 1.0 for nosocomial organisms.
-    pub hospital_resistance_concentration_factor: Vec<f64>,
     /// Per-bacteria hospital cache prune percentage for mechanism-free profiles.
     /// Before sampling a hospital acquisition profile, this percentage of all-zero
     /// profiles is temporarily removed from the candidate pool.
@@ -2229,7 +2222,6 @@ impl BacteriaParameters {
         let mut sepsis_death_log_odds_override = Vec::with_capacity(num_bacteria);
         let mut hospital_microbiome_r_multiplier = Vec::with_capacity(num_bacteria);
         let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
-        let mut hospital_resistance_concentration_factor = Vec::with_capacity(num_bacteria);
         let mut hospital_resistance_prune_susceptible_percent = Vec::with_capacity(num_bacteria);
         let mut community_mechanism_reversion_multiplier = Vec::with_capacity(num_bacteria);
         let mut treatment_failure_no_second_line_probability = Vec::with_capacity(num_bacteria);
@@ -2349,11 +2341,6 @@ impl BacteriaParameters {
                 &format!("{}_community_resistance_dilution_factor", prefix),
                 get_or_default(map, "community_resistance_dilution_factor", 0.30),
             ));
-            hospital_resistance_concentration_factor.push(get_or_default(
-                map,
-                &format!("{}_hospital_resistance_concentration_factor", prefix),
-                get_or_default(map, "hospital_resistance_concentration_factor", 1.0),
-            ));
             hospital_resistance_prune_susceptible_percent.push(get_or_default(
                 map,
                 &format!("{}_hospital_resistance_prune_susceptible_percent", prefix),
@@ -2395,7 +2382,6 @@ impl BacteriaParameters {
             sepsis_death_log_odds_override,
             hospital_microbiome_r_multiplier,
             community_resistance_dilution_factor,
-            hospital_resistance_concentration_factor,
             hospital_resistance_prune_susceptible_percent,
             community_mechanism_reversion_multiplier,
             treatment_failure_no_second_line_probability,
@@ -7860,27 +7846,6 @@ lazy_static! {
         map.insert("mdr_mycobacterium_tuberculosis_community_resistance_dilution_factor".to_string(), 1.00);
 
 
-    // Per-bacterium hospital resistance concentration factor.
-    // Debug run: keep the weighting pathway wired in, but neutralize it.
-    map.insert("hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("acinetobacter_baumannii_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("pseudomonas_aeruginosa_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("stenotrophomonas_maltophilia_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("burkholderia_cepacia_complex_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("klebsiella_pneumoniae_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterobacter_cloacae_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("citrobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("serratia_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("morganella_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("proteus_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("p_stuartii_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("invasive_non-typhoidal_salmonella_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("staphylococcus_epidermidis_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("staphylococcus_aureus_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterococcus_faecium_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterococcus_faecalis_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("clostridioides_difficile_hospital_resistance_concentration_factor".to_string(), 1.0);
     // Per-bacterium hospital cache pruning of mechanism-free profiles.
     // Keep a moderate enrichment signal without forcing every hospital acquisition to draw
     // from a resistant profile.

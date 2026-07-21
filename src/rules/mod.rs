@@ -5470,27 +5470,15 @@ pub(crate) fn apply_rules(
                             < (microbiome_r_multiplier * counterfactual_resistance_multiplier)
                         {
                             // Sample a complete profile from the hospital or community pool.
-                            // Hospital carriage uses weighted sampling for consistency
-                            // with infection acquisition.
+                            // Hospital carriage uses its hospital profile stratum but not the
+                            // active-infection-only susceptible-profile pruning step.
                             let carriage_hospital = is_hospitalized;
-                            let carriage_conc_factor =
-                                store.bacteria.hospital_resistance_concentration_factor[b_idx];
-                            let carriage_profile =
-                                if carriage_hospital && carriage_conc_factor > 1.0 {
-                                    mechanism_cache.sample_profile_weighted(
-                                        region_idx,
-                                        b_idx,
-                                        carriage_conc_factor,
-                                        rng,
-                                    )
-                                } else {
-                                    mechanism_cache.sample_profile(
-                                        region_idx,
-                                        b_idx,
-                                        carriage_hospital,
-                                        rng,
-                                    )
-                                };
+                            let carriage_profile = mechanism_cache.sample_profile(
+                                region_idx,
+                                b_idx,
+                                carriage_hospital,
+                                rng,
+                            );
                             if let Some(profile) = carriage_profile {
                                 record_sampled_microbiome_profile(
                                     individual,
@@ -5748,35 +5736,29 @@ pub(crate) fn apply_rules(
 
                     // --- Mechanism profile sampling ---
                     // Sample a complete mechanism genotype from the profile reservoir.
-                    // Hospital-acquired infections use weighted sampling that favours
-                    // resistant profiles (weight = concentration_factor^k where k = number
-                    // of set mechanism bits), modelling the enrichment of resistant organisms
-                    // in hospital environments.  Community infections use uniform sampling.
+                    // Hospital-acquired infections can temporarily prune a configured fraction
+                    // of mechanism-free candidates. Community infections use uniform sampling.
                     // If the profile cache is empty (early warm-up), the individual stays
                     // fully susceptible.
-                    let conc_factor =
-                        store.bacteria.hospital_resistance_concentration_factor[b_idx];
                     let prune_susceptible_percent =
                         store.bacteria.hospital_resistance_prune_susceptible_percent[b_idx];
                     if from_human_reservoir {
-                        let sampled_profile = if is_hospital_acquired
-                            && (conc_factor > 1.0 || prune_susceptible_percent > 0.0)
-                        {
-                            mechanism_cache.sample_profile_hospital_enriched(
-                                region_idx,
-                                b_idx,
-                                conc_factor,
-                                prune_susceptible_percent,
-                                rng,
-                            )
-                        } else {
-                            mechanism_cache.sample_profile(
-                                region_idx,
-                                b_idx,
-                                is_hospital_acquired,
-                                rng,
-                            )
-                        };
+                        let sampled_profile =
+                            if is_hospital_acquired && prune_susceptible_percent > 0.0 {
+                                mechanism_cache.sample_profile_hospital_enriched(
+                                    region_idx,
+                                    b_idx,
+                                    prune_susceptible_percent,
+                                    rng,
+                                )
+                            } else {
+                                mechanism_cache.sample_profile(
+                                    region_idx,
+                                    b_idx,
+                                    is_hospital_acquired,
+                                    rng,
+                                )
+                            };
                         if let Some(profile) = sampled_profile {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 let eligible_profile =

@@ -860,7 +860,6 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
         "Sepsis log-odds",
         "Mech-less rev rate",
         "Comm dilution",
-        "Hosp conc",
         "Hosp prune %",
     ];
     let mut rows = Vec::new();
@@ -879,7 +878,6 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
             format_value(b.sepsis_baseline_log_odds[idx]),
             format_value(b.mechanismless_resistance_reversion_rate[idx]),
             format_value(b.community_resistance_dilution_factor[idx]),
-            format_value(b.hospital_resistance_concentration_factor[idx]),
             format_value(b.hospital_resistance_prune_susceptible_percent[idx]),
         ]);
     }

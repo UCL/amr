@@ -292,6 +292,20 @@ fn retired_coselection_floor_suffix_is_absent() {
 }
 
 #[test]
+fn retired_hospital_concentration_factor_is_absent() {
+    assert!(
+        PARAMETERS
+            .keys()
+            .all(|key| !key.contains("hospital_resistance_concentration_factor")),
+        "retired hospital concentration parameter returned to PARAMETERS"
+    );
+    assert!(
+        !CONFIG_RS.contains("hospital_resistance_concentration_factor"),
+        "retired hospital concentration parser surface returned to config.rs"
+    );
+}
+
+#[test]
 fn retained_pathway_sensitivity_controls_are_explicit_and_neutral() {
     for key in [
         RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,

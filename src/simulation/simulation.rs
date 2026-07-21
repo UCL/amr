@@ -1949,38 +1949,9 @@ impl MechanismCache {
         }
     }
 
-    fn sample_from_slot<R: Rng + ?Sized>(
-        slot: &[u64],
-        weights: Option<&[f64]>,
-        rng: &mut R,
-    ) -> Option<u64> {
+    fn sample_from_slot<R: Rng + ?Sized>(slot: &[u64], rng: &mut R) -> Option<u64> {
         if slot.is_empty() {
             return None;
-        }
-
-        if let Some(weights) = weights {
-            if weights.len() != slot.len()
-                || weights
-                    .iter()
-                    .any(|weight| *weight < 0.0 || !weight.is_finite())
-            {
-                return None;
-            }
-
-            let total_weight: f64 = weights.iter().sum();
-            if !(total_weight > 0.0 && total_weight.is_finite()) {
-                return None;
-            }
-
-            let roll = rng.gen_range(0.0..total_weight);
-            let mut cumulative = 0.0_f64;
-            for (&profile, &weight) in slot.iter().zip(weights.iter()) {
-                cumulative += weight;
-                if roll < cumulative {
-                    return Some(profile);
-                }
-            }
-            return slot.last().copied();
         }
 
         let idx = rng.gen_range(0..slot.len());
@@ -1990,61 +1961,6 @@ impl MechanismCache {
     #[inline]
     fn slot_has_resistant_profile(slot: &[u64]) -> bool {
         slot.iter().any(|&mask| mask != 0)
-    }
-
-    /// Sample a profile from the hospital pool with weighting that favours resistant profiles.
-    ///
-    /// Each profile in the pool is weighted by `concentration_factor^k` where `k` is the
-    /// number of set mechanism bits.  This over-samples resistant strains relative to
-    /// susceptible ones — modelling the enrichment of resistant organisms in hospital
-    /// environments through cross-transmission, device reservoirs, and HCW-mediated spread —
-    /// while preserving real mechanism correlations (every sampled profile is an actual
-    /// observed genotype).
-    ///
-    /// Falls back to plain uniform `sample_profile` when concentration_factor ≤ 1.0.
-    pub fn sample_profile_weighted<R: Rng + ?Sized>(
-        &self,
-        region_idx: usize,
-        bacteria_idx: usize,
-        concentration_factor: f64,
-        rng: &mut R,
-    ) -> Option<MechanismProfileSample> {
-        let slot = self.selected_slot(region_idx, bacteria_idx, true);
-        let active_profile_count = slot.map_or(0, <[u64]>::len);
-        if let Some(sample) = self.sample_local_persistence_profile(
-            region_idx,
-            bacteria_idx,
-            true,
-            active_profile_count,
-            rng,
-        ) {
-            return Some(sample);
-        }
-        let Some(slot) = slot else {
-            return None;
-        };
-
-        if concentration_factor <= 1.0 {
-            return Self::sample_from_slot(slot, None, rng).map(|mask| MechanismProfileSample {
-                mask,
-                from_local_persistence: false,
-            });
-        }
-
-        // Compute weights: concentration_factor^(popcount of each profile)
-        // Use ln to avoid overflow for large k: weight = exp(k * ln(f))
-        let ln_f = concentration_factor.ln();
-        let weights: Vec<f64> = slot
-            .iter()
-            .map(|&mask| {
-                let k = mask.count_ones() as f64;
-                (k * ln_f).exp()
-            })
-            .collect();
-        Self::sample_from_slot(slot, Some(&weights), rng).map(|mask| MechanismProfileSample {
-            mask,
-            from_local_persistence: false,
-        })
     }
 
     /// Sample a hospital acquisition profile after optionally pruning all-zero profiles.
@@ -2061,7 +1977,6 @@ impl MechanismCache {
         &self,
         region_idx: usize,
         bacteria_idx: usize,
-        concentration_factor: f64,
         prune_susceptible_percent: f64,
         rng: &mut R,
     ) -> Option<MechanismProfileSample> {
@@ -2117,28 +2032,9 @@ impl MechanismCache {
             slot
         };
 
-        if concentration_factor <= 1.0 {
-            return Self::sample_from_slot(candidate_slot, None, rng).map(|mask| {
-                MechanismProfileSample {
-                    mask,
-                    from_local_persistence: false,
-                }
-            });
-        }
-
-        let ln_f = concentration_factor.ln();
-        let weights: Vec<f64> = candidate_slot
-            .iter()
-            .map(|&mask| {
-                let k = mask.count_ones() as f64;
-                (k * ln_f).exp()
-            })
-            .collect();
-        Self::sample_from_slot(candidate_slot, Some(&weights), rng).map(|mask| {
-            MechanismProfileSample {
-                mask,
-                from_local_persistence: false,
-            }
+        Self::sample_from_slot(candidate_slot, rng).map(|mask| MechanismProfileSample {
+            mask,
+            from_local_persistence: false,
         })
     }
 
@@ -8995,32 +8891,34 @@ mod tests {
     }
 
     #[test]
-    fn weighted_profile_sampling_rejects_mismatched_or_invalid_weights() {
-        let slot = [1_u64, 2, 3];
+    fn hospital_profile_pruning_never_removes_resistant_profiles() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let resistant_mask = 1_u64 << 0;
+        let mut cache = MechanismCache::new(1, 1, num_mechanisms);
+        cache.profiles.profiles[0][1][0] = vec![0, resistant_mask, 0];
         let mut rng = SmallRng::seed_from_u64(42);
 
-        assert_eq!(
-            MechanismCache::sample_from_slot(&slot, Some(&[1.0, 2.0]), &mut rng),
-            None
-        );
-        assert_eq!(
-            MechanismCache::sample_from_slot(&slot, Some(&[1.0, f64::NAN, 1.0]), &mut rng),
-            None
-        );
-        assert_eq!(
-            MechanismCache::sample_from_slot(&slot, Some(&[1.0, -1.0, 1.0]), &mut rng),
-            None
-        );
+        let sample = cache
+            .sample_profile_hospital_enriched(0, 0, 100.0, &mut rng)
+            .expect("resistant profile should remain after susceptible pruning");
+
+        assert_eq!(sample.mask, resistant_mask);
+        assert!(!sample.from_local_persistence);
     }
 
     #[test]
-    fn weighted_profile_sampling_accepts_valid_weights() {
-        let slot = [10_u64, 20, 30];
+    fn hospital_profile_pruning_falls_back_for_fully_susceptible_pool() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let mut cache = MechanismCache::new(1, 1, num_mechanisms);
+        cache.profiles.profiles[0][1][0] = vec![0, 0, 0];
         let mut rng = SmallRng::seed_from_u64(7);
 
-        let sampled = MechanismCache::sample_from_slot(&slot, Some(&[0.0, 0.0, 1.0]), &mut rng);
+        let sample = cache
+            .sample_profile_hospital_enriched(0, 0, 100.0, &mut rng)
+            .expect("unpruned susceptible pool should remain available as a fallback");
 
-        assert_eq!(sampled, Some(30));
+        assert_eq!(sample.mask, 0);
+        assert!(!sample.from_local_persistence);
     }
 
     #[test]
