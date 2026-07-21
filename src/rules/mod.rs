@@ -5818,7 +5818,8 @@ pub(crate) fn apply_rules(
                     if !from_human_reservoir {
                         use crate::simulation::population::ResistanceMechanism;
                         for (m_idx, _) in ResistanceMechanism::all().iter().enumerate() {
-                            let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
+                            let peak =
+                                mechanism_cache.peak_mechanism_prevalence[region_idx][b_idx][m_idx];
                             let floor = exogenous_mechanism_floor_probability(
                                 b_idx,
                                 m_idx,

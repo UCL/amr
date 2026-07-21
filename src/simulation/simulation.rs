@@ -1561,9 +1561,9 @@ pub struct MechanismProfileSample {
 /// - `profiles`: reservoir of up to 1000 complete mechanism genotypes (u64 bitmasks)
 ///   per `[region × hospital/community × bacteria]` slot, maintained via reservoir
 ///   sampling and asymmetric retention (community vs hospital).
-/// - `peak_mechanism_prevalence`: global peak marginal prevalence ever achieved for each
-///   (bacteria, mechanism) pair across all regional community caches. Used by the
-///   ratchet-floor mechanism to support exogenous community reseeding of selected persistent
+/// - `peak_mechanism_prevalence`: regional peak marginal prevalence ever achieved for each
+///   (bacteria, mechanism) pair in the local community cache. Used by the ratchet-floor
+///   mechanism to support local exogenous community reseeding of selected persistent
 ///   resistance mechanisms.
 ///
 /// - `drug_resistance_prevalence`: exact prevalence derived from the current profile
@@ -1572,12 +1572,12 @@ pub struct MechanismProfileSample {
 pub struct MechanismCache {
     /// Profile reservoir for profile-based acquisition sampling.
     pub profiles: MechanismProfileCache,
-    /// Global peak marginal mechanism prevalence ever achieved in the simulation.
-    /// Indexed as `peak_mechanism_prevalence[bacteria_idx][mechanism_idx]`.
+    /// Regional peak marginal mechanism prevalence ever achieved in the community cache.
+    /// Indexed as `peak_mechanism_prevalence[region_idx][bacteria_idx][mechanism_idx]`.
     /// Updated annually via `update_peak_community_marginal_prevalences()`.
     /// Used by the ratchet floor to derive stepped exogenous assignment probabilities for
     /// selected persistent mechanisms.
-    pub peak_mechanism_prevalence: Vec<Vec<f64>>,
+    pub peak_mechanism_prevalence: Vec<Vec<Vec<f64>>>,
     /// Exact resistance prevalence for each `[region x hospital/community x bacteria x drug]`
     /// slot, rebuilt whenever the profile reservoir changes.
     drug_resistance_prevalence: Vec<f64>,
@@ -1601,7 +1601,10 @@ impl MechanismCache {
         let globals = &config::parameter_store().globals;
         Self {
             profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
-            peak_mechanism_prevalence: vec![vec![0.0_f64; num_mechanisms]; num_bacteria],
+            peak_mechanism_prevalence: vec![
+                vec![vec![0.0_f64; num_mechanisms]; num_bacteria];
+                num_regions
+            ],
             drug_resistance_prevalence: vec![
                 0.0;
                 num_regions * 2 * num_bacteria * DRUG_SHORT_NAMES.len()
@@ -1858,36 +1861,32 @@ impl MechanismCache {
     /// Compute the current marginal mechanism prevalence from the profile cache and update
     /// `peak_mechanism_prevalence` wherever the current level exceeds the stored peak.
     ///
-    /// For each (bacteria, mechanism) pair, prevalence is computed across all regional
-    /// community caches, measuring the fraction of stored profiles that carry that mechanism.
+    /// For each regional (bacteria, mechanism) pair, prevalence is computed from that region's
+    /// community cache, measuring the fraction of stored profiles that carry that mechanism.
     /// Hospital profiles are excluded because the ratchet seeds only exogenous community
-    /// acquisitions. A bacterium must have at least
+    /// acquisitions. A regional bacterium slot must have at least
     /// `MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK` retained community profiles before its
     /// permanent peak can increase.
     ///
     /// Called automatically after the annual `update_profiles()` refresh.
     pub fn update_peak_community_marginal_prevalences(&mut self) {
-        for b_idx in 0..self.num_bacteria {
-            let total_profiles = (0..self.num_regions)
-                .map(|r_idx| self.profiles.profiles[r_idx][0][b_idx].len())
-                .sum::<usize>();
-            if total_profiles < MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK {
-                continue;
-            }
+        for r_idx in 0..self.num_regions {
+            for b_idx in 0..self.num_bacteria {
+                let community_slot = &self.profiles.profiles[r_idx][0][b_idx];
+                if community_slot.len() < MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK {
+                    continue;
+                }
 
-            for m_idx in 0..self.num_mechanisms {
-                let bit = 1u64 << m_idx;
-                let mut profiles_with_mechanism = 0usize;
-                for r_idx in 0..self.num_regions {
-                    let community_slot = &self.profiles.profiles[r_idx][0][b_idx];
-                    profiles_with_mechanism += community_slot
+                for m_idx in 0..self.num_mechanisms {
+                    let bit = 1u64 << m_idx;
+                    let profiles_with_mechanism = community_slot
                         .iter()
                         .filter(|&&mask| mask & bit != 0)
                         .count();
-                }
-                let current_prev = profiles_with_mechanism as f64 / total_profiles as f64;
-                if current_prev > self.peak_mechanism_prevalence[b_idx][m_idx] {
-                    self.peak_mechanism_prevalence[b_idx][m_idx] = current_prev;
+                    let current_prev = profiles_with_mechanism as f64 / community_slot.len() as f64;
+                    if current_prev > self.peak_mechanism_prevalence[r_idx][b_idx][m_idx] {
+                        self.peak_mechanism_prevalence[r_idx][b_idx][m_idx] = current_prev;
+                    }
                 }
             }
         }
@@ -8925,27 +8924,35 @@ mod tests {
 
         cache.update_peak_community_marginal_prevalences();
         assert_eq!(
-            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            cache.peak_mechanism_prevalence[0][bacteria_idx][mechanism_idx],
+            0.0
+        );
+        assert_eq!(
+            cache.peak_mechanism_prevalence[1][bacteria_idx][mechanism_idx],
             0.0
         );
 
         cache.profiles.profiles[0][0][bacteria_idx][..25].fill(mechanism_bit);
         cache.update_peak_community_marginal_prevalences();
         assert_eq!(
-            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            cache.peak_mechanism_prevalence[0][bacteria_idx][mechanism_idx],
             0.25
+        );
+        assert_eq!(
+            cache.peak_mechanism_prevalence[1][bacteria_idx][mechanism_idx],
+            0.0
         );
 
         cache.profiles.profiles[0][0][bacteria_idx].fill(0);
         cache.update_peak_community_marginal_prevalences();
         assert_eq!(
-            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            cache.peak_mechanism_prevalence[0][bacteria_idx][mechanism_idx],
             0.25
         );
     }
 
     #[test]
-    fn ratchet_peak_requires_one_hundred_community_profiles() {
+    fn ratchet_peak_requires_one_hundred_local_community_profiles() {
         let num_mechanisms = ResistanceMechanism::all().len();
         let bacteria_idx = 0;
         let mechanism_idx = 0;
@@ -8953,17 +8960,37 @@ mod tests {
         let mut cache = MechanismCache::new(2, BACTERIA_LIST.len(), num_mechanisms);
 
         cache.profiles.profiles[0][0][bacteria_idx] = vec![mechanism_bit; 99];
-        cache.update_peak_community_marginal_prevalences();
-        assert_eq!(
-            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
-            0.0
-        );
-
         cache.profiles.profiles[1][0][bacteria_idx].push(0);
         cache.update_peak_community_marginal_prevalences();
         assert_eq!(
-            cache.peak_mechanism_prevalence[bacteria_idx][mechanism_idx],
+            cache.peak_mechanism_prevalence[0][bacteria_idx][mechanism_idx],
+            0.0
+        );
+        assert_eq!(
+            cache.peak_mechanism_prevalence[1][bacteria_idx][mechanism_idx],
+            0.0
+        );
+
+        cache.profiles.profiles[0][0][bacteria_idx].push(0);
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[0][bacteria_idx][mechanism_idx],
             0.99
+        );
+        assert_eq!(
+            cache.peak_mechanism_prevalence[1][bacteria_idx][mechanism_idx],
+            0.0
+        );
+
+        cache.profiles.profiles[1][0][bacteria_idx] = vec![mechanism_bit; 100];
+        cache.update_peak_community_marginal_prevalences();
+        assert_eq!(
+            cache.peak_mechanism_prevalence[0][bacteria_idx][mechanism_idx],
+            0.99
+        );
+        assert_eq!(
+            cache.peak_mechanism_prevalence[1][bacteria_idx][mechanism_idx],
+            1.0
         );
     }
 
