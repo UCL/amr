@@ -883,20 +883,17 @@ _HA_PCT_TARGETS: Dict[str, float] = {
     "yersinia enterocolitica":                     3.0,
 }
 
-# ── Literature-based target: hospital any-R% ÷ community any-R% ──────────────
-# Values represent the expected ratio of "% newly infected with any resistance"
-# in hospital-acquired vs community-acquired infections.  Assembled from:
-#   • EARS-Net / GLASS surveillance (hospital vs outpatient isolate data)
-#   • Laxminarayan et al. Lancet 2013 (community vs tertiary resistance)
-#   • WHO priority pathogen reports 2017/2024
-#   • CDC AR Threats Reports 2019/2022
-# A ratio of 2.0 means hospital acquisitions are expected to be 2× as likely to
-# carry any resistance compared with community acquisitions of the same bug.
-_HOSP_COMM_R_RATIO_TARGETS: Dict[str, float] = {
+# ── Expert-informed structural target: hospital any-R% ÷ community any-R% ──
+# Expert-informed structural anchors for the ratio of "% newly infected with any
+# resistance" in hospital-acquired versus community-acquired infections. Broad
+# surveillance and clinical literature inform the qualitative ordering, but these
+# exact values are not direct harmonised empirical estimates. A ratio of 2.0 means
+# hospital acquisitions are expected to be twice as likely to carry any resistance.
+_HOSP_COMM_ANY_R_RATIO_TARGETS: Dict[str, float] = {
     # ── ESKAPE / critical priority ──
     "acinetobacter baumannii":                    3.5,   # ICU MDR/XDR >> community
     "enterococcus faecium":                       3.5,   # VRE concentrated in hospitals
-    "staphylococcus aureus":                      1.5,   # CA-MRSA (USA300 lineage) has substantially eroded H/C gap; global contemporary estimate ~1.4-1.7
+    "staphylococcus aureus":                      1.5,   # Community MRSA reduces the expected hospital gap
     "klebsiella pneumoniae":                      2.8,   # CRE/ESBL heavily nosocomial
     "pseudomonas aeruginosa":                     3.0,   # MDR/XDR VAP strains
     "enterobacter cloacae":                       2.8,   # derepressed AmpC, ESBL in hospitals
@@ -945,7 +942,7 @@ _HOSP_COMM_R_RATIO_TARGETS: Dict[str, float] = {
 }
 
 # ── Clinically-meaningful "serious resistance" marker drug(s) per bacterium ──
-# Instead of averaging across all 61 drugs, the serious-R H:C metric uses only
+# Instead of averaging across the modelled drug panel, the serious-R H:C metric uses only
 # the drug(s) whose resistance is clinically alarming for that organism.
 # Drug slugs must match simulation output column names exactly.
 _SERIOUS_R_DRUGS: Dict[str, List[str]] = {
@@ -1830,7 +1827,7 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
             if (np.isfinite(hosp_r_pct) and np.isfinite(comm_r_pct) and comm_r_pct > 0)
             else np.nan
         )
-        target_ratio = _HOSP_COMM_R_RATIO_TARGETS.get(slug.replace("_", " "), np.nan)
+        target_ratio = _HOSP_COMM_ANY_R_RATIO_TARGETS.get(slug.replace("_", " "), np.nan)
 
         records.append({
             "Bacteria": display_name,
@@ -1862,7 +1859,6 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
         "Hospital Serious-R (%)",
         "Community Serious-R (%)",
         "Sim H:C ratio",
-        "Target H:C ratio",
     ]
     if year_df.empty:
         return pd.DataFrame(columns=columns)
@@ -1983,8 +1979,6 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
             if (np.isfinite(hosp_r_pct) and np.isfinite(comm_r_pct) and comm_r_pct > 0)
             else np.nan
         )
-        target_ratio = _HOSP_COMM_R_RATIO_TARGETS.get(slug.replace("_", " "), np.nan)
-
         records.append({
             "Bacteria": display_name,
             "Marker drug(s)": ", ".join(serious_drugs),
@@ -1993,7 +1987,6 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
             "Hospital Serious-R (%)": hosp_r_pct,
             "Community Serious-R (%)": comm_r_pct,
             "Sim H:C ratio": sim_ratio,
-            "Target H:C ratio": target_ratio,
         })
 
     return pd.DataFrame(records, columns=columns)
@@ -2347,8 +2340,8 @@ def _write_resistance_locus_fit_summary(handle, locus_df: pd.DataFrame) -> None:
     weighted_mean_log = sum(d * w for d, w in zip(log_dists, weights)) / total_w if total_w > 0 else 0.0
     unweighted_mean_log = float(np.mean(log_dists))
 
-    handle.write(f"\nResistance Locus Fit Summary (H:C ratio)\n")
-    handle.write(f"- Bacteria with valid sim & target H:C ratios: {len(valid_rows)}\n")
+    handle.write(f"\nResistance Locus Fit Summary (H:C any-R structural target)\n")
+    handle.write(f"- Bacteria with valid sim & structural target H:C ratios: {len(valid_rows)}\n")
     handle.write(f"- Mean |ln(sim/target)|, infection-weighted: {weighted_mean_log:.4f}\n")
     handle.write(f"- Mean |ln(sim/target)|, unweighted: {unweighted_mean_log:.4f}\n")
     handle.write(f"  (0.0 = perfect, 0.69 = off by 2×, 1.10 = off by 3×)\n")
@@ -4070,6 +4063,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 handle.write(f"- Mean community any-R: {mean_comm_r:.2f}%\n")
                 if np.isfinite(weighted_log):
                     handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {weighted_log:.2f}\n")
+                handle.write(
+                    "- Note: H:C any-R targets are expert-informed structural anchors, "
+                    "not direct harmonised empirical estimates.\n"
+                )
             handle.write("\n")
             # Full per-bacteria locus table
             handle.write("Resistance Incidence Locus (per-drug hospital vs community resistance gap)\n")
@@ -4084,9 +4081,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             s_overall_col = "Overall Serious-R (%)"
             s_hosp_col = "Hospital Serious-R (%)"
             s_comm_col = "Community Serious-R (%)"
-            s_sim_col = "Sim H:C ratio"
-            s_tgt_col = "Target H:C ratio"
-            s_inf_col = "Total New Infections"
             s_valid_mask = serious_locus_df[s_hosp_col].notna() & serious_locus_df[s_comm_col].notna()
             s_valid = serious_locus_df.loc[s_valid_mask]
             if not s_valid.empty:
@@ -4097,25 +4091,16 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 )
                 s_mean_hosp = s_valid[s_hosp_col].mean()
                 s_mean_comm = s_valid[s_comm_col].mean()
-            s_hc_valid = []
-            for _, row in serious_locus_df.iterrows():
-                sr, tr, ni = row.get(s_sim_col), row.get(s_tgt_col), row.get(s_inf_col, 0.0)
-                if (sr is not None and tr is not None
-                        and np.isfinite(sr) and np.isfinite(tr)
-                        and sr > 0 and tr > 0 and ni > 0):
-                    s_hc_valid.append((abs(np.log(sr / tr)), float(ni)))
-            s_weighted_log = (
-                sum(d * w for d, w in s_hc_valid) / sum(w for _, w in s_hc_valid)
-                if s_hc_valid else np.nan
-            )
             handle.write("Serious Resistance Locus Summary (hospital vs community)\n")
             if not s_valid.empty:
                 if np.isfinite(s_mean_overall):
                     handle.write(f"- Mean overall serious-R: {s_mean_overall:.2f}%\n")
                 handle.write(f"- Mean hospital serious-R: {s_mean_hosp:.2f}%\n")
                 handle.write(f"- Mean community serious-R: {s_mean_comm:.2f}%\n")
-                if np.isfinite(s_weighted_log):
-                    handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {s_weighted_log:.2f}\n")
+            handle.write(
+                "- Note: serious-R is descriptive; no compatible marker-drug H:C target "
+                "is currently assigned. The expert-informed any-R H:C anchors are not reused here.\n"
+            )
             handle.write(
                 "- Note: MDR-TB is excluded from serious-R summaries because rifampicin "
                 "resistance is definitional/guaranteed in the MDR-TB model; additional "

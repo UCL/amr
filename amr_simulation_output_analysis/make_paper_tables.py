@@ -914,27 +914,38 @@ def make_t5(agg: dict, out_dir: Path) -> None:
     if srl is None or srl.empty:
         return
 
-    # Filter on the H:C target BEFORE _clean_df, because _clean_df renames every
+    # Filter on the any-R H:C anchor BEFORE _clean_df, because _clean_df renames every
     # column containing "target" → "observed estimate", which would break the lookup.
+    # Select on the any-R structural anchor; it is not a serious-R target.
     target_col = "Target H:C ratio"
-    hc_col_present = target_col in srl.columns
-    if hc_col_present:
-        # Drop summary-stat rows (non-bacteria text in first column)
-        first_col = srl.columns[0]
-        summary_mask = srl[first_col].astype(str).str.match(
+    first_col = srl.columns[0]
+    summary_mask = srl[first_col].astype(str).str.match(
+        r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False
+    )
+    srl = srl[~summary_mask].copy()
+
+    ril_raw = ril.copy() if ril is not None and not ril.empty else pd.DataFrame()
+    if not ril_raw.empty:
+        ril_first_col = ril_raw.columns[0]
+        ril_summary_mask = ril_raw[ril_first_col].astype(str).str.match(
             r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False
         )
-        srl = srl[~summary_mask].copy()
+        ril_raw = ril_raw[~ril_summary_mask].copy()
 
-        srl[target_col] = pd.to_numeric(srl[target_col], errors="coerce")
-        included_raw = srl[srl[target_col] > 1.0].copy()
-        excluded_raw = srl[srl[target_col].notna() & (srl[target_col] <= 1.0)].copy()
+    hc_col_present = target_col in ril_raw.columns and "Bacteria" in ril_raw.columns
+    if hc_col_present:
+        ril_raw[target_col] = pd.to_numeric(ril_raw[target_col], errors="coerce")
+        included_names = set(ril_raw.loc[ril_raw[target_col] > 1.0, "Bacteria"].astype(str))
+        included_raw = srl[srl["Bacteria"].astype(str).isin(included_names)].copy()
+        excluded_raw = ril_raw[
+            ril_raw[target_col].notna() & (ril_raw[target_col] <= 1.0)
+        ].copy()
     else:
         included_raw = srl.copy()
         excluded_raw = pd.DataFrame()
 
     srl = _clean_df(included_raw)
-    ril = _clean_df(ril.copy()) if ril is not None and not ril.empty else pd.DataFrame()
+    ril = _clean_df(ril_raw) if not ril_raw.empty else pd.DataFrame()
     bi  = _clean_df(bi.copy())  if bi  is not None and not bi.empty  else pd.DataFrame()
 
     # `excluded` only needed for the footnote — keep the Bacteria column from the raw slice.
@@ -981,7 +992,7 @@ def make_t5(agg: dict, out_dir: Path) -> None:
     summary_row = pd.DataFrame([summary], columns=out.columns)
     out = pd.concat([out, summary_row], ignore_index=True)
 
-    # Footnote: list the excluded organisms (target H:C = 1.0)
+    # Footnote: list organisms whose structural any-R anchor is 1.0.
     if not excluded.empty and "Bacteria" in excluded.columns:
         excl_names = sorted(str(v) for v in excluded["Bacteria"].dropna().unique())
         excl_list = "; ".join(excl_names)
@@ -990,11 +1001,12 @@ def make_t5(agg: dict, out_dir: Path) -> None:
 
     footnotes = [
         _window_note(n),
-        "This table includes only organisms for which there is at least some empirical suggestion "
-        "that hospital-acquired cases carry higher resistance levels than community-acquired cases. "
-        "Operationally, inclusion requires a literature-based target hospital:community (H:C) "
-        "resistance ratio greater than 1.0 for the organism's marker drug. "
-        f"Organisms with target H:C&nbsp;=&nbsp;1.0 are excluded ({excl_list}).",
+        "This table includes organisms whose expert-informed structural any-R anchor indicates "
+        "higher resistance among hospital-acquired than community-acquired cases. These anchors "
+        "encode a qualitative expected setting gradient and are not direct harmonised empirical "
+        "estimates or marker-drug serious-R targets. Operationally, inclusion requires an any-R "
+        "hospital:community (H:C) anchor greater than 1.0. "
+        f"Organisms with an any-R H:C anchor of 1.0 are excluded ({excl_list}).",
         "Hospital-acquired (%) is the simulated proportion of new infections acquired during "
         "hospitalisation.",
         "Hospital any-R (%) and Community any-R (%) are the percentages of new hospital- and "
@@ -3876,24 +3888,28 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
     if srl is None or srl.empty:
         print("  F7: no serious_resistance_locus data — skipping.")
         return
-    # Filter H:C > 1 (same as T5)
+    # Filter on the any-R structural anchor (same as T5).
     first_col = srl.columns[0]
     summary_mask = srl[first_col].astype(str).str.match(
         r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False)
     srl = srl[~summary_mask].copy()
+    ril_c = pd.DataFrame()
+    if ril is not None and not ril.empty:
+        ril_mask = ril[ril.columns[0]].astype(str).str.match(
+            r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False
+        )
+        ril_c = ril[~ril_mask].copy()
     target_col = "Target H:C ratio"
-    if target_col in srl.columns:
-        srl = _add_interval_columns(srl, target_col, "_target_hc")
-        srl[target_col] = srl["_target_hc_med"]
-        srl = srl[srl[target_col] > 1.0].copy()
+    if target_col in ril_c.columns and "Bacteria" in ril_c.columns:
+        ril_c = _add_interval_columns(ril_c, target_col, "_target_hc")
+        ril_c[target_col] = ril_c["_target_hc_med"]
+        included_names = set(ril_c.loc[ril_c[target_col] > 1.0, "Bacteria"].astype(str))
+        srl = srl[srl["Bacteria"].astype(str).isin(included_names)].copy()
     # Build merged matrix
     keep_srl = ["Bacteria"] + [c for c in ["Hospital Serious-R (%)", "Community Serious-R (%)"]
                                 if c in srl.columns]
     out = srl[keep_srl].copy()
-    if ril is not None and not ril.empty:
-        ril_mask = ril[ril.columns[0]].astype(str).str.match(
-            r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False)
-        ril_c = ril[~ril_mask].copy()
+    if not ril_c.empty:
         any_cols = ["Bacteria"] + [c for c in [
             "Hospital Infections with Any Resistance (%)",
             "Community Infections with Any Resistance (%)"] if c in ril_c.columns]
@@ -3940,7 +3956,8 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
         fig, out_dir, "F7_hc_resistance_heatmap",
         "Figure F7 \u2014 Hospital vs. Community Resistance and Acquisition Rates",
         "Figure version of Table T5. Colour scale: 0\u2013100%. "
-        "Only organisms with a literature-based target H:C resistance ratio > 1.0 are shown.",
+        "Only organisms with an expert-informed any-R structural H:C anchor > 1.0 are shown; "
+        "the anchor is not a marker-drug serious-R target.",
         ["Hosp/Comm any-R: percentage of new hospital/community-acquired infections "
          "carrying any resistance mechanism.",
          "Hosp/Comm serious-R: percentage with resistance to the marker drug for that organism "
@@ -10722,7 +10739,6 @@ _F20_VALUE_COLUMNS = [
     "Hospital Serious-R (%)",
     "Community Serious-R (%)",
     "Sim H:C ratio",
-    "Target H:C ratio",
     "Total New Infections",
 ]
 
@@ -10776,10 +10792,6 @@ def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.Dat
             ("mean_overall_serious_r", r"Mean overall serious-R:\s*([0-9.+\-eE]+)%"),
             ("mean_hospital_serious_r", r"Mean hospital serious-R:\s*([0-9.+\-eE]+)%"),
             ("mean_community_serious_r", r"Mean community serious-R:\s*([0-9.+\-eE]+)%"),
-            (
-                "hc_fit_weighted",
-                r"H:C fit \|ln\(sim/target\)\|, infection-weighted:\s*([0-9.+\-eE]+)",
-            ),
         ]
         for key, pattern in patterns:
             match = re.search(pattern, stripped)
@@ -10822,7 +10834,6 @@ def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.Dat
         "Hospital Serious-R (%)",
         "Community Serious-R (%)",
         "Sim H:C ratio",
-        "Target H:C ratio",
     }
     if not required_columns.issubset(df.columns):
         return pd.DataFrame(), summary
@@ -10858,20 +10869,11 @@ def _figure_20_summarise_rows(rows: pd.DataFrame) -> tuple[pd.DataFrame, list[st
             for value in group["Marker drug(s)"].dropna().tolist()
             if str(value).strip()
         ]
-        target_values = group["Target H:C ratio"].dropna().astype(float).tolist()
-        target_first = target_values[0] if target_values else np.nan
-        if len({round(v, 8) for v in target_values if np.isfinite(v)}) > 1:
-            notes.append(
-                f"Target H:C ratio varied across runs for {group['Bacterium display'].iloc[0]}; "
-                "the first non-missing target value is shown."
-            )
-
         row: dict[str, object] = {
             "bacterium_key": key,
             "bacterium": group["Bacterium display"].iloc[0],
             "marker_drugs": marker_values[0] if marker_values else "\u2014",
             "n_runs": int(group["source_file"].nunique()),
-            "target_hc_ratio": target_first,
             "missing_hospital_any_run": bool(group["Hospital Serious-R (%)"].isna().any()),
             "missing_community_any_run": bool(group["Community Serious-R (%)"].isna().any()),
         }
@@ -10932,7 +10934,6 @@ def _figure_20_summary_box(summary_values: list[dict[str, float]], n_runs: int) 
         ("mean_overall_serious_r", "overall", ".1f", "%"),
         ("mean_hospital_serious_r", "hospital", ".1f", "%"),
         ("mean_community_serious_r", "community", ".1f", "%"),
-        ("hc_fit_weighted", "H:C fit |ln(sim/target)|", ".2f", ""),
     ]
     for key, label, fmt, suffix in labels:
         values = [
@@ -11015,7 +11016,7 @@ def make_figure_20_serious_r_by_hospital_community(
         }
 
     all_rows = pd.concat(parsed_frames, ignore_index=True)
-    summary, target_notes = _figure_20_summarise_rows(all_rows)
+    summary, _notes = _figure_20_summarise_rows(all_rows)
     if summary.empty:
         _figure_20_placeholder(out_dir, agg, _F20_REQUIRED_MESSAGE)
         return {
@@ -11103,7 +11104,6 @@ def make_figure_20_serious_r_by_hospital_community(
         "Hospital serious-R (%)": summary["hospital_median"].map(_figure_20_format_percent),
         "Community serious-R (%)": summary["community_median"].map(_figure_20_format_percent),
         "Sim H:C ratio": summary["sim_hc_ratio_median"].map(_figure_20_format_ratio),
-        "Target H:C ratio": summary["target_hc_ratio"].map(_figure_20_format_ratio),
     })
 
     summary_box = _figure_20_summary_box(parsed_summaries, n_runs)
@@ -11131,9 +11131,6 @@ def make_figure_20_serious_r_by_hospital_community(
         "resistance to all drugs.",
         run_note,
     ]
-    if target_notes:
-        footnotes.extend(target_notes)
-
     _save_figure(
         fig,
         out_dir,
@@ -11547,7 +11544,7 @@ def make_legacy_index(agg: dict, out_dir: Path) -> None:
          "42 organisms: infection%, carriage%"),
         ("main/T5_resistance_fit.html",
          "Table 5 — Hospital vs. community resistance by organism",
-         "Organisms with H:C target &gt; 1: hospital-acquired%, any-R%, serious-R% by locus"),
+         "Organisms with any-R structural H:C anchor &gt; 1: hospital-acquired%, any-R%, serious-R% by locus"),
         ("main/T6_amr_attributable_deaths_PLACEHOLDER.html",
          "Table 6 — AMR-attributable deaths",
          "Placeholder — requires completed counterfactual runs"),

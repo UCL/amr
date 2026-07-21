@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import pandas as pd
@@ -6,8 +8,13 @@ import pandas as pd
 from amr_simulation_output_analysis.calibration_summary import (
     RESISTANCE_SIM_COL,
     RESISTANCE_TARGET_COL,
+    _HOSP_COMM_ANY_R_RATIO_TARGETS,
     _build_headline_table,
     _calculate_resistance_fit_metrics,
+    _calculate_serious_resistance_locus_table,
+)
+from amr_simulation_output_analysis.make_paper_tables import (
+    _figure_20_parse_calibration_summary,
 )
 
 
@@ -145,6 +152,42 @@ class HeadlineNumeratorTests(unittest.TestCase):
         )
 
         self.assertEqual(result.loc[0, "Simulation"], 4.0)
+
+
+class HospitalCommunityTargetDefinitionTests(unittest.TestCase):
+    def test_any_r_structural_targets_remain_available_to_scored_locus(self) -> None:
+        self.assertEqual(
+            _HOSP_COMM_ANY_R_RATIO_TARGETS["staphylococcus aureus"],
+            1.5,
+        )
+
+    def test_serious_r_table_does_not_reuse_any_r_target(self) -> None:
+        result = _calculate_serious_resistance_locus_table(pd.DataFrame())
+
+        self.assertNotIn("Target H:C ratio", result.columns)
+
+    def test_figure_parser_accepts_serious_r_table_without_target(self) -> None:
+        content = """Serious Resistance Locus Summary (hospital vs community)
+- Mean overall serious-R: 20.00%
+- Mean hospital serious-R: 30.00%
+- Mean community serious-R: 10.00%
+- Note: serious-R is descriptive; no compatible marker-drug H:C target is assigned.
+
+Serious Resistance Locus (marker-drug hospital vs community resistance gap)
+             Bacteria  Marker drug(s)  Total New Infections  Overall Serious-R (%)  Hospital Serious-R (%)  Community Serious-R (%)  Sim H:C ratio
+staphylococcus aureus  flucloxacillin                100.00                   20.00                    30.00                     10.00           3.00
+
+"""
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "calibration_summary_test.txt"
+            path.write_text(content, encoding="utf-8")
+
+            result, summary = _figure_20_parse_calibration_summary(path)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.loc[0, "Hospital Serious-R (%)"], 30.0)
+        self.assertNotIn("Target H:C ratio", result.columns)
+        self.assertNotIn("hc_fit_weighted", summary)
 
 
 if __name__ == "__main__":
