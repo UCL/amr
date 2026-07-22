@@ -27,7 +27,8 @@
       "resistance_weighted_abs_delta_pp": {
         "max": 15.0
       },
-      "worst_infection_resistance_distance": {
+      "infection_resistance_distance_percentile": {
+        "percentile": 99.0,
         "max": 4.0
       }
     },

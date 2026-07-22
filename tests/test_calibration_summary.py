@@ -99,22 +99,27 @@ class ResistanceEligibilityTests(unittest.TestCase):
 
 
 class CalibrationGateTests(unittest.TestCase):
-    def test_worst_resistance_gate_uses_uncapped_distance(self) -> None:
-        resistance_df = pd.DataFrame(
+    @staticmethod
+    def _resistance_rows(extreme_rows: int) -> pd.DataFrame:
+        return pd.DataFrame(
             [
                 {
-                    "Bacteria": "Escherichia coli",
+                    "Bacteria": f"Bacterium {row_index}",
                     "Drug": "ampicillin",
                     "Note": "",
-                    RESISTANCE_SIM_COL: 60.0,
+                    RESISTANCE_SIM_COL: 60.0 if row_index < extreme_rows else 0.0,
                     RESISTANCE_TARGET_COL: 0.0,
                     "Average resistant simulation": 0.0,
                     "Average resistant target": 0.0,
                     RESISTANCE_TARGET_INCLUDED_COL: True,
                     RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: False,
                 }
+                for row_index in range(100)
             ]
         )
+
+    @staticmethod
+    def _targets() -> SimpleNamespace:
         targets = SimpleNamespace(
             target_year=2025,
             headline_metrics=[],
@@ -123,7 +128,10 @@ class CalibrationGateTests(unittest.TestCase):
                 "weights": {"resistance": 1.0},
                 "thresholds": {},
                 "gates": {
-                    "worst_infection_resistance_distance": {"max": 4.0}
+                    "infection_resistance_distance_percentile": {
+                        "percentile": 99.0,
+                        "max": 4.0,
+                    }
                 },
                 "resistance": {
                     "component_weights": {"infection": 4.0, "average": 1.0},
@@ -131,9 +139,13 @@ class CalibrationGateTests(unittest.TestCase):
                 },
             },
         )
+        return targets
 
-        result = _calculate_calibration_score(
-            targets,
+    def _score(self, extreme_rows: int) -> dict:
+        resistance_df = self._resistance_rows(extreme_rows)
+
+        return _calculate_calibration_score(
+            self._targets(),
             pd.DataFrame(),
             pd.DataFrame(),
             resistance_df,
@@ -142,17 +154,35 @@ class CalibrationGateTests(unittest.TestCase):
             {"weighted_overall_abs_delta": 60.0},
         )
 
+    def test_resistance_tail_gate_is_not_vetoed_by_one_extreme_cell(self) -> None:
+        result = self._score(extreme_rows=1)
+
         resistance_block = result["block_rows"].loc[
             lambda frame: frame["Block"] == "Infection resistance"
         ].iloc[0]
-        worst_gate = result["gate_rows"].loc[
+        tail_gate = result["gate_rows"].loc[
             lambda frame: frame["Gate"]
-            == "Worst infection-resistance normalized distance"
+            == "Infection-resistance normalized distance p99"
         ].iloc[0]
 
-        self.assertEqual(resistance_block["Score"], 4.0)
-        self.assertEqual(worst_gate["Passed"], "no")
-        self.assertIn("6.00", worst_gate["Detail"])
+        self.assertAlmostEqual(resistance_block["Score"], 0.04)
+        self.assertEqual(tail_gate["Passed"], "yes")
+        self.assertIn("worst=6.00", tail_gate["Detail"])
+
+    def test_resistance_tail_gate_uses_uncapped_distance(self) -> None:
+        result = self._score(extreme_rows=2)
+
+        resistance_block = result["block_rows"].loc[
+            lambda frame: frame["Block"] == "Infection resistance"
+        ].iloc[0]
+        tail_gate = result["gate_rows"].loc[
+            lambda frame: frame["Gate"]
+            == "Infection-resistance normalized distance p99"
+        ].iloc[0]
+
+        self.assertAlmostEqual(resistance_block["Score"], 0.08)
+        self.assertEqual(tail_gate["Passed"], "no")
+        self.assertIn("p99=6.00", tail_gate["Detail"])
 
     def test_burden_score_excludes_out_of_scope_death_targets(self) -> None:
         targets = SimpleNamespace(

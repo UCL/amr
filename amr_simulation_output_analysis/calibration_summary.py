@@ -42,7 +42,10 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
         "people_on_antibiotics_millions": {"relative_tolerance": 0.25},
         "infection_deaths_millions": {"relative_tolerance": 0.25},
         "resistance_weighted_abs_delta_pp": {"max": 15.0},
-        "worst_infection_resistance_distance": {"max": 4.0},
+        "infection_resistance_distance_percentile": {
+            "percentile": 99.0,
+            "max": 4.0,
+        },
     },
     "headline": {
         "relative_tolerance": 0.15,
@@ -3550,7 +3553,7 @@ def _calculate_calibration_score(
     )
     resistance_values: List[Tuple[Optional[float], float]] = []
     resistance_target_count = 0
-    worst_infection_distance: Optional[float] = None
+    infection_normalized_distances: List[float] = []
     component_columns = [
         ("infection", "Infection resistance", RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL),
         ("average", "Average resistant", "Average resistant simulation", "Average resistant target"),
@@ -3583,11 +3586,7 @@ def _calculate_calibration_score(
             resistance_values.append((distance, component_weight))
             resistance_target_count += 1
             if component_key == "infection":
-                if (
-                    worst_infection_distance is None
-                    or normalized_distance > worst_infection_distance
-                ):
-                    worst_infection_distance = normalized_distance
+                infection_normalized_distances.append(normalized_distance)
             contributors.append({
                 "Block": CALIBRATION_SCORE_BLOCK_LABELS["resistance"],
                 "Target": f"{row.get('Bacteria')} / {row.get('Drug')} ({component_label})",
@@ -3606,14 +3605,26 @@ def _calculate_calibration_score(
                 "Detail": f"{weighted_resistance_abs_delta:.2f} pp (limit {maximum:.2f} pp)",
             })
 
-    worst_pair_gate = gate_cfg.get("worst_infection_resistance_distance") if isinstance(gate_cfg.get("worst_infection_resistance_distance"), dict) else None
-    if worst_pair_gate is not None:
-        maximum = _coerce_float(worst_pair_gate.get("max"))
-        if worst_infection_distance is not None and maximum is not None:
+    tail_gate = gate_cfg.get("infection_resistance_distance_percentile") if isinstance(gate_cfg.get("infection_resistance_distance_percentile"), dict) else None
+    if tail_gate is not None:
+        maximum = _coerce_float(tail_gate.get("max"))
+        percentile = _coerce_float(tail_gate.get("percentile"))
+        if percentile is not None and not 0.0 <= percentile <= 100.0:
+            raise ValueError(
+                "infection_resistance_distance_percentile.percentile must be between 0 and 100"
+            )
+        if infection_normalized_distances and maximum is not None and percentile is not None:
+            tail_distance = float(
+                np.percentile(infection_normalized_distances, percentile)
+            )
+            worst_distance = max(infection_normalized_distances)
             gate_rows.append({
-                "Gate": "Worst infection-resistance normalized distance",
-                "Passed": "yes" if worst_infection_distance <= maximum else "no",
-                "Detail": f"{worst_infection_distance:.2f} (limit {maximum:.2f})",
+                "Gate": f"Infection-resistance normalized distance p{percentile:g}",
+                "Passed": "yes" if tail_distance <= maximum else "no",
+                "Detail": (
+                    f"p{percentile:g}={tail_distance:.2f} "
+                    f"(limit {maximum:.2f}); worst={worst_distance:.2f}"
+                ),
             })
 
     add_block("resistance", _weighted_mean(resistance_values), resistance_target_count)
