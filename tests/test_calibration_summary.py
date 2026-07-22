@@ -254,10 +254,17 @@ class CalibrationGateTests(unittest.TestCase):
 
 
 class CalibrationTargetDataTests(unittest.TestCase):
-    def test_typhoid_targets_use_current_who_central_estimates(self) -> None:
+    @staticmethod
+    def _burden_tables() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         data_root = Path(__file__).resolve().parents[1] / "data"
-        incidence = pd.read_csv(data_root / "infection_incidence_by_bacteria.csv")
-        deaths = pd.read_csv(data_root / "deaths_by_bacteria.csv")
+        return (
+            pd.read_csv(data_root / "infection_incidence_by_bacteria.csv"),
+            pd.read_csv(data_root / "microbiome_carriage_by_bacteria.csv"),
+            pd.read_csv(data_root / "deaths_by_bacteria.csv"),
+        )
+
+    def test_typhoid_targets_use_current_who_central_estimates(self) -> None:
+        incidence, _, deaths = self._burden_tables()
         bacterium = "salmonella enterica serovar typhi"
 
         incidence_row = incidence.loc[incidence["Bacteria"] == bacterium].iloc[0]
@@ -267,6 +274,18 @@ class CalibrationTargetDataTests(unittest.TestCase):
         self.assertAlmostEqual(death_row["annual_deaths_millions"], 0.11)
         self.assertIn("2019", incidence_row["notes"])
         self.assertIn("2019", death_row["notes"])
+
+    def test_enterobacter_target_categories_are_mutually_exclusive(self) -> None:
+        for table in self._burden_tables():
+            generic_note = table.loc[
+                table["Bacteria"] == "enterobacter spp.", "notes"
+            ].iloc[0]
+            cloacae_note = table.loc[
+                table["Bacteria"] == "enterobacter cloacae", "notes"
+            ].iloc[0]
+
+            self.assertIn("Non-cloacae", generic_note)
+            self.assertIn("separately modelled", cloacae_note)
 
 
 class ResistancePublicationTerminologyTests(unittest.TestCase):

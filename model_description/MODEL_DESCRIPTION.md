@@ -1991,7 +1991,7 @@ The appendix is implementation-facing. Names, groupings, and enum labels are the
 |-------|---------|-------|---------------------|
 | 0 | Acinetobacter baumannii | NonFermenter | Respiratory |
 | 1 | Citrobacter spp. | Enterobacterales | Gut |
-| 2 | Enterobacter spp. | Enterobacterales | Gut |
+| 2 | Enterobacter spp. (excluding *E. cloacae* complex) | Enterobacterales | Gut |
 | 3 | Enterococcus faecalis | Streptococci | Gut |
 | 4 | Enterococcus faecium | Streptococci | Gut |
 | 5 | Escherichia coli | Enterobacterales | Gut |
@@ -2021,7 +2021,7 @@ The appendix is implementation-facing. Names, groupings, and enum labels are the
 | 29 | Clostridioides difficile | Anaerobe | Gut |
 | 30 | Bacteroides fragilis | Anaerobe | Gut |
 | 31 | Campylobacter jejuni | Helicobacter | Gut |
-| 32 | Enterobacter cloacae | Enterobacterales | Gut |
+| 32 | *Enterobacter cloacae* complex | Enterobacterales | Gut |
 | 33 | Yersinia enterocolitica | Enterobacterales | Gut |
 | 34 | Moraxella catarrhalis | Fastidious | Respiratory |
 | 35 | Treponema pallidum | Spirochete | Genitourinary |

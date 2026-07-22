@@ -1,7 +1,7 @@
 Bacteria,carriage_proportion,notes
 acinetobacter baumannii,0.01,"Skin/respiratory colonization; 1-3% in healthy, significantly higher in ICUs (Microbiology Society)"
 citrobacter spp.,0.05,"Normal gut flora in ~5% of population (Journal of Clinical Microbiology)"
-enterobacter spp.,0.08,"Common gut commensal; prevalence increases with antibiotic exposure"
+enterobacter spp.,0.08,"Non-cloacae Enterobacter species; gut-carriage best-guess placeholder"
 enterococcus faecalis,0.8,"Universal gut commensal; found in almost all healthy adults (Human Microbiome Project)"
 enterococcus faecium,0.25,"Standard gut commensal; lower abundance than E. faecalis"
 escherichia coli,0.95,"Primary aerobic commensal of the human gut; near-universal carriage"
@@ -28,7 +28,7 @@ neisseria meningitidis,0.1,"Nasopharyngeal carriage ~10%; increases in crowded s
 listeria monocytogenes,0.05,"Transient gut carriage in 1-10% of healthy adults (EFSA/WHO)"
 clostridioides difficile,0.05,"Colonization in ~5% of healthy adults; up to 20% in hospitalized patients"
 campylobacter jejuni,0.005,"Typically transient post-infection carriage; rare long-term human reservoir"
-enterobacter cloacae,0.06,"Substantial gut commensal population; common in healthy microbiota"
+enterobacter cloacae,0.06,"Enterobacter cloacae complex; separately modelled gut-carriage placeholder"
 yersinia enterocolitica,0.0005,"Rare human carriage; primarily zoonotic transmission"
 moraxella catarrhalis,0.4,"Commensal of respiratory tract; nearly universal in early childhood"
 treponema pallidum,0.001,"Infection prevalence (~8M cases); no known asymptomatic commensal state"
