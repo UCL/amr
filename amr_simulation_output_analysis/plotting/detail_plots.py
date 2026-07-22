@@ -515,7 +515,7 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     
     if config.proportion_of_people_taking_each_drug:
         # Only create regional proportion plots (DDD plots archived - redundant and misleading)
-        create_regional_drug_usage_proportion_plots(data, config)  # Regional plots with empirical overlays
+        create_regional_drug_usage_proportion_plots(data, config)  # Optional comparison overlays
     
     if config.proportion_of_people_infected_with_each_bacteria:
         create_bacteria_infection_proportion_plots(data, config)
@@ -532,7 +532,7 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
         create_mic_lt2_by_drug_plots(data, config)
     
-    # Population mortality plots with empirical overlays
+    # Population mortality plots with optional comparison overlays
     if config.population_mortality_by_bacteria_region:
         create_population_mortality_by_bacteria_region_plots(data, config)
     
@@ -829,7 +829,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
     """
     DEPRECATED: This function is no longer used as of 2025-09-26.
     
-    Plot drug usage in DDD per 1000 inhabitants per day with empirical overlays.
+    Plot drug usage in DDD per 1000 inhabitants per day with optional comparison overlays.
     
     REASON FOR DEPRECATION:
     - Misleading labeling: Claims "DDD/1000/day" but actually calculates percentage
@@ -841,14 +841,21 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
     Original description:
     Both simulation and empirical data are converted to DDD/1000/day for direct comparison:
     - Simulation data: Has 10-fold scaling, so divide percentage by 10 to get DDD/1000/day
-    - Empirical data: Convert from courses_per_100k_per_year back to DDD/1000/day by dividing by 36.5
+    - Comparison overlay: convert from courses_per_100k_per_year back to DDD/1000/day by dividing by 36.5
     """
     print("\n=== CREATING DRUG USAGE DDD PLOTS ===")
     
     # Load empirical calibration data
     from ..empirical.data_loader import load_empirical_calibration_data
     from ..empirical.normalizers import normalize_name_for_empirical_matching
-    empirical_data = load_empirical_calibration_data()
+    empirical_data = load_empirical_calibration_data(
+        include_best_guess_placeholders=config.show_best_guess_placeholder_overlays
+    )
+    overlay_kind = (
+        "Best-guess placeholder"
+        if config.show_best_guess_placeholder_overlays
+        else "Observed comparison"
+    )
     
     out_dir = config.output_dir / "drug_usage_ddd_per_1000_per_day" / "overall_global"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -869,22 +876,12 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
     
     # Helper function to create source attribution text
     def create_empirical_source_text(sources):
-        """Create source attribution text for empirical data"""
+        """Create source attribution text without overstating provenance."""
         if not sources:
-            return "Empirical Data:\nSource: Synthetic"
-        
-        source_mapping = {
-            'who_glass_empirical': 'WHO GLASS',
-            'ecdc_empirical': 'ECDC ESAC-Net', 
-            'iqvia_empirical': 'IQVIA',
-            'iqvia_midas_empirical': 'IQVIA MIDAS',
-            'aura_empirical': 'AURA'
-        }
-        
-        mapped_sources = [source_mapping.get(s, s) for s in sources]
-        source_text = "Empirical Data:\n" + ", ".join(mapped_sources)
+            return f"{overlay_kind}\nSource label unavailable"
+
+        source_text = f"{overlay_kind}:\n" + ", ".join(sources)
         source_text += "\n(Original: DDD/1000/day)"
-        
         return source_text
     
     # Helper function to get empirical data for a drug
@@ -905,15 +902,6 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
         if drug_match.empty:
             return None, None, None, None, None
         
-        # Check if we should filter out synthetic fallback data
-        if not config.show_synthetic_fallback_data:
-            # Only keep rows with real empirical sources
-            real_data_mask = ~drug_match['source_quality'].isin(['na', 'synthetic_fallback', 'empirical_pattern_extrapolated'])
-            drug_match = drug_match[real_data_mask]
-            
-            if drug_match.empty:
-                return None, None, None, None, None
-        
         # Map empirical years to simulation years (1930-2020 → years 14-104) 
         simulation_years = drug_match['year'] - 1916  # 1930 → 14
         
@@ -928,7 +916,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
         
         # Get source information for attribution
         sources = drug_match['source_quality'].unique()
-        empirical_sources = [s for s in sources if s not in ['na', 'synthetic_fallback', 'empirical_pattern_extrapolated']]
+        empirical_sources = [str(source) for source in sources]
         
         return simulation_years.values, empirical_ddd_per_1000_per_day.values, p5_ddd, p95_ddd, empirical_sources
     
@@ -970,7 +958,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
                 plt.plot(emp_years, emp_ddd_per_1000_per_day, 
                         color=drug_color, linewidth=6, linestyle='--', 
                         marker='s', markersize=8, markerfacecolor=drug_color, markeredgecolor='white', markeredgewidth=2,
-                        label=f"Empirical: {drug_name.replace('_', ' ').title()}", 
+                        label=f"{overlay_kind}: {drug_name.replace('_', ' ').title()}",
                         alpha=0.9)
                 
                 # Add confidence intervals if available
@@ -986,16 +974,16 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
                                        p5_values[valid_mask], 
                                        p95_values[valid_mask],
                                        color=drug_color, alpha=0.2, 
-                                       label=f"Empirical 90% CI")
+                                       label=f"{overlay_kind} interval")
                 
                 # Add source attribution text box (if enabled)
-                if config.show_empirical_source_attribution:
+                if config.show_comparison_overlay_source_attribution:
                     source_text = create_empirical_source_text(emp_sources)
                     plt.text(0.02, 0.98, source_text, transform=plt.gca().transAxes, 
                             fontsize=8, verticalalignment='top', 
                             bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.7))
                 
-                print(f"    ✓ Added empirical overlay for {drug_name} ({len(emp_years)} data points, sources: {emp_sources})")
+                print(f"    ✓ Added comparison overlay for {drug_name} ({len(emp_years)} data points, sources: {emp_sources})")
             else:
                 print(f"    ⚠ No empirical drug usage data found for {drug_name}")
         else:
@@ -1021,7 +1009,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
 @safe_plot_creation  
 def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    Create regional drug usage proportion plots with empirical overlays.
+    Create regional drug usage proportion plots with optional comparison overlays.
     
     Creates individual plots for each drug-region combination showing percentage of population 
     taking each drug, with empirical validation data overlays where available.
@@ -1034,7 +1022,14 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
     # Load empirical calibration data
     from ..empirical.data_loader import load_empirical_calibration_data
     from ..empirical.normalizers import normalize_name_for_empirical_matching
-    empirical_data = load_empirical_calibration_data()
+    empirical_data = load_empirical_calibration_data(
+        include_best_guess_placeholders=config.show_best_guess_placeholder_overlays
+    )
+    overlay_kind = (
+        "Best-guess placeholder"
+        if config.show_best_guess_placeholder_overlays
+        else "Observed comparison"
+    )
     
     # Base output directory
     base_out_dir = config.output_dir / "proportion_of_people_taking_each_drug"
@@ -1097,19 +1092,11 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
         if drug_match.empty:
             return None, None, None, None, None
         
-        # Check if we should filter out synthetic fallback data
-        if not config.show_synthetic_fallback_data:
-            real_data_mask = ~drug_match['source_quality'].isin(['na', 'synthetic_fallback', 'empirical_pattern_extrapolated'])
-            drug_match = drug_match[real_data_mask]
-            
-            if drug_match.empty:
-                return None, None, None, None, None
-        
         # Map empirical years to simulation years
         simulation_years = drug_match['year'] - 1930  # Convert to simulation time scale
         
         # Convert empirical data to percentage (proportion)
-        # Empirical data is in courses_per_100k_per_year, convert to percentage
+        # Overlay values are in courses_per_100k_per_year; convert to percentage.
         empirical_percentage = drug_match['mean'] / 1000  # Convert to percentage (rough approximation)
         
         # Handle confidence intervals
@@ -1118,7 +1105,7 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
         
         # Get source information
         sources = drug_match['source_quality'].unique()
-        empirical_sources = [s for s in sources if s not in ['na', 'synthetic_fallback']]
+        empirical_sources = [str(source) for source in sources]
         
         return simulation_years.values, empirical_percentage.values, p5_percentage, p95_percentage, empirical_sources
     
@@ -1176,7 +1163,7 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
                 # Plot empirical data with enhanced visibility (thick dashed line)
                 plt.plot(emp_years, emp_percentage, 
                         color=region_color, linewidth=3, linestyle='--', 
-                        label=f"Empirical: {region.replace('_', ' ').title()} {drug_name.replace('_', ' ').title()}", 
+                        label=f"{overlay_kind}: {region.replace('_', ' ').title()} {drug_name.replace('_', ' ').title()}",
                         alpha=0.9)
                 
                 # Add confidence intervals if available
@@ -1192,16 +1179,16 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
                                        p5_values[valid_mask], 
                                        p95_values[valid_mask],
                                        color=region_color, alpha=0.2, 
-                                       label="Empirical 90% CI")
+                                       label=f"{overlay_kind} interval")
                 
                 # Add source attribution if enabled
-                if config.show_empirical_source_attribution and emp_sources:
-                    source_text = f"Empirical sources: {', '.join(emp_sources[:2])}"  # Limit to 2 sources
+                if config.show_comparison_overlay_source_attribution and emp_sources:
+                    source_text = f"{overlay_kind} source labels: {', '.join(emp_sources[:2])}"
                     plt.text(0.02, 0.98, source_text, transform=plt.gca().transAxes, 
                             fontsize=8, verticalalignment='top', 
                             bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.7))
                 
-                print(f"    ✓ Added empirical overlay for {drug_name} in {region} ({len(emp_years)} data points)")
+                print(f"    ✓ Added comparison overlay for {drug_name} in {region} ({len(emp_years)} data points)")
             else:
                 print(f"    ⚠ No empirical drug usage data found for {drug_name} in {region}")
         
@@ -1285,9 +1272,9 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
                 # Create average empirical line
                 plt.scatter(emp_years_all, emp_percentage_all, 
                            color='gray', s=20, alpha=0.6,
-                           label=f"Empirical: Overall {drug_name.replace('_', ' ').title()}")
+                           label=f"{overlay_kind}: Overall {drug_name.replace('_', ' ').title()}")
                 
-                print(f"    ✓ Added empirical overlay for overall {drug_name} ({len(emp_years_all)} data points)")
+                print(f"    ✓ Added comparison overlay for overall {drug_name} ({len(emp_years_all)} data points)")
             else:
                 print(f"    ⚠ No empirical drug usage data found for overall {drug_name}")
         
@@ -1307,7 +1294,7 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
         
         plots_created += 1
     
-    print(f"[OK] Created {plots_created} drug usage proportion plots with empirical overlays")
+    print(f"[OK] Created {plots_created} drug usage proportion plots with comparison overlays")
     print(f"     - Regional plots organized in subfolders: {', '.join(regions)}")
     print(f"     - Overall plots in: overall/")
 
@@ -1342,14 +1329,16 @@ def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) ->
         'Oceania': '#8c564b'         # brown
     }
     
-    # Extract bacteria names from newly infected columns (using correct pattern)
-    newly_infected_cols = [col for col in df.columns if '_newly_infected_' in col and 
-                          any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    acquisition_cols = [
+        col
+        for col in df.columns
+        if '_infection_acquisition_events_home_region_' in col
+        and any(region.lower().replace(' ', '_') in col for region in regions.keys())
+    ]
     
     bacteria_set = set()
-    for col in newly_infected_cols:
-        # Extract bacteria name (everything before '_newly_infected_')
-        bacteria = col.split('_newly_infected_')[0]
+    for col in acquisition_cols:
+        bacteria = col.split('_infection_acquisition_events_home_region_')[0]
         bacteria_set.add(bacteria)
     
     bacteria_list = sorted(bacteria_set)
@@ -1370,22 +1359,18 @@ def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) ->
             if pop_col not in df.columns:
                 continue
                 
-            # Construct newly infected column names (community + hospital for completeness)
+            # Home-region acquisition events already include both care settings.
             region_suffix = region_name.lower().replace(' ', '_')
-            community_col = f"{bacteria_name}_newly_infected_{region_suffix}"
-            hospital_col = f"{bacteria_name}_newly_infected_hospital_{region_suffix}"
+            acquisition_col = (
+                f"{bacteria_name}_infection_acquisition_events_home_region_{region_suffix}"
+            )
 
-            if community_col not in df.columns and hospital_col not in df.columns:
+            if acquisition_col not in df.columns:
                 continue
 
             found_data = True
 
-            # Sum community and hospital infections to match calibration totals
-            combined_cases = pd.Series(0.0, index=df.index)
-            if community_col in df.columns:
-                combined_cases = combined_cases.add(df[community_col], fill_value=0)
-            if hospital_col in df.columns:
-                combined_cases = combined_cases.add(df[hospital_col], fill_value=0)
+            combined_cases = df[acquisition_col]
 
             # Get consistent color for this region
             region_color = region_colors.get(region_name, '#000000')
@@ -1427,13 +1412,20 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
     """
     Create plots showing mean resistance level for each drug amongst people infected with each bacteria.
     One plot per bacteria, with multiple drug lines on each plot.
-    Includes empirical resistance data overlays from surveillance systems.
+    Includes provenance-controlled comparison overlays when enabled.
     """
     print("\n=== CREATING MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS ===")
     
     # Load empirical calibration data
     from ..empirical.data_loader import load_empirical_calibration_data
-    empirical_data = load_empirical_calibration_data()
+    empirical_data = load_empirical_calibration_data(
+        include_best_guess_placeholders=config.show_best_guess_placeholder_overlays
+    )
+    overlay_kind = (
+        "Best-guess placeholder"
+        if config.show_best_guess_placeholder_overlays
+        else "Observed comparison"
+    )
 
     # Static prevalence estimates (2025) used for point overlays
     prevalence_lookup: Dict[tuple, float] = {}
@@ -1682,21 +1674,9 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                     print(f"      DEBUG: Found {len(empirical_filtered)} empirical records for {drug}")
                     
                     if len(empirical_filtered) > 0:
-                        if not config.show_synthetic_fallback_data and 'source_quality' in empirical_filtered.columns:
-                            real_mask = ~empirical_filtered['source_quality'].isin([
-                                'na',
-                                'synthetic_fallback',
-                                'empirical_pattern_extrapolated',
-                                'synthetic'
-                            ])
-                            empirical_filtered = empirical_filtered[real_mask]
-                            print(
-                                f"      DEBUG: Filtered empirical data by source quality; remaining rows: {len(empirical_filtered)}"
-                            )
-
                         if len(empirical_filtered) == 0:
                             print(
-                                "      DEBUG: No empirical rows remain after removing synthetic fallback data"
+                                "      DEBUG: No eligible comparison-overlay rows remain"
                             )
                             continue
 
@@ -1719,7 +1699,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                             print(f"      DEBUG: Plotting empirical line for {drug} with {len(yearly_data)} data points")
                             print(f"      DEBUG: Original years: {empirical_years.min()}-{empirical_years.max()}")
                             print(f"      DEBUG: Mapped to simulation years: {yearly_data['sim_year'].min()}-{yearly_data['sim_year'].max()}")
-                            print(f"      DEBUG: Empirical resistance range: {yearly_data['mean'].min():.3f}-{yearly_data['mean'].max():.3f}")
+                            print(f"      DEBUG: Comparison-overlay resistance range: {yearly_data['mean'].min():.3f}-{yearly_data['mean'].max():.3f}")
                             
                             # Plot empirical estimates using SAME COLOR but dashed line
                             emp_line = plt.plot(yearly_data['sim_year'], yearly_data['mean'], 
@@ -1732,15 +1712,15 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                                     markerfacecolor='white',  # White fill for contrast
                                     markeredgecolor=drug_color,  # Colored edge
                                     markeredgewidth=2,
-                                    label=f'{drug} (Empirical)')[0]  # Add explicit label
+                                    label=f'{drug} ({overlay_kind})')[0]
                             
-                            print(f"      DEBUG: Empirical line plotted successfully for {drug} with linestyle='--', linewidth=4")
+                            print(f"      DEBUG: Comparison-overlay line plotted successfully for {drug} with linestyle='--', linewidth=4")
                             print(f"      DEBUG: Line color: {drug_color}, alpha: 1.0")
                             
                             # Add to style legend (simulation vs empirical) - only add once
                             if len(style_handles) == 0:
                                 style_handles.extend([sim_line, emp_line])
-                                style_labels.extend(['Simulation', 'Empirical Data'])
+                                style_labels.extend(['Simulation', overlay_kind])
                                 print(f"      DEBUG: Added to style legend: {style_labels}")
                             
                             # Add confidence interval shadow (same color as line)
@@ -1750,7 +1730,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                                                alpha=0.2,         # Light transparency
                                                linestyle='--')    # Match dashed style
                             
-                            print(f"      [OK] Added empirical overlay for {drug}: {len(yearly_data)} years")
+                            print(f"      [OK] Added comparison overlay for {drug}: {len(yearly_data)} years")
                 else:
                     print(f"      DEBUG: empirical_data['resistance'] is None")
                 
@@ -1858,7 +1838,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
 def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
     Create plots showing mean MIC (Minimum Inhibitory Concentration) for each drug 
-    amongst people infected with each bacteria, with empirical overlays.
+    amongst people infected with each bacteria, with optional comparison overlays.
     One plot per bacteria, with multiple drug lines on each plot.
     
     MIC represents the drug concentration needed to inhibit bacterial growth.
@@ -1868,7 +1848,14 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     
     # Load empirical calibration data
     from ..empirical.data_loader import load_empirical_calibration_data
-    empirical_data = load_empirical_calibration_data()
+    empirical_data = load_empirical_calibration_data(
+        include_best_guess_placeholders=config.show_best_guess_placeholder_overlays
+    )
+    overlay_kind = (
+        "Best-guess placeholder"
+        if config.show_best_guess_placeholder_overlays
+        else "Observed comparison"
+    )
     
     # Create output directory
     output_dir = config.output_dir / "mean_mic_by_drug_per_bacteria"
@@ -1876,23 +1863,13 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     
     # Helper function to create source attribution text for MIC data
     def create_empirical_mic_source_text(sources):
-        """Create source attribution text for empirical MIC data"""
+        """Create MIC source attribution without overstating provenance."""
         if not sources:
-            return "Empirical MIC Data:\nSource: Synthetic"
-        
-        source_mapping = {
-            'who_glass_empirical': 'WHO GLASS',
-            'ecdc_empirical': 'ECDC EARS-Net', 
-            'iqvia_empirical': 'IQVIA',
-            'iqvia_midas_empirical': 'IQVIA MIDAS',
-            'aura_empirical': 'AURA'
-        }
-        
+            return f"{overlay_kind}\nSource label unavailable"
+
         unique_sources = list(set(sources))
-        mapped_sources = [source_mapping.get(s, s) for s in unique_sources]
-        source_text = "Empirical MIC Data:\n" + ", ".join(mapped_sources)
+        source_text = f"{overlay_kind}:\n" + ", ".join(unique_sources)
         source_text += "\n(Units: MIC50 mg/L)"
-        
         return source_text
     
     # Extract bacteria names from currently infected columns
@@ -2113,7 +2090,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                             print(f"      DEBUG: Plotting empirical MIC line for {drug} with {len(yearly_data)} data points")
                             print(f"      DEBUG: Original years: {empirical_years.min()}-{empirical_years.max()}")
                             print(f"      DEBUG: Mapped to simulation years: {simulation_years.min():.1f}-{simulation_years.max():.1f}")
-                            print(f"      DEBUG: Empirical MIC range: {yearly_data['mic50'].min():.3f}-{yearly_data['mic50'].max():.3f}")
+                            print(f"      DEBUG: Comparison-overlay MIC range: {yearly_data['mic50'].min():.3f}-{yearly_data['mic50'].max():.3f}")
                             
                             # Plot empirical estimates with enhanced visibility (thick dashed line)
                             emp_line = plt.plot(simulation_years, yearly_data['mic50'], 
@@ -2126,12 +2103,12 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                                     markerfacecolor='white',  # White fill for contrast
                                     markeredgecolor=drug_color,  # Colored edge
                                     markeredgewidth=2,
-                                    label=f'{drug} (Empirical MIC)')[0]  # Add explicit label
+                                    label=f'{drug} ({overlay_kind})')[0]
                             
                             # Add to style legend (only once)
                             if len(style_handles) == 0:  # First empirical line
                                 style_handles.extend([sim_line, emp_line])
-                                style_labels.extend(['Simulation', 'Empirical MIC Data'])
+                                style_labels.extend(['Simulation', overlay_kind])
                             
                             # Add confidence interval shadow (same color, transparent)
                             if not yearly_data['p5'].isna().all() and not yearly_data['p95'].isna().all():
@@ -2142,9 +2119,9 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                                                    yearly_data['p5'][valid_ci_mask], 
                                                    yearly_data['p95'][valid_ci_mask],
                                                    color=drug_color, alpha=0.2, 
-                                                   label=f"Empirical 90% CI")
+                                                   label=f"{overlay_kind} interval")
                             
-                            print(f"      [OK] Added empirical MIC overlay for {drug}: {len(yearly_data)} years")
+                            print(f"      [OK] Added MIC comparison overlay for {drug}: {len(yearly_data)} years")
                             
                             # Add source attribution text box
                             sources = yearly_data['source_quality'].tolist()
@@ -2277,7 +2254,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
 @safe_plot_creation
 def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    Create population mortality rate plots by bacteria and region with empirical overlays.
+    Create population mortality rate plots by bacteria and region with optional comparison overlays.
     
     Shows deaths per 100,000 population per year for each bacteria across regions.
     Includes empirical death data overlays when available with proper units matching.
@@ -2287,19 +2264,17 @@ def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, confi
     
     bacteria_list = extract_bacteria_list_from_csv(df)
     
-    # Load empirical death data if available
-    empirical_data = None
-    deaths_file = "calibration_deaths_empirical.csv"  # Default empirical deaths file name
-    deaths_file_path = Path(deaths_file)  # Assume it's in the current directory
-    if deaths_file_path.exists():
-        try:
-            empirical_data = pd.read_csv(deaths_file_path)
-            print(f"  [INFO] Loaded empirical death data: {len(empirical_data)} records")
-        except Exception as e:
-            logger.warning(f"Could not load empirical death data: {e}")
-            empirical_data = None
-    else:
-        logger.warning(f"Empirical death data file not found: {deaths_file_path}")
+    from ..empirical.data_loader import load_empirical_calibration_data
+
+    overlays = load_empirical_calibration_data(
+        include_best_guess_placeholders=config.show_best_guess_placeholder_overlays
+    )
+    empirical_data = overlays.get('deaths')
+    overlay_kind = (
+        "Best-guess placeholder"
+        if config.show_best_guess_placeholder_overlays
+        else "Observed comparison"
+    )
     
     plots_created = 0
     
@@ -2373,7 +2348,7 @@ def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, confi
                     # Plot empirical estimates (thicker dashed line for better visibility)
                     ax.plot(emp_years, emp_means, 
                            color=color,
-                           label=f"Empirical: {region_name}", 
+                           label=f"{overlay_kind}: {region_name}",
                            linewidth=3,  # Increased from 2 to 3 for better visibility
                            linestyle='--',
                            alpha=0.8)
@@ -2384,7 +2359,7 @@ def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, confi
                                        color=color,
                                        alpha=0.1)
                     
-                    print(f"    ✓ Added empirical population mortality overlay for {bacteria} in {region_name}")
+                    print(f"    ✓ Added population-mortality comparison overlay for {bacteria} in {region_name}")
             
             found_data = True
         
@@ -2415,10 +2390,10 @@ def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, confi
                 if empirical_data is not None:
                     style_handles = [
                         plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='-', label='Simulation'),
-                        plt.Line2D([0], [0], color='gray', linewidth=3, linestyle='--', label='Empirical Data (90% CI)')  # Thicker to match plots
+                        plt.Line2D([0], [0], color='gray', linewidth=3, linestyle='--', label=f'{overlay_kind} interval')
                     ]
                     # Create the style legend (this will be the default legend)
-                    style_legend = ax.legend(style_handles, ['Simulation', 'Empirical Data (90% CI)'],
+                    style_legend = ax.legend(style_handles, ['Simulation', f'{overlay_kind} interval'],
                                             title="Data Type",
                                             bbox_to_anchor=(1.02, 0.3),
                                             loc='upper left',
@@ -2683,14 +2658,16 @@ def create_incidence_of_infection_hospital_plots(df: pd.DataFrame, config: PlotC
         'Oceania': '#8c564b'         # brown
     }
     
-    # Extract bacteria names from hospital newly infected columns
-    hospital_newly_infected_cols = [col for col in df.columns if '_newly_infected_hospital_' in col and 
-                                   any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    hospital_newly_infected_cols = [
+        col
+        for col in df.columns
+        if '_infection_acquisition_events_hospital_' in col
+        and any(region.lower().replace(' ', '_') in col for region in regions.keys())
+    ]
     
     bacteria_set = set()
     for col in hospital_newly_infected_cols:
-        # Extract bacteria name (everything before '_newly_infected_hospital_')
-        bacteria = col.split('_newly_infected_hospital_')[0]
+        bacteria = col.split('_infection_acquisition_events_hospital_')[0]
         bacteria_set.add(bacteria)
     
     bacteria_list = sorted(bacteria_set)
@@ -2716,7 +2693,9 @@ def create_incidence_of_infection_hospital_plots(df: pd.DataFrame, config: PlotC
                 
             # Construct hospital newly infected column name
             region_suffix = region_name.lower().replace(' ', '_')
-            hospital_newly_infected_col = f"{bacteria}_newly_infected_hospital_{region_suffix}"
+            hospital_newly_infected_col = (
+                f"{bacteria}_infection_acquisition_events_hospital_{region_suffix}"
+            )
             
             if hospital_newly_infected_col not in df.columns:
                 continue
@@ -2774,7 +2753,10 @@ def create_incidence_of_infection_hospital_plots(df: pd.DataFrame, config: PlotC
     
     if plots_created == 0:
         logger.warning("No hospital incidence plots created - missing required data columns")
-        logger.warning("Expected columns like: bacteria_newly_infected_hospital_north_america and regional hospital population columns")
+        logger.warning(
+            "Expected columns like: bacteria_infection_acquisition_events_hospital_north_america "
+            "and regional hospital population columns"
+        )
     else:
         logger.info(f"✓ Created {plots_created} hospital incidence of infection plots")
 
@@ -4015,7 +3997,7 @@ def analyze_bacteria_drug_scores(recent_data: pd.DataFrame, bacteria_name: str) 
 @safe_plot_creation
 def create_mean_activity_r_by_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    For each bacteria, plot the mean activity_r (activity_r_sum / infected_and_on_any_drug).
+    For each bacterium, plot applied activity divided by maximum possible applied activity.
     Files: {bacteria}_mean_activity_r.png
     """
     output_dir = config.output_dir / 'mean_activity_r_by_bacteria'
@@ -4023,30 +4005,34 @@ def create_mean_activity_r_by_bacteria_plots(df: pd.DataFrame, config: PlotConfi
     
     logger.info("Creating mean activity_r by bacteria plots")
     
-    # Find all bacteria by looking for *_activity_r_sum columns
+    # Find all bacteria with coherent applied-stage activity observations.
     bacteria_names = []
     for col in df.columns:
-        if col.endswith("_activity_r_sum"):
-            bacteria_names.append(col.replace("_activity_r_sum", ""))
+        if col.endswith("_applied_activity_sum") and not col.endswith(
+            "_max_possible_applied_activity_sum"
+        ):
+            bacteria_names.append(col.replace("_applied_activity_sum", ""))
     
     plot_count = 0
     
     for bacteria_name in bacteria_names:
-        activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
-        infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+        activity_r_sum_col = f"{bacteria_name}_applied_activity_sum"
+        max_possible_col = f"{bacteria_name}_max_possible_applied_activity_sum"
         
-        if activity_r_sum_col not in df.columns or infected_and_on_drug_col not in df.columns:
-            logger.warning(f"Missing columns for {bacteria_name} (need {activity_r_sum_col} and {infected_and_on_drug_col})")
+        if activity_r_sum_col not in df.columns or max_possible_col not in df.columns:
+            logger.warning(
+                f"Missing columns for {bacteria_name} "
+                f"(need {activity_r_sum_col} and {max_possible_col})"
+            )
             continue
         
-        # Calculate mean activity_r: activity_r_sum / infected_and_on_any_drug
         activity_r_sum = df[activity_r_sum_col]
-        infected_count = df[infected_and_on_drug_col]
+        max_possible = df[max_possible_col]
         
         # Avoid division by zero
         mean_activity_r = pd.Series(index=df.index, dtype=float)
-        mask = infected_count > 0
-        mean_activity_r[mask] = activity_r_sum[mask] / infected_count[mask]
+        mask = max_possible > 0
+        mean_activity_r[mask] = activity_r_sum[mask] / max_possible[mask]
         mean_activity_r[~mask] = float('nan')
         
         # Apply rolling mean smoothing
@@ -4805,11 +4791,11 @@ def create_carrier_vs_non_carrier_incidence_plots(df: pd.DataFrame, config: Plot
         logger.warning("time_in_years column missing; skipping carrier incidence plots")
         return
 
-    carrier_rate_suffix = '_newly_infected_carrier_per_100k_carriers'
-    non_carrier_rate_suffix = '_newly_infected_non_carrier_per_100k_non_carriers'
+    carrier_rate_suffix = '_infection_acquisition_events_per_100k_carriers'
+    non_carrier_rate_suffix = '_infection_acquisition_events_per_100k_non_carriers'
     share_suffix = '_new_infection_share_from_carriers'
-    carrier_total_suffix = '_newly_infected_carrier_rolling_year'
-    non_total_suffix = '_newly_infected_non_carrier_rolling_year'
+    carrier_total_suffix = '_infection_acquisition_events_carrier_rolling_year'
+    non_total_suffix = '_infection_acquisition_events_non_carrier_rolling_year'
 
     carrier_rate_columns = [col for col in df.columns if col.endswith(carrier_rate_suffix)]
     if not carrier_rate_columns:
@@ -5733,19 +5719,8 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
         ax.plot(df['time_in_years'], death_rate, 
                color='red', linewidth=2, label='Simulation', alpha=0.9)
         
-        # Add empirical data overlay if available
-        try:
-            from ..empirical.data_loader import load_empirical_calibration_data
-            empirical_data = load_empirical_calibration_data()
-            if empirical_data is not None and 'mortality' in empirical_data:
-                mortality_data = empirical_data['mortality']
-                if bacteria in mortality_data:
-                    emp_data = mortality_data[bacteria]
-                    ax.plot(emp_data['year'], emp_data['death_rate'], 
-                           'o-', color='blue', label='Empirical', alpha=0.7)
-        except Exception as e:
-            # Empirical data not available or not applicable for this bacteria
-            pass
+        # No overlay is added here: the retained mortality placeholders use a
+        # population-rate denominator, whereas this plot uses infection person-days.
         
         ax.set_xlabel('Time (years)', fontsize=12)
         ax.set_ylabel('Death Rate (Deaths / Currently Infected)', fontsize=12)

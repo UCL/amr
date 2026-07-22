@@ -87,6 +87,7 @@ _SECTION_PATTERNS: list[tuple[str, str]] = [
     ("Overall Resistance Fit",                    "overall_resistance_fit"),
     ("Per-Bacteria Mean",                         "resistance_per_bacteria"),
     ("Per-Drug Mean",                             "resistance_per_drug"),
+    ("Resistance Benchmark Provenance",            "resistance_provenance"),
     ("Resistance Benchmarks",                     "resistance_benchmarks"),
     ("Headline Metrics",                          "headline_metrics"),
     ("Testing Summary",                           "testing_summary"),
@@ -196,16 +197,17 @@ def _coerce_numeric(df: pd.DataFrame, skip: list[str]) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Resistance benchmarks — wide table with 17 columns
+# Resistance benchmarks - wide table with provenance columns
 # ---------------------------------------------------------------------------
 
 _BENCH_COLS = [
     "Bacteria", "Drug", "Class",
     "Inf sim (%)", "Inf target (%)",
+    "Inf provenance", "Inf source", "Inf rationale",
     "Avg sim (%)", "Avg target (%)",
+    "Avg provenance", "Avg source", "Avg rationale",
     "Micro sim (%)",
-    "Comm (%)", "HGT (%)", "Micro (%)", "De novo (%)",
-    "Asympt HGT", "Inf days", "Res days", "Carrier days", "Flags",
+    "Inf days", "Res days", "Carrier days", "Flags",
 ]
 
 
@@ -317,6 +319,7 @@ def parse_file(path: Union[str, Path]) -> dict:
         "overall_resistance_fit":     ["Component"],
         "resistance_per_bacteria":    ["Bacteria"],
         "resistance_per_drug":        ["Drug"],
+        "resistance_provenance":      ["Component", "Provenance class"],
     }
 
     parsed: dict = {"meta": meta}

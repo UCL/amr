@@ -75,8 +75,20 @@ import pandas as pd
 
 try:
     from .parse_calibration import aggregate, parse_files
+    from .summary_schema import (
+        SUMMARY_SCHEMA_VERSION_COLUMN,
+        SimulationSummarySchemaError,
+        validate_summary_frame,
+        validate_summary_header,
+    )
 except ImportError:  # Allows direct script execution from this folder.
     from parse_calibration import aggregate, parse_files
+    from summary_schema import (
+        SUMMARY_SCHEMA_VERSION_COLUMN,
+        SimulationSummarySchemaError,
+        validate_summary_frame,
+        validate_summary_header,
+    )
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -375,7 +387,7 @@ _HEADLINE_TARGET_SOURCE_NOTES = [
     "<em>Lancet</em> 396:1204-1222.",
     "Sepsis target: Rudd KE et al. (2020). Global, regional, and national sepsis incidence "
     "and mortality, 1990-2017. <em>Lancet</em> 395:200-211. The model target is a "
-    "bacterial-subset anchor rather than the full all-cause sepsis estimate.",
+    "bacterial-subset benchmark rather than the full all-cause sepsis estimate.",
 ]
 
 _RESISTANCE_TARGET_SOURCE_NOTES = [
@@ -384,6 +396,9 @@ _RESISTANCE_TARGET_SOURCE_NOTES = [
     "but cell-level citations and harmonised denominator definitions were not retained.",
     "Conditional mean any_r values are expert-assigned model benchmarks on the model's "
     "unitless resistance scale; they are not MIC values or direct surveillance estimates.",
+    "The versioned target set distinguishes evidence-unresolved benchmarks, expert-informed "
+    "placeholders, and structural priors. No v1 cell is classified as a direct empirical "
+    "estimate with a recovered cell-level source, and no evidence-quality weight is assigned.",
     "Both benchmark families compare with simulated active-infection person-days and should "
     "not be interpreted as a harmonised global clinical-isolate surveillance dataset.",
 ]
@@ -800,7 +815,7 @@ def make_t3(agg: dict, out_dir: Path) -> None:
         "Global drug-class share estimates are derived from the WHO AWaRe classification "
         "database, IQVIA MIDAS market data, and ECDC ESAC-Net surveillance, adjusted to "
         "represent the global population mix. Class-level global shares carry substantial "
-        "uncertainty; estimates should be interpreted as approximate calibration anchors.",
+        "uncertainty; estimates should be interpreted as approximate calibration benchmarks.",
         "Drug class codes follow the WHO ATC classification system (J01 antibacterials for "
         "systemic use). Classes without a standard J01 code (e.g. fidaxomicin, rifamycins) "
         "are given their closest available ATC code.",
@@ -1139,7 +1154,7 @@ def make_s3(agg: dict, out_dir: Path) -> None:
     n   = agg.get("n_runs", 1)
 
     if ril is not None and not ril.empty:
-        ril = ril.drop(columns=["Total New Infections"], errors="ignore").copy()
+        ril = ril.drop(columns=["Infection Acquisition Events"], errors="ignore").copy()
         ril = ril.rename(columns={
             "Hospital Infections with Any Resistance (%)":  "Hospital-acquired new infections with any resistance (%)",
             "Community Infections with Any Resistance (%)": "Community-acquired new infections with any resistance (%)",
@@ -1205,11 +1220,13 @@ def make_s4(agg: dict, out_dir: Path) -> None:
 
     display_cols = [c for c in [
         "Drug", "Class",
+        "Inf provenance", "Inf source", "Inf rationale",
         "Percent of infections with resistance — simulation (%)",
         "Percent of infections with resistance — evidence-informed calibration benchmark (%)",
         "Average resistance level among resistant infection-days — simulation (%)",
         "Average resistance level among resistant infection-days — expert-assigned model benchmark (%)",
         "Percent of people carrying the bacterium in whom a resistant strain is present (%)",
+        "Avg provenance", "Avg source", "Avg rationale",
     ] if c in rb_nonneg.columns]
 
     footnotes = [
@@ -1225,6 +1242,9 @@ def make_s4(agg: dict, out_dir: Path) -> None:
         "lower values indicate partial resistance. This is distinct from the prevalence column above, "
         "which measures the proportion of infection-days with any resistance. Its comparison value is "
         "an expert-assigned model benchmark, not a direct surveillance estimate.",
+        "The provenance-class, source-ID and rationale-ID columns are carried from the versioned "
+        "long-form target set. No v1 cell is classified as a direct empirical estimate with a "
+        "recovered cell-level source.",
         "<em>Percent of people carrying the bacterium in whom a resistant strain is present</em>: "
         "percentage of the global population carrying a resistant strain of this organism "
         "in the gut or upper respiratory microbiome.",
@@ -1369,7 +1389,11 @@ def _simulation_csv_column_names(csv_path: Path) -> tuple[str, ...] | None:
     resolved = csv_path.resolve()
     if resolved not in _CSV_HEADER_CACHE:
         try:
-            _CSV_HEADER_CACHE[resolved] = tuple(pd.read_csv(csv_path, nrows=0).columns)
+            columns = tuple(pd.read_csv(csv_path, nrows=0).columns)
+            validate_summary_header(columns, csv_path)
+            _CSV_HEADER_CACHE[resolved] = columns
+        except SimulationSummarySchemaError:
+            raise
         except (FileNotFoundError, pd.errors.EmptyDataError, OSError, ValueError):
             _CSV_HEADER_CACHE[resolved] = None
     return _CSV_HEADER_CACHE[resolved]
@@ -1399,24 +1423,28 @@ def _filter_simulation_csvs_with_columns(
 
 
 def _read_csv_selected(csv_path: Path, usecols: list[str] | set[str]) -> pd.DataFrame:
-    selected = list(dict.fromkeys(usecols))
+    selected = list(dict.fromkeys([SUMMARY_SCHEMA_VERSION_COLUMN, *usecols]))
     available = _simulation_csv_columns(csv_path)
     if available is not None:
         selected = [column for column in selected if column in available]
     try:
-        return pd.read_csv(csv_path, usecols=selected, engine="pyarrow")
+        frame = pd.read_csv(csv_path, usecols=selected, engine="pyarrow")
     except Exception:
-        return pd.read_csv(csv_path, usecols=selected)
+        frame = pd.read_csv(csv_path, usecols=selected)
+    validate_summary_frame(frame, csv_path)
+    return frame
 
 
-_F6_SERIOUS_RESISTANCE_COLUMN = "newly_infected_with_serious_resistance_count"
-_F6_MARKER_ELIGIBLE_COLUMN = "newly_infected_serious_resistance_marker_eligible_count"
+_F6_SERIOUS_RESISTANCE_COLUMN = "infection_acquisition_people_with_serious_r_count"
+_F6_MARKER_ELIGIBLE_COLUMN = (
+    "infection_acquisition_people_serious_r_marker_eligible_count"
+)
 _F6_SERIOUS_R_MISSING_NOTE = (
     "Serious-R trend requires simulation_summary column "
-    "newly_infected_with_serious_resistance_count. Re-run the Rust simulation after "
+    "infection_acquisition_people_with_serious_r_count. Re-run the Rust simulation after "
     "adding this field to show the serious-R line."
 )
-_F6B_DENOMINATOR_COLUMN = "new_active_infections_by_bacteria"
+_F6B_DENOMINATOR_COLUMN = "infection_acquisition_events_by_bacteria"
 _F6_TOP_SELECTION_YEAR = 2025
 _F6B_TOP_N_BACTERIA = 15
 _F6_HOSPITAL_REGIONS = [
@@ -1428,23 +1456,18 @@ _F6_HOSPITAL_REGIONS = [
     "oceania",
 ]
 _F6C_SERIOUS_R_VECTOR_COLUMNS = (
-    "newly_infected_serious_r_by_bacteria",
-    "newly_infected_with_serious_resistance_by_bacteria",
-    "newly_infected_with_serious_resistance_count_by_bacteria",
+    "infection_acquisition_events_with_serious_r_by_bacteria",
 )
 _F6C_SERIOUS_R_PER_BACTERIUM_SUFFIXES = (
-    "_newly_infected_serious_r",
-    "_newly_infected_with_serious_resistance",
-    "_newly_infected_serious_resistance",
-    "_newly_infected_serious_resistance_count",
+    "_infection_acquisition_events_with_serious_r",
 )
 
 
 def _f6_hospital_columns_for_slug(slug: str, available: set[str]) -> list[str]:
     return [
-        f"{slug}_newly_infected_hospital_{region}"
+        f"{slug}_infection_acquisition_events_hospital_{region}"
         for region in _F6_HOSPITAL_REGIONS
-        if f"{slug}_newly_infected_hospital_{region}" in available
+        if f"{slug}_infection_acquisition_events_hospital_{region}" in available
     ]
 
 
@@ -1452,10 +1475,14 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
     """
     Load a simulation_summary CSV and return annual-resistance inputs.
 
-    The serious-R and marker-eligible columns are optional so older CSVs still
-    generate the original any-resistance trend.
+    Serious-R and marker-eligible columns are optional across current summary
+    content modes, but the summary schema itself must be current.
     """
-    needed = ["time_in_years", "newly_infected_count", "newly_infected_with_resistance_count"]
+    needed = [
+        "time_in_years",
+        "infection_acquisition_people_count",
+        "infection_acquisition_people_with_any_r_count",
+    ]
     available_columns = _simulation_csv_columns(csv_path)
     if available_columns is None:
         return None, False, False
@@ -1470,8 +1497,12 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
     community_any_r_columns: list[str] = []
     for slug in _F15_KNOWN_BACTERIA_SLUGS:
         hospital_denominator_columns.extend(_f6_hospital_columns_for_slug(slug, available_columns))
-        hospital_any_r_col = f"{slug}_newly_infected_any_r_hospital"
-        community_any_r_col = f"{slug}_newly_infected_any_r_community"
+        hospital_any_r_col = (
+            f"{slug}_infection_acquisition_events_with_any_r_hospital"
+        )
+        community_any_r_col = (
+            f"{slug}_infection_acquisition_events_with_any_r_community"
+        )
         if hospital_any_r_col in available_columns:
             hospital_any_r_columns.append(hospital_any_r_col)
         if community_any_r_col in available_columns:
@@ -1499,12 +1530,14 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
         return None, has_serious_column, has_marker_eligible_column
 
     df = df.dropna(subset=needed)
-    df = df[df["newly_infected_count"] > 0].copy()
+    df = df[df["infection_acquisition_people_count"] > 0].copy()
     if df.empty:
         return None, has_serious_column, has_marker_eligible_column
     df["year"] = _F1_SIM_EPOCH_YEAR + df["time_in_years"]
     df["pct_resistant"] = (
-        df["newly_infected_with_resistance_count"] / df["newly_infected_count"] * 100.0
+        df["infection_acquisition_people_with_any_r_count"]
+        / df["infection_acquisition_people_count"]
+        * 100.0
     )
     columns = ["year", "pct_resistant"]
     if has_setting_columns:
@@ -1553,7 +1586,9 @@ def _load_resistance_series(csv_path: Path) -> tuple[pd.DataFrame | None, bool, 
         columns.extend(["pct_any_resistant_hospital", "pct_any_resistant_community"])
     if has_serious_column:
         df["pct_serious_resistant"] = (
-            df[_F6_SERIOUS_RESISTANCE_COLUMN] / df["newly_infected_count"] * 100.0
+            df[_F6_SERIOUS_RESISTANCE_COLUMN]
+            / df["infection_acquisition_people_count"]
+            * 100.0
         )
         columns.append("pct_serious_resistant")
     df["year_int"] = df["year"].apply(int)
@@ -1797,8 +1832,9 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
             footnotes.append(
                 "Hospital-acquired and community-acquired any-R lines use the same event "
                 "definition as the overall any-R line. Hospital denominators are summed from "
-                "per-bacterium newly_infected_hospital_<region> columns; community denominators "
-                f"are {_F6B_DENOMINATOR_COLUMN} minus hospital-acquired new infections."
+                "per-bacterium infection_acquisition_events_hospital_<region> columns; "
+                f"community denominators are {_F6B_DENOMINATOR_COLUMN} minus "
+                "hospital-acquired events."
             )
         if setting_column_missing:
             footnotes.append(
@@ -1808,9 +1844,9 @@ def make_figure_6_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None
         if marker_eligible_column_available:
             footnotes.append(
                 "The simulation summary also includes "
-                "newly_infected_serious_resistance_marker_eligible_count as a QC field for "
-                "new infections whose bacterium has a serious-R marker; the plotted denominator "
-                "remains all new active bacterial infections."
+                "infection_acquisition_people_serious_r_marker_eligible_count as a QC field "
+                "for people acquiring an infection whose bacterium has a serious-R marker; "
+                "the plotted denominator remains all people acquiring active bacterial infections."
             )
     else:
         figure_note = (
@@ -1833,8 +1869,8 @@ def _f6b_any_r_columns_for_slug(slug: str, available: set[str]) -> list[str]:
     return [
         column
         for column in (
-            f"{slug}_newly_infected_any_r_hospital",
-            f"{slug}_newly_infected_any_r_community",
+            f"{slug}_infection_acquisition_events_with_any_r_hospital",
+            f"{slug}_infection_acquisition_events_with_any_r_community",
         )
         if column in available
     ]
@@ -1852,7 +1888,15 @@ def _load_bacteria_resistance_trend_rows(
     if _F6B_DENOMINATOR_COLUMN not in columns:
         return [], f"{csv_path.name}: missing {_F6B_DENOMINATOR_COLUMN}."
 
-    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    optional = [
+        SUMMARY_SCHEMA_VERSION_COLUMN,
+        "policy_option",
+        "run_id",
+        "simulation_year",
+        "year",
+        "time_in_years",
+        "time_step",
+    ]
     numerator_columns: list[str] = []
     per_bacterium_columns: dict[str, list[str]] = {}
     for slug in _F15_KNOWN_BACTERIA_SLUGS:
@@ -1860,7 +1904,7 @@ def _load_bacteria_resistance_trend_rows(
         per_bacterium_columns[slug] = slug_columns
         numerator_columns.extend(slug_columns)
     if not numerator_columns:
-        return [], f"{csv_path.name}: missing per-bacterium {metric_label} newly infected columns."
+        return [], f"{csv_path.name}: missing per-bacterium {metric_label} acquisition columns."
 
     usecols = [_F6B_DENOMINATOR_COLUMN, *optional, *numerator_columns]
     try:
@@ -2002,7 +2046,7 @@ def make_figure_6b_resistance_trend_by_bacterium(
             out_dir,
             "Per-bacterium resistance trend data are not available. Required columns are "
             f"{_F6B_DENOMINATOR_COLUMN} and per-bacterium "
-            "newly_infected_any_r_hospital/community columns.",
+            "infection_acquisition_events_with_any_r_hospital/community columns.",
             problems,
         )
         return
@@ -2135,14 +2179,14 @@ def make_figure_6b_resistance_trend_by_bacterium(
     top_table[f"{_F6_TOP_SELECTION_YEAR} any-R (%)"] = top_table["selection_any_r_pct"].map(
         lambda value: f"{float(value):.1f}"
     )
-    top_table[f"{_F6_TOP_SELECTION_YEAR} new active infections"] = top_table["new_active_infections"].map(
+    top_table[f"{_F6_TOP_SELECTION_YEAR} acquisition events"] = top_table["new_active_infections"].map(
         lambda value: f"{float(value):,.0f}"
     )
     top_table = top_table[[
         "Rank",
         "bacterium",
         f"{_F6_TOP_SELECTION_YEAR} any-R (%)",
-        f"{_F6_TOP_SELECTION_YEAR} new active infections",
+        f"{_F6_TOP_SELECTION_YEAR} acquisition events",
     ]].rename(
         columns={"bacterium": "Bacterium"}
     )
@@ -2158,10 +2202,10 @@ def make_figure_6b_resistance_trend_by_bacterium(
     body += _html_table(top_table)
     footnotes = [
         f"Lines show the {_F6B_TOP_N_BACTERIA} bacteria with the highest count-weighted "
-        f"any-R percentage among new active infections in {_F6_TOP_SELECTION_YEAR} across "
+        f"any-R percentage among infection-acquisition events in {_F6_TOP_SELECTION_YEAR} across "
         "the supplied simulation summary files.",
-        "For each bacterium and calendar year, the numerator is new active infections with any-R "
-        "recorded in either hospital-acquired or community-acquired infection columns. The denominator "
+        "For each bacterium and calendar year, the numerator is infection-acquisition events with "
+        "any-R recorded in either hospital-acquired or community-acquired event columns. The denominator "
         f"is {_F6B_DENOMINATOR_COLUMN}.",
         "Values are annual count-weighted percentages pooled across supplied runs to keep the multi-line "
         "comparison readable.",
@@ -2257,7 +2301,15 @@ def _load_bacteria_serious_r_trend_rows(
     if _F6B_DENOMINATOR_COLUMN not in columns:
         return [], f"{csv_path.name}: missing {_F6B_DENOMINATOR_COLUMN}."
 
-    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    optional = [
+        SUMMARY_SCHEMA_VERSION_COLUMN,
+        "policy_option",
+        "run_id",
+        "simulation_year",
+        "year",
+        "time_in_years",
+        "time_step",
+    ]
     usecols = [_F6B_DENOMINATOR_COLUMN, vector_col, *optional]
     try:
         df = _read_csv_selected(csv_path, usecols)
@@ -2479,14 +2531,14 @@ def make_figure_6c_serious_r_trend_by_bacterium(
     top_table[f"{_F6_TOP_SELECTION_YEAR} serious-R (%)"] = top_table[
         "selection_serious_r_pct"
     ].map(lambda value: f"{float(value):.1f}")
-    top_table[f"{_F6_TOP_SELECTION_YEAR} new active infections"] = top_table[
+    top_table[f"{_F6_TOP_SELECTION_YEAR} acquisition events"] = top_table[
         "new_active_infections"
     ].map(lambda value: f"{float(value):,.0f}")
     top_table = top_table[[
         "Rank",
         "bacterium",
         f"{_F6_TOP_SELECTION_YEAR} serious-R (%)",
-        f"{_F6_TOP_SELECTION_YEAR} new active infections",
+        f"{_F6_TOP_SELECTION_YEAR} acquisition events",
     ]].rename(columns={"bacterium": "Bacterium"})
 
     body = _html_head("Figure 6C. Serious-R Trends by Bacterium")
@@ -2500,9 +2552,9 @@ def make_figure_6c_serious_r_trend_by_bacterium(
     body += _html_table(top_table)
     footnotes = [
         f"Lines show the {_F6B_TOP_N_BACTERIA} bacteria with the highest count-weighted "
-        f"serious-R percentage among new active infections in {_F6_TOP_SELECTION_YEAR} across "
+        f"serious-R percentage among infection-acquisition events in {_F6_TOP_SELECTION_YEAR} across "
         "the supplied simulation summary files.",
-        "For each bacterium and calendar year, the numerator is new active infections with "
+        "For each bacterium and calendar year, the numerator is acquisition events with "
         "bacterium-specific serious-R marker resistance. The denominator is "
         f"{_F6B_DENOMINATOR_COLUMN}.",
         "Values are annual count-weighted percentages pooled across supplied runs to keep the multi-line "
@@ -3766,7 +3818,7 @@ def make_figure_3_calibration_drug_class_share(agg: dict, out_dir: Path) -> None
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         [
             "WHO AWaRe classification: Access, Watch, Reserve (WHO 2023 AWaRe antibiotic book).",
-            "Class-level global shares are approximate calibration anchors and carry substantial uncertainty.",
+            "Class-level global shares are approximate calibration benchmarks and carry substantial uncertainty.",
         ] + _DRUG_CLASS_TARGET_SOURCE_NOTES,
         agg=agg,
     )
@@ -5230,8 +5282,8 @@ def make_figure_11_sepsis_context_effective_therapy(
 _F15_TITLE = "Figure 11. Resistance-adjusted antibiotic activity retained by bacterium, 2022–2025"
 _F15_STEM = "Figure_11__activity_retained_by_bacterium"
 _F15_REQUIRED_MESSAGE = (
-    "Figure 11 requires simulation_summary CSV columns for activity_r_sum_by_bacteria "
-    "and max_possible_activity_r_sum_by_bacteria."
+    "Figure 11 requires per-bacterium simulation_summary CSV columns ending in "
+    "_applied_activity_sum and _max_possible_applied_activity_sum."
 )
 
 _F15_KNOWN_BACTERIA_SLUGS = [
@@ -5351,103 +5403,58 @@ def _figure_15_extend_array(values: np.ndarray, target_len: int) -> np.ndarray:
 
 def _figure_15_detect_activity_columns(
     columns: list[str],
-) -> tuple[dict[str, tuple[str, str]], tuple[str, str] | None, list[str], bool, str]:
+) -> tuple[dict[str, tuple[str, str]], list[str]]:
     column_set = set(columns)
     wide_pairs: dict[str, tuple[str, str]] = {}
     missing_denominator: list[str] = []
 
     for col in columns:
-        if (
-            col.endswith("_activity_r_sum")
-            and not col.endswith("_activity_r_pure_sum")
-            and not col.endswith("_max_possible_activity_r_sum")
-            and not col.startswith("max_possible_")
+        if col.endswith("_applied_activity_sum") and not col.endswith(
+            "_max_possible_applied_activity_sum"
         ):
-            slug = col[: -len("_activity_r_sum")]
-            denom_col = f"{slug}_max_possible_activity_r_sum"
+            slug = col[: -len("_applied_activity_sum")]
+            denom_col = f"{slug}_max_possible_applied_activity_sum"
             if denom_col in column_set:
                 wide_pairs[slug] = (col, denom_col)
             else:
                 missing_denominator.append(slug)
-
-    prefix_patterns = [
-        ("activity_r_sum_by_bacteria__", "max_possible_activity_r_sum_by_bacteria__"),
-        ("activity_r_sum_by_bacteria_", "max_possible_activity_r_sum_by_bacteria_"),
-    ]
-    for num_prefix, denom_prefix in prefix_patterns:
-        for col in columns:
-            if num_prefix.endswith("_") and not num_prefix.endswith("__") and col.startswith(
-                "activity_r_sum_by_bacteria__"
-            ):
-                continue
-            if not col.startswith(num_prefix):
-                continue
-            slug = col[len(num_prefix):]
-            denom_col = f"{denom_prefix}{slug}"
-            if denom_col in column_set:
-                wide_pairs[slug] = (col, denom_col)
-            else:
-                missing_denominator.append(slug)
-
-    vector_pair = None
-    if (
-        "activity_r_sum_by_bacteria" in column_set
-        and "max_possible_activity_r_sum_by_bacteria" in column_set
-    ):
-        vector_pair = ("activity_r_sum_by_bacteria", "max_possible_activity_r_sum_by_bacteria")
-
-    pure_present = any(
-        col.endswith("_activity_r_pure_sum")
-        or col.endswith("_max_possible_activity_r_pure_sum")
-        or col in {
-            "activity_r_pure_sum_by_bacteria",
-            "max_possible_activity_r_pure_sum_by_bacteria",
-        }
-        for col in columns
-    )
-    detection = "wide per-bacterium suffix columns" if wide_pairs else "vector by-bacteria columns"
-    return wide_pairs, vector_pair, missing_denominator, pure_present, detection
+    return wide_pairs, missing_denominator
 
 
 _FIGURE_15_ROWS_CACHE: dict[
     Path,
-    tuple[list[dict[str, object]], str | None, set[str], bool, str | None],
+    tuple[list[dict[str, object]], str | None, set[str]],
 ] = {}
 
 
 def _copy_figure_15_rows_result(
-    result: tuple[list[dict[str, object]], str | None, set[str], bool, str | None],
-) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
-    rows, problem, no_denominator, saw_pure, detection = result
-    return [dict(row) for row in rows], problem, set(no_denominator), saw_pure, detection
+    result: tuple[list[dict[str, object]], str | None, set[str]],
+) -> tuple[list[dict[str, object]], str | None, set[str]]:
+    rows, problem, no_denominator = result
+    return [dict(row) for row in rows], problem, set(no_denominator)
 
 
 def _figure_15_rows_from_simulation_csv_uncached(
     csv_path: Path,
-) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
+) -> tuple[list[dict[str, object]], str | None, set[str]]:
     columns = _simulation_csv_column_names(csv_path)
     if columns is None:
-        return [], f"{csv_path.name}: could not read simulation CSV header.", set(), False, None
+        return [], f"{csv_path.name}: could not read simulation CSV header.", set()
 
-    wide_pairs, vector_pair, missing_denominator, pure_present, detection = (
-        _figure_15_detect_activity_columns(columns)
-    )
-    if not wide_pairs and vector_pair is None:
-        return [], f"{csv_path.name}: missing activity_r_sum/max_possible activity columns.", set(), pure_present, None
+    wide_pairs, missing_denominator = _figure_15_detect_activity_columns(columns)
+    if not wide_pairs:
+        return [], f"{csv_path.name}: missing applied-activity columns.", set()
 
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
     wanted = set(optional)
-    if wide_pairs:
-        for num_col, denom_col in wide_pairs.values():
-            wanted.add(num_col)
-            wanted.add(denom_col)
-    elif vector_pair is not None:
-        wanted.update(vector_pair)
+    for num_col, denom_col in wide_pairs.values():
+        wanted.add(num_col)
+        wanted.add(denom_col)
 
     try:
         df = _read_csv_selected(csv_path, wanted)
     except (FileNotFoundError, ValueError, OSError) as exc:
-        return [], f"{csv_path.name}: could not load Figure 11 columns ({exc}).", set(), pure_present, detection
+        return [], f"{csv_path.name}: could not load Figure 11 columns ({exc}).", set()
 
     if "policy_option" in df.columns:
         policy = pd.to_numeric(df["policy_option"], errors="coerce")
@@ -5456,76 +5463,38 @@ def _figure_15_rows_from_simulation_csv_uncached(
     df["simulation_year_for_f15"] = _simulation_year_series(df)
     df = df[(df["simulation_year_for_f15"] >= 2022.0) & (df["simulation_year_for_f15"] < 2026.0)].copy()
     if df.empty:
-        return [], f"{csv_path.name}: no baseline-policy rows in 2022-2025.", set(missing_denominator), pure_present, detection
+        return [], f"{csv_path.name}: no baseline-policy rows in 2022-2025.", set(missing_denominator)
 
     grouped = df.groupby("run_id", dropna=False) if "run_id" in df.columns else [(csv_path.stem, df)]
     rows: list[dict[str, object]] = []
     no_denominator = set(missing_denominator)
 
-    if wide_pairs:
-        for num_col, denom_col in wide_pairs.values():
-            df[num_col] = pd.to_numeric(df[num_col], errors="coerce")
-            df[denom_col] = pd.to_numeric(df[denom_col], errors="coerce")
-        for run_key, run_df in grouped:
-            for slug, (num_col, denom_col) in wide_pairs.items():
-                numerator = float(run_df[num_col].sum(skipna=True))
-                denominator = float(run_df[denom_col].sum(skipna=True))
-                if not np.isfinite(denominator) or denominator <= 0.0:
-                    no_denominator.add(slug)
-                    continue
-                rows.append({
-                    "source": csv_path.name,
-                    "run": str(run_key),
-                    "bacterium_slug": slug,
-                    "bacterium": _figure_15_bacterium_label(slug),
-                    "mean_activity_r_percent": 100.0 * numerator / denominator,
-                    "numerator_sum": numerator,
-                    "denominator_sum": denominator,
-                    "detection": detection,
-                })
-    elif vector_pair is not None:
-        num_col, denom_col = vector_pair
-        for run_key, run_df in grouped:
-            numerator_sums = np.zeros(0, dtype=float)
-            denominator_sums = np.zeros(0, dtype=float)
-            for num_value, denom_value in zip(run_df[num_col], run_df[denom_col]):
-                numerator_values = np.array(_figure_15_parse_vector_cell(num_value), dtype=float)
-                denominator_values = np.array(_figure_15_parse_vector_cell(denom_value), dtype=float)
-                target_len = max(len(numerator_sums), len(numerator_values), len(denominator_values))
-                numerator_sums = _figure_15_extend_array(numerator_sums, target_len)
-                denominator_sums = _figure_15_extend_array(denominator_sums, target_len)
-                numerator_values = _figure_15_extend_array(numerator_values, target_len)
-                denominator_values = _figure_15_extend_array(denominator_values, target_len)
-                numerator_sums += np.nan_to_num(numerator_values, nan=0.0)
-                denominator_sums += np.nan_to_num(denominator_values, nan=0.0)
+    for num_col, denom_col in wide_pairs.values():
+        df[num_col] = pd.to_numeric(df[num_col], errors="coerce")
+        df[denom_col] = pd.to_numeric(df[denom_col], errors="coerce")
+    for run_key, run_df in grouped:
+        for slug, (num_col, denom_col) in wide_pairs.items():
+            numerator = float(run_df[num_col].sum(skipna=True))
+            denominator = float(run_df[denom_col].sum(skipna=True))
+            if not np.isfinite(denominator) or denominator <= 0.0:
+                no_denominator.add(slug)
+                continue
+            rows.append({
+                "source": csv_path.name,
+                "run": str(run_key),
+                "bacterium_slug": slug,
+                "bacterium": _figure_15_bacterium_label(slug),
+                "mean_activity_r_percent": 100.0 * numerator / denominator,
+                "numerator_sum": numerator,
+                "denominator_sum": denominator,
+            })
 
-            for idx, denominator in enumerate(denominator_sums):
-                slug = (
-                    _F15_KNOWN_BACTERIA_SLUGS[idx]
-                    if idx < len(_F15_KNOWN_BACTERIA_SLUGS)
-                    else f"bacterium_{idx + 1}"
-                )
-                if not np.isfinite(denominator) or denominator <= 0.0:
-                    no_denominator.add(slug)
-                    continue
-                numerator = float(numerator_sums[idx])
-                rows.append({
-                    "source": csv_path.name,
-                    "run": str(run_key),
-                    "bacterium_slug": slug,
-                    "bacterium": _figure_15_bacterium_label(slug),
-                    "mean_activity_r_percent": 100.0 * numerator / float(denominator),
-                    "numerator_sum": numerator,
-                    "denominator_sum": float(denominator),
-                    "detection": detection,
-                })
-
-    return rows, None, no_denominator, pure_present, detection
+    return rows, None, no_denominator
 
 
 def _figure_15_rows_from_simulation_csv(
     csv_path: Path,
-) -> tuple[list[dict[str, object]], str | None, set[str], bool, str | None]:
+) -> tuple[list[dict[str, object]], str | None, set[str]]:
     resolved = csv_path.resolve()
     if resolved not in _FIGURE_15_ROWS_CACHE:
         _FIGURE_15_ROWS_CACHE[resolved] = _figure_15_rows_from_simulation_csv_uncached(csv_path)
@@ -5544,16 +5513,10 @@ def make_figure_15_mean_activity_by_bacteria(
     rows: list[dict[str, object]] = []
     problems: list[str] = []
     denominatorless: set[str] = set()
-    pure_present = False
-    detections: set[str] = set()
-
     for csv_path in csv_paths:
-        run_rows, problem, no_denominator, saw_pure, detection = _figure_15_rows_from_simulation_csv(csv_path)
+        run_rows, problem, no_denominator = _figure_15_rows_from_simulation_csv(csv_path)
         rows.extend(run_rows)
         denominatorless.update(no_denominator)
-        pure_present = pure_present or saw_pure
-        if detection:
-            detections.add(detection)
         if problem:
             problems.append(problem)
 
@@ -5657,8 +5620,9 @@ def make_figure_15_mean_activity_by_bacteria(
     )
 
     footnotes = [
-        "Activity retained is calculated as sum(activity_r) divided by sum(max_possible_activity_r) "
-        "across baseline-policy rows in the 2022-2025 calibration window. The denominator "
+        "Activity retained is calculated as sum(applied_activity) divided by "
+        "sum(max_possible_applied_activity) across baseline-policy rows in the 2022-2025 "
+        "calibration window. The denominator "
         "represents expected activity under the same drug exposure if resistance were absent. "
         "The metric is weighted by actual antibiotic exposure and therefore can differ from "
         "simple resistance prevalence. Low values indicate that the drugs being used for that "
@@ -5675,13 +5639,6 @@ def make_figure_15_mean_activity_by_bacteria(
         f"simulation run{'s' if n_runs > 1 else ''}; "
         f"{'error bars show 5th-95th percentile ranges. ' if n_runs > 1 else 'no error bars are shown for a single run. '}",
     ]
-    if detections:
-        footnotes.append("Activity columns detected as: " + "; ".join(sorted(detections)) + ".")
-    if pure_present:
-        footnotes.append(
-            "Pure activity columns were present, but this figure uses the drug-exposure-weighted "
-            "activity metric rather than the pure potency-only metric."
-        )
     if excluded_denominatorless:
         labels = [_figure_15_bacterium_label(slug) for slug in excluded_denominatorless]
         footnotes.append(
@@ -6299,13 +6256,15 @@ _ST1_STEM = "Supplementary_Table_S1__infection_outcomes_by_bacterium"
 _S8_TITLE = "Supplementary Figure S8. Infection outcome pathway by bacterium, 2022\u20132025"
 _S8_STEM = "Supplementary_Figure_S8__infection_outcome_pathway_by_bacterium"
 _ST1_REQUIRED_VECTOR_COLUMNS = [
-    "new_active_infections_by_bacteria",
+    "infection_acquisition_events_by_bacteria",
     "active_infection_days_by_bacteria",
-    "treated_infection_days_by_bacteria",
-    "effective_treated_infection_days_by_bacteria",
+    "antibiotic_exposed_infection_days_by_bacteria",
+    "effective_antibiotic_exposed_infection_days_by_bacteria",
     "infection_resolution_count_by_bacteria",
-    "sepsis_onset_count_by_bacteria",
     "infection_death_count_by_bacteria",
+]
+_ST1_REQUIRED_SEPSIS_COLUMNS = [
+    f"{slug}_sepsis_onset_events" for slug in _F15_KNOWN_BACTERIA_SLUGS
 ]
 _ST1_OPTIONAL_VECTOR_COLUMNS = [
     "drug_failure_count_by_bacteria",
@@ -6334,7 +6293,7 @@ def _supplementary_table_s1_placeholder(
         body += _meta_box(agg)
     body += f"<p class='note'>{message}</p>\n"
     body += "<h2>Required simulation_summary columns</h2>\n<ul>\n"
-    for column in _ST1_VECTOR_COLUMNS:
+    for column in [*_ST1_VECTOR_COLUMNS, *_ST1_REQUIRED_SEPSIS_COLUMNS]:
         body += f"<li><code>{column}</code></li>\n"
     body += "</ul>\n"
     if problems:
@@ -6343,9 +6302,8 @@ def _supplementary_table_s1_placeholder(
             body += f"<li>{problem}</li>\n"
         body += "</ul>\n"
     body += _html_footnotes([
-        "Old simulation_summary files remain readable: when the required aggregate columns are "
-        "absent, this placeholder is generated rather than failing the paper-output build.",
-        "No supplementary-table-specific CSV or event-level output is required.",
+        "The paper-output build accepts only the current versioned simulation-summary schema.",
+        "No supplementary-table-specific CSV or person-level output is required.",
     ])
     body += "</body></html>"
     _save(path, body)
@@ -6400,7 +6358,11 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
         return [], f"{csv_path.name}: unable to read simulation summary CSV header."
 
     available = set(header)
-    missing = [column for column in _ST1_REQUIRED_VECTOR_COLUMNS if column not in available]
+    missing = [
+        column
+        for column in [*_ST1_REQUIRED_VECTOR_COLUMNS, *_ST1_REQUIRED_SEPSIS_COLUMNS]
+        if column not in available
+    ]
     if missing:
         return [], f"{csv_path.name}: missing columns {', '.join(missing)}."
     drug_failure_available = "drug_failure_count_by_bacteria" in available
@@ -6408,7 +6370,12 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
     optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
     usecols = [
         column
-        for column in _ST1_REQUIRED_VECTOR_COLUMNS + _ST1_OPTIONAL_VECTOR_COLUMNS + optional
+        for column in (
+            _ST1_REQUIRED_VECTOR_COLUMNS
+            + _ST1_REQUIRED_SEPSIS_COLUMNS
+            + _ST1_OPTIONAL_VECTOR_COLUMNS
+            + optional
+        )
         if column in available
     ]
     try:
@@ -6432,6 +6399,13 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
             column: _st1_sum_vector_column(run_df, column, target_len)
             for column in _ST1_REQUIRED_VECTOR_COLUMNS
         }
+        totals["sepsis_onset_events_by_bacteria"] = np.array(
+            [
+                pd.to_numeric(run_df[column], errors="coerce").sum(skipna=True)
+                for column in _ST1_REQUIRED_SEPSIS_COLUMNS
+            ],
+            dtype=float,
+        )
         if drug_failure_available:
             totals["drug_failure_count_by_bacteria"] = _st1_sum_vector_column(
                 run_df,
@@ -6450,12 +6424,14 @@ def _st1_rows_from_simulation_csv(csv_path: Path) -> tuple[list[dict[str, object
                 if b_idx < len(_F15_KNOWN_BACTERIA_SLUGS)
                 else f"bacterium_{b_idx + 1}"
             )
-            new_infections = float(totals["new_active_infections_by_bacteria"][b_idx])
+            new_infections = float(totals["infection_acquisition_events_by_bacteria"][b_idx])
             active_days = float(totals["active_infection_days_by_bacteria"][b_idx])
-            treated_days = float(totals["treated_infection_days_by_bacteria"][b_idx])
-            effective_days = float(totals["effective_treated_infection_days_by_bacteria"][b_idx])
+            treated_days = float(totals["antibiotic_exposed_infection_days_by_bacteria"][b_idx])
+            effective_days = float(
+                totals["effective_antibiotic_exposed_infection_days_by_bacteria"][b_idx]
+            )
             resolutions = float(totals["infection_resolution_count_by_bacteria"][b_idx])
-            sepsis_onsets = float(totals["sepsis_onset_count_by_bacteria"][b_idx])
+            sepsis_onsets = float(totals["sepsis_onset_events_by_bacteria"][b_idx])
             deaths = float(totals["infection_death_count_by_bacteria"][b_idx])
             drug_failures = float(totals["drug_failure_count_by_bacteria"][b_idx])
 
@@ -6563,22 +6539,22 @@ def _st1_build_summary(rows: list[dict[str, object]]) -> tuple[pd.DataFrame, int
 def _st1_detail_table_from_summary(summary: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({
         "Bacterium": summary["bacterium"],
-        "New active infections": summary["new_active_infections"].map(_st1_format_count),
+        "Infection acquisition events": summary["new_active_infections"].map(_st1_format_count),
         "Active infection-days": summary["active_infection_days"].map(_st1_format_count),
         "Treated infection-days": summary["treated_infection_days"].map(_st1_format_count),
         "Treated infection-days (% of active)": summary["treated_infection_percent"].map(_st1_format_percent),
         "Effective treated infection-days": summary["effective_treated_infection_days"].map(_st1_format_count),
         "Effective treated infection-days (% of treated)": summary["effective_treated_percent"].map(_st1_format_percent),
         "Infection resolutions": summary["infection_resolutions"].map(_st1_format_count),
-        "Resolution rate per 1,000 new active infections": summary["resolution_rate_per_1000"].map(_st1_format_rate),
+        "Resolution rate per 1,000 acquisition events": summary["resolution_rate_per_1000"].map(_st1_format_rate),
         "Drug / treatment failure events": summary["drug_failure_events"].map(_st1_format_count),
         "Failure rate per 1,000 treated infection-days": summary[
             "drug_failure_rate_per_1000_treated_days"
         ].map(_st1_format_rate),
         "Sepsis onsets": summary["sepsis_onsets"].map(_st1_format_count),
-        "Sepsis onset rate per 1,000 new active infections": summary["sepsis_rate_per_1000"].map(_st1_format_rate),
+        "Sepsis onset rate per 1,000 acquisition events": summary["sepsis_rate_per_1000"].map(_st1_format_rate),
         "Infection deaths": summary["infection_deaths"].map(_st1_format_count),
-        "Infection fatality per 1,000 new active infections": summary["fatality_per_1000"].map(_st1_format_rate),
+        "Infection fatality per 1,000 acquisition events": summary["fatality_per_1000"].map(_st1_format_rate),
         "Reliability flag": summary["reliability_flag"],
     })
 
@@ -6593,7 +6569,7 @@ def _s8_reliability_legend_html() -> str:
             "unstable rate",
         ],
         "Meaning": [
-            "Fewer than 100 new active infections in the run-level median denominator.",
+            "Fewer than 100 acquisition events in the run-level median denominator.",
             "Fewer than 100 treated infection-days in the run-level median denominator.",
             "Fewer than 20 sepsis-onset events in the run-level median numerator.",
             "Fewer than 20 infection-death events in the run-level median numerator.",
@@ -6648,8 +6624,7 @@ def _s8_placeholder(
         _S8_TITLE,
         message,
         [
-            "Old simulation_summary files remain readable: when required aggregate columns are absent, "
-            "this placeholder is generated rather than failing the paper-output build.",
+            "The paper-output build accepts only the current versioned simulation-summary schema.",
             "No new model-output CSV file is required or produced.",
         ],
         agg=agg,
@@ -6750,7 +6725,7 @@ def make_supplementary_figure_s8_infection_outcome_pathway(
     )
 
     axes[0].barh(y, plot["new_active_infections"].to_numpy(dtype=float), height=0.58, color="#4E79A7", alpha=0.85)
-    axes[0].set_title("A. New active infections", loc="left", fontsize=9.2, fontweight="bold")
+    axes[0].set_title("A. Infection acquisition events", loc="left", fontsize=9.2, fontweight="bold")
     axes[0].set_xlabel("Raw simulated n", fontsize=8.1)
     axes[0].set_yticks(y)
     axes[0].set_yticklabels(plot["bacterium"].values, fontsize=6.5, fontstyle="italic")
@@ -6854,7 +6829,7 @@ def make_supplementary_figure_s8_infection_outcome_pathway(
     )
     note = (
         "Integrated pathway view of baseline-policy infection outcomes by bacterium; rows are sorted "
-        "by median infection deaths, then median new active infections."
+        "by median infection deaths, then median acquisition events."
     )
     footnotes = [
         "Values summarise baseline-policy infection outcomes by bacterium in the 2022-2025 window.",
@@ -6969,21 +6944,21 @@ def make_supplementary_table_s1_infection_outcomes(
 
     table = pd.DataFrame({
         "Bacterium": summary["bacterium"],
-        "New active infections": summary["new_active_infections"].map(_st1_format_count),
+        "Infection acquisition events": summary["new_active_infections"].map(_st1_format_count),
         "Active infection-days": summary["active_infection_days"].map(_st1_format_count),
         "Treated infection-days": summary["treated_infection_days"].map(_st1_format_count),
         "Effective treated infection-days": summary["effective_treated_infection_days"].map(_st1_format_count),
         "Effective treated infection-days (% of treated)": summary["effective_treated_percent"].map(_st1_format_percent),
         "Infection resolutions": summary["infection_resolutions"].map(_st1_format_count),
-        "Resolution rate per 1,000 new active infections": summary["resolution_rate_per_1000"].map(_st1_format_rate),
+        "Resolution rate per 1,000 acquisition events": summary["resolution_rate_per_1000"].map(_st1_format_rate),
         "Drug / treatment failure events": summary["drug_failure_events"].map(_st1_format_count),
         "Failure rate per 1,000 treated infection-days": summary[
             "drug_failure_rate_per_1000_treated_days"
         ].map(_st1_format_rate),
         "Sepsis onsets": summary["sepsis_onsets"].map(_st1_format_count),
-        "Sepsis onset rate per 1,000 new active infections": summary["sepsis_rate_per_1000"].map(_st1_format_rate),
+        "Sepsis onset rate per 1,000 acquisition events": summary["sepsis_rate_per_1000"].map(_st1_format_rate),
         "Infection deaths": summary["infection_deaths"].map(_st1_format_count),
-        "Infection fatality per 1,000 new active infections": summary["fatality_per_1000"].map(_st1_format_rate),
+        "Infection fatality per 1,000 acquisition events": summary["fatality_per_1000"].map(_st1_format_rate),
         "Reliability flag": summary["reliability_flag"],
     })
 
@@ -7046,8 +7021,14 @@ _ST2_REQUIRED_COLUMNS = [
     "Class",
     "Inf sim (%)",
     "Inf target (%)",
+    "Inf provenance",
+    "Inf source",
+    "Inf rationale",
     "Avg sim (%)",
     "Avg target (%)",
+    "Avg provenance",
+    "Avg source",
+    "Avg rationale",
     "Micro sim (%)",
     "Inf days",
     "Res days",
@@ -7057,7 +7038,8 @@ _ST2_REQUIRED_COLUMNS = [
 _ST2_PLACEHOLDER_MESSAGE = (
     "Supplementary Table S2 requires the 'Resistance Benchmarks (percent resistant)' table "
     "in calibration_summary_*.txt, including Bacteria, Drug, Class, Inf sim (%), Inf target (%), "
-    "Avg sim (%), Avg target (%), Micro sim (%), Inf days, Res days, Carrier days, and Flags."
+    "Inf provenance/source/rationale, Avg sim (%), Avg target (%), Avg provenance/source/rationale, "
+    "Micro sim (%), Inf days, Res days, Carrier days, and Flags."
 )
 _ST2_MISSING_SENTINELS = {"", "-", "---", "\u2014", "NaN", "nan", "N/A", "None", "none"}
 
@@ -7100,6 +7082,19 @@ def _st2_first_nonmissing(values: pd.Series) -> float:
     if arr.size == 0:
         return np.nan
     return float(arr[0])
+
+
+def _st2_first_nonmissing_text(values: pd.Series) -> str:
+    for value in values:
+        text = _st2_text(value)
+        if text:
+            return text
+    return ""
+
+
+def _st2_text_inconsistent(values: pd.Series) -> bool:
+    distinct = {_st2_text(value) for value in values if _st2_text(value)}
+    return len(distinct) > 1
 
 
 def _st2_target_inconsistent(values: pd.Series) -> bool:
@@ -7237,8 +7232,14 @@ def _st2_rows_from_runs(runs: list[dict]) -> tuple[pd.DataFrame, list[str], list
                 "Class": _st2_text(source_row.get("Class")),
                 "Inf sim (%)": _st2_numeric(source_row.get("Inf sim (%)")),
                 "Inf target (%)": _st2_numeric(source_row.get("Inf target (%)")),
+                "Inf provenance": _st2_text(source_row.get("Inf provenance")),
+                "Inf source": _st2_text(source_row.get("Inf source")),
+                "Inf rationale": _st2_text(source_row.get("Inf rationale")),
                 "Avg sim (%)": _st2_numeric(source_row.get("Avg sim (%)")),
                 "Avg target (%)": _st2_numeric(source_row.get("Avg target (%)")),
+                "Avg provenance": _st2_text(source_row.get("Avg provenance")),
+                "Avg source": _st2_text(source_row.get("Avg source")),
+                "Avg rationale": _st2_text(source_row.get("Avg rationale")),
                 "Micro sim (%)": _st2_numeric(source_row.get("Micro sim (%)")),
                 "Inf days": _st2_numeric(source_row.get("Inf days")),
                 "Res days": _st2_numeric(source_row.get("Res days")),
@@ -7269,10 +7270,16 @@ def _st2_summarise_rows(raw: pd.DataFrame) -> pd.DataFrame:
             "inf_sim_p5": _st2_percentile(group["Inf sim (%)"], 5),
             "inf_sim_p95": _st2_percentile(group["Inf sim (%)"], 95),
             "inf_target": inf_target,
+            "inf_provenance": _st2_first_nonmissing_text(group["Inf provenance"]),
+            "inf_source": _st2_first_nonmissing_text(group["Inf source"]),
+            "inf_rationale": _st2_first_nonmissing_text(group["Inf rationale"]),
             "avg_sim_median": _st2_median(group["Avg sim (%)"]),
             "avg_sim_p5": _st2_percentile(group["Avg sim (%)"], 5),
             "avg_sim_p95": _st2_percentile(group["Avg sim (%)"], 95),
             "avg_target": avg_target,
+            "avg_provenance": _st2_first_nonmissing_text(group["Avg provenance"]),
+            "avg_source": _st2_first_nonmissing_text(group["Avg source"]),
+            "avg_rationale": _st2_first_nonmissing_text(group["Avg rationale"]),
             "micro_sim_median": _st2_median(group["Micro sim (%)"]),
             "micro_sim_p5": _st2_percentile(group["Micro sim (%)"], 5),
             "micro_sim_p95": _st2_percentile(group["Micro sim (%)"], 95),
@@ -7284,6 +7291,12 @@ def _st2_summarise_rows(raw: pd.DataFrame) -> pd.DataFrame:
             "target_inconsistent": (
                 _st2_target_inconsistent(group["Inf target (%)"])
                 or _st2_target_inconsistent(group["Avg target (%)"])
+                or _st2_text_inconsistent(group["Inf provenance"])
+                or _st2_text_inconsistent(group["Inf source"])
+                or _st2_text_inconsistent(group["Inf rationale"])
+                or _st2_text_inconsistent(group["Avg provenance"])
+                or _st2_text_inconsistent(group["Avg source"])
+                or _st2_text_inconsistent(group["Avg rationale"])
             ),
         }
         record["infection_resistance_delta_pp"] = _st2_delta(
@@ -7320,6 +7333,9 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
                 axis=1,
             ),
             "Infection resistance calibration benchmark (%)": summary["inf_target"].map(_st2_format_number),
+            "Infection benchmark provenance class": summary["inf_provenance"],
+            "Infection benchmark source ID": summary["inf_source"],
+            "Infection benchmark rationale ID": summary["inf_rationale"],
             "Infection resistance difference, median simulation minus benchmark (pp)": summary[
                 "infection_resistance_delta_pp"
             ].map(_st2_format_number),
@@ -7332,6 +7348,9 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
                 axis=1,
             ),
             "Average resistant level expert-assigned model benchmark (%)": summary["avg_target"].map(_st2_format_number),
+            "Average-level benchmark provenance class": summary["avg_provenance"],
+            "Average-level benchmark source ID": summary["avg_source"],
+            "Average-level benchmark rationale ID": summary["avg_rationale"],
             "Average resistant-level difference, median simulation minus benchmark (pp)": summary[
                 "avg_resistant_level_delta_pp"
             ].map(_st2_format_number),
@@ -7354,6 +7373,9 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
         "Drug class": summary["drug_class"],
         "Infection resistance, simulation (%)": summary["inf_sim_median"].map(_st2_format_number),
         "Infection resistance, calibration benchmark (%)": summary["inf_target"].map(_st2_format_number),
+        "Infection benchmark provenance class": summary["inf_provenance"],
+        "Infection benchmark source ID": summary["inf_source"],
+        "Infection benchmark rationale ID": summary["inf_rationale"],
         "Infection resistance difference, simulation minus benchmark (pp)": summary[
             "infection_resistance_delta_pp"
         ].map(_st2_format_number),
@@ -7362,6 +7384,9 @@ def _st2_display_table(summary: pd.DataFrame, multiple_runs: bool) -> pd.DataFra
         ].map(_st2_format_number),
         "Average resistant level, simulation (%)": summary["avg_sim_median"].map(_st2_format_number),
         "Average resistant level, expert-assigned model benchmark (%)": summary["avg_target"].map(_st2_format_number),
+        "Average-level benchmark provenance class": summary["avg_provenance"],
+        "Average-level benchmark source ID": summary["avg_source"],
+        "Average-level benchmark rationale ID": summary["avg_rationale"],
         "Average resistant-level difference, simulation minus benchmark (pp)": summary[
             "avg_resistant_level_delta_pp"
         ].map(_st2_format_number),
@@ -7396,6 +7421,7 @@ def _st2_largest_differences_table(summary: pd.DataFrame) -> pd.DataFrame:
         "Drug class": eligible["drug_class"],
         "Infection resistance simulation (%)": eligible["inf_sim_median"].map(_st2_format_number),
         "Infection resistance calibration benchmark (%)": eligible["inf_target"].map(_st2_format_number),
+        "Benchmark provenance class": eligible["inf_provenance"],
         "Difference (pp)": eligible["infection_resistance_delta_pp"].map(_st2_format_number),
         "Absolute difference (pp)": eligible["abs_infection_resistance_delta_pp"].map(_st2_format_number),
         "Flags": eligible["original_flags"],
@@ -7415,7 +7441,7 @@ def _st2_flag_legend_html() -> str:
         ("missing microbiome denominator", "Carrier-days were missing, so microbiome/carriage resistance is not interpretable."),
         ("missing carrier-days", "Carrier-day denominator was missing."),
         ("expanded window", "The original calibration summary flagged an expanded observation window."),
-        ("benchmark value varied across runs", "Benchmarks differed across supplied calibration summaries; the first non-missing benchmark is displayed."),
+        ("benchmark value varied across runs", "Benchmark values or provenance metadata differed across supplied calibration summaries; the first non-missing entry is displayed."),
         ("no caveat", "No derived caveat was added."),
     ], columns=["Derived flag", "Meaning"])
     return "<h2>Flag Legend</h2>\n" + _html_table(legend)
@@ -7429,6 +7455,8 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
         "Infection resistance simulation (%) is the simulated percentage of infection-days for the bacterium-drug combination classified as resistant.",
         "Infection resistance calibration benchmark (%) is an evidence-informed comparison value, not a direct harmonised surveillance estimate.",
         "Average resistant-level comparison values are expert-assigned model benchmarks for mean any_r conditional on any_r > 0; they are not MIC values or direct surveillance estimates.",
+        "Provenance, source, and rationale identifiers are carried from data/resistance_targets_v1.csv. The linked descriptions are in data/resistance_target_sources_v1.csv. No v1 cell is classified as a direct empirical estimate with recovered cell-level provenance.",
+        "Evidence-quality weights have not been assigned and do not enter the score. The displayed score weighting is a model-design choice, not evidence-derived confidence.",
         "Average resistant level is summarised among resistant positives where defined; rows with no resistant infections do not have a meaningful average resistant level.",
         "Microbiome resistance simulation (%) describes simulated resistance in the microbiome/carriage reservoir and is not clinical isolate resistance.",
         "Infection-days, resistant infection-days, and carrier-days are the denominators used for infection resistance, average resistant-level, and microbiome-resistance summaries respectively.",
@@ -7436,7 +7464,7 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
         "Rows flagged as negligible potency correspond to bacterium-drug combinations where baseline potency was too low for the benchmark to be meaningful.",
         "Missing values indicate that a benchmark was not assigned or that the simulated metric was not defined or calculable for that bacterium-drug combination.",
         "This table is detailed calibration support. It should not be interpreted as an independent surveillance dataset.",
-        "Detailed bibliographic source attribution for each benchmark value is not encoded in the generated calibration outputs and is therefore not shown here.",
+        "Legacy bacterium-level source notes do not recover a citation and compatible observation definition for each individual prevalence cell.",
         "Rows excluded from the largest-differences summary because simulation or benchmark values are missing are still retained in the full table.",
     ]
     if multiple_runs:
@@ -7450,8 +7478,8 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
         notes.append("Missing expected source columns in at least one parsed table: " + ", ".join(missing_columns) + ".")
     if target_inconsistency_count:
         notes.append(
-            f"{target_inconsistency_count} row{'s' if target_inconsistency_count != 1 else ''} had benchmark values that varied across runs; "
-            "the first non-missing benchmark is displayed and the row is flagged."
+            f"{target_inconsistency_count} row{'s' if target_inconsistency_count != 1 else ''} had benchmark values or provenance metadata that varied across runs; "
+            "the first non-missing entry is displayed and the row is flagged."
         )
     return _html_footnotes(notes)
 
@@ -8350,12 +8378,12 @@ _SF3_REQUIRED_MESSAGE = (
 _SF3_REQUIRED_COLUMNS = [
     "carrier_at_risk_person_days_by_bacteria",
     "non_carrier_at_risk_person_days_by_bacteria",
-    "new_infections_in_carriers_by_bacteria",
-    "new_infections_in_non_carriers_by_bacteria",
+    "infection_acquisition_events_in_preexisting_carriers_by_bacteria",
+    "infection_acquisition_events_in_preexisting_non_carriers_by_bacteria",
 ]
 _SF3_ANY_R_COLUMNS = [
-    "new_any_r_infections_in_carriers_by_bacteria",
-    "new_any_r_infections_in_non_carriers_by_bacteria",
+    "infection_acquisition_events_with_any_r_in_preexisting_carriers_by_bacteria",
+    "infection_acquisition_events_with_any_r_in_preexisting_non_carriers_by_bacteria",
 ]
 
 
@@ -8462,17 +8490,25 @@ def _sf3_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
                 group, "non_carrier_at_risk_person_days_by_bacteria", target_len
             )
             carrier_events = _sf3_sum_vector_column(
-                group, "new_infections_in_carriers_by_bacteria", target_len
+                group,
+                "infection_acquisition_events_in_preexisting_carriers_by_bacteria",
+                target_len,
             )
             non_carrier_events = _sf3_sum_vector_column(
-                group, "new_infections_in_non_carriers_by_bacteria", target_len
+                group,
+                "infection_acquisition_events_in_preexisting_non_carriers_by_bacteria",
+                target_len,
             )
             if has_any_r:
                 carrier_any_r_events = _sf3_sum_vector_column(
-                    group, "new_any_r_infections_in_carriers_by_bacteria", target_len
+                    group,
+                    "infection_acquisition_events_with_any_r_in_preexisting_carriers_by_bacteria",
+                    target_len,
                 )
                 non_carrier_any_r_events = _sf3_sum_vector_column(
-                    group, "new_any_r_infections_in_non_carriers_by_bacteria", target_len
+                    group,
+                    "infection_acquisition_events_with_any_r_in_preexisting_non_carriers_by_bacteria",
+                    target_len,
                 )
             else:
                 carrier_any_r_events = np.full(target_len, np.nan)
@@ -8711,7 +8747,7 @@ def make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(
         "Carriers are people with microbiome/carriage presence for the bacterium and no active "
         "infection with that bacterium at the start of the timestep. Non-carriers have no "
         "microbiome/carriage presence and no active infection with that bacterium. Incident "
-        "infections are new active infections occurring later in that timestep.",
+        "events are successful infection acquisitions occurring later in that timestep.",
         "Rates use at-risk person-years as the denominator. People already actively infected "
         "with the bacterium are excluded from both carrier and non-carrier denominators for that bacterium.",
         "This figure is a structural diagnostic of the carriage-to-infection pathway. It should "
@@ -9069,7 +9105,15 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
         "infection_days_with_any_resistance_mechanism_by_bacteria",
         *exact_columns,
     ]
-    optional = ["policy_option", "run_id", "simulation_year", "year", "time_in_years", "time_step"]
+    optional = [
+        SUMMARY_SCHEMA_VERSION_COLUMN,
+        "policy_option",
+        "run_id",
+        "simulation_year",
+        "year",
+        "time_in_years",
+        "time_step",
+    ]
     any_new_active_available = False
 
     if not csv_paths:
@@ -9091,12 +9135,14 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
             )
             continue
 
-        new_active_available = "new_active_infections_by_bacteria" in header_set
+        new_active_available = "infection_acquisition_events_by_bacteria" in header_set
         any_new_active_available = any_new_active_available or new_active_available
         wanted = [
             column
             for column in dict.fromkeys(
-                required + optional + (["new_active_infections_by_bacteria"] if new_active_available else [])
+                required
+                + optional
+                + (["infection_acquisition_events_by_bacteria"] if new_active_available else [])
             )
             if column in header_set
         ]
@@ -9106,6 +9152,7 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
         try:
             chunk_iter = pd.read_csv(csv_path, usecols=wanted, chunksize=4000)
             for chunk in chunk_iter:
+                validate_summary_frame(chunk, source=csv_path)
                 if chunk.empty:
                     continue
                 if "policy_option" in chunk.columns:
@@ -9147,7 +9194,7 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
                     if new_active_available:
                         state["new_active"] = state["new_active"] + _sf4_sum_vector_column(
                             group,
-                            "new_active_infections_by_bacteria",
+                            "infection_acquisition_events_by_bacteria",
                             target_len,
                         )
                     try:
@@ -9351,7 +9398,7 @@ def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
         "Bacterium": summary["bacterium"],
     }
     if bool(summary["new_active_infections_available"].any()):
-        table_data["New active infections"] = summary["new_active_infections"].map(_sf4_format_count)
+        table_data["Infection acquisition events"] = summary["new_active_infections"].map(_sf4_format_count)
     table_data["Active infection-days"] = summary["active_infection_days"].map(_sf4_format_count)
     table_data["Infection-days with any recorded resistance mechanism"] = summary[
         "any_mechanism_days"
@@ -9383,7 +9430,10 @@ def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
         "Reliability flags identify rows with low active infection-days, low or moderate incident infection denominators, sparse exact mechanism counts, or unavailable incident denominators.",
     ]
     if not any_new_active_available:
-        footnotes.append("new_active_infections_by_bacteria was unavailable; incident infection denominator flags were therefore unavailable.")
+        footnotes.append(
+            "infection_acquisition_events_by_bacteria was unavailable; incident infection "
+            "denominator flags were therefore unavailable."
+        )
     if problems:
         footnotes.append("Parser notes: " + " ".join(problems[:4]))
 
@@ -9505,7 +9555,7 @@ def _sf5_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
     fig.subplots_adjust(left=0.03, right=0.97, top=0.88, bottom=0.08)
     footnotes = [
         "Supplementary Figure S5 is generated from aggregate simulation_summary_run#.csv columns only.",
-        "Old simulation_summary files without the diagnostic-cascade aggregate columns intentionally render this placeholder.",
+        "The paper-output build accepts only the current versioned simulation-summary schema.",
     ]
     _save_figure(
         fig,
@@ -9786,14 +9836,14 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
 
 _SF6_TITLE = "Supplementary Figure S6. New active infection denominators by bacterium, 2022\u20132025"
 _SF6_STEM = "Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium"
-_SF6_TOTAL_COLUMN = "new_active_infections_by_bacteria"
+_SF6_TOTAL_COLUMN = "infection_acquisition_events_by_bacteria"
 _SF6_HOSPITAL_REGIONS = _F6_HOSPITAL_REGIONS
 _SF6_REQUIRED_MESSAGE = (
     "Supplementary Figure S6 requires total, hospital, and community new active "
     "infection denominators by bacterium for the 2022-2025 serious-R window. "
-    "The total denominator column is new_active_infections_by_bacteria; "
+    "The total denominator column is infection_acquisition_events_by_bacteria; "
     "hospital/community denominators are derived from existing per-region "
-    "newly_infected_hospital columns when available."
+    "infection_acquisition_events_hospital columns."
 )
 _SF6_SPECIAL_ORGANISM_NOTES = {
     "mdr_mycobacterium_tuberculosis": (
@@ -9840,8 +9890,7 @@ def _sf6_placeholder(
             "infection denominators by bacterium for the 2022-2025 serious-R window.",
             "calibration_summary_*.txt is an internal diagnostic file and is not required "
             "to interpret this reader-facing page.",
-            "Old simulation_summary files remain readable: when required aggregate columns "
-            "are absent, this placeholder is generated rather than failing the paper-output build.",
+            "The paper-output build accepts only the current versioned simulation-summary schema.",
         ],
         agg=agg,
         extra_html=extra_html,
@@ -10164,7 +10213,10 @@ def make_supplementary_figure_s6_new_active_infection_denominators(
             out_dir,
             agg,
             _SF6_REQUIRED_MESSAGE,
-            ["No matching simulation_summary_*.csv files with new_active_infections_by_bacteria were found."],
+            [
+                "No matching simulation_summary_*.csv files with "
+                "infection_acquisition_events_by_bacteria were found."
+            ],
         )
         print("  Supplementary Figure S6: placeholder (no matching denominator CSVs).")
         return {"generated": "placeholder", "bacteria_included": 0, "n_runs": 0}
@@ -10225,7 +10277,7 @@ def make_supplementary_figure_s6_new_active_infection_denominators(
         ax_total,
         plot_summary["total_new_active_infections_median"].fillna(0).astype(float).tolist(),
     )
-    ax_total.set_title("A. Total new active infections", fontsize=9.5, fontweight="bold")
+    ax_total.set_title("A. Total infection acquisition events", fontsize=9.5, fontweight="bold")
     ax_total.set_xlabel("Raw simulated n, 2022-2025", fontsize=8.8)
     ax_total.set_yticks(y)
     ax_total.set_yticklabels(plot_summary["bacterium"].values, fontsize=7.1, fontstyle="italic")
@@ -10365,13 +10417,13 @@ def make_supplementary_figure_s6_new_active_infection_denominators(
         table_df = pd.DataFrame({
             "Bacterium": summary["bacterium"],
             "Serious-R marker drug(s)": summary["Marker drug(s)"],
-            "Total new active infections, raw simulated n": summary[
+            "Total acquisition events, raw simulated n": summary[
                 "total_new_active_infections_median"
             ].map(_sf6_format_count),
-            "Hospital new active infections, raw simulated n": summary[
+            "Hospital-acquired events, raw simulated n": summary[
                 "hospital_new_active_infections_median"
             ].map(_sf6_format_count),
-            "Community new active infections, raw simulated n": summary[
+            "Community-acquired events, raw simulated n": summary[
                 "community_new_active_infections_median"
             ].map(_sf6_format_count),
         })
@@ -10406,10 +10458,10 @@ def make_supplementary_figure_s6_new_active_infection_denominators(
         else "Counts are from the supplied run."
     )
     footnotes = [
-        "Counts are summarised over baseline-policy new active infections in the 2022-2025 calibration window.",
+        "Counts are summarised over baseline-policy infection-acquisition events in the 2022-2025 calibration window.",
         "Data source: aggregate model outputs parsed into paper_tables. calibration_summary_*.txt is not required to interpret this page.",
         "Counts are raw simulated bacterium-specific new active infection events and are provided to interpret bacterium-specific serious-R percentages.",
-        "Hospital and community new-infection strata use the infection_hospital_acquired event flag exported by the model: hospital-acquired events are hospital, and all other new active infections are community. The existing Figure 7 serious-R percentages preferentially use current hospital/community infected-stock denominators when those stock-split columns are available; this page shows new active infection event denominators for interpretability and labels that distinction directly.",
+        "Hospital and community strata use the acquisition event's care-setting snapshot: hospital-acquired events are hospital, and all other acquisition events are community. Figure 7 serious-R stock percentages use current hospital/community infected-stock denominators; this page shows acquisition-event denominators and labels that distinction directly.",
         "Counts are raw simulated n values, not population-scaled incidence estimates.",
         "Small denominators can make serious-R percentages unstable; apparent 0% or 100% serious-R values should be interpreted cautiously when denominators are sparse.",
         "Serious-R is a model-defined marker-drug resistance endpoint and is not a directly observed surveillance category.",
@@ -10748,7 +10800,7 @@ _F20_VALUE_COLUMNS = [
     "Hospital Serious-R (%)",
     "Community Serious-R (%)",
     "Sim H:C ratio",
-    "Total New Infections",
+    "Infection Acquisition Events",
 ]
 
 
@@ -10839,7 +10891,7 @@ def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.Dat
     required_columns = {
         "Bacteria",
         "Marker drug(s)",
-        "Total New Infections",
+        "Infection Acquisition Events",
         "Hospital Serious-R (%)",
         "Community Serious-R (%)",
         "Sim H:C ratio",
@@ -10853,8 +10905,8 @@ def _figure_20_parse_calibration_summary(path: Union[str, Path]) -> tuple[pd.Dat
         df["Overall Serious-R (%)"] = np.nan
     if "Marker drug(s)" not in df.columns:
         df["Marker drug(s)"] = ""
-    if "Total New Infections" in df.columns:
-        df = df[df["Total New Infections"] > 0].copy()
+    if "Infection Acquisition Events" in df.columns:
+        df = df[df["Infection Acquisition Events"] > 0].copy()
     else:
         df = pd.DataFrame()
     if df.empty:
@@ -10892,7 +10944,7 @@ def _figure_20_summarise_rows(rows: pd.DataFrame) -> tuple[pd.DataFrame, list[st
             ("Hospital Serious-R (%)", "hospital"),
             ("Community Serious-R (%)", "community"),
             ("Sim H:C ratio", "sim_hc_ratio"),
-            ("Total New Infections", "total_new_infections"),
+            ("Infection Acquisition Events", "total_new_infections"),
         ]:
             values = group[source_col].dropna().astype(float).to_numpy()
             if len(values) == 0:
@@ -10990,7 +11042,7 @@ def _figure_20_placeholder(out_dir: Path, agg: dict | None, message: str) -> Non
         [
             "Serious-R is defined using the bacterium-specific marker drug(s) listed in "
             "the calibration summary. Hospital and community percentages are calculated "
-            "among new active infections in the 2022-2025 calibration window. Missing "
+            "among infection-acquisition events in the 2022-2025 calibration window. Missing "
             "hospital or community points indicate that the corresponding denominator was "
             "unavailable or zero in the summary.",
             "This figure uses serious-R marker resistance, not any-R. It should not be read "
@@ -11097,7 +11149,7 @@ def make_figure_20_serious_r_by_hospital_community(
     ax.set_yticks(y)
     ax.set_yticklabels(plot_summary["bacterium"].values, fontsize=7.5, fontstyle="italic")
     ax.set_xlim(0, 100)
-    ax.set_xlabel("Serious-R among new active infections (%)", fontsize=10)
+    ax.set_xlabel("Serious-R among infection-acquisition events (%)", fontsize=10)
     ax.set_ylabel("Bacteria", fontsize=10)
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="x", linewidth=0.4, alpha=0.5)
@@ -11108,7 +11160,7 @@ def make_figure_20_serious_r_by_hospital_community(
     details = pd.DataFrame({
         "Bacterium": summary["bacterium"],
         "Marker drug(s)": summary["marker_drugs"],
-        "Total new infections": summary["total_new_infections_median"].map(_figure_20_format_count),
+        "Infection acquisition events": summary["total_new_infections_median"].map(_figure_20_format_count),
         "Overall serious-R (%)": summary["overall_median"].map(_figure_20_format_percent),
         "Hospital serious-R (%)": summary["hospital_median"].map(_figure_20_format_percent),
         "Community serious-R (%)": summary["community_median"].map(_figure_20_format_percent),
@@ -11127,7 +11179,7 @@ def make_figure_20_serious_r_by_hospital_community(
     run_note = (
         f"Values are medians across {n_runs} calibration summary file"
         f"{'s' if n_runs > 1 else ''}; horizontal intervals show 5th-95th percentile ranges. "
-        "Total new infections in the table is the median across runs."
+        "Infection acquisition events in the table are the median across runs."
         if n_runs > 1
         else "Values are taken directly from the supplied calibration summary file."
     )

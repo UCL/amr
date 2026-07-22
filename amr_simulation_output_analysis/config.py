@@ -117,8 +117,10 @@ class PlotConfig:
     resistance_benchmark_bar_charts: bool = False
 
     # Empirical data display options
-    show_synthetic_fallback_data: bool = False  # Whether to display synthetic fallback empirical overlays
-    show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
+    # Diagnostic opt-in only: these retained values are best-guess placeholders,
+    # not verified observed comparisons and not calibration-score inputs.
+    show_best_guess_placeholder_overlays: bool = False
+    show_comparison_overlay_source_attribution: bool = True
     
     # Individual plot controls - DISABLED since they're included in grouped figures
     basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
@@ -147,7 +149,7 @@ class PlotConfig:
     figure_format: str = "png"
     dpi: int = 150  # Reduced from 300 to lower memory usage (use 300 for publication quality)
     show_plots: bool = False  # Whether to display plots interactively
-    empirical_overlay: bool = True  # Whether to show empirical data overlays
+    empirical_overlay: bool = True  # Whether to show provenance-controlled comparison overlays
     simulation_run_id: Optional[str] = None  # Derived from simulation CSV filename
     
     # Memory management
@@ -231,9 +233,9 @@ class PlotConfig:
 
 @dataclass
 class EmpiricalConfig:
-    """Configuration for empirical data integration."""
+    """Configuration for provenance-controlled comparison data integration."""
     
-    enable_empirical_overlays: bool = True
+    enable_empirical_overlays: bool = True  # Observed comparisons by default; placeholders need separate opt-in.
     ecdc_data_path: Path = field(default_factory=lambda: Path("data/ecdc"))
     who_data_path: Path = field(default_factory=lambda: Path("data/who"))
     cdc_data_path: Path = field(default_factory=lambda: Path("data"))

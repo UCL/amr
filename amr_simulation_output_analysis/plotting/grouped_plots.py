@@ -284,12 +284,12 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             axes1[0].set_axis_off()
         
         # 2. Daily Sepsis Incidence Rate (separate lines for each bacteria)
-        sepsis_cols = [col for col in df.columns if col.endswith('_new_sepsis_cases')]
+        sepsis_cols = [col for col in df.columns if col.endswith('_sepsis_onset_events')]
         if sepsis_cols:
             # Get all bacteria with their total new sepsis cases
             bacteria_totals = []
             for col in sepsis_cols:
-                bacteria_name = col.replace('_new_sepsis_cases', '')
+                bacteria_name = col.replace('_sepsis_onset_events', '')
                 total_cases = df[col].sum()
                 bacteria_totals.append((bacteria_name, total_cases, col))
             
@@ -412,7 +412,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         # 1. Newly Infected in the Past Year as Proportion of Living Population
         if plot_segmented_series(
             axes2[0],
-            'newly_infected_past_year_proportion',
+            'infection_acquisition_people_past_year_proportion',
             color='teal',
             min_year=1.0,
         ):
@@ -634,11 +634,11 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         # Sum carrier + non-carrier new infections for each bacteria
         bacteria_infection_cols = {}
         for col in df.columns:
-            if col.endswith('_newly_infected_carrier'):
-                name = col.replace('_newly_infected_carrier', '')
+            if col.endswith('_infection_acquisition_events_carrier_at_acquisition'):
+                name = col.replace('_infection_acquisition_events_carrier_at_acquisition', '')
                 bacteria_infection_cols.setdefault(name, {})['carrier'] = col
-            elif col.endswith('_newly_infected_non_carrier'):
-                name = col.replace('_newly_infected_non_carrier', '')
+            elif col.endswith('_infection_acquisition_events_non_carrier_at_acquisition'):
+                name = col.replace('_infection_acquisition_events_non_carrier_at_acquisition', '')
                 bacteria_infection_cols.setdefault(name, {})['non_carrier'] = col
 
         if bacteria_infection_cols and 'total_population' in df.columns:
@@ -717,10 +717,13 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         fig4.suptitle('Grouped Figure 4: Resistance and Testing Metrics', fontsize=16)
         
         # 1. Proportion of newly infected people with any drug resistance
-        if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
+        if (
+            'infection_acquisition_people_with_any_r_count' in df.columns
+            and 'infection_acquisition_people_count' in df.columns
+        ):
             newly_infected_with_resistance_proportion = safe_divide(
-                df['newly_infected_with_resistance_count'],
-                df['newly_infected_count'],
+                df['infection_acquisition_people_with_any_r_count'],
+                df['infection_acquisition_people_count'],
                 0,
             )
             if plot_segmented_series(
@@ -738,7 +741,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes4[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
                 axes4[0].set_axis_off()
         else:
-            axes4[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
+            axes4[0].text(0.5, 0.5, 'Acquisition resistance data not available',
                         ha='center', va='center', fontsize=12, color='gray')
             axes4[0].set_axis_off()
         
@@ -1035,46 +1038,34 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         axes6 = axes6.flatten()
         fig6.suptitle('Grouped Figure 6: Overall Activity R Analysis', fontsize=16)
         
-        # Find all bacteria by looking for *_activity_r_sum columns (exclude H. pylori for consistency)
+        # Find all bacteria with coherent applied-stage activity observations.
         bacteria_names = []
         for col in df.columns:
-            if col.endswith("_activity_r_sum"):
-                bacteria_name = col.replace("_activity_r_sum", "")
+            if col.endswith("_applied_activity_sum") and not col.endswith(
+                "_max_possible_applied_activity_sum"
+            ):
+                bacteria_name = col.replace("_applied_activity_sum", "")
                 if bacteria_name != "helicobacter_pylori":  # Exclude H. pylori for clinical consistency
                     bacteria_names.append(bacteria_name)
         
         if bacteria_names:
-            # Calculate total activity_r_pure_sum and max_possible_activity_r_pure_sum across all bacteria
             activity_r_cols = []
             max_possible_cols = []
-            infected_cols = []
             for bacteria_name in bacteria_names:
-                activity_r_sum_col = f"{bacteria_name}_activity_r_pure_sum"
-                max_possible_col = f"{bacteria_name}_max_possible_activity_r_pure_sum"
-                infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+                activity_r_sum_col = f"{bacteria_name}_applied_activity_sum"
+                max_possible_col = f"{bacteria_name}_max_possible_applied_activity_sum"
 
-                if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
+                if activity_r_sum_col in df.columns and max_possible_col in df.columns:
                     activity_r_cols.append(activity_r_sum_col)
-                    infected_cols.append(infected_and_on_drug_col)
-                    if max_possible_col in df.columns:
-                        max_possible_cols.append(max_possible_col)
+                    max_possible_cols.append(max_possible_col)
 
             total_activity_r_sum = sum_rows(activity_r_cols)
-            total_max_possible = sum_rows(max_possible_cols) if max_possible_cols else None
-            total_infected_and_on_drug = sum_rows(infected_cols)
+            total_max_possible = sum_rows(max_possible_cols)
             
             # 1. Mean Fraction of Potential Antibiotic Activity Retained (top-left)
-            # Ratio = activity_r_pure_sum / max_possible_activity_r_pure_sum = mean(1 - any_r) weighted by potency only.
-            # Bounded [0, 1]: 1.0 = no resistance effect, 0.0 = complete resistance.
-            # Does NOT include drug level or site penetration — pure resistance measurement.
-            if total_max_possible is not None:
-                overall_ratio = safe_divide(total_activity_r_sum, total_max_possible, default=np.nan)
-                overall_ratio = np.where(total_max_possible < 1e-9, np.nan, overall_ratio)
-            else:
-                # Fallback to old denominator if new column not yet in data
-                overall_ratio = safe_divide(total_activity_r_sum, total_infected_and_on_drug, default=np.nan)
-                overall_ratio = np.where(overall_ratio > 5.0, np.nan, overall_ratio)
-                overall_ratio = np.where(total_infected_and_on_drug < 1, np.nan, overall_ratio)
+            # Numerator and denominator are captured together where activity affects level.
+            overall_ratio = safe_divide(total_activity_r_sum, total_max_possible, default=np.nan)
+            overall_ratio = np.where(total_max_possible < 1e-9, np.nan, overall_ratio)
             overall_ratio = pd.Series(overall_ratio, index=df.index)
             overall_ratio_smooth = overall_ratio.rolling(
                 window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
@@ -1089,7 +1080,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             ):
                 axes6[0].set_title(
                     'Mean Fraction of Potential Antibiotic Activity Retained\n'
-                    '(activity_r_pure_sum / max_possible_activity_r_pure_sum, excl. H. pylori)\n'
+                    '(applied activity / maximum possible applied activity, excl. H. pylori)\n'
                     '1.0 = no resistance effect; 0.0 = complete resistance'
                 )
                 axes6[0].set_ylabel('Fraction of potential activity retained (0\u20131)')
@@ -1121,8 +1112,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes6[1].text(0.5, 0.5, 'No total activity data', ha='center', va='center')
                 axes6[1].set_axis_off()
             
-            # 3. Total Infected & On Drug Over Time (bottom-left)
-            total_infected_smooth = total_infected_and_on_drug.rolling(
+            # 3. Maximum possible applied activity over time (bottom-left)
+            total_infected_smooth = total_max_possible.rolling(
                 window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
             ).mean()
             
@@ -1130,12 +1121,12 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes6[2],
                 series=total_infected_smooth,
                 color='green',
-                label='Total Infected & On Drug (excl. H. pylori)',
+                label='Maximum Possible Applied Activity (excl. H. pylori)',
                 already_smoothed=True,
             ):
-                axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined, excl. H. pylori)')
+                axes6[2].set_title('Maximum Possible Applied Activity Over Time\n(All Bacteria Combined, excl. H. pylori)')
                 axes6[2].set_xlabel('Time (Years)')
-                axes6[2].set_ylabel('Count')
+                axes6[2].set_ylabel('Activity sum')
                 axes6[2].set_ylim(bottom=0)
                 axes6[2].grid(True, alpha=0.3)
                 axes6[2].legend()
@@ -1161,19 +1152,12 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(top_bacteria)))
             any_bacteria_plotted = False
             for i, bacteria_name in enumerate(top_bacteria):  # Show most impactful bacteria
-                activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
-                max_possible_col = f"{bacteria_name}_max_possible_activity_r_sum"
-                infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+                activity_r_sum_col = f"{bacteria_name}_applied_activity_sum"
+                max_possible_col = f"{bacteria_name}_max_possible_applied_activity_sum"
                 
-                if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
-                    if max_possible_col in df.columns:
-                        bacteria_ratio = safe_divide(df[activity_r_sum_col], df[max_possible_col])
-                        bacteria_ratio = np.where(df[max_possible_col] < 1e-9, np.nan, bacteria_ratio)
-                    else:
-                        # Fallback for old data without the new column
-                        bacteria_ratio = safe_divide(df[activity_r_sum_col], df[infected_and_on_drug_col])
-                        bacteria_ratio = np.where(bacteria_ratio > 5.0, np.nan, bacteria_ratio)
-                        bacteria_ratio = np.where(df[infected_and_on_drug_col] < 1, np.nan, bacteria_ratio)
+                if activity_r_sum_col in df.columns and max_possible_col in df.columns:
+                    bacteria_ratio = safe_divide(df[activity_r_sum_col], df[max_possible_col])
+                    bacteria_ratio = np.where(df[max_possible_col] < 1e-9, np.nan, bacteria_ratio)
                     bacteria_ratio = pd.Series(bacteria_ratio, index=df.index)
                     bacteria_ratio_smooth = bacteria_ratio.rolling(
                         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True

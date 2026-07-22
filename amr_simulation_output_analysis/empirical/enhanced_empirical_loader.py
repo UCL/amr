@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""
-Enhanced empirical data loading with integrated surveillance sources.
+"""Integrated loading for provenance-controlled comparison overlays.
 
-This module extends the original empirical data loader to integrate:
+The source-shaped files handled here are generated best-guess placeholders in
+the current workspace. They are excluded by default and can never be upgraded
+to observed surveillance merely from their source-family names.
+
+Supported source-shaped formats:
 - WHO GLASS surveillance data  
 - ECDC EARS-Net surveillance data
 - Australian NNDSS surveillance data
@@ -19,13 +22,29 @@ import logging
 from typing import Dict, Optional, List
 import numpy as np
 
+from .provenance import (
+    PROVENANCE_COLUMNS,
+    PROJECT_ROOT,
+    filter_overlay_rows,
+)
+
 logger = logging.getLogger(__name__)
 
 class IntegratedEmpiricalLoader:
     """Enhanced loader that integrates multiple surveillance data sources."""
     
-    def __init__(self, data_dir: str = "data"):
-        self.data_dir = Path(data_dir)
+    def __init__(
+        self,
+        data_dir: str = "data",
+        include_best_guess_placeholders: bool = False,
+    ):
+        configured_data_dir = Path(data_dir)
+        self.data_dir = (
+            configured_data_dir
+            if configured_data_dir.is_absolute()
+            else PROJECT_ROOT / configured_data_dir
+        )
+        self.include_best_guess_placeholders = include_best_guess_placeholders
         self.who_dir = self.data_dir / "who"
         self.ecdc_dir = self.data_dir / "ecdc"
         self.australia_dir = self.data_dir / "australia"
@@ -38,7 +57,7 @@ class IntegratedEmpiricalLoader:
         Returns:
             Dictionary with integrated empirical data for overlay on simulation plots
         """
-        logger.info("Loading integrated empirical surveillance data...")
+        logger.info("Loading integrated provenance-controlled comparison overlays...")
         
         integrated_data = {
             'resistance': None,
@@ -59,7 +78,7 @@ class IntegratedEmpiricalLoader:
         # Integrate surveillance data with calibration data
         integrated_data = self._integrate_data_sources(surveillance_data, calibration_data)
         
-        logger.info("Integrated empirical data loading completed")
+        logger.info("Integrated comparison-overlay loading completed")
         return integrated_data
     
     def _load_surveillance_sources(self) -> Dict[str, Optional[pd.DataFrame]]:
@@ -77,9 +96,18 @@ class IntegratedEmpiricalLoader:
         for source_name, file_path in surveillance_sources.items():
             if file_path.exists():
                 try:
-                    df = pd.read_csv(file_path)
-                    surveillance_data[source_name] = df
-                    logger.info(f"   Loaded {len(df):,} records from {source_name}")
+                    df = pd.read_csv(file_path, keep_default_na=False, na_values=[""])
+                    selected = filter_overlay_rows(
+                        df,
+                        source_path=file_path,
+                        include_best_guess_placeholders=(
+                            self.include_best_guess_placeholders
+                        ),
+                    )
+                    surveillance_data[source_name] = selected
+                    logger.info(
+                        f"   Loaded {len(selected):,} eligible records from {source_name}"
+                    )
                 except Exception as e:
                     logger.warning(f"   Failed to load {source_name}: {e}")
                     surveillance_data[source_name] = None
@@ -105,12 +133,21 @@ class IntegratedEmpiricalLoader:
         calibration_data = {}
         
         for data_type, filename in calibration_files.items():
-            file_path = Path("data") / "empirical" / filename
+            file_path = self.data_dir / "empirical" / filename
             if file_path.exists():
                 try:
-                    df = pd.read_csv(file_path)
-                    calibration_data[data_type] = df
-                    logger.info(f"   Loaded existing calibration data: {data_type} ({len(df):,} records)")
+                    df = pd.read_csv(file_path, keep_default_na=False, na_values=[""])
+                    selected = filter_overlay_rows(
+                        df,
+                        source_path=file_path,
+                        include_best_guess_placeholders=(
+                            self.include_best_guess_placeholders
+                        ),
+                    )
+                    calibration_data[data_type] = selected
+                    logger.info(
+                        f"   Loaded comparison data: {data_type} ({len(selected):,} eligible records)"
+                    )
                 except Exception as e:
                     logger.warning(f"   Failed to load calibration {data_type}: {e}")
                     calibration_data[data_type] = None
@@ -218,9 +255,12 @@ class IntegratedEmpiricalLoader:
                         'p75': p75,
                         'p95': p95,
                         'units': 'proportion',
-                        'source_quality': self._get_source_quality(source_name),
+                        'source_quality': source_name,
                         'notes': f'{source_name}_surveillance'
                     })
+
+                    for column in PROVENANCE_COLUMNS:
+                        processed_records[-1][column] = group_data[column].iloc[0]
             
             if processed_records:
                 return pd.DataFrame(processed_records)
@@ -284,18 +324,6 @@ class IntegratedEmpiricalLoader:
         
         return normalizations.get(name, name)
     
-    def _get_source_quality(self, source_name: str) -> str:
-        """Get source quality rating."""
-        
-        quality_ratings = {
-            'who_glass': 'high_quality_surveillance',
-            'ecdc_ears_net': 'high_quality_surveillance', 
-            'australia_nndss': 'medium_quality_surveillance',
-            'cddep_resistancemap': 'aggregated_surveillance'
-        }
-        
-        return quality_ratings.get(source_name, 'unknown_quality')
-    
     def _integrate_drug_usage_data(self, surveillance_data: Dict, calibration_data: Dict) -> pd.DataFrame:
         """Integrate drug usage data from surveillance sources."""
         
@@ -316,28 +344,36 @@ class IntegratedEmpiricalLoader:
         logger.info(f"   Drug usage data: {len(integrated_usage):,} records")
         return integrated_usage
 
-def load_integrated_empirical_data() -> Dict[str, pd.DataFrame]:
+def load_integrated_empirical_data(
+    include_best_guess_placeholders: bool = False,
+) -> Dict[str, pd.DataFrame]:
     """
     Main function to load integrated empirical data.
     
     This function can be used as a drop-in replacement for the original
     load_empirical_calibration_data() function.
     """
-    loader = IntegratedEmpiricalLoader()
+    loader = IntegratedEmpiricalLoader(
+        include_best_guess_placeholders=include_best_guess_placeholders
+    )
     return loader.load_integrated_empirical_data()
 
 # Compatibility function for existing code
-def load_empirical_calibration_data():
+def load_empirical_calibration_data(
+    include_best_guess_placeholders: bool = False,
+):
     """
     Enhanced version of original function with integrated surveillance data.
     """
-    return load_integrated_empirical_data()
+    return load_integrated_empirical_data(
+        include_best_guess_placeholders=include_best_guess_placeholders
+    )
 
 if __name__ == "__main__":
     # Test the integrated loader
     data = load_integrated_empirical_data()
     
-    print("Integrated Empirical Data Summary:")
+    print("Integrated Comparison Overlay Summary:")
     for data_type, df in data.items():
         if df is not None:
             print(f"  {data_type}: {len(df):,} records")

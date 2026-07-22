@@ -1,5 +1,6 @@
 import csv
 import json
+import shutil
 import unittest
 from collections import Counter
 from pathlib import Path
@@ -9,13 +10,19 @@ import pandas as pd
 
 from amr_simulation_output_analysis.build_resistance_targets_v1 import (
     PREVALENCE_COMPONENT,
+    PROVENANCE_EVIDENCE_UNRESOLVED,
+    PROVENANCE_EXPERT_PLACEHOLDER,
+    PROVENANCE_STRUCTURAL_PRIOR,
     SEVERITY_COMPONENT,
+    SOURCE_COLUMNS,
     TARGET_COLUMNS,
     TARGET_SET_VERSION,
+    MANIFEST_FILENAME,
     build_resistance_targets_v1,
 )
 from amr_simulation_output_analysis.calibration_summary import (
     _load_resistance_target_set,
+    _verify_resistance_target_manifest,
 )
 
 
@@ -23,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 TARGET_PATH = DATA / "resistance_targets_v1.csv"
 SOURCE_PATH = DATA / "resistance_target_sources_v1.csv"
+MANIFEST_PATH = DATA / MANIFEST_FILENAME
 
 
 def _read_csv(path: Path):
@@ -55,14 +63,17 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             target_output = Path(temp_dir) / TARGET_PATH.name
             source_output = Path(temp_dir) / SOURCE_PATH.name
+            manifest_output = Path(temp_dir) / MANIFEST_PATH.name
             build_resistance_targets_v1(
                 ROOT,
                 target_output=target_output,
                 source_output=source_output,
+                manifest_output=manifest_output,
             )
 
             self.assertEqual(target_output.read_bytes(), TARGET_PATH.read_bytes())
             self.assertEqual(source_output.read_bytes(), SOURCE_PATH.read_bytes())
+            self.assertEqual(manifest_output.read_bytes(), MANIFEST_PATH.read_bytes())
 
     def test_long_form_values_exactly_match_wide_matrices(self) -> None:
         prevalence_drugs, prevalence = _read_wide_values(
@@ -89,6 +100,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
     def test_schema_and_provenance_contract_is_complete(self) -> None:
         with TARGET_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
             self.assertEqual(csv.DictReader(handle).fieldnames, TARGET_COLUMNS)
+        with SOURCE_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
+            self.assertEqual(csv.DictReader(handle).fieldnames, SOURCE_COLUMNS)
 
         schema = json.loads(
             (DATA / "resistance_targets_v1.schema.json").read_text(encoding="utf-8")
@@ -100,16 +113,29 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                 set(schema["properties"]["cell_status"]["enum"])
             )
         )
+        self.assertTrue(
+            {row["provenance_class"] for row in self.rows}.issubset(
+                set(schema["properties"]["provenance_class"]["enum"])
+            )
+        )
 
         source_ids = [row["source_id"] for row in self.sources]
         self.assertEqual(len(source_ids), 45)
         self.assertEqual(len(source_ids), len(set(source_ids)))
         known_sources = set(source_ids)
+        source_provenance = {
+            row["source_id"]: row["provenance_class"] for row in self.sources
+        }
 
         for row in self.rows:
             self.assertEqual(row["target_set_version"], TARGET_SET_VERSION)
             if row["source_id"]:
                 self.assertIn(row["source_id"], known_sources)
+            if row["value"]:
+                self.assertEqual(
+                    row["provenance_class"],
+                    source_provenance[row["source_id"]],
+                )
             self.assertEqual(row["evidence_weight"], "")
             if row["include_in_score"] == "true":
                 self.assertNotEqual(row["value"], "")
@@ -137,6 +163,89 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             numeric_severity_types,
             {"expert_assigned_model_benchmark"},
         )
+        self.assertEqual(
+            {
+                row["provenance_class"]
+                for row in self.rows
+                if row["component"] == PREVALENCE_COMPONENT and row["value"]
+            },
+            {PROVENANCE_EVIDENCE_UNRESOLVED},
+        )
+        self.assertEqual(
+            {
+                row["provenance_class"]
+                for row in self.rows
+                if row["component"] == SEVERITY_COMPONENT and row["value"]
+            },
+            {PROVENANCE_EXPERT_PLACEHOLDER, PROVENANCE_STRUCTURAL_PRIOR},
+        )
+        self.assertFalse(
+            any(
+                row["provenance_class"]
+                == "empirical_estimate_with_cell_level_source"
+                for row in self.rows
+            )
+        )
+
+    def test_hash_manifest_covers_and_verifies_every_dependency(self) -> None:
+        _verify_resistance_target_manifest(TARGET_PATH)
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["target_set_version"], TARGET_SET_VERSION)
+        self.assertEqual(manifest["hash_algorithm"], "sha256")
+        self.assertEqual(
+            set(manifest["artifacts"]),
+            {
+                "resistance_targets_v1.csv",
+                "resistance_target_sources_v1.csv",
+                "resistance_targets_v1.schema.json",
+                "resistance_prevalence_values.csv",
+                "resistance_average_resistant_values.csv",
+                "model_potency_matrix.csv",
+                "model_resistance_reachability_matrix.csv",
+            },
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            temp_data = Path(temp_dir)
+            shutil.copy2(MANIFEST_PATH, temp_data / MANIFEST_PATH.name)
+            for name in manifest["artifacts"]:
+                shutil.copy2(DATA / name, temp_data / name)
+            with (temp_data / TARGET_PATH.name).open("ab") as handle:
+                handle.write(b"\n")
+            with self.assertRaisesRegex(ValueError, "size mismatch"):
+                _verify_resistance_target_manifest(temp_data / TARGET_PATH.name)
+
+    def test_loader_rejects_malformed_provenance_rows(self) -> None:
+        cases = {
+            "unknown provenance class": lambda rows: rows[0].__setitem__(
+                "provenance_class", "unsupported_claim"
+            ),
+            "numeric row without source": lambda rows: next(
+                row for row in rows if row["value"]
+            ).__setitem__("source_id", ""),
+            "invented evidence weight": lambda rows: next(
+                row for row in rows if row["value"]
+            ).__setitem__("evidence_weight", "1.0"),
+            "source provenance mismatch": lambda rows: next(
+                row for row in rows if row["value"]
+            ).__setitem__("provenance_class", PROVENANCE_STRUCTURAL_PRIOR),
+        }
+        for label, mutate in cases.items():
+            with self.subTest(label=label), TemporaryDirectory() as temp_dir:
+                temp_data = Path(temp_dir)
+                rows = [dict(row) for row in self.rows]
+                mutate(rows)
+                malformed_path = temp_data / TARGET_PATH.name
+                with malformed_path.open("w", encoding="utf-8", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=TARGET_COLUMNS)
+                    writer.writeheader()
+                    writer.writerows(rows)
+                shutil.copy2(SOURCE_PATH, temp_data / SOURCE_PATH.name)
+                with self.assertRaises(ValueError):
+                    _load_resistance_target_set(
+                        malformed_path,
+                        verify_manifest=False,
+                    )
 
     def test_cell_statuses_make_legacy_missingness_explicit(self) -> None:
         counts = Counter((row["component"], row["cell_status"]) for row in self.rows)
@@ -233,6 +342,13 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         ].iloc[0]
         self.assertEqual(included["target"], 0.58)
         self.assertTrue(included["include_in_score"])
+        self.assertEqual(
+            included["provenance_class"], PROVENANCE_EVIDENCE_UNRESOLVED
+        )
+        self.assertEqual(
+            included["source_id"], "legacy_prevalence_note__escherichia_coli"
+        )
+        self.assertEqual(included["rationale"], "legacy_bacterium_level_note")
 
         represented = prevalence.loc[
             prevalence["Bacteria"].eq("Acinetobacter baumannii")
@@ -279,6 +395,10 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             {row["rationale"] for row in reserve},
             {"expert_best_guess_reserve_drug_any_r_placeholder"},
         )
+        self.assertEqual(
+            {row["provenance_class"] for row in reserve},
+            {PROVENANCE_EXPERT_PLACEHOLDER},
+        )
 
         rare_positive = [
             row
@@ -299,6 +419,10 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         self.assertEqual(
             {row["rationale"] for row in rare_positive},
             {"expert_rare_positive_any_r_structural_prior"},
+        )
+        self.assertEqual(
+            {row["provenance_class"] for row in rare_positive},
+            {PROVENANCE_STRUCTURAL_PRIOR},
         )
 
 

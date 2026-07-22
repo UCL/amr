@@ -554,11 +554,6 @@ fn full_summary_rows_preserve_expected_vector_dimensions() {
         bacteria,
     );
     assert_len(
-        "sepsis_onset_count_by_bacteria",
-        summary.sepsis_onset_count_by_bacteria.len(),
-        bacteria,
-    );
-    assert_len(
         "infection_death_count_by_bacteria",
         summary.infection_death_count_by_bacteria.len(),
         bacteria,

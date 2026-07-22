@@ -29,7 +29,7 @@ class BasePlot(ABC):
     Provides standardized infrastructure for:
     - Plot configuration and styling
     - Data validation
-    - Empirical data overlay
+    - Provenance-controlled comparison overlay
     - Error handling and cleanup
     - Consistent saving and display
     """
@@ -102,7 +102,7 @@ class BasePlot(ABC):
                              drug: str = None,
                              data_source: str = None) -> None:
         """
-        Add empirical data overlay to a plot if available.
+        Add an eligible comparison overlay to a plot if available.
         
         Args:
             ax: Matplotlib axis to add overlay to
@@ -128,25 +128,32 @@ class BasePlot(ABC):
                 empirical_df, 
                 drug=drug, 
                 bacteria=bacteria,
-                data_source=data_source
+                data_source=data_source,
+                include_best_guess_placeholders=(
+                    self.plot_config.show_best_guess_placeholder_overlays
+                ),
             )
             
             if sim_years is not None and means is not None:
-                # Plot empirical data as overlay
+                overlay_label = (
+                    'Best-guess placeholder'
+                    if self.plot_config.show_best_guess_placeholder_overlays
+                    else 'Observed comparison'
+                )
                 ax.scatter(sim_years, means, 
                           color='red', alpha=0.7, s=30, 
-                          label='Empirical Data', zorder=10)
+                          label=overlay_label, zorder=10)
                 
                 # Add confidence intervals if available
                 if p5 is not None and p95 is not None:
                     ax.fill_between(sim_years, p5, p95, 
                                    color='red', alpha=0.2, 
-                                   label='Empirical 5-95% CI')
+                                   label=f'{overlay_label} interval')
                 
-                logger.info(f"Added empirical overlay: {len(sim_years)} points")
+                logger.info(f"Added comparison overlay: {len(sim_years)} points")
                 
         except Exception as e:
-            logger.warning(f"Could not add empirical overlay: {e}")
+            logger.warning(f"Could not add comparison overlay: {e}")
     
     def finalize_plot(self, fig: plt.Figure, output_filename: str) -> None:
         """Finalize plot with consistent styling and save."""

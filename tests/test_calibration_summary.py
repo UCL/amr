@@ -8,15 +8,19 @@ import pandas as pd
 
 from amr_simulation_output_analysis.calibration_summary import (
     RESISTANCE_AVERAGE_TARGET_INCLUDED_COL,
+    RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL,
     RESISTANCE_SIM_COL,
     RESISTANCE_TARGET_COL,
     RESISTANCE_TARGET_INCLUDED_COL,
+    RESISTANCE_TARGET_PROVENANCE_COL,
     _HOSP_COMM_ANY_R_RATIO_TARGETS,
     _build_headline_table,
+    _build_resistance_provenance_summary,
     _calculate_calibration_score,
     _calculate_resistance_fit_metrics,
     _calculate_serious_resistance_locus_table,
     _write_calibration_score_summary,
+    _write_resistance_provenance_summary,
 )
 from amr_simulation_output_analysis.make_paper_tables import (
     _RESISTANCE_TARGET_SOURCE_NOTES,
@@ -98,6 +102,94 @@ class ResistanceEligibilityTests(unittest.TestCase):
         counted = dict(zip(components["Component"], components["Combinations counted"]))
         self.assertEqual(counted["Infection resistance"], 1)
         self.assertEqual(counted["Resistant level (among positives)"], 0)
+
+    def test_provenance_summary_exposes_realized_design_weight(self) -> None:
+        resistance_df = pd.DataFrame(
+            [
+                {
+                    "Bacteria": "A",
+                    "Drug": "drug_1",
+                    "Note": "",
+                    RESISTANCE_SIM_COL: 20.0,
+                    RESISTANCE_TARGET_COL: 10.0,
+                    "Average resistant simulation": 40.0,
+                    "Average resistant target": 30.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_TARGET_PROVENANCE_COL: (
+                        "evidence_informed_benchmark_cell_provenance_unrecovered"
+                    ),
+                    RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: (
+                        "expert_informed_placeholder"
+                    ),
+                },
+                {
+                    "Bacteria": "B",
+                    "Drug": "drug_2",
+                    "Note": "",
+                    RESISTANCE_SIM_COL: 20.0,
+                    RESISTANCE_TARGET_COL: 10.0,
+                    "Average resistant simulation": float("nan"),
+                    "Average resistant target": 60.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_TARGET_PROVENANCE_COL: (
+                        "evidence_informed_benchmark_cell_provenance_unrecovered"
+                    ),
+                    RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: "structural_prior",
+                },
+                {
+                    "Bacteria": "C",
+                    "Drug": "drug_3",
+                    "Note": "",
+                    RESISTANCE_SIM_COL: 20.0,
+                    RESISTANCE_TARGET_COL: 10.0,
+                    "Average resistant simulation": 40.0,
+                    "Average resistant target": 30.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: False,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: False,
+                    RESISTANCE_TARGET_PROVENANCE_COL: (
+                        "evidence_informed_benchmark_cell_provenance_unrecovered"
+                    ),
+                    RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: (
+                        "expert_informed_placeholder"
+                    ),
+                },
+            ]
+        )
+
+        summary = _build_resistance_provenance_summary(resistance_df)
+        evidence = summary.loc[
+            summary["Provenance class"].str.startswith("Evidence-informed")
+        ].iloc[0]
+        expert = summary.loc[
+            summary["Provenance class"].eq("Expert-informed placeholder")
+        ].iloc[0]
+        structural = summary.loc[
+            summary["Provenance class"].eq("Structural prior")
+        ].iloc[0]
+
+        self.assertEqual(evidence["Numeric benchmarks"], 3)
+        self.assertEqual(evidence["Static score-eligible"], 2)
+        self.assertEqual(evidence["Usable this run"], 2)
+        self.assertEqual(evidence["Realized resistance-row weight"], 8.0)
+        self.assertAlmostEqual(
+            evidence["Realized resistance weight share (%)"], 8 / 9 * 100
+        )
+        self.assertAlmostEqual(evidence["Nominal overall score share (%)"], 40.0)
+        self.assertEqual(expert["Numeric benchmarks"], 2)
+        self.assertEqual(expert["Usable this run"], 1)
+        self.assertEqual(expert["Realized resistance-row weight"], 1.0)
+        self.assertAlmostEqual(expert["Nominal overall score share (%)"], 5.0)
+        self.assertEqual(structural["Usable this run"], 0)
+
+        output = StringIO()
+        _write_resistance_provenance_summary(output, summary)
+        rendered = output.getvalue()
+        self.assertIn("Resistance Benchmark Provenance and Score Weight", rendered)
+        self.assertIn("Evidence-informed benchmark (cell provenance unrecovered)", rendered)
+        self.assertIn("Evidence-quality weights are unassigned", rendered)
+        self.assertIn("configured 4:1 prevalence-to-severity", rendered)
 
 
 class CalibrationGateTests(unittest.TestCase):
@@ -384,12 +476,14 @@ class HeadlineNumeratorTests(unittest.TestCase):
             ]
         )
 
-    def test_person_level_sepsis_counter_takes_precedence(self) -> None:
+    def test_sepsis_episode_onset_people_counter_is_used(self) -> None:
         year_df = pd.DataFrame(
             {
-                "new_sepsis_cases": [1.0, 2.0],
-                "escherichia_coli_new_sepsis_cases": [2.0, 2.0],
-                "klebsiella_pneumoniae_new_sepsis_cases": [1.0, 1.0],
+                "sepsis_episode_onset_people_count": [1.0, 2.0],
+                "escherichia_coli_sepsis_onset_events": [2.0, 2.0],
+                "klebsiella_pneumoniae_sepsis_onset_events": [1.0, 1.0],
+                "deaths_sepsis_model_scope": [0.0, 0.0],
+                "deaths_infection_non_sepsis_model_scope": [0.0, 0.0],
             }
         )
 
@@ -399,19 +493,24 @@ class HeadlineNumeratorTests(unittest.TestCase):
 
         self.assertEqual(result.loc[0, "Simulation"], 3.0)
 
-    def test_old_csv_falls_back_to_per_bacterium_sepsis_sum(self) -> None:
+    def test_missing_people_level_sepsis_counter_is_rejected(self) -> None:
         year_df = pd.DataFrame(
             {
-                "escherichia_coli_new_sepsis_cases": [2.0],
-                "klebsiella_pneumoniae_new_sepsis_cases": [1.0],
+                "escherichia_coli_sepsis_onset_events": [2.0],
+                "klebsiella_pneumoniae_sepsis_onset_events": [1.0],
+                "deaths_sepsis_model_scope": [0.0],
+                "deaths_infection_non_sepsis_model_scope": [0.0],
             }
         )
 
-        result = _build_headline_table(
-            year_df, year_df, self._targets(), scale_factor=1_000_000.0, window_years=1.0
-        )
-
-        self.assertEqual(result.loc[0, "Simulation"], 3.0)
+        with self.assertRaisesRegex(ValueError, "sepsis_episode_onset_people_count"):
+            _build_headline_table(
+                year_df,
+                year_df,
+                self._targets(),
+                scale_factor=1_000_000.0,
+                window_years=1.0,
+            )
 
     def test_model_scope_death_counters_take_precedence(self) -> None:
         year_df = pd.DataFrame(
@@ -420,6 +519,7 @@ class HeadlineNumeratorTests(unittest.TestCase):
                 "deaths_infection_non_sepsis": [8.0],
                 "deaths_sepsis_model_scope": [2.0],
                 "deaths_infection_non_sepsis_model_scope": [3.0],
+                "sepsis_episode_onset_people_count": [0.0],
                 "helicobacter_pylori_deaths": [7.0],
                 "mdr_mycobacterium_tuberculosis_deaths": [6.0],
             }
@@ -435,25 +535,25 @@ class HeadlineNumeratorTests(unittest.TestCase):
 
         self.assertEqual(result.loc[0, "Simulation"], 5.0)
 
-    def test_old_csv_retains_concurrent_bacteria_subtraction_fallback(self) -> None:
+    def test_missing_model_scope_death_counters_are_rejected(self) -> None:
         year_df = pd.DataFrame(
             {
                 "deaths_sepsis": [4.0],
                 "deaths_infection_non_sepsis": [3.0],
                 "helicobacter_pylori_deaths": [2.0],
                 "mdr_mycobacterium_tuberculosis_deaths": [1.0],
+                "sepsis_episode_onset_people_count": [0.0],
             }
         )
 
-        result = _build_headline_table(
-            year_df,
-            year_df,
-            self._death_targets(),
-            scale_factor=1_000_000.0,
-            window_years=1.0,
-        )
-
-        self.assertEqual(result.loc[0, "Simulation"], 4.0)
+        with self.assertRaisesRegex(ValueError, "model-scope infection-death"):
+            _build_headline_table(
+                year_df,
+                year_df,
+                self._death_targets(),
+                scale_factor=1_000_000.0,
+                window_years=1.0,
+            )
 
 
 class HospitalCommunityTargetDefinitionTests(unittest.TestCase):
@@ -476,7 +576,7 @@ class HospitalCommunityTargetDefinitionTests(unittest.TestCase):
 - Note: serious-R is descriptive; no compatible marker-drug H:C target is assigned.
 
 Serious Resistance Locus (marker-drug hospital vs community resistance gap)
-             Bacteria  Marker drug(s)  Total New Infections  Overall Serious-R (%)  Hospital Serious-R (%)  Community Serious-R (%)  Sim H:C ratio
+             Bacteria  Marker drug(s)  Infection Acquisition Events  Overall Serious-R (%)  Hospital Serious-R (%)  Community Serious-R (%)  Sim H:C ratio
 staphylococcus aureus  flucloxacillin                100.00                   20.00                    30.00                     10.00           3.00
 
 """

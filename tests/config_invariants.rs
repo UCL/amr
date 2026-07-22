@@ -9,11 +9,28 @@ use amr_project::simulation::population::{
     BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 const CONFIG_RS: &str = include_str!("../src/config.rs");
 const MAIN_RS: &str = include_str!("../src/main.rs");
+const POPULATION_RS: &str = include_str!("../src/simulation/population.rs");
 const RULES_RS: &str = include_str!("../src/rules/mod.rs");
 const SIMULATION_RS: &str = include_str!("../src/simulation/simulation.rs");
+const README_MD: &str = include_str!("../README.md");
+
+fn collect_files_recursively(directory: &Path, files: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", directory.display()))
+    {
+        let path = entry.expect("source-tree entry should be readable").path();
+        if path.is_dir() {
+            collect_files_recursively(&path, files);
+        } else {
+            files.push(path);
+        }
+    }
+}
 
 fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
     let bytes = source.as_bytes();
@@ -188,6 +205,84 @@ fn collect_get_or_default_literal_keys(source: &str) -> HashSet<String> {
     }
 
     values
+}
+
+#[test]
+fn readme_model_inventory_counts_match_executable_authority() {
+    let expected = format!(
+        "across {} bacterial species, {} antibiotics, {} resistance mechanisms",
+        BACTERIA_LIST.len(),
+        DRUG_SHORT_NAMES.len(),
+        ResistanceMechanism::all().len()
+    );
+
+    assert!(
+        README_MD.contains(&expected),
+        "README model dimensions should match the executable inventories: {expected}"
+    );
+}
+
+#[test]
+fn retired_mechanism_names_are_absent_from_active_source_tree() {
+    let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    assert!(
+        !repository_root.join("src/config.rs.bak").exists(),
+        "configuration backups must live in the historical archive, not src/"
+    );
+    assert!(
+        !repository_root.join("calibration_configs").exists(),
+        "historical calibration snapshots must live under archive/"
+    );
+
+    let mut source_files = Vec::new();
+    collect_files_recursively(&repository_root.join("src"), &mut source_files);
+    for path in source_files {
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        assert!(
+            !file_name.ends_with(".bak"),
+            "configuration backup found in active source tree: {}",
+            path.display()
+        );
+
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        for retired_name in ["global_porin_loss", "as_yet_unknown"] {
+            assert!(
+                !source.contains(retired_name),
+                "retired mechanism name {retired_name:?} found in active source: {}",
+                path.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal_death_return_precedes_all_later_person_day_rules() {
+    let (_, after_death_assignment) = RULES_RS
+        .split_once("individual.date_of_death = Some(time_step);")
+        .expect("the daily rules should retain one explicit death assignment");
+    let (before_terminal_return, after_terminal_return) = after_death_assignment
+        .split_once("return events;")
+        .expect("newly recorded death should return from the daily rule sequence");
+
+    assert!(
+        before_terminal_return.contains("if individual.date_of_death.is_some()"),
+        "the terminal return should be guarded by recorded death"
+    );
+    assert!(
+        !before_terminal_return.contains("rng."),
+        "no random draw may occur between recording death and the terminal return"
+    );
+    assert!(
+        after_terminal_return.contains("// --- sepsis recovery logic"),
+        "the death return must remain before later recovery and transition rules"
+    );
 }
 
 #[test]
@@ -489,4 +584,34 @@ fn reviewed_above_unit_raw_potencies_are_clamped_in_the_typed_matrix() {
             "{key} should be clamped before simulation use"
         );
     }
+}
+
+#[test]
+fn species_reporting_policies_are_not_coupled_to_the_historical_slot_32() {
+    for (source_name, source) in [
+        ("population", POPULATION_RS),
+        ("rules", RULES_RS),
+        ("simulation", SIMULATION_RS),
+    ] {
+        for stale_fragment in [
+            ["b_idx", " == ", "32"].concat(),
+            ["b_idx", " != ", "32"].concat(),
+            ["index ", "32"].concat(),
+            ["is_microbiome", "_excluded"].concat(),
+        ] {
+            assert!(
+                !source.contains(&stale_fragment),
+                "{source_name} source must not contain stale species policy {stale_fragment:?}"
+            );
+        }
+    }
+
+    assert!(
+        POPULATION_RS.contains("BACTERIA_WITHOUT_SEPARATE_MICROBIOME_COMPARTMENT"),
+        "population model should retain the explicit microbiome capability policy"
+    );
+    assert!(
+        SIMULATION_RS.contains("GENERAL_CLINICAL_REPORTING_EXCLUSIONS"),
+        "simulation reporting should retain the explicit general clinical policy"
+    );
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -22,6 +23,23 @@ RESISTANCE_PREVALENCE_COMPONENT = "resistance_prevalence_any_r_positive"
 RESISTANCE_SEVERITY_COMPONENT = "resistance_severity_conditional_mean_any_r"
 RESISTANCE_TARGET_INCLUDED_COL = "Infection target included in score"
 RESISTANCE_AVERAGE_TARGET_INCLUDED_COL = "Average target included in score"
+RESISTANCE_TARGET_PROVENANCE_COL = "Infection benchmark provenance"
+RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL = "Average benchmark provenance"
+RESISTANCE_TARGET_SOURCE_COL = "Infection benchmark source"
+RESISTANCE_AVERAGE_TARGET_SOURCE_COL = "Average benchmark source"
+RESISTANCE_TARGET_RATIONALE_COL = "Infection benchmark rationale"
+RESISTANCE_AVERAGE_TARGET_RATIONALE_COL = "Average benchmark rationale"
+RESISTANCE_TARGET_MANIFEST_FILENAME = "resistance_targets_v1.manifest.json"
+
+RESISTANCE_PROVENANCE_LABELS: Dict[str, str] = {
+    "empirical_estimate_with_cell_level_source": "Empirical estimate (cell source recovered)",
+    "evidence_informed_benchmark_cell_provenance_unrecovered": (
+        "Evidence-informed benchmark (cell provenance unrecovered)"
+    ),
+    "expert_informed_placeholder": "Expert-informed placeholder",
+    "structural_prior": "Structural prior",
+    "not_assigned": "Not assigned",
+}
 
 DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     "enabled": True,
@@ -532,7 +550,7 @@ def _gather_calibration_context(
         calibration_window_new_infections_df,
         calibration_window_new_infections_total,
         scalar_new_infections_total,
-    ) = _calculate_calibration_window_new_infection_totals(year_df)
+    ) = _calculate_calibration_window_acquisition_totals(year_df)
     resistance_incidence_locus_df = _calculate_resistance_incidence_locus_table(year_df)
     serious_resistance_locus_df = _calculate_serious_resistance_locus_table(year_df)
     age_region_death_rate_df = _calculate_age_region_death_rate_table(year_df, window_years)
@@ -726,18 +744,22 @@ def _format_count(value: object) -> str:
     return f"{int(round(numeric)):,.0f}"
 
 
-def _calculate_calibration_window_new_infection_totals(
+def _calculate_calibration_window_acquisition_totals(
     df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, Optional[float], Optional[float]]:
-    columns = ["Bacteria", "Total new active infections"]
-    if df.empty or "new_active_infections_by_bacteria" not in df.columns:
+    columns = ["Bacteria", "Acquisition events"]
+    if df.empty or "infection_acquisition_events_by_bacteria" not in df.columns:
         scalar_total = None
-        if "newly_infected_count" in df.columns:
-            scalar_total = float(pd.to_numeric(df["newly_infected_count"], errors="coerce").sum(skipna=True))
+        if "infection_acquisition_people_count" in df.columns:
+            scalar_total = float(
+                pd.to_numeric(
+                    df["infection_acquisition_people_count"], errors="coerce"
+                ).sum(skipna=True)
+            )
         return pd.DataFrame(columns=columns), None, scalar_total
 
     totals = np.zeros(0, dtype=float)
-    for value in df["new_active_infections_by_bacteria"]:
+    for value in df["infection_acquisition_events_by_bacteria"]:
         values = np.array(_parse_numeric_vector_cell(value), dtype=float)
         if len(values) == 0:
             continue
@@ -747,8 +769,12 @@ def _calculate_calibration_window_new_infection_totals(
         totals += np.nan_to_num(values, nan=0.0)
 
     scalar_total = None
-    if "newly_infected_count" in df.columns:
-        scalar_total = float(pd.to_numeric(df["newly_infected_count"], errors="coerce").sum(skipna=True))
+    if "infection_acquisition_people_count" in df.columns:
+        scalar_total = float(
+            pd.to_numeric(
+                df["infection_acquisition_people_count"], errors="coerce"
+            ).sum(skipna=True)
+        )
 
     if len(totals) == 0:
         return pd.DataFrame(columns=columns), None, scalar_total
@@ -763,17 +789,17 @@ def _calculate_calibration_window_new_infection_totals(
         label = _display_bacteria_slug(slug) if not slug.startswith("bacterium_index_") else slug.replace("_", " ")
         rows.append({
             "Bacteria": label,
-            "Total new active infections": total,
+            "Acquisition events": total,
         })
 
     result = pd.DataFrame(rows, columns=columns)
     result.sort_values(
-        by=["Total new active infections", "Bacteria"],
+        by=["Acquisition events", "Bacteria"],
         ascending=[False, True],
         kind="mergesort",
         inplace=True,
     )
-    result["Total new active infections"] = result["Total new active infections"].map(_format_count)
+    result["Acquisition events"] = result["Acquisition events"].map(_format_count)
     return result.reset_index(drop=True), float(np.nansum(totals)), scalar_total
 
 
@@ -903,7 +929,7 @@ _HA_PCT_TARGETS: Dict[str, float] = {
 }
 
 # ── Expert-informed structural target: hospital any-R% ÷ community any-R% ──
-# Expert-informed structural anchors for the ratio of "% newly infected with any
+# Expert-informed structural benchmarks for the ratio of "% acquisition events with any
 # resistance" in hospital-acquired versus community-acquired infections. Broad
 # surveillance and clinical literature inform the qualitative ordering, but these
 # exact values are not direct harmonised empirical estimates. A ratio of 2.0 means
@@ -1121,48 +1147,32 @@ def _build_headline_table(
         "deaths_sepsis_model_scope",
         "deaths_infection_non_sepsis_model_scope",
     )
-    if set(scope_death_columns).issubset(year_df.columns):
-        total_infection_deaths = _annualize_sum(
-            float(year_df[list(scope_death_columns)].sum().sum())
+    missing_scope_columns = [
+        column for column in scope_death_columns if column not in year_df.columns
+    ]
+    if missing_scope_columns:
+        raise ValueError(
+            "Current simulation-summary schema requires exact model-scope infection-death "
+            f"columns; missing {', '.join(missing_scope_columns)}"
         )
-    else:
-        # Compatibility fallback for old CSVs. This can subtract concurrent excluded
-        # infections and is retained only so historical outputs remain readable.
-        sepsis_deaths_total = _annualize_sum(
-            float(year_df.get("deaths_sepsis", pd.Series(dtype=float)).sum())
-        )
-        inf_deaths_total = _annualize_sum(
-            float(year_df.get("deaths_infection_non_sepsis", pd.Series(dtype=float)).sum())
-        )
-        excluded_bacteria_deaths_total = _annualize_sum(
-            sum(
-                float(year_df.get(f"{slug}_deaths", pd.Series(dtype=float)).sum())
-                for slug in INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS
-            )
-        )
-        total_infection_deaths = max(
-            0.0,
-            sepsis_deaths_total + inf_deaths_total - excluded_bacteria_deaths_total,
-        )
+    total_infection_deaths = _annualize_sum(
+        float(year_df[list(scope_death_columns)].sum().sum())
+    )
 
     scaled_infection_deaths = total_infection_deaths * scale_factor
     aggregations["infection_deaths_millions"] = (
         scaled_infection_deaths / 1e6 if scaled_infection_deaths else 0.0
     )
 
-    # New outputs count each person once when they transition into active sepsis.
-    # Retain the per-bacterium sum only as a compatibility fallback for older CSVs.
-    if "new_sepsis_cases" in year_df.columns:
-        raw_sepsis_sum = float(year_df["new_sepsis_cases"].sum())
-        annualized_sepsis = _annualize_sum(raw_sepsis_sum)
-        scaled_sepsis = annualized_sepsis * scale_factor
-        aggregations["sepsis_incident_cases_millions"] = scaled_sepsis / 1e6
-    else:
-        sepsis_inc_cols = [c for c in year_df.columns if c.endswith("_new_sepsis_cases")]
-        raw_sepsis_sum = float(year_df[sepsis_inc_cols].sum().sum()) if sepsis_inc_cols else np.nan
-        annualized_sepsis = _annualize_sum(raw_sepsis_sum)
-        scaled_sepsis = annualized_sepsis * scale_factor
-        aggregations["sepsis_incident_cases_millions"] = scaled_sepsis / 1e6
+    sepsis_column = "sepsis_episode_onset_people_count"
+    if sepsis_column not in year_df.columns:
+        raise ValueError(
+            f"Current simulation-summary schema requires {sepsis_column}"
+        )
+    raw_sepsis_sum = float(year_df[sepsis_column].sum())
+    annualized_sepsis = _annualize_sum(raw_sepsis_sum)
+    scaled_sepsis = annualized_sepsis * scale_factor
+    aggregations["sepsis_incident_cases_millions"] = scaled_sepsis / 1e6
 
     if "currently_taking_drug_count" in year_df:
         people_on_drug = year_df["currently_taking_drug_count"].mean(skipna=True)
@@ -1174,8 +1184,10 @@ def _build_headline_table(
     else:
         aggregations["people_on_antibiotics_millions"] = np.nan
 
-    if {"newly_infected_count", "total_population"}.issubset(year_df.columns):
-        total_new_infections = _annualize_sum(float(year_df["newly_infected_count"].sum()))
+    if {"infection_acquisition_people_count", "total_population"}.issubset(year_df.columns):
+        total_new_infections = _annualize_sum(
+            float(year_df["infection_acquisition_people_count"].sum())
+        )
         avg_population = float(year_df["total_population"].mean())
         incidence = _safe_divide(total_new_infections, avg_population)
         aggregations["annual_infection_incidence_percent"] = (incidence * 100.0) if incidence is not None else None
@@ -1242,13 +1254,83 @@ def _load_bacteria_drug_matrix(
     return df[columns]
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _verify_resistance_target_manifest(path: Path) -> None:
+    manifest_path = path.parent / RESISTANCE_TARGET_MANIFEST_FILENAME
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            f"Missing resistance-target hash manifest: {manifest_path}"
+        )
+
+    with manifest_path.open("r", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    if manifest.get("target_set_version") != RESISTANCE_TARGET_SET_VERSION:
+        raise ValueError(
+            f"{manifest_path} does not describe {RESISTANCE_TARGET_SET_VERSION}"
+        )
+    if manifest.get("hash_algorithm") != "sha256":
+        raise ValueError(f"{manifest_path} must use sha256")
+
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, dict) or not artifacts:
+        raise ValueError(f"{manifest_path} has no artifact hashes")
+    required_artifacts = {
+        path.name,
+        "resistance_target_sources_v1.csv",
+        "resistance_targets_v1.schema.json",
+        "resistance_prevalence_values.csv",
+        "resistance_average_resistant_values.csv",
+        "model_potency_matrix.csv",
+        "model_resistance_reachability_matrix.csv",
+    }
+    missing_artifacts = required_artifacts.difference(artifacts)
+    if missing_artifacts:
+        raise ValueError(
+            f"{manifest_path} is missing hashes for: "
+            + ", ".join(sorted(missing_artifacts))
+        )
+    unexpected_artifacts = set(artifacts).difference(required_artifacts)
+    if unexpected_artifacts:
+        raise ValueError(
+            f"{manifest_path} has unexpected artifact hashes for: "
+            + ", ".join(sorted(unexpected_artifacts))
+        )
+
+    for name in sorted(required_artifacts):
+        metadata = artifacts.get(name)
+        if not isinstance(metadata, dict):
+            raise ValueError(f"{manifest_path} has malformed metadata for {name}")
+        artifact_path = path.parent / name
+        if not artifact_path.exists():
+            raise FileNotFoundError(
+                f"Resistance-target artifact listed in manifest is missing: {artifact_path}"
+            )
+        expected_hash = str(metadata.get("sha256") or "")
+        expected_size = metadata.get("bytes")
+        if expected_size != artifact_path.stat().st_size:
+            raise ValueError(f"Resistance-target artifact size mismatch: {artifact_path}")
+        if expected_hash != _sha256_file(artifact_path):
+            raise ValueError(f"Resistance-target artifact hash mismatch: {artifact_path}")
+
+
 def _load_resistance_target_set(
     path: Optional[Path],
+    *,
+    verify_manifest: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Load the versioned resistance targets and their explicit score eligibility."""
 
     if path is None or not path.exists():
         raise FileNotFoundError(f"Missing versioned resistance target file: {path}")
+    if verify_manifest:
+        _verify_resistance_target_manifest(path)
 
     target_set = pd.read_csv(path, dtype=str, keep_default_na=False)
     required_columns = {
@@ -1260,11 +1342,30 @@ def _load_resistance_target_set(
         "cell_status",
         "include_in_score",
         "score_exclusion_reason",
+        "target_type",
+        "provenance_class",
+        "source_id",
+        "reference_year",
+        "geography",
+        "infection_or_specimen",
+        "care_setting",
+        "target_denominator",
+        "uncertainty_lower",
+        "uncertainty_upper",
+        "transformation",
+        "rationale",
+        "evidence_weight",
+        "score_row_weight",
     }
     missing_columns = required_columns.difference(target_set.columns)
     if missing_columns:
         raise ValueError(
             f"{path} is missing required columns: {', '.join(sorted(missing_columns))}"
+        )
+    unexpected_columns = set(target_set.columns).difference(required_columns)
+    if unexpected_columns:
+        raise ValueError(
+            f"{path} has unexpected columns: {', '.join(sorted(unexpected_columns))}"
         )
     if target_set.empty:
         raise ValueError(f"{path} contains no resistance targets")
@@ -1288,6 +1389,27 @@ def _load_resistance_target_set(
     if target_set.duplicated(["component", "bacteria", "drug"]).any():
         raise ValueError(f"{path} contains duplicate component/bacterium/drug rows")
 
+    provenance_classes = set(target_set["provenance_class"])
+    unknown_provenance = provenance_classes.difference(RESISTANCE_PROVENANCE_LABELS)
+    if unknown_provenance:
+        raise ValueError(
+            f"{path} contains unknown provenance classes: "
+            + ", ".join(sorted(unknown_provenance))
+        )
+    allowed_target_types = {
+        "evidence_informed_calibration_benchmark",
+        "expert_assigned_model_benchmark",
+        "not_assigned",
+    }
+    unknown_target_types = set(target_set["target_type"]).difference(
+        allowed_target_types
+    )
+    if unknown_target_types:
+        raise ValueError(
+            f"{path} contains unknown target types: "
+            + ", ".join(sorted(unknown_target_types))
+        )
+
     include_tokens = set(target_set["include_in_score"])
     if not include_tokens.issubset({"true", "false"}):
         raise ValueError(f"{path} include_in_score values must be true or false")
@@ -1300,6 +1422,83 @@ def _load_resistance_target_set(
     included = target_set["include_in_score"].eq("true")
     if (included & numeric_values.isna()).any():
         raise ValueError(f"{path} includes score rows without numeric target values")
+    if target_set["evidence_weight"].ne("").any():
+        raise ValueError(
+            f"{path} assigns evidence weights, but v1 has no reviewed evidence weights"
+        )
+    expected_score_row_weights = included.map({True: "1.0", False: "0.0"})
+    if not target_set["score_row_weight"].eq(expected_score_row_weights).all():
+        raise ValueError(f"{path} score_row_weight disagrees with include_in_score")
+
+    numeric = numeric_values.notna()
+    if (
+        ~numeric
+        & (
+            target_set["target_type"].ne("not_assigned")
+            | target_set["provenance_class"].ne("not_assigned")
+        )
+    ).any():
+        raise ValueError(f"{path} assigns target/provenance types to missing values")
+    if (numeric & target_set["source_id"].eq("")).any():
+        raise ValueError(f"{path} contains numeric rows without source identities")
+    if (numeric & target_set["rationale"].eq("")).any():
+        raise ValueError(f"{path} contains numeric rows without rationale identities")
+    if (numeric & target_set["provenance_class"].eq("not_assigned")).any():
+        raise ValueError(f"{path} labels numeric rows as provenance not assigned")
+
+    source_path = path.parent / "resistance_target_sources_v1.csv"
+    if not source_path.exists():
+        raise FileNotFoundError(f"Missing resistance target source table: {source_path}")
+    source_table = pd.read_csv(source_path, dtype=str, keep_default_na=False)
+    required_source_columns = {
+        "source_id",
+        "provenance_class",
+        "source_type",
+        "description",
+        "url",
+    }
+    missing_source_columns = required_source_columns.difference(source_table.columns)
+    if missing_source_columns:
+        raise ValueError(
+            f"{source_path} is missing required columns: "
+            + ", ".join(sorted(missing_source_columns))
+        )
+    unexpected_source_columns = set(source_table.columns).difference(
+        required_source_columns
+    )
+    if unexpected_source_columns:
+        raise ValueError(
+            f"{source_path} has unexpected columns: "
+            + ", ".join(sorted(unexpected_source_columns))
+        )
+    if (
+        source_table["source_id"].eq("").any()
+        or source_table["source_id"].duplicated().any()
+    ):
+        raise ValueError(f"{source_path} source_id values must be non-empty and unique")
+    if source_table["description"].eq("").any():
+        raise ValueError(f"{source_path} source descriptions must be non-empty")
+    unknown_source_provenance = set(source_table["provenance_class"]).difference(
+        RESISTANCE_PROVENANCE_LABELS
+    )
+    if unknown_source_provenance:
+        raise ValueError(
+            f"{source_path} contains unknown provenance classes: "
+            + ", ".join(sorted(unknown_source_provenance))
+        )
+    source_provenance = source_table.set_index("source_id")["provenance_class"]
+    unknown_sources = set(target_set.loc[numeric, "source_id"]).difference(
+        source_provenance.index
+    )
+    if unknown_sources:
+        raise ValueError(
+            f"{path} references unknown source IDs: "
+            + ", ".join(sorted(unknown_sources))
+        )
+    expected_provenance = target_set.loc[numeric, "source_id"].map(source_provenance)
+    actual_provenance = target_set.loc[numeric, "provenance_class"]
+    if not actual_provenance.eq(expected_provenance).all():
+        raise ValueError(f"{path} provenance_class disagrees with its source table")
 
     def _component_frame(component: str) -> pd.DataFrame:
         subset = target_set.loc[target_set["component"].eq(component)].copy()
@@ -1340,6 +1539,12 @@ def _load_resistance_target_set(
                 "reason",
                 "include_in_score",
                 "score_exclusion_reason",
+                "target_type",
+                "provenance_class",
+                "source_id",
+                "rationale",
+                "evidence_weight",
+                "score_row_weight",
                 "bacteria_slug",
                 "drug_slug",
             ]
@@ -1497,9 +1702,15 @@ def _calculate_resistance_table(
         RESISTANCE_SIM_COL,
         RESISTANCE_TARGET_COL,
         RESISTANCE_DELTA_COL,
+        RESISTANCE_TARGET_PROVENANCE_COL,
+        RESISTANCE_TARGET_SOURCE_COL,
+        RESISTANCE_TARGET_RATIONALE_COL,
         "Average resistant simulation",
         "Average resistant target",
         "Average resistant delta",
+        RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL,
+        RESISTANCE_AVERAGE_TARGET_SOURCE_COL,
+        RESISTANCE_AVERAGE_TARGET_RATIONALE_COL,
         "Microbiome simulation",
         "Infected person-days",
         "Resistant person-days",
@@ -1516,6 +1727,9 @@ def _calculate_resistance_table(
                 "target",
                 "reason",
                 "include_in_score",
+                "provenance_class",
+                "source_id",
+                "rationale",
                 "bacteria_slug",
                 "drug_slug",
             ]
@@ -1529,6 +1743,9 @@ def _calculate_resistance_table(
                 "target",
                 "reason",
                 "include_in_score",
+                "provenance_class",
+                "source_id",
+                "rationale",
                 "bacteria_slug",
                 "drug_slug",
             ]
@@ -1549,8 +1766,8 @@ def _calculate_resistance_table(
     }
 
     combo_display: Dict[Tuple[str, str], Tuple[str, str]] = {}
-    prevalence_lookup: Dict[Tuple[str, str], Tuple[Optional[float], str, bool]] = {}
-    average_lookup: Dict[Tuple[str, str], Tuple[Optional[float], bool]] = {}
+    prevalence_lookup: Dict[Tuple[str, str], Dict[str, object]] = {}
+    average_lookup: Dict[Tuple[str, str], Dict[str, object]] = {}
     microbiome_lookup: Dict[Tuple[str, str], Optional[float]] = {}
 
     def _target_is_included(row: pd.Series) -> bool:
@@ -1563,17 +1780,26 @@ def _calculate_resistance_table(
         key = (row["bacteria_slug"], row["drug_slug"])
         if key not in combo_display:
             combo_display[key] = (row.get("Bacteria", key[0]), row.get("drug", key[1]))
-        prevalence_lookup[key] = (
-            row.get("target"),
-            str(row.get("reason") or ""),
-            _target_is_included(row),
-        )
+        prevalence_lookup[key] = {
+            "target": row.get("target"),
+            "reason": str(row.get("reason") or ""),
+            "included": _target_is_included(row),
+            "provenance_class": str(row.get("provenance_class") or "not_assigned"),
+            "source_id": str(row.get("source_id") or ""),
+            "rationale": str(row.get("rationale") or ""),
+        }
 
     for _, row in average_targets.iterrows():
         key = (row["bacteria_slug"], row["drug_slug"])
         if key not in combo_display:
             combo_display[key] = (row.get("Bacteria", key[0]), row.get("drug", key[1]))
-        average_lookup[key] = (row.get("target"), _target_is_included(row))
+        average_lookup[key] = {
+            "target": row.get("target"),
+            "included": _target_is_included(row),
+            "provenance_class": str(row.get("provenance_class") or "not_assigned"),
+            "source_id": str(row.get("source_id") or ""),
+            "rationale": str(row.get("rationale") or ""),
+        }
 
     for _, row in microbiome_targets.iterrows():
         key = (row["bacteria_slug"], row["drug_slug"])
@@ -1592,9 +1818,23 @@ def _calculate_resistance_table(
         bacteria_name, drug_name = combo_display.get((b_slug, d_slug), (b_slug.replace("_", " "), d_slug.replace("_", " ")))
 
         note_parts = []
-        prevalence_target_raw, prevalence_reason, prevalence_target_included = (
-            prevalence_lookup.get((b_slug, d_slug), (np.nan, "", False))
+        prevalence_metadata = prevalence_lookup.get(
+            (b_slug, d_slug),
+            {
+                "target": np.nan,
+                "reason": "",
+                "included": False,
+                "provenance_class": "not_assigned",
+                "source_id": "",
+                "rationale": "",
+            },
         )
+        prevalence_target_raw = prevalence_metadata["target"]
+        prevalence_reason = str(prevalence_metadata["reason"])
+        prevalence_target_included = bool(prevalence_metadata["included"])
+        prevalence_provenance = str(prevalence_metadata["provenance_class"])
+        prevalence_source = str(prevalence_metadata["source_id"])
+        prevalence_rationale = str(prevalence_metadata["rationale"])
         if prevalence_reason:
             note_parts.append(prevalence_reason)
         prevalence_target = (
@@ -1603,9 +1843,21 @@ def _calculate_resistance_table(
             else np.nan
         )
 
-        average_target_raw, average_target_included = average_lookup.get(
-            (b_slug, d_slug), (np.nan, False)
+        average_metadata = average_lookup.get(
+            (b_slug, d_slug),
+            {
+                "target": np.nan,
+                "included": False,
+                "provenance_class": "not_assigned",
+                "source_id": "",
+                "rationale": "",
+            },
         )
+        average_target_raw = average_metadata["target"]
+        average_target_included = bool(average_metadata["included"])
+        average_provenance = str(average_metadata["provenance_class"])
+        average_source = str(average_metadata["source_id"])
+        average_rationale = str(average_metadata["rationale"])
         average_target = (
             float(average_target_raw * 100.0)
             if average_target_raw is not None and not pd.isna(average_target_raw)
@@ -1629,9 +1881,15 @@ def _calculate_resistance_table(
                 RESISTANCE_SIM_COL: np.nan,
                 RESISTANCE_TARGET_COL: prevalence_target,
                 RESISTANCE_DELTA_COL: np.nan,
+                RESISTANCE_TARGET_PROVENANCE_COL: prevalence_provenance,
+                RESISTANCE_TARGET_SOURCE_COL: prevalence_source,
+                RESISTANCE_TARGET_RATIONALE_COL: prevalence_rationale,
                 "Average resistant simulation": np.nan,
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
+                RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: average_provenance,
+                RESISTANCE_AVERAGE_TARGET_SOURCE_COL: average_source,
+                RESISTANCE_AVERAGE_TARGET_RATIONALE_COL: average_rationale,
                 "Microbiome simulation": np.nan,
                 "Infected person-days": np.nan,
                 "Resistant person-days": np.nan,
@@ -1658,9 +1916,15 @@ def _calculate_resistance_table(
                 RESISTANCE_SIM_COL: np.nan,
                 RESISTANCE_TARGET_COL: prevalence_target,
                 RESISTANCE_DELTA_COL: np.nan,
+                RESISTANCE_TARGET_PROVENANCE_COL: prevalence_provenance,
+                RESISTANCE_TARGET_SOURCE_COL: prevalence_source,
+                RESISTANCE_TARGET_RATIONALE_COL: prevalence_rationale,
                 "Average resistant simulation": np.nan,
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
+                RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: average_provenance,
+                RESISTANCE_AVERAGE_TARGET_SOURCE_COL: average_source,
+                RESISTANCE_AVERAGE_TARGET_RATIONALE_COL: average_rationale,
                 "Microbiome simulation": np.nan,
                 "Infected person-days": np.nan,
                 "Resistant person-days": np.nan,
@@ -1791,9 +2055,15 @@ def _calculate_resistance_table(
             RESISTANCE_SIM_COL: prevalence_simulation,
             RESISTANCE_TARGET_COL: prevalence_target,
             RESISTANCE_DELTA_COL: prevalence_delta,
+            RESISTANCE_TARGET_PROVENANCE_COL: prevalence_provenance,
+            RESISTANCE_TARGET_SOURCE_COL: prevalence_source,
+            RESISTANCE_TARGET_RATIONALE_COL: prevalence_rationale,
             "Average resistant simulation": average_simulation,
             "Average resistant target": average_target,
             "Average resistant delta": average_delta,
+            RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: average_provenance,
+            RESISTANCE_AVERAGE_TARGET_SOURCE_COL: average_source,
+            RESISTANCE_AVERAGE_TARGET_RATIONALE_COL: average_rationale,
             "Microbiome simulation": microbiome_simulation,
             "Infected person-days": infected_person_days,
             "Resistant person-days": resistant_person_days,
@@ -1815,14 +2085,12 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
             - {b}_infected_with_any_r_positive_community_{d}
             - {b}_currently_infected_hospital_count / _community_count
 
-        When bounded split-positive columns are unavailable, this falls back to the older
-        sum-any-r columns. Flow-level headline percentages use the per-region newly infected
-        columns as the primary denominator because those remain internally consistent in the
-        full-calibration CSVs.
+        Flow-level headline percentages use acquisition-event columns. Stock prevalence uses
+        only the explicit hospital/community stock counts from the same observation stage.
     """
     columns = [
         "Bacteria",
-        "Total New Infections",
+        "Infection Acquisition Events",
         "Mean |Hospital-Community| resistance gap (pp)",
         "Drugs compared",
         "Hospital any-R (%)",
@@ -1848,25 +2116,16 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
         raw_slugs = canonical_sim_map[slug]
         display_name = BACTERIA_DISPLAY_NAME_OVERRIDES.get(slug, slug.replace("_", " "))
 
-        total_currently_infected = 0.0
         current_hosp_infected = 0.0
         current_comm_infected = 0.0
         total_newly_infected = 0.0
-        total_newly_infected_split = 0.0
         total_newly_infected_hosp = 0.0
         hosp_any_r_flow = 0.0
         comm_any_r_flow = 0.0
         # {d_slug: (hospital_positive, community_positive)}
         drug_positive_totals: Dict[str, Tuple[float, float]] = {}
-        # Fallback when split-positive columns are unavailable.
-        # {d_slug: (sum_any_r_total, sum_any_r_hospital)}
-        drug_fraction_totals: Dict[str, Tuple[float, float]] = {}
 
         for raw_slug in raw_slugs:
-            inf_col = f"{raw_slug}_currently_infected"
-            if inf_col in year_df.columns:
-                total_currently_infected += float(year_df[inf_col].sum(skipna=True))
-
             hosp_inf_col = f"{raw_slug}_currently_infected_hospital_count"
             if hosp_inf_col in year_df.columns:
                 current_hosp_infected += float(year_df[hosp_inf_col].sum(skipna=True))
@@ -1875,24 +2134,20 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
             if comm_inf_col in year_df.columns:
                 current_comm_infected += float(year_df[comm_inf_col].sum(skipna=True))
 
-            for col in (f"{raw_slug}_newly_infected_carrier", f"{raw_slug}_newly_infected_non_carrier"):
-                if col in year_df.columns:
-                    total_newly_infected_split += float(year_df[col].sum(skipna=True))
-
             for region in region_names:
-                total_col = f"{raw_slug}_newly_infected_{region}"
+                total_col = f"{raw_slug}_infection_acquisition_events_home_region_{region}"
                 if total_col in year_df.columns:
                     total_newly_infected += float(year_df[total_col].sum(skipna=True))
 
             for region in _HOSP_REGIONS:
-                hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
+                hosp_col = f"{raw_slug}_infection_acquisition_events_hospital_{region}"
                 if hosp_col in year_df.columns:
                     total_newly_infected_hosp += float(year_df[hosp_col].sum(skipna=True))
 
-            hosp_r_col = f"{raw_slug}_newly_infected_any_r_hospital"
+            hosp_r_col = f"{raw_slug}_infection_acquisition_events_with_any_r_hospital"
             if hosp_r_col in year_df.columns:
                 hosp_any_r_flow += float(year_df[hosp_r_col].sum(skipna=True))
-            comm_r_col = f"{raw_slug}_newly_infected_any_r_community"
+            comm_r_col = f"{raw_slug}_infection_acquisition_events_with_any_r_community"
             if comm_r_col in year_df.columns:
                 comm_any_r_flow += float(year_df[comm_r_col].sum(skipna=True))
 
@@ -1906,40 +2161,14 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
                     drug_positive_totals[d_slug] = (prev[0] + h, prev[1] + c)
                     continue
 
-                hosp_d_col = f"{raw_slug}_sum_any_r_hospital_{d_slug}"
-                total_d_col = f"{raw_slug}_sum_any_r_{d_slug}"
-                if hosp_d_col in year_df.columns and total_d_col in year_df.columns:
-                    h = float(year_df[hosp_d_col].sum(skipna=True))
-                    t = float(year_df[total_d_col].sum(skipna=True))
-                    prev = drug_fraction_totals.get(d_slug, (0.0, 0.0))
-                    drug_fraction_totals[d_slug] = (prev[0] + t, prev[1] + h)
-
-        if total_newly_infected <= 0.0:
-            total_newly_infected = total_newly_infected_split
-
-        has_true_stock_split = (current_hosp_infected + current_comm_infected) > 0
-        if has_true_stock_split:
-            hosp_n = current_hosp_infected
-            comm_n = current_comm_infected
-        else:
-            # Backward-compatible fallback for older CSVs that lack stock split columns.
-            hosp_frac = (
-                min(max(total_newly_infected_hosp / total_newly_infected, 0.0), 1.0)
-                if total_newly_infected > 0 else 0.0
-            )
-            hosp_n = total_currently_infected * hosp_frac
-            comm_n = total_currently_infected * (1.0 - hosp_frac)
+        hosp_n = current_hosp_infected
+        comm_n = current_comm_infected
 
         abs_diffs = []
-        drug_keys = set(drug_positive_totals.keys()) | set(drug_fraction_totals.keys())
-        for d_slug in drug_keys:
+        for d_slug in drug_positive_totals:
             if hosp_n <= 0 or comm_n <= 0:
                 continue
-            if d_slug in drug_positive_totals:
-                h_sum, c_sum = drug_positive_totals[d_slug]
-            else:
-                t_sum, h_sum = drug_fraction_totals[d_slug]
-                c_sum = t_sum - h_sum
+            h_sum, c_sum = drug_positive_totals[d_slug]
             hp = h_sum / hosp_n * 100.0
             cp = c_sum / comm_n * 100.0
             if np.isfinite(hp) and np.isfinite(cp):
@@ -1971,7 +2200,7 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
 
         records.append({
             "Bacteria": display_name,
-            "Total New Infections": total_newly_infected,
+            "Infection Acquisition Events": total_newly_infected,
             "Mean |Hospital-Community| resistance gap (pp)": mean_gap,
             "Drugs compared": len(abs_diffs),
             "Hospital any-R (%)": hosp_r_pct,
@@ -1994,7 +2223,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
     columns = [
         "Bacteria",
         "Marker drug(s)",
-        "Total New Infections",
+        "Infection Acquisition Events",
         "Overall Serious-R (%)",
         "Hospital Serious-R (%)",
         "Community Serious-R (%)",
@@ -2022,19 +2251,13 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
 
         raw_slugs = canonical_sim_map[slug]
 
-        total_currently_infected = 0.0
         current_hosp_infected = 0.0
         current_comm_infected = 0.0
         total_newly_infected = 0.0
-        total_newly_infected_split = 0.0
         total_newly_infected_hosp = 0.0
         drug_totals: Dict[str, Tuple[float, float]] = {}
 
         for raw_slug in raw_slugs:
-            inf_col = f"{raw_slug}_currently_infected"
-            if inf_col in year_df.columns:
-                total_currently_infected += float(year_df[inf_col].sum(skipna=True))
-
             hosp_inf_col = f"{raw_slug}_currently_infected_hospital_count"
             if hosp_inf_col in year_df.columns:
                 current_hosp_infected += float(year_df[hosp_inf_col].sum(skipna=True))
@@ -2043,17 +2266,13 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
             if comm_inf_col in year_df.columns:
                 current_comm_infected += float(year_df[comm_inf_col].sum(skipna=True))
 
-            for col in (f"{raw_slug}_newly_infected_carrier", f"{raw_slug}_newly_infected_non_carrier"):
-                if col in year_df.columns:
-                    total_newly_infected_split += float(year_df[col].sum(skipna=True))
-
             for region in region_names:
-                total_col = f"{raw_slug}_newly_infected_{region}"
+                total_col = f"{raw_slug}_infection_acquisition_events_home_region_{region}"
                 if total_col in year_df.columns:
                     total_newly_infected += float(year_df[total_col].sum(skipna=True))
 
             for region in _HOSP_REGIONS:
-                hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
+                hosp_col = f"{raw_slug}_infection_acquisition_events_hospital_{region}"
                 if hosp_col in year_df.columns:
                     total_newly_infected_hosp += float(year_df[hosp_col].sum(skipna=True))
 
@@ -2069,28 +2288,8 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
                     drug_totals[d_slug] = (prev[0] + h, prev[1] + c)
                     continue
 
-                hosp_d_col = f"{raw_slug}_sum_any_r_hospital_{d_slug}"
-                total_d_col = f"{raw_slug}_sum_any_r_{d_slug}"
-                if hosp_d_col in year_df.columns and total_d_col in year_df.columns:
-                    h = float(year_df[hosp_d_col].sum(skipna=True))
-                    t = float(year_df[total_d_col].sum(skipna=True))
-                    prev = drug_totals.get(d_slug, (0.0, 0.0))
-                    drug_totals[d_slug] = (prev[0] + h, prev[1] + (t - h))
-
-        if total_newly_infected <= 0.0:
-            total_newly_infected = total_newly_infected_split
-
-        has_true_stock_split = (current_hosp_infected + current_comm_infected) > 0
-        if has_true_stock_split:
-            hosp_n = current_hosp_infected
-            comm_n = current_comm_infected
-        else:
-            hosp_frac = (
-                min(max(total_newly_infected_hosp / total_newly_infected, 0.0), 1.0)
-                if total_newly_infected > 0 else 0.0
-            )
-            hosp_n = total_currently_infected * hosp_frac
-            comm_n = total_currently_infected * (1.0 - hosp_frac)
+        hosp_n = current_hosp_infected
+        comm_n = current_comm_infected
 
         hosp_r_vals = []
         comm_r_vals = []
@@ -2122,7 +2321,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
         records.append({
             "Bacteria": display_name,
             "Marker drug(s)": ", ".join(serious_drugs),
-            "Total New Infections": total_newly_infected,
+            "Infection Acquisition Events": total_newly_infected,
             "Overall Serious-R (%)": overall_r_pct,
             "Hospital Serious-R (%)": hosp_r_pct,
             "Community Serious-R (%)": comm_r_pct,
@@ -2249,28 +2448,32 @@ def _calculate_bacteria_burden_table(
         total_inf_over_65 = 0.0
         infection_data = False
         for raw_slug in raw_slugs:
-            carrier_col = f"{raw_slug}_newly_infected_carrier"
-            non_carrier_col = f"{raw_slug}_newly_infected_non_carrier"
+            carrier_col = (
+                f"{raw_slug}_infection_acquisition_events_carrier_at_acquisition"
+            )
+            non_carrier_col = (
+                f"{raw_slug}_infection_acquisition_events_non_carrier_at_acquisition"
+            )
             for col in (carrier_col, non_carrier_col):
                 if col in year_df.columns:
                     total_infections_split += float(year_df[col].sum(skipna=True))
                     infection_data = True
 
             for region in region_names:
-                total_col = f"{raw_slug}_newly_infected_{region}"
+                total_col = f"{raw_slug}_infection_acquisition_events_home_region_{region}"
                 if total_col in year_df.columns:
                     total_infections += float(year_df[total_col].sum(skipna=True))
                     infection_data = True
             
-            under_5_col = f"{raw_slug}_newly_infected_under_5"
+            under_5_col = f"{raw_slug}_infection_acquisition_events_under_5"
             if under_5_col in year_df.columns:
                 total_inf_under_5 += float(year_df[under_5_col].sum(skipna=True))
             
-            over_65_col = f"{raw_slug}_newly_infected_over_65"
+            over_65_col = f"{raw_slug}_infection_acquisition_events_over_65"
             if over_65_col in year_df.columns:
                 total_inf_over_65 += float(year_df[over_65_col].sum(skipna=True))
             for region in region_names:
-                hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
+                hosp_col = f"{raw_slug}_infection_acquisition_events_hospital_{region}"
                 if hosp_col in year_df.columns:
                     total_hospital_infections += float(year_df[hosp_col].sum(skipna=True))
 
@@ -2455,7 +2658,7 @@ def _write_resistance_locus_fit_summary(handle, locus_df: pd.DataFrame) -> None:
     """Write a compact fit summary for the hospital:community resistance ratio."""
     sim_col = "Sim H:C ratio"
     target_col = "Target H:C ratio"
-    infections_col = "Total New Infections"
+    infections_col = "Infection Acquisition Events"
     bacteria_col = "Bacteria"
 
     valid_rows = []
@@ -3290,6 +3493,177 @@ def _calculate_resistance_fit_metrics(
     return metrics, component_df
 
 
+def _build_resistance_provenance_summary(
+    resistance_df: pd.DataFrame,
+    calibration_score_config: Optional[Dict[str, object]] = None,
+) -> pd.DataFrame:
+    columns = [
+        "Component",
+        "Provenance class",
+        "Numeric benchmarks",
+        "Static score-eligible",
+        "Usable this run",
+        "Weight per usable row",
+        "Static resistance-row weight",
+        "Realized resistance-row weight",
+        "Realized resistance weight share (%)",
+        "Nominal overall score share (%)",
+    ]
+    if resistance_df.empty:
+        return pd.DataFrame(columns=columns)
+
+    component_weights = _resistance_component_weights(calibration_score_config)
+    component_config = [
+        (
+            "infection",
+            "Infection resistance prevalence",
+            RESISTANCE_TARGET_COL,
+            RESISTANCE_SIM_COL,
+            RESISTANCE_TARGET_INCLUDED_COL,
+            RESISTANCE_TARGET_PROVENANCE_COL,
+        ),
+        (
+            "average",
+            "Conditional mean any_r",
+            "Average resistant target",
+            "Average resistant simulation",
+            RESISTANCE_AVERAGE_TARGET_INCLUDED_COL,
+            RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL,
+        ),
+    ]
+    rows: List[Dict[str, object]] = []
+    empirical_class = "empirical_estimate_with_cell_level_source"
+
+    for (
+        component_key,
+        component_label,
+        target_col,
+        simulation_col,
+        include_col,
+        provenance_col,
+    ) in component_config:
+        if target_col not in resistance_df or provenance_col not in resistance_df:
+            continue
+        target_values = pd.to_numeric(resistance_df[target_col], errors="coerce")
+        provenance_values = resistance_df[provenance_col].fillna("not_assigned")
+        include_values = (
+            resistance_df[include_col].fillna(False).astype(bool)
+            if include_col in resistance_df
+            else target_values.notna()
+        )
+
+        usable = _filter_resistance_rows_for_fit(
+            resistance_df,
+            component=component_key,
+        )
+        if simulation_col in usable and target_col in usable:
+            usable = usable.loc[
+                pd.to_numeric(usable[simulation_col], errors="coerce").notna()
+                & pd.to_numeric(usable[target_col], errors="coerce").notna()
+            ]
+        else:
+            usable = usable.iloc[0:0]
+
+        row_weight = component_weights[component_key]
+        for provenance_class, provenance_label in RESISTANCE_PROVENANCE_LABELS.items():
+            if provenance_class == "not_assigned":
+                continue
+            configured_count = int(
+                (target_values.notna() & provenance_values.eq(provenance_class)).sum()
+            )
+            static_count = int(
+                (
+                    target_values.notna()
+                    & include_values
+                    & provenance_values.eq(provenance_class)
+                ).sum()
+            )
+            usable_count = (
+                int(usable[provenance_col].eq(provenance_class).sum())
+                if provenance_col in usable
+                else 0
+            )
+            if configured_count == 0 and provenance_class != empirical_class:
+                continue
+            rows.append(
+                {
+                    "Component": component_label,
+                    "Provenance class": provenance_label,
+                    "Numeric benchmarks": configured_count,
+                    "Static score-eligible": static_count,
+                    "Usable this run": usable_count,
+                    "Weight per usable row": row_weight,
+                    "Static resistance-row weight": static_count * row_weight,
+                    "Realized resistance-row weight": usable_count * row_weight,
+                    "Realized resistance weight share (%)": 0.0,
+                    "Nominal overall score share (%)": 0.0,
+                }
+            )
+
+    result = pd.DataFrame(rows, columns=columns)
+    if result.empty:
+        return result
+    realized_total = float(result["Realized resistance-row weight"].sum())
+    if realized_total > 0.0:
+        result["Realized resistance weight share (%)"] = (
+            result["Realized resistance-row weight"] / realized_total * 100.0
+        )
+        config = calibration_score_config or DEFAULT_CALIBRATION_SCORE_CONFIG
+        top_level_weights = config.get("weights", {}) if isinstance(config, dict) else {}
+        if isinstance(top_level_weights, dict):
+            numeric_weights = []
+            for raw_value in top_level_weights.values():
+                numeric_value = _coerce_float(raw_value)
+                if numeric_value is not None and numeric_value >= 0.0:
+                    numeric_weights.append(numeric_value)
+            total_top_level_weight = sum(numeric_weights)
+            resistance_block_weight = _coerce_float(
+                top_level_weights.get("resistance")
+            )
+            if (
+                resistance_block_weight is not None
+                and resistance_block_weight >= 0.0
+                and total_top_level_weight > 0.0
+            ):
+                result["Nominal overall score share (%)"] = (
+                    result["Realized resistance weight share (%)"]
+                    * resistance_block_weight
+                    / total_top_level_weight
+                )
+    return result
+
+
+def _write_resistance_provenance_summary(
+    handle,
+    provenance_df: pd.DataFrame,
+) -> None:
+    handle.write("Resistance Benchmark Provenance and Score Weight\n")
+    if not provenance_df.empty:
+        display_df = provenance_df.copy()
+        for count_column in (
+            "Numeric benchmarks",
+            "Static score-eligible",
+            "Usable this run",
+        ):
+            display_df[count_column] = display_df[count_column].astype("Int64")
+        handle.write(
+            _render_table_with_alignment(
+                display_df,
+                left_columns={"Component", "Provenance class"},
+            )
+        )
+        handle.write("\n")
+    else:
+        handle.write("(no resistance benchmark provenance available)\n")
+    handle.write(
+        "Evidence-quality weights are unassigned in target set v1 and do not enter the "
+        "score. Score weights shown here are design weights only; the resistance block "
+        "uses equal rows within each component and configured 4:1 prevalence-to-severity "
+        "row weights. Nominal overall shares apply the configured resistance-block weight "
+        "before any renormalization caused by unavailable score blocks.\n"
+    )
+
+
 def _render_table_with_alignment(
     df: pd.DataFrame,
     left_columns: Optional[Set[str]] = None,
@@ -3555,10 +3929,28 @@ def _calculate_calibration_score(
     resistance_target_count = 0
     infection_normalized_distances: List[float] = []
     component_columns = [
-        ("infection", "Infection resistance", RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL),
-        ("average", "Average resistant", "Average resistant simulation", "Average resistant target"),
+        (
+            "infection",
+            "Infection resistance",
+            RESISTANCE_SIM_COL,
+            RESISTANCE_TARGET_COL,
+            RESISTANCE_TARGET_PROVENANCE_COL,
+        ),
+        (
+            "average",
+            "Average resistant",
+            "Average resistant simulation",
+            "Average resistant target",
+            RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL,
+        ),
     ]
-    for component_key, component_label, sim_col, target_col_name in component_columns:
+    for (
+        component_key,
+        component_label,
+        sim_col,
+        target_col_name,
+        provenance_col,
+    ) in component_columns:
         eligible = _filter_resistance_rows_for_fit(
             resistance_df, component=component_key
         )
@@ -3570,7 +3962,10 @@ def _calculate_calibration_score(
             continue
         tolerance = _coerce_float(resistance_tolerances.get(component_key)) or 10.0
         component_weight = resistance_weights[component_key]
-        subset = eligible[["Bacteria", "Drug", sim_col, target_col_name]].copy()
+        subset_columns = ["Bacteria", "Drug", sim_col, target_col_name]
+        if provenance_col in eligible:
+            subset_columns.append(provenance_col)
+        subset = eligible[subset_columns].copy()
         subset[sim_col] = pd.to_numeric(subset[sim_col], errors="coerce")
         subset[target_col_name] = pd.to_numeric(subset[target_col_name], errors="coerce")
         subset = subset.dropna(subset=[sim_col, target_col_name])
@@ -3591,7 +3986,11 @@ def _calculate_calibration_score(
                 "Block": CALIBRATION_SCORE_BLOCK_LABELS["resistance"],
                 "Target": f"{row.get('Bacteria')} / {row.get('Drug')} ({component_label})",
                 "Distance": distance,
-                "Detail": f"|Δ|={abs(simulation - target):.2f} pp, scale={tolerance:.2f} pp",
+                "Detail": (
+                    f"|Δ|={abs(simulation - target):.2f} pp, "
+                    f"scale={tolerance:.2f} pp, "
+                    f"provenance={row.get(provenance_col, 'not reported')}"
+                ),
             })
 
     weighted_resistance_abs_delta = _coerce_float(resistance_fit_metrics.get("weighted_overall_abs_delta"))
@@ -3687,7 +4086,7 @@ def _calculate_calibration_score(
         for _, row in resistance_locus_df.iterrows():
             sim_ratio = row.get("Sim H:C ratio")
             target_ratio = row.get("Target H:C ratio")
-            n_infections = row.get("Total New Infections", 0.0)
+            n_infections = row.get("Infection Acquisition Events", 0.0)
             bacteria_name = row.get("Bacteria", "")
             if (
                 sim_ratio is None or target_ratio is None
@@ -3851,7 +4250,7 @@ def _calculate_syndrome_incidence_table(
     syndrome_totals = {}
     
     for sid, label in syndrome_labels.items():
-        col = f"syndrome_{sid}_newly_infected"
+        col = f"syndrome_{sid}_infection_acquisition_people_count"
         if col in year_df.columns:
             yearly_infections = float(year_df[col].sum(skipna=True)) / annualization_factor
             syndrome_totals[sid] = yearly_infections
@@ -4002,6 +4401,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         resistance_df,
         targets.calibration_score_config,
     )
+    resistance_provenance_df = _build_resistance_provenance_summary(
+        resistance_df,
+        targets.calibration_score_config,
+    )
     reserve_drug_stats = context.get("reserve_drug_stats", {})
     bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
     resistance_locus_df = context.get("resistance_incidence_locus_df")
@@ -4053,15 +4456,18 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
         vector_total = _coerce_float(context.get("calibration_window_new_infections_total"))
         scalar_total = _coerce_float(context.get("scalar_new_infections_total"))
-        handle.write("Calibration-Window New Infection Totals\n")
+        handle.write("Calibration-Window Infection Acquisition Totals\n")
         handle.write(
             "Per-bacterium totals are raw model counts summed across the shared calibration "
-            "window from new_active_infections_by_bacteria; they are not annualized.\n"
+            "window from infection_acquisition_events_by_bacteria; they are not annualized.\n"
         )
         if vector_total is not None:
             handle.write(f"Overall per-bacterium total: {_format_count(vector_total)}\n")
         if scalar_total is not None:
-            handle.write(f"Scalar newly_infected_count total: {_format_count(scalar_total)}\n")
+            handle.write(
+                "Person-level infection_acquisition_people_count total: "
+                f"{_format_count(scalar_total)}\n"
+            )
         if scalar_total is not None and vector_total is not None:
             difference = vector_total - scalar_total
             if abs(difference) > 0.5:
@@ -4078,7 +4484,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             )
             handle.write("\n\n")
         else:
-            handle.write("(new_active_infections_by_bacteria unavailable in the loaded simulation data)\n\n")
+            handle.write(
+                "(infection_acquisition_events_by_bacteria unavailable in the loaded "
+                "simulation data)\n\n"
+            )
 
         if not headline_df.empty:
             headline_display = headline_df.copy()
@@ -4230,7 +4639,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             comm_col = "Community any-R (%)"
             sim_col = "Sim H:C ratio"
             tgt_col = "Target H:C ratio"
-            inf_col = "Total New Infections"
+            inf_col = "Infection Acquisition Events"
             valid_mask = locus_df[hosp_col].notna() & locus_df[comm_col].notna()
             valid_locus = locus_df.loc[valid_mask]
             if not valid_locus.empty:
@@ -4254,7 +4663,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 if np.isfinite(weighted_log):
                     handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {weighted_log:.2f}\n")
                 handle.write(
-                    "- Note: H:C any-R targets are expert-informed structural anchors, "
+                    "- Note: H:C any-R targets are expert-informed structural benchmarks, "
                     "not direct harmonised empirical estimates.\n"
                 )
             handle.write("\n")
@@ -4289,7 +4698,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 handle.write(f"- Mean community serious-R: {s_mean_comm:.2f}%\n")
             handle.write(
                 "- Note: serious-R is descriptive; no compatible marker-drug H:C target "
-                "is currently assigned. The expert-informed any-R H:C anchors are not reused here.\n"
+                "is currently assigned. The expert-informed any-R H:C benchmarks are not reused here.\n"
             )
             handle.write(
                 "- Note: MDR-TB is excluded from serious-R summaries because rifampicin "
@@ -4444,6 +4853,9 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         else:
             handle.write("(insufficient overlapping bacteria/drug combinations)\n")
 
+        handle.write("\n")
+        _write_resistance_provenance_summary(handle, resistance_provenance_df)
+
         infection_weight = resistance_fit_metrics.get("infection_weight") or 0.0
         average_weight = resistance_fit_metrics.get("average_resistant_weight") or 0.0
         weight_label = (
@@ -4554,9 +4966,21 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 if "person-days" in col.lower() or "carrier-days" in col.lower()
             }
             signed_columns: Set[str] = set()
+            text_columns = {
+                "Bacteria",
+                "Drug",
+                "Drug class",
+                "Note",
+                RESISTANCE_TARGET_PROVENANCE_COL,
+                RESISTANCE_TARGET_SOURCE_COL,
+                RESISTANCE_TARGET_RATIONALE_COL,
+                RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL,
+                RESISTANCE_AVERAGE_TARGET_SOURCE_COL,
+                RESISTANCE_AVERAGE_TARGET_RATIONALE_COL,
+            }
 
             for column in resistance_display_df.columns:
-                if column in {"Bacteria", "Drug", "Drug class", "Note"}:
+                if column in text_columns:
                     continue
                 resistance_display_df[column] = resistance_display_df.apply(
                     _format_numeric_value,
@@ -4570,8 +4994,14 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 columns={
                     RESISTANCE_SIM_COL: "Inf sim (%)",
                     RESISTANCE_TARGET_COL: "Inf target (%)",
+                    RESISTANCE_TARGET_PROVENANCE_COL: "Inf provenance",
+                    RESISTANCE_TARGET_SOURCE_COL: "Inf source",
+                    RESISTANCE_TARGET_RATIONALE_COL: "Inf rationale",
                     "Average resistant simulation": "Avg sim (%)",
                     "Average resistant target": "Avg target (%)",
+                    RESISTANCE_AVERAGE_TARGET_PROVENANCE_COL: "Avg provenance",
+                    RESISTANCE_AVERAGE_TARGET_SOURCE_COL: "Avg source",
+                    RESISTANCE_AVERAGE_TARGET_RATIONALE_COL: "Avg rationale",
                     "Microbiome simulation": "Micro sim (%)",
                     "Infected person-days": "Inf days",
                     "Resistant person-days": "Res days",
@@ -4586,7 +5016,18 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write(
                 _render_table_with_alignment(
                     resistance_display_df,
-                    left_columns={"Bacteria", "Class", "Drug", "Flags"},
+                    left_columns={
+                        "Bacteria",
+                        "Class",
+                        "Drug",
+                        "Inf provenance",
+                        "Inf source",
+                        "Inf rationale",
+                        "Avg provenance",
+                        "Avg source",
+                        "Avg rationale",
+                        "Flags",
+                    },
                 )
             )
             handle.write("\n")
@@ -4622,7 +5063,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    imply roughly 119 million DDD-equivalents/day at a world population of 8.2 billion,\n"
             "    but unique daily users should sit below that DDD total in a person-based model. The\n"
             "    revised 100 million target therefore treats antibiotic prevalence as a pragmatic\n"
-            "    person-day calibration anchor rather than a literal transcription of the Klein DDD\n"
+            "    person-day calibration benchmark rather than a literal transcription of the Klein DDD\n"
             "    estimate.\n"
         )
         handle.write(
@@ -4714,18 +5155,18 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    calibration score.\n"
         )
         handle.write(
-            "\n(10) Per-bacteria/drug resistance prevalence targets sourced from WHO GLASS\n"
-            "     (Global Antimicrobial Resistance and Use Surveillance System, 2022 report)\n"
-            "     and Antimicrobial Resistance Collaborators (2022, Lancet 399:629-655, GRAM\n"
-            "     study) global median resistance proportions. Drug-specific highlights:\n"
-            "     carbapenem-resistant A. baumannii (CRAB) >50% (WHO Critical Priority);\n"
-            "     ESBL-producing E. coli 15-25% 3GC resistance; CRKP 10-15%; MRSA 25-40%\n"
-            "     (GLASS/CDC 2019); fluoroquinolone-resistant Campylobacter >50% (agricultural\n"
-            "     use); ceftriaxone/azithromycin-resistant N. gonorrhoeae emerging (WHO 2024).\n"
-            "     MDR-TB estimates from WHO Global TB Report 2024. Values represent global\n"
-            "     medians and mask substantial regional variation (e.g. MRSA <5% in\n"
-            "     Scandinavia vs >50% in parts of Asia). Entries marked '.' indicate\n"
-            "     intrinsically resistant or inapplicable bacteria/drug combinations.\n"
+            "\n(10) Resistance-prevalence values are evidence-informed calibration benchmarks,\n"
+            "     not a matrix of direct observed cell estimates. WHO GLASS, ECDC EARS-Net,\n"
+            "     CDC reports, GRAM and organism-specific literature informed the legacy\n"
+            "     bacterium-level notes, but cell-level citations, reference years, specimen\n"
+            "     definitions, denominators and transformations were not retained. The current\n"
+            "     v1 provenance class therefore records that cell provenance is unrecovered;\n"
+            "     it does not label these values as global surveillance medians. Conditional\n"
+            "     mean-any_r values are expert-informed model placeholders, with five explicitly\n"
+            "     identified rare-positive structural priors. The per-row provenance, source and\n"
+            "     rationale identifiers link to data/resistance_target_sources_v1.csv. Evidence-\n"
+            "     quality weights remain unassigned and are not used in scoring. A missing\n"
+            "     benchmark means no comparison value was assigned, not intrinsic resistance.\n"
         )
         handle.write(
             "\n(11) Some pair-specific resistance targets may not be exactly reproducible under\n"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize empirical names used in empirical overlays."""
+"""Normalize entity names used in optional comparison overlays."""
 
 
 def normalize_name_for_empirical_matching(name, entity_type='bacteria', data_source=None):

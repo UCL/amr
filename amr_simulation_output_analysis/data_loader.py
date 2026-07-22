@@ -21,6 +21,11 @@ import logging
 import gc
 from .config import DataConfig, PlotConfig
 from .column_selector import get_required_columns, estimate_memory_savings
+from .summary_schema import (
+    SimulationSummarySchemaError,
+    validate_summary_frame,
+    validate_summary_header,
+)
 
 
 def downcast_floats(df: pd.DataFrame, target_dtype: str = 'float32') -> pd.DataFrame:
@@ -45,7 +50,9 @@ def downcast_floats(df: pd.DataFrame, target_dtype: str = 'float32') -> pd.DataF
 
 def get_csv_columns(csv_path: Path) -> List[str]:
     """Read only the header row to get column names without loading data."""
-    return pd.read_csv(csv_path, nrows=0).columns.tolist()
+    columns = pd.read_csv(csv_path, nrows=0).columns.tolist()
+    validate_summary_header(columns, csv_path)
+    return columns
 
 # Import Polars loader for optimized CSV processing
 try:
@@ -86,6 +93,7 @@ class DataCache:
         self._simulation_data: Optional[pd.DataFrame] = None
         self._preprocessed_data: Optional[pd.DataFrame] = None
         self._empirical_data: Dict[str, Optional[pd.DataFrame]] = {}
+        self._empirical_includes_best_guess_placeholders: Optional[bool] = None
         self._bacteria_list: Optional[list] = None
         self._drug_list: Optional[list] = None
         self._resistance_mechanisms: Optional[list] = None
@@ -198,6 +206,7 @@ class DataCache:
                         print(f"[TIME] Reading preprocessed parquet with pandas...")
                         self._preprocessed_data = pd.read_parquet(preprocessed_parquet_path)
                         print(f"[TIME] pandas preprocessed parquet read took {_time.time() - _t_preproc:.1f}s")
+                    validate_summary_frame(self._preprocessed_data, preprocessed_parquet_path)
                     self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
                     logger.info(f"Loaded preprocessed data from cache: {len(self._preprocessed_data)} rows")
                     print(f"Loaded preprocessed data from cache ({len(self._preprocessed_data)} rows)")
@@ -254,12 +263,26 @@ class DataCache:
         raise ValueError(f"Unsupported dataset key: {dataset}")
 
     def get_empirical_data(self, force_reload: bool = False) -> Dict[str, Optional[pd.DataFrame]]:
-        """Load and cache empirical calibration datasets."""
-        if not self._empirical_data or force_reload:
+        """Load and cache optional comparison overlays under the provenance contract."""
+        include_placeholders = bool(
+            getattr(
+                self._plot_config or PlotConfig(),
+                'show_best_guess_placeholder_overlays',
+                False,
+            )
+        )
+        mode_changed = (
+            self._empirical_includes_best_guess_placeholders is not None
+            and self._empirical_includes_best_guess_placeholders != include_placeholders
+        )
+        if not self._empirical_data or force_reload or mode_changed:
             from .empirical.data_loader import load_empirical_calibration_data
 
-            loaded = load_empirical_calibration_data()
+            loaded = load_empirical_calibration_data(
+                include_best_guess_placeholders=include_placeholders
+            )
             self._empirical_data = loaded if loaded is not None else {}
+            self._empirical_includes_best_guess_placeholders = include_placeholders
 
         return self._empirical_data
     
@@ -303,6 +326,7 @@ class DataCache:
         self._resistance_mechanisms = None
         self._simulation_csv_path = None
         self._plot_config = None
+        self._empirical_includes_best_guess_placeholders = None
         self._preprocess_options = {}
         logger.info("DataCache cleared")
 
@@ -420,6 +444,15 @@ def load_simulation_data(
     data_cfg = DataConfig()
     csv_path = Path(csv_file)
 
+    if not csv_path.exists():
+        logger.error(f"CSV file not found: {csv_file}")
+        print(f"Error: {csv_file} not found. Run the Rust simulation first.")
+        return None
+
+    # Validate before consulting caches or selecting columns. Legacy summaries are
+    # intentionally not interpreted under the current output contract.
+    all_columns = get_csv_columns(csv_path)
+
     parquet_path: Optional[Path] = None
     parquet_compression = getattr(data_cfg, 'parquet_cache_compression', 'snappy')
     configured_cache_path = getattr(data_cfg, 'parquet_cache_path', None)
@@ -432,7 +465,6 @@ def load_simulation_data(
     should_subset = use_column_subset and not (include_detail_plots and not enabled_detail_plots)
     if should_subset:
         try:
-            all_columns = get_csv_columns(csv_path)
             usecols = get_required_columns(
                 all_columns,
                 include_grouped_plots=True,
@@ -459,6 +491,7 @@ def load_simulation_data(
             if cache_is_fresh:
                 cache_df = _read_parquet_cache(parquet_path)
                 if cache_df is not None:
+                    validate_summary_frame(cache_df, parquet_path)
                     if usecols:
                         missing_cached_cols = [col for col in usecols if col not in cache_df.columns]
                         if missing_cached_cols:
@@ -478,11 +511,6 @@ def load_simulation_data(
                     csv_path,
                 )
 
-    if not csv_path.exists():
-        logger.error(f"CSV file not found: {csv_file}")
-        print(f"Error: {csv_file} not found. Run the Rust simulation first.")
-        return None
-    
     # Try Polars first for 2-5x faster loading (but only if not subsetting, as polars API differs)
     if is_polars_available() and usecols is None:
         try:
@@ -495,6 +523,7 @@ def load_simulation_data(
                 del polars_df
                 gc.collect()
                 if df is not None:
+                    validate_summary_frame(df, csv_path)
                     # Downcast floats to reduce memory by ~50%
                     df = downcast_floats(df)
                     _write_parquet_cache(df, parquet_path, parquet_compression)
@@ -502,6 +531,8 @@ def load_simulation_data(
         except MemoryError:
             logger.warning("Polars load ran out of memory, falling back to pandas with column subset")
             gc.collect()
+        except SimulationSummarySchemaError:
+            raise
         except Exception as e:
             logger.warning(f"Polars load failed, falling back to pandas: {e}")
             gc.collect()
@@ -510,6 +541,7 @@ def load_simulation_data(
     try:
         print(f"[MEMORY] Loading CSV with pandas (usecols={len(usecols) if usecols else 'all'} columns)...")
         df = pd.read_csv(csv_file, usecols=usecols)
+        validate_summary_frame(df, csv_path)
         logger.info(f"Loaded {len(df)} time steps, {len(df.columns)} columns from {csv_file}")
         print(f"Loaded {len(df)} time steps × {len(df.columns)} columns")
         df = downcast_floats(df)
@@ -523,6 +555,9 @@ def load_simulation_data(
         print("Try: 1) Close other apps  2) Run simulation with fewer time steps")
         gc.collect()
         return None
+
+    except SimulationSummarySchemaError:
+        raise
 
     except Exception as e:
         logger.error(f"Error loading {csv_file}: {e}")
@@ -634,10 +669,10 @@ def preprocess_data(
             df['total_currently_infected']
         )
         
-    # Calculate rolling past-year newly infected proportion
-    if 'newly_infected_past_year' in df.columns and 'total_population' in df.columns:
-        df['newly_infected_past_year_proportion'] = safe_divide(
-            df['newly_infected_past_year'], 
+    # Calculate the rolling past-year proportion with an acquisition event.
+    if 'infection_acquisition_people_past_year' in df.columns and 'total_population' in df.columns:
+        df['infection_acquisition_people_past_year_proportion'] = safe_divide(
+            df['infection_acquisition_people_past_year'],
             df['total_population']
         )
         
@@ -923,8 +958,8 @@ def preprocess_data(
         logger.debug("Skipping microbiome acquisition and clearance aggregates per configuration")
 
     # Derive annual infection incidence split by carriage status for each bacteria
-    carrier_inc_suffix = '_newly_infected_carrier'
-    non_carrier_inc_suffix = '_newly_infected_non_carrier'
+    carrier_inc_suffix = '_infection_acquisition_events_carrier_at_acquisition'
+    non_carrier_inc_suffix = '_infection_acquisition_events_non_carrier_at_acquisition'
     carrier_inc_columns = [col for col in df.columns if col.endswith(carrier_inc_suffix)]
 
     if carrier_inc_columns:
@@ -947,8 +982,8 @@ def preprocess_data(
             total_rolling = carrier_rolling + non_carrier_rolling
 
             incidence_cols = {
-                f"{slug}_newly_infected_carrier_rolling_year": carrier_rolling,
-                f"{slug}_newly_infected_non_carrier_rolling_year": non_carrier_rolling,
+                f"{slug}_infection_acquisition_events_carrier_rolling_year": carrier_rolling,
+                f"{slug}_infection_acquisition_events_non_carrier_rolling_year": non_carrier_rolling,
                 f"{slug}_new_infection_share_from_carriers": safe_divide(carrier_rolling, total_rolling, default=np.nan),
             }
 
@@ -959,8 +994,8 @@ def preprocess_data(
                 carrier_rate = safe_divide(carrier_rolling, carriers_population, default=np.nan) * 1e5
                 non_carrier_rate = safe_divide(non_carrier_rolling, non_carrier_population, default=np.nan) * 1e5
 
-                incidence_cols[f"{slug}_newly_infected_carrier_per_100k_carriers"] = carrier_rate
-                incidence_cols[f"{slug}_newly_infected_non_carrier_per_100k_non_carriers"] = non_carrier_rate
+                incidence_cols[f"{slug}_infection_acquisition_events_per_100k_carriers"] = carrier_rate
+                incidence_cols[f"{slug}_infection_acquisition_events_per_100k_non_carriers"] = non_carrier_rate
 
             df = _join_new_columns(df, incidence_cols)
 

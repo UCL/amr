@@ -16,6 +16,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+try:
+    from .summary_schema import validate_summary_frame
+except ImportError:
+    from summary_schema import validate_summary_frame
+
 SMOOTHING_WINDOW_DAYS = 365
 CSV_DIR = Path("amr_simulation_output_analysis_outputs")
 OUTPUT_PATH = Path("amr_simulation_output_analysis_outputs/multi_run_activity_r.png")
@@ -28,8 +33,10 @@ RUN_FILE_PATTERN = re.compile(r"simulation_summary_(\d{6})\.csv$")
 def _detect_bacteria_columns(df: pd.DataFrame) -> List[str]:
     bacteria: List[str] = []
     for col in df.columns:
-        if col.endswith("_activity_r_sum"):
-            slug = col[: -len("_activity_r_sum")]
+        if col.endswith("_applied_activity_sum") and not col.endswith(
+            "_max_possible_applied_activity_sum"
+        ):
+            slug = col[: -len("_applied_activity_sum")]
             if slug != "helicobacter_pylori":
                 bacteria.append(slug)
     return bacteria
@@ -38,27 +45,26 @@ def _detect_bacteria_columns(df: pd.DataFrame) -> List[str]:
 def _compute_overall_ratio(df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
     bacteria = _detect_bacteria_columns(df)
     if not bacteria:
-        raise ValueError("No activity_r_sum columns were found in the CSV")
+        raise ValueError("No applied-activity columns were found in the CSV")
 
     total_activity = pd.Series(0.0, index=df.index, dtype=float)
-    total_infected = pd.Series(0.0, index=df.index, dtype=float)
+    total_max_possible = pd.Series(0.0, index=df.index, dtype=float)
 
     for slug in bacteria:
-        activity_col = f"{slug}_activity_r_sum"
-        infected_col = f"{slug}_infected_and_on_any_drug"
-        if activity_col not in df.columns or infected_col not in df.columns:
+        activity_col = f"{slug}_applied_activity_sum"
+        max_possible_col = f"{slug}_max_possible_applied_activity_sum"
+        if activity_col not in df.columns or max_possible_col not in df.columns:
             continue
         total_activity += df[activity_col].fillna(0.0)
-        total_infected += df[infected_col].fillna(0.0)
+        total_max_possible += df[max_possible_col].fillna(0.0)
 
     ratio = np.divide(
         total_activity,
-        total_infected.replace(0, np.nan),
+        total_max_possible.replace(0, np.nan),
         out=np.full_like(total_activity, np.nan, dtype=float),
-        where=total_infected.to_numpy(dtype=float) > 0,
+        where=total_max_possible.to_numpy(dtype=float) > 0,
     )
-    ratio = np.where(ratio > 5.0, np.nan, ratio)
-    ratio = np.where(total_infected < 1, np.nan, ratio)
+    ratio = np.where(total_max_possible <= 0.0, np.nan, ratio)
     ratio_series = pd.Series(ratio, index=df.index)
     smoothed = ratio_series.rolling(
         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
@@ -90,6 +96,7 @@ def main() -> None:
 
     for run_id, csv_path in run_files.items():
         df = pd.read_csv(csv_path)
+        validate_summary_frame(df, source=csv_path)
         try:
             time_years, ratio = _compute_overall_ratio(df)
         except ValueError as err:

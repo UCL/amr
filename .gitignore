@@ -19,6 +19,10 @@ Thumbs.db
 /submit_jump.ps1
 /panic_log.txt
 
+# Local configuration copies. Versioned historical snapshots belong under archive/.
+/src/*.bak
+/calibration_configs/
+
 # Simulation and analysis outputs
 /amr_simulation_output_analysis_outputs/
 /output_graphs/
@@ -50,6 +54,7 @@ Thumbs.db
 !/data/resistance_targets_v1.csv
 !/data/resistance_target_sources_v1.csv
 !/data/resistance_targets_v1.schema.json
+!/data/resistance_targets_v1.manifest.json
 !/data/RESISTANCE_TARGETS.md
 !/data/model_potency_matrix.csv
 !/data/microbiome_resistance_resident_values.csv
@@ -67,3 +72,5 @@ Thumbs.db
 !/data/empirical/calibration_drug_failure_empirical.csv
 !/data/empirical/calibration_mic_empirical.csv
 !/data/empirical/calibration_hospital_incidence_empirical.csv
+!/data/empirical/overlay_provenance_v1.csv
+!/data/empirical/OVERLAY_PROVENANCE.md

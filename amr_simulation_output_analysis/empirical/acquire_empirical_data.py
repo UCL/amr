@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-Empirical Data Acquisition Script for AMR Simulation
+Observed-data ingestion and best-guess overlay generation for the AMR model.
 
-This script systematically acquires high-priority free surveillance data sources:
+Only records actually returned by an implemented external endpoint may be
+classified as observed. Source-shaped generated values remain available as
+explicit best-guess placeholders for diagnostics.
+
+Configured source families:
 1. WHO GLASS data (Global Antimicrobial Resistance and Use Surveillance System)
 2. ECDC EARS-Net data (European Antimicrobial Resistance Surveillance Network)  
 3. Australian NNDSS data (National Notifiable Diseases Surveillance System)
@@ -35,7 +39,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class EmpiricalDataAcquirer:
-    """Systematically acquire free AMR surveillance data from major sources."""
+    """Ingest observations where implemented and label all generated fallbacks."""
     
     def __init__(self, base_dir: str = "data"):
         self.base_dir = Path(base_dir)
@@ -52,6 +56,50 @@ class EmpiricalDataAcquirer:
         
         for directory in [self.who_dir, self.ecdc_dir, self.australia_dir, self.cddep_dir]:
             directory.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _mark_generated_placeholder(
+        df: pd.DataFrame,
+        *,
+        source_id: str,
+        generation_method: str,
+        rationale: str,
+    ) -> pd.DataFrame:
+        """Attach explicit non-observational provenance to generated values."""
+        result = df.copy()
+        result['overlay_provenance_class'] = 'generated_best_guess_placeholder'
+        result['generated'] = True
+        result['generation_method'] = generation_method
+        result['source_id'] = source_id
+        result['source_url_or_doi'] = ''
+        result['reference_year'] = ''
+        result['uncertainty'] = 'not_empirical_uncertainty'
+        result['rationale'] = rationale
+        result['last_reviewed'] = datetime.now().date().isoformat()
+        return result
+
+    @staticmethod
+    def _mark_observed_download(
+        df: pd.DataFrame,
+        *,
+        source_id: str,
+        source_url: str,
+        rationale: str,
+    ) -> pd.DataFrame:
+        """Attach the minimum provenance required for downloaded observations."""
+        result = df.copy()
+        result['overlay_provenance_class'] = 'observed_comparison'
+        result['generated'] = False
+        result['generation_method'] = 'not_generated_downloaded_api_data'
+        result['source_id'] = source_id
+        result['source_url_or_doi'] = source_url
+        result['reference_year'] = (
+            result['year'].astype(str) if 'year' in result.columns else ''
+        )
+        result['uncertainty'] = 'as_reported_or_not_available_from_endpoint'
+        result['rationale'] = rationale
+        result['last_reviewed'] = datetime.now().date().isoformat()
+        return result
     
     def acquire_who_glass_data(self, years: List[int] = None) -> bool:
         """
@@ -72,10 +120,10 @@ class EmpiricalDataAcquirer:
                 logger.info("✅ WHO GLASS data acquisition completed")
                 return True
                 
-            # Method 2: Direct GLASS dashboard data
-            success = self._acquire_glass_dashboard_data(years)
+            # Method 2: create source-shaped best-guess values (not observations)
+            success = self._create_patterned_who_glass_data(years)
             if success:
-                logger.info("✅ WHO GLASS dashboard data acquisition completed")
+                logger.info("WHO GLASS best-guess pattern dataset created")
                 return True
                 
             # Method 3: Create synthetic WHO GLASS structured data
@@ -132,7 +180,12 @@ class EmpiricalDataAcquirer:
         
         if all_data:
             # Save WHO GLASS data
-            df = pd.DataFrame(all_data)
+            df = self._mark_observed_download(
+                pd.DataFrame(all_data),
+                source_id='who_glass_gho_api',
+                source_url='https://ghoapi.azureedge.net/api/',
+                rationale='Records returned directly by the documented WHO GHO endpoint.',
+            )
             output_path = self.who_dir / "glass_surveillance_data.csv"
             df.to_csv(output_path, index=False)
             logger.info(f"   Saved {len(df)} WHO GLASS records to {output_path}")
@@ -140,13 +193,13 @@ class EmpiricalDataAcquirer:
             
         return False
     
-    def _acquire_glass_dashboard_data(self, years: List[int]) -> bool:
-        """Alternative method: GLASS dashboard API endpoints."""
+    def _create_patterned_who_glass_data(self, years: List[int]) -> bool:
+        """Create source-shaped best-guess values; this does not access GLASS."""
         
         # This would access the Shiny app API endpoints if available
         # For now, create structured sample data based on GLASS reports
         
-        logger.info("   Accessing GLASS dashboard endpoints...")
+        logger.info("   Creating explicitly labelled WHO GLASS pattern placeholders...")
         
         # Sample GLASS-style data structure based on published reports
         glass_countries = [
@@ -194,7 +247,15 @@ class EmpiricalDataAcquirer:
                         })
         
         # Save structured GLASS data
-        df = pd.DataFrame(glass_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(glass_data),
+            source_id='who_glass_pattern_template',
+            generation_method='random_source_pattern_generator',
+            rationale=(
+                'Programmatically generated WHO-GLASS-structured values; the source '
+                'name describes the intended format, not observational provenance.'
+            ),
+        )
         output_path = self.who_dir / "glass_amr_surveillance.csv"
         df.to_csv(output_path, index=False)
         logger.info(f"   Created {len(df)} WHO GLASS-structured records at {output_path}")
@@ -216,7 +277,12 @@ class EmpiricalDataAcquirer:
             'notes': ['Template data - replace with actual GLASS downloads'] * 5
         }
         
-        df = pd.DataFrame(template_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(template_data),
+            source_id='who_glass_small_template',
+            generation_method='fixed_source_pattern_template',
+            rationale='Fixed illustrative template values; not downloaded observations.',
+        )
         template_path = self.who_dir / "glass_template.csv"
         df.to_csv(template_path, index=False)
         logger.info(f"   Created WHO GLASS template at {template_path}")
@@ -234,7 +300,7 @@ class EmpiricalDataAcquirer:
             years = list(range(2018, 2024))
             
         try:
-            # Method 1: ECDC Atlas API
+            # Method 1: ECDC Atlas API (not currently implemented)
             success = self._acquire_ecdc_atlas_data(years)
             if success:
                 logger.info("✅ ECDC EARS-Net data acquisition completed")
@@ -246,9 +312,9 @@ class EmpiricalDataAcquirer:
                 logger.info("✅ ECDC annual report data acquisition completed") 
                 return True
                 
-            # Method 3: Create comprehensive ECDC template
-            logger.warning("⚠️  Direct ECDC access unavailable, creating comprehensive template")
-            self._create_ecdc_template()
+            # Method 3: create explicitly labelled source-patterned placeholders
+            logger.warning("Direct ECDC observations unavailable; creating best-guess placeholders")
+            self._create_comprehensive_ecdc_data(years)
             return True
             
         except Exception as e:
@@ -257,23 +323,9 @@ class EmpiricalDataAcquirer:
     
     def _acquire_ecdc_atlas_data(self, years: List[int]) -> bool:
         """Access ECDC Surveillance Atlas API."""
-        
-        # ECDC Atlas base URL (public API)
-        atlas_base = "https://atlas.ecdc.europa.eu/public/index.aspx"
-        
-        # Try to access atlas data endpoints
-        try:
-            # This would be the actual API call structure for ECDC Atlas
-            # The API requires specific parameters for AMR data
-            
-            logger.info("   Accessing ECDC Surveillance Atlas...")
-            
-            # For now, create structured ECDC data based on known EARS-Net methodology
-            return self._create_comprehensive_ecdc_data(years)
-            
-        except Exception as e:
-            logger.warning(f"   ECDC Atlas API access failed: {e}")
-            return False
+
+        logger.info("   No ECDC Atlas API ingestion is implemented")
+        return False
     
     def _create_comprehensive_ecdc_data(self, years: List[int]) -> bool:
         """Create comprehensive ECDC EARS-Net data based on published patterns."""
@@ -331,7 +383,15 @@ class EmpiricalDataAcquirer:
                         })
         
         # Save comprehensive ECDC data
-        df = pd.DataFrame(ecdc_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(ecdc_data),
+            source_id='ecdc_ears_net_pattern_template',
+            generation_method='random_source_pattern_generator',
+            rationale=(
+                'Programmatically generated EARS-Net-structured values; the source '
+                'name describes the intended format, not observational provenance.'
+            ),
+        )
         output_path = self.ecdc_dir / "ears_net_surveillance.csv"
         df.to_csv(output_path, index=False)
         logger.info(f"   Created {len(df)} ECDC EARS-Net records at {output_path}")
@@ -411,7 +471,12 @@ class EmpiricalDataAcquirer:
             'Number_tested': [1205, 987, 756, 2134, 1567]
         }
         
-        df = pd.DataFrame(current_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(current_data),
+            source_id='ecdc_ears_net_small_template',
+            generation_method='fixed_source_pattern_template',
+            rationale='Fixed illustrative template values; not downloaded observations.',
+        )
         template_path = self.ecdc_dir / "ecdc_template_expanded.csv"
         df.to_csv(template_path, index=False)
         logger.info(f"   Created expanded ECDC template at {template_path}")
@@ -428,10 +493,10 @@ class EmpiricalDataAcquirer:
             years = list(range(2019, 2024))
             
         try:
-            # Australian Department of Health NNDSS data portal
-            success = self._acquire_nndss_portal_data(years)
+            # No observational NNDSS ingestion is implemented.
+            success = self._create_patterned_nndss_data(years)
             if success:
-                logger.info("✅ Australian NNDSS data acquisition completed")
+                logger.info("Australian NNDSS best-guess pattern dataset created")
                 return True
                 
             # Create Australian surveillance template
@@ -443,8 +508,8 @@ class EmpiricalDataAcquirer:
             logger.error(f"❌ Australian NNDSS acquisition failed: {e}")
             return False
     
-    def _acquire_nndss_portal_data(self, years: List[int]) -> bool:
-        """Access Australian NNDSS data portal."""
+    def _create_patterned_nndss_data(self, years: List[int]) -> bool:
+        """Create source-shaped best-guess values; this does not access NNDSS."""
         
         # Australian surveillance data structure
         australian_states = ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]
@@ -483,7 +548,15 @@ class EmpiricalDataAcquirer:
                     })
         
         # Save Australian data
-        df = pd.DataFrame(aus_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(aus_data),
+            source_id='australian_nndss_pattern_template',
+            generation_method='random_source_pattern_generator',
+            rationale=(
+                'Programmatically generated NNDSS-structured values; the source '
+                'name describes the intended format, not observational provenance.'
+            ),
+        )
         output_path = self.australia_dir / "nndss_surveillance.csv"
         df.to_csv(output_path, index=False)
         logger.info(f"   Created {len(df)} Australian NNDSS records at {output_path}")
@@ -504,7 +577,12 @@ class EmpiricalDataAcquirer:
             'notes': ['Template - replace with NNDSS downloads'] * 5
         }
         
-        df = pd.DataFrame(template_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(template_data),
+            source_id='australian_nndss_small_template',
+            generation_method='fixed_source_pattern_template',
+            rationale='Fixed illustrative template values; not downloaded observations.',
+        )
         template_path = self.australia_dir / "nndss_template.csv" 
         df.to_csv(template_path, index=False)
         logger.info(f"   Created Australian template at {template_path}")
@@ -522,9 +600,9 @@ class EmpiricalDataAcquirer:
             
         try:
             # CDDEP ResistanceMap API/portal
-            success = self._acquire_resistancemap_data(years)
+            success = self._create_patterned_resistancemap_data(years)
             if success:
-                logger.info("✅ CDDEP ResistanceMap data acquisition completed")
+                logger.info("ResistanceMap best-guess pattern dataset created")
                 return True
                 
             # Create global resistance mapping template
@@ -536,8 +614,8 @@ class EmpiricalDataAcquirer:
             logger.error(f"❌ CDDEP acquisition failed: {e}")
             return False
     
-    def _acquire_resistancemap_data(self, years: List[int]) -> bool:
-        """Access CDDEP ResistanceMap portal."""
+    def _create_patterned_resistancemap_data(self, years: List[int]) -> bool:
+        """Create source-shaped best-guess values; this does not access ResistanceMap."""
         
         # Global countries with AMR data
         global_countries = [
@@ -571,7 +649,15 @@ class EmpiricalDataAcquirer:
                         })
         
         # Save CDDEP data
-        df = pd.DataFrame(global_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(global_data),
+            source_id='cddep_resistancemap_pattern_template',
+            generation_method='random_source_pattern_generator',
+            rationale=(
+                'Programmatically generated ResistanceMap-structured values; the '
+                'source name describes the intended format, not observational provenance.'
+            ),
+        )
         output_path = self.cddep_dir / "resistancemap_surveillance.csv"
         df.to_csv(output_path, index=False)
         logger.info(f"   Created {len(df)} CDDEP ResistanceMap records at {output_path}")
@@ -649,7 +735,12 @@ class EmpiricalDataAcquirer:
             'notes': ['Template - replace with ResistanceMap downloads'] * 8
         }
         
-        df = pd.DataFrame(template_data)
+        df = self._mark_generated_placeholder(
+            pd.DataFrame(template_data),
+            source_id='cddep_resistancemap_small_template',
+            generation_method='fixed_source_pattern_template',
+            rationale='Fixed illustrative template values; not downloaded observations.',
+        )
         template_path = self.cddep_dir / "resistancemap_template.csv"
         df.to_csv(template_path, index=False) 
         logger.info(f"   Created CDDEP template at {template_path}")
@@ -660,9 +751,13 @@ class EmpiricalDataAcquirer:
         logger.info("📊 Generating empirical data integration summary...")
         
         summary = {
-            'acquisition_date': datetime.now().isoformat(),
-            'sources_acquired': [],
+            'summary_contract_version': 1,
+            'summary_date': datetime.now().isoformat(),
+            'sources_present': [],
             'total_records': 0,
+            'observed_records': 0,
+            'best_guess_placeholder_records': 0,
+            'unclassified_records': 0,
             'coverage_assessment': {}
         }
         
@@ -673,25 +768,65 @@ class EmpiricalDataAcquirer:
             ('Australian NNDSS', self.australia_dir),
             ('CDDEP ResistanceMap', self.cddep_dir)
         ]
+        known_generated_files = {
+            'glass_amr_surveillance.csv',
+            'glass_template.csv',
+            'ears_net_surveillance.csv',
+            'ecdc_template_expanded.csv',
+            'nndss_surveillance.csv',
+            'nndss_template.csv',
+            'resistancemap_surveillance.csv',
+            'resistancemap_template.csv',
+        }
         
         for source_name, source_dir in data_sources:
             csv_files = list(source_dir.glob("*.csv"))
             
             if csv_files:
                 total_source_records = 0
+                observed_records = 0
+                placeholder_records = 0
+                unclassified_records = 0
                 for csv_file in csv_files:
                     try:
                         df = pd.read_csv(csv_file)
                         total_source_records += len(df)
+                        if 'overlay_provenance_class' in df.columns:
+                            classes = df['overlay_provenance_class'].fillna('')
+                            observed_records += int((classes == 'observed_comparison').sum())
+                            placeholder_records += int(classes.isin([
+                                'generated_best_guess_placeholder',
+                                'source_informed_best_guess_placeholder_provenance_unverified'
+                            ]).sum())
+                            unclassified_records += int((classes == '').sum())
+                        else:
+                            if csv_file.name in known_generated_files:
+                                placeholder_records += len(df)
+                            else:
+                                unclassified_records += len(df)
                     except Exception as e:
                         logger.warning(f"Could not read {csv_file}: {e}")
                 
-                summary['sources_acquired'].append(source_name)
+                summary['sources_present'].append(source_name)
                 summary['total_records'] += total_source_records
+                summary['observed_records'] += observed_records
+                summary['best_guess_placeholder_records'] += placeholder_records
+                summary['unclassified_records'] += unclassified_records
+                if observed_records and placeholder_records:
+                    status = 'mixed_observed_and_placeholder'
+                elif observed_records:
+                    status = 'observed'
+                elif placeholder_records:
+                    status = 'best_guess_placeholders_only'
+                else:
+                    status = 'provenance_unclassified'
                 summary['coverage_assessment'][source_name] = {
                     'files': len(csv_files),
                     'records': total_source_records,
-                    'status': 'acquired'
+                    'observed_records': observed_records,
+                    'best_guess_placeholder_records': placeholder_records,
+                    'unclassified_records': unclassified_records,
+                    'status': status
                 }
                 
                 logger.info(f"   ✅ {source_name}: {total_source_records:,} records in {len(csv_files)} files")
@@ -709,7 +844,12 @@ class EmpiricalDataAcquirer:
             json.dump(summary, f, indent=2)
         
         logger.info(f"📋 Empirical data summary saved to {summary_path}")
-        logger.info(f"🎯 Total empirical records acquired: {summary['total_records']:,}")
+        logger.info(
+            "Overlay records: %s observed, %s best-guess placeholders, %s unclassified",
+            f"{summary['observed_records']:,}",
+            f"{summary['best_guess_placeholder_records']:,}",
+            f"{summary['unclassified_records']:,}",
+        )
         
         return summary
 

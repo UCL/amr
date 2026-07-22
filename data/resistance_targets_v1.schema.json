@@ -15,6 +15,7 @@
     "include_in_score",
     "score_exclusion_reason",
     "target_type",
+    "provenance_class",
     "source_id",
     "reference_year",
     "geography",
@@ -73,6 +74,16 @@
         "expert_assigned_model_benchmark",
         "not_assigned"
       ]
+    },
+    "provenance_class": {
+      "enum": [
+        "empirical_estimate_with_cell_level_source",
+        "evidence_informed_benchmark_cell_provenance_unrecovered",
+        "expert_informed_placeholder",
+        "structural_prior",
+        "not_assigned"
+      ],
+      "description": "Evidence/provenance category for the individual cell. Version 1 has no cells classified as empirical estimates with recovered cell-level sources."
     },
     "source_id": {
       "type": "string",

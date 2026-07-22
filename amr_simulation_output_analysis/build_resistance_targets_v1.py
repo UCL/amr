@@ -10,6 +10,8 @@ outside the schema.
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -26,6 +28,16 @@ SEVERITY_COMPONENT = "resistance_severity_conditional_mean_any_r"
 DEFAULT_SEVERITY_SOURCE = "expert_model_scale_any_r_v1"
 RESERVE_DRUG_SEVERITY_SOURCE = "expert_reserve_drug_any_r_placeholders_v1"
 RARE_POSITIVE_SEVERITY_SOURCE = "expert_rare_positive_any_r_prior_v1"
+
+PROVENANCE_EMPIRICAL = "empirical_estimate_with_cell_level_source"
+PROVENANCE_EVIDENCE_UNRESOLVED = (
+    "evidence_informed_benchmark_cell_provenance_unrecovered"
+)
+PROVENANCE_EXPERT_PLACEHOLDER = "expert_informed_placeholder"
+PROVENANCE_STRUCTURAL_PRIOR = "structural_prior"
+PROVENANCE_NOT_ASSIGNED = "not_assigned"
+
+MANIFEST_FILENAME = "resistance_targets_v1.manifest.json"
 
 _SHARED_RESERVE_DRUG_PLACEHOLDER_BACTERIA = frozenset(
     {
@@ -88,6 +100,7 @@ TARGET_COLUMNS = [
     "include_in_score",
     "score_exclusion_reason",
     "target_type",
+    "provenance_class",
     "source_id",
     "reference_year",
     "geography",
@@ -102,7 +115,13 @@ TARGET_COLUMNS = [
     "score_row_weight",
 ]
 
-SOURCE_COLUMNS = ["source_id", "source_type", "description", "url"]
+SOURCE_COLUMNS = [
+    "source_id",
+    "provenance_class",
+    "source_type",
+    "description",
+    "url",
+]
 
 
 def _source_slug(value: str) -> str:
@@ -277,19 +296,25 @@ def _static_score_exclusions(
     return reasons
 
 
-def _severity_provenance(bacterium: str, drug: str) -> Tuple[str, str]:
+def _severity_provenance(bacterium: str, drug: str) -> Tuple[str, str, str]:
     pair = (bacterium, drug)
     if pair in RESERVE_DRUG_SEVERITY_PLACEHOLDER_PAIRS:
         return (
             RESERVE_DRUG_SEVERITY_SOURCE,
             "expert_best_guess_reserve_drug_any_r_placeholder",
+            PROVENANCE_EXPERT_PLACEHOLDER,
         )
     if pair in RARE_POSITIVE_SEVERITY_PRIOR_PAIRS:
         return (
             RARE_POSITIVE_SEVERITY_SOURCE,
             "expert_rare_positive_any_r_structural_prior",
+            PROVENANCE_STRUCTURAL_PRIOR,
         )
-    return DEFAULT_SEVERITY_SOURCE, "model_scale_resistance_severity_constraint"
+    return (
+        DEFAULT_SEVERITY_SOURCE,
+        "model_scale_resistance_severity_constraint",
+        PROVENANCE_EXPERT_PLACEHOLDER,
+    )
 
 
 def _base_row(
@@ -301,6 +326,7 @@ def _base_row(
     status: str,
     exclusions: Sequence[str],
     target_type: str,
+    provenance_class: str,
     source_id: str,
     denominator: str,
     transformation: str,
@@ -317,6 +343,7 @@ def _base_row(
         "include_in_score": str(included).lower(),
         "score_exclusion_reason": ";".join(exclusions),
         "target_type": target_type,
+        "provenance_class": provenance_class,
         "source_id": source_id,
         "reference_year": TARGET_YEAR if value != "." else "",
         "geography": "global_model_scope" if value != "." else "",
@@ -340,11 +367,64 @@ def _write_csv(path: Path, columns: Iterable[str], rows: Iterable[Mapping[str, s
         writer.writerows(rows)
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def write_resistance_target_manifest(
+    data_dir: Path,
+    target_path: Path,
+    source_path: Path,
+    manifest_path: Path,
+) -> None:
+    artifact_paths = {
+        "resistance_targets_v1.csv": target_path,
+        "resistance_target_sources_v1.csv": source_path,
+        "resistance_targets_v1.schema.json": data_dir
+        / "resistance_targets_v1.schema.json",
+        "resistance_prevalence_values.csv": data_dir
+        / "resistance_prevalence_values.csv",
+        "resistance_average_resistant_values.csv": data_dir
+        / "resistance_average_resistant_values.csv",
+        "model_potency_matrix.csv": data_dir / "model_potency_matrix.csv",
+        "model_resistance_reachability_matrix.csv": data_dir
+        / "model_resistance_reachability_matrix.csv",
+    }
+    missing = [name for name, path in artifact_paths.items() if not path.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Cannot build resistance-target manifest; missing artifacts: "
+            + ", ".join(missing)
+        )
+
+    payload = {
+        "target_set_version": TARGET_SET_VERSION,
+        "hash_algorithm": "sha256",
+        "artifacts": {
+            name: {
+                "sha256": _sha256(path),
+                "bytes": path.stat().st_size,
+            }
+            for name, path in artifact_paths.items()
+        },
+    }
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def build_resistance_targets_v1(
     root: Optional[Path] = None,
     *,
     target_output: Optional[Path] = None,
     source_output: Optional[Path] = None,
+    manifest_output: Optional[Path] = None,
 ) -> Tuple[Path, Path]:
     project_root = root or Path(__file__).resolve().parents[1]
     data_dir = project_root / "data"
@@ -397,6 +477,11 @@ def build_resistance_targets_v1(
                         if token != "."
                         else "not_assigned"
                     ),
+                    provenance_class=(
+                        PROVENANCE_EVIDENCE_UNRESOLVED
+                        if token != "."
+                        else PROVENANCE_NOT_ASSIGNED
+                    ),
                     source_id=source_id,
                     denominator="source_definition_unrecovered",
                     transformation="legacy_cell_transformation_unrecovered",
@@ -408,9 +493,11 @@ def build_resistance_targets_v1(
         for drug in drugs:
             token = severity[bacterium][drug]
             prevalence_token = prevalence[bacterium][drug]
-            severity_source, severity_rationale = _severity_provenance(
-                bacterium, drug
-            )
+            (
+                severity_source,
+                severity_rationale,
+                severity_provenance_class,
+            ) = _severity_provenance(bacterium, drug)
             exclusions = _static_score_exclusions(
                 bacterium,
                 drug,
@@ -452,6 +539,11 @@ def build_resistance_targets_v1(
                         if token != "."
                         else "not_assigned"
                     ),
+                    provenance_class=(
+                        severity_provenance_class
+                        if token != "."
+                        else PROVENANCE_NOT_ASSIGNED
+                    ),
                     source_id=severity_source if token != "." else "",
                     denominator="model_active_infection_person_days_with_any_r_positive",
                     transformation="expert_assignment_on_unitless_model_any_r_scale",
@@ -462,6 +554,7 @@ def build_resistance_targets_v1(
     source_rows = [
         {
             "source_id": f"legacy_prevalence_note__{_source_slug(bacterium)}",
+            "provenance_class": PROVENANCE_EVIDENCE_UNRESOLVED,
             "source_type": "legacy_bacterium_level_note",
             "description": notes[bacterium],
             "url": "",
@@ -471,7 +564,8 @@ def build_resistance_targets_v1(
     source_rows.append(
         {
             "source_id": DEFAULT_SEVERITY_SOURCE,
-            "source_type": "expert_model_design",
+            "provenance_class": PROVENANCE_EXPERT_PLACEHOLDER,
+            "source_type": "expert_placeholder",
             "description": (
                 "Expert-assigned model benchmarks for mean any_r "
                 "conditional on any_r > 0; these are not direct clinical surveillance estimates."
@@ -482,7 +576,8 @@ def build_resistance_targets_v1(
     source_rows.append(
         {
             "source_id": RESERVE_DRUG_SEVERITY_SOURCE,
-            "source_type": "expert_model_design",
+            "provenance_class": PROVENANCE_EXPERT_PLACEHOLDER,
+            "source_type": "expert_placeholder",
             "description": (
                 "Coarse expert best-guess placeholders for mean any_r conditional on "
                 "any_r > 0: 0.60 for cefiderocol and 0.70 for "
@@ -495,7 +590,8 @@ def build_resistance_targets_v1(
     source_rows.append(
         {
             "source_id": RARE_POSITIVE_SEVERITY_SOURCE,
-            "source_type": "expert_model_design",
+            "provenance_class": PROVENANCE_STRUCTURAL_PRIOR,
+            "source_type": "structural_prior",
             "description": (
                 "Expert best-guess structural priors for mean any_r conditional on "
                 "any_r > 0 in five bacterium-drug pairs with a zero prevalence "
@@ -508,8 +604,17 @@ def build_resistance_targets_v1(
 
     resolved_target_output = target_output or data_dir / "resistance_targets_v1.csv"
     resolved_source_output = source_output or data_dir / "resistance_target_sources_v1.csv"
+    resolved_manifest_output = (
+        manifest_output or resolved_target_output.parent / MANIFEST_FILENAME
+    )
     _write_csv(resolved_target_output, TARGET_COLUMNS, rows)
     _write_csv(resolved_source_output, SOURCE_COLUMNS, source_rows)
+    write_resistance_target_manifest(
+        data_dir,
+        resolved_target_output,
+        resolved_source_output,
+        resolved_manifest_output,
+    )
     return resolved_target_output, resolved_source_output
 
 
@@ -517,3 +622,4 @@ if __name__ == "__main__":
     targets_path, sources_path = build_resistance_targets_v1()
     print(f"Wrote {targets_path}")
     print(f"Wrote {sources_path}")
+    print(f"Wrote {targets_path.parent / MANIFEST_FILENAME}")

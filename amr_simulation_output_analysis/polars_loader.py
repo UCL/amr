@@ -129,11 +129,11 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
             .alias('infected_and_on_drug_proportion')
         )
     
-    # Newly infected past year proportion
-    if 'newly_infected_past_year' in df.columns and 'total_population' in df.columns:
+    # Acquisition-person count over the rolling 365-day window.
+    if 'infection_acquisition_people_past_year' in df.columns and 'total_population' in df.columns:
         lf = lf.with_columns(
-            (pl.col('newly_infected_past_year') / pl.col('total_population'))
-            .alias('newly_infected_past_year_proportion')
+            (pl.col('infection_acquisition_people_past_year') / pl.col('total_population'))
+            .alias('infection_acquisition_people_past_year_proportion')
         )
     
     # Death proportions (past year)
@@ -425,6 +425,55 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
                 ])
             
             df = df.with_columns(new_columns)
+
+    # Match the pandas carrier/non-carrier acquisition derivations.
+    carrier_suffix = '_infection_acquisition_events_carrier_at_acquisition'
+    non_carrier_suffix = '_infection_acquisition_events_non_carrier_at_acquisition'
+    carrier_columns = [col for col in df.columns if col.endswith(carrier_suffix)]
+
+    for carrier_col in carrier_columns:
+        slug = carrier_col[:-len(carrier_suffix)]
+        non_carrier_col = f"{slug}{non_carrier_suffix}"
+        presence_col = f"{slug}_presence_microbiome"
+        if non_carrier_col not in df.columns or presence_col not in df.columns:
+            continue
+
+        carrier_rolling = pl.col(carrier_col).rolling_sum(window_size=365, min_samples=1)
+        non_carrier_rolling = pl.col(non_carrier_col).rolling_sum(
+            window_size=365,
+            min_samples=1,
+        )
+        total_rolling = carrier_rolling + non_carrier_rolling
+        derived = [
+            carrier_rolling.alias(
+                f"{slug}_infection_acquisition_events_carrier_rolling_year"
+            ),
+            non_carrier_rolling.alias(
+                f"{slug}_infection_acquisition_events_non_carrier_rolling_year"
+            ),
+            pl.when(total_rolling > 0)
+            .then(carrier_rolling / total_rolling)
+            .otherwise(pl.lit(float('nan')))
+            .alias(f"{slug}_new_infection_share_from_carriers"),
+        ]
+
+        if 'total_population' in df.columns:
+            non_carrier_population = (
+                pl.col('total_population').cast(pl.Float64)
+                - pl.col(presence_col).cast(pl.Float64)
+            ).clip(lower_bound=0.0)
+            derived.extend([
+                pl.when(pl.col(presence_col) > 0)
+                .then(carrier_rolling / pl.col(presence_col) * 1e5)
+                .otherwise(pl.lit(float('nan')))
+                .alias(f"{slug}_infection_acquisition_events_per_100k_carriers"),
+                pl.when(non_carrier_population > 0)
+                .then(non_carrier_rolling / non_carrier_population * 1e5)
+                .otherwise(pl.lit(float('nan')))
+                .alias(f"{slug}_infection_acquisition_events_per_100k_non_carriers"),
+            ])
+
+        df = df.with_columns(derived)
     
     logger.info("Polars preprocessing completed")
     return df

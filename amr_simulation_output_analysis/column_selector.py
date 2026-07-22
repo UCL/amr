@@ -14,6 +14,7 @@ import re
 # Core columns always needed for any analysis
 CORE_COLUMNS = {
     'time_step',
+    'simulation_summary_schema_version',
     'policy_option', 
     'run_id',
     'time_in_years',
@@ -21,7 +22,7 @@ CORE_COLUMNS = {
     'number_in_hospital',
     'number_severely_immunosuppressed',
     'number_with_sepsis',
-    'new_sepsis_cases',
+    'sepsis_episode_onset_people_count',
     'total_currently_infected',
     'infected_10_days_count',
     'infected_21_days_count',
@@ -29,11 +30,13 @@ CORE_COLUMNS = {
     'currently_taking_drug_count',
     'currently_infected_and_on_drug_count',
     'taking_two_drugs_count',
-    'newly_infected_count',
-    'newly_infected_with_resistance_count',
+    'infection_acquisition_people_count',
+    'infection_acquisition_people_with_any_r_count',
+    'infection_acquisition_people_with_serious_r_count',
+    'infection_acquisition_people_serious_r_marker_eligible_count',
     'new_drug_initiations_count',
-    'new_drug_initiations_count_infected',
-    'newly_infected_past_year',
+    'new_drug_initiations_with_active_infection_count',
+    'infection_acquisition_people_past_year',
     'total_deaths',
     'deaths_background',
     'deaths_sepsis',
@@ -55,7 +58,8 @@ CORE_COLUMNS = {
     'people_on_1_drug',
     'people_on_2_drugs',
     'people_on_3plus_drugs',
-    'infected_on_drug_with_previous_failure',
+    'toxicity_drug_course_stop_events',
+    'active_infection_on_drug_with_previous_failure_count',
 }
 
 
@@ -63,11 +67,10 @@ CORE_COLUMNS = {
 GROUPED_PLOT_PATTERNS = [
     # Per-bacteria infection counts
     r'.*_currently_infected$',
-    r'.*_new_sepsis_cases$',
+    r'.*_sepsis_onset_events$',
     r'.*_number_with_sepsis$',
-    r'.*_newly_infected_carrier$',
-    r'.*_newly_infected_non_carrier$',
-    r'.*_newly_infected$',
+    r'.*_infection_acquisition_events_carrier_at_acquisition$',
+    r'.*_infection_acquisition_events_non_carrier_at_acquisition$',
     r'.*_deaths$',
     r'.*_deaths_past_year$',
     
@@ -92,8 +95,10 @@ GROUPED_PLOT_PATTERNS = [
     r'^new_initiations_drug_.*',
     
     # Activity R sums (aggregated, not per drug)
-    r'.*_activity_r_sum$',
-    r'.*_max_possible_activity_r_sum$',
+    r'.*_applied_activity_sum$',
+    r'.*_max_possible_applied_activity_sum$',
+    r'.*_applied_exposure_potency_retained_sum$',
+    r'.*_applied_exposure_potency_sum$',
     r'.*_infected_and_on_any_drug$',
     
     # Microbiome (aggregated)
@@ -148,15 +153,15 @@ CALIBRATION_PATTERNS = [
     r'.*_asymptomatic_microbiome_hgt_events', # Asymptomatic HGT events
     
     # Additional infection locus columns needed for calibration mapping
-    r'.*_newly_infected_(north_america|south_america|africa|asia|europe|oceania)$',
-    r'.*_newly_infected_hospital_.*',
-    r'.*_newly_infected_any_r_hospital$',
-    r'.*_newly_infected_any_r_community$',
-    r'.*_newly_infected_carrier$',
-    r'.*_newly_infected_non_carrier$',
-    r'.*_newly_infected_under_5$',
-    r'.*_newly_infected_over_65$',
-    r'^new_active_infections_by_bacteria$',
+    r'.*_infection_acquisition_events_home_region_(north_america|south_america|africa|asia|europe|oceania)$',
+    r'.*_infection_acquisition_events_hospital_.*',
+    r'.*_infection_acquisition_events_with_any_r_hospital$',
+    r'.*_infection_acquisition_events_with_any_r_community$',
+    r'.*_infection_acquisition_events_carrier_at_acquisition$',
+    r'.*_infection_acquisition_events_non_carrier_at_acquisition$',
+    r'.*_infection_acquisition_events_under_5$',
+    r'.*_infection_acquisition_events_over_65$',
+    r'^infection_acquisition_events_by_bacteria$',
     r'.*_deaths_under_5$',
     r'.*_deaths_over_65$',
     r'.*_deaths_hospital_acquired$',
@@ -191,7 +196,7 @@ DETAIL_PLOT_PATTERNS = {
     ],
     # incidence_of_infection - needs regional infection columns
     'incidence_of_infection': [
-        r'.*_newly_infected_.*',             # {bacteria}_newly_infected_{region}
+        r'.*_infection_acquisition_events_home_region_.*',
     ],
     # drug_failure_rate_by_bacteria_region
     'drug_failure_rate_by_bacteria_region': [
@@ -217,14 +222,14 @@ DETAIL_PLOT_PATTERNS = {
     # === MODERATE PLOTS (~500-1000 columns) ===
     # incidence_of_infection_hospital
     'incidence_of_infection_hospital': [
-        r'.*_newly_infected_hospital_.*',    # {bacteria}_newly_infected_hospital_{region}
+        r'.*_infection_acquisition_events_hospital_.*',
         r'.*_hospital_population$',          # Regional hospital populations
     ],
     # proportion_of_people_infected_with_each_bacteria (uses core columns)
     'proportion_of_people_infected_with_each_bacteria': [],
     # proportion_of_people_taking_each_drug (uses taking_drug columns, already loaded)
     'proportion_of_people_taking_each_drug': [],
-    # mean_activity_r_by_bacteria (uses activity_r_sum, already loaded)
+    # mean_activity_r_by_bacteria (uses applied activity, already loaded)
     'mean_activity_r_by_bacteria': [],
     # microbiome plots (uses microbiome columns, already loaded for calibration)
     'proportion_of_population_with_microbiome_presence_bacteria': [
@@ -258,8 +263,8 @@ DETAIL_PLOT_PATTERNS = {
     ],
     'carrier_vs_non_carrier_incidence': [
         r'.*_presence_microbiome$',
-        r'.*_newly_infected_carrier$',
-        r'.*_newly_infected_non_carrier$',
+        r'.*_infection_acquisition_events_carrier_at_acquisition$',
+        r'.*_infection_acquisition_events_non_carrier_at_acquisition$',
     ],
     'carriage_duration_distribution': [
         r'.*_carriage_duration_days_.*',

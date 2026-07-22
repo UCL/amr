@@ -23,6 +23,13 @@ as rare-positive structural priors: they specify conditional severity if a posit
 simulated, rather than asserting that resistant infections are observed. Both subsets have their
 own source and rationale identifiers in the long-form files.
 
+`provenance_class` makes the evidence status machine-readable. The allowed classes are direct
+empirical estimates with recovered cell-level sources, evidence-informed benchmarks with
+unrecovered cell provenance, expert-informed placeholders, structural priors, and unassigned
+cells. Version 1 contains no rows in the direct-empirical class. `source_id` and `rationale`
+preserve the identity of the source record and design rationale for every numeric cell; the source
+table repeats the provenance class so mismatches can be rejected.
+
 Every bacterium-drug-component cell has a row, including cells represented by `.` in the legacy
 matrices. `include_in_score` records static v1 eligibility after the target, organism, rifampicin,
 baseline-potency, and phenotype-representability exclusions. Potency and resistance-mechanism
@@ -38,6 +45,11 @@ also inactive, with status `inactive_unpaired_legacy_benchmark`.
 Unavailable simulation denominators can still exclude a row from a particular analysis.
 `evidence_weight` remains blank because evidence quality has not yet been assessed;
 `score_row_weight` records equal static row weighting only.
+
+`resistance_targets_v1.manifest.json` records SHA-256 hashes and byte sizes for the long-form
+targets, source table, schema, legacy wide value matrices, and Rust-derived potency and resistance-
+reachability matrices. The production loader verifies this manifest before using the target set.
+This binds the score input to the mechanism and potency projections used to determine eligibility.
 
 Regenerate the companion files from the cleaned wide matrices with:
 

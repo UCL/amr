@@ -2,7 +2,9 @@ use amr_project::simulation::journey_logger::JourneyLogger;
 use amr_project::simulation::population::{
     store_float, Individual, BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
-use amr_project::simulation::simulation::{CalibrationMode, Simulation};
+use amr_project::simulation::simulation::{
+    CalibrationMode, Simulation, SIMULATION_SUMMARY_SCHEMA_VERSION,
+};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use std::collections::HashMap;
@@ -43,6 +45,26 @@ fn assert_csv_rows_match_header_width(path: &Path) {
             "CSV row {} should have the same width as the header",
             row_idx + 2
         );
+    }
+}
+
+fn assert_summary_schema_version(path: &Path) {
+    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
+    let header = reader
+        .headers()
+        .expect("CSV should include headers")
+        .clone();
+    let version_idx = header
+        .iter()
+        .position(|column| column == "simulation_summary_schema_version")
+        .expect("summary CSV should include its schema version");
+
+    for record in reader.records() {
+        let record = record.expect("CSV data row should parse");
+        let version = record[version_idx]
+            .parse::<u32>()
+            .expect("schema version should parse as u32");
+        assert_eq!(version, SIMULATION_SUMMARY_SCHEMA_VERSION);
     }
 }
 
@@ -108,7 +130,7 @@ fn assert_antibiotic_context_counts_sum(path: &Path) {
     }
 }
 
-fn assert_new_infection_resistance_counts_bounded(path: &Path) {
+fn assert_acquisition_person_resistance_counts_bounded(path: &Path) {
     let mut reader = csv::Reader::from_path(path).expect("CSV should open");
     let header = reader
         .headers()
@@ -120,10 +142,10 @@ fn assert_new_infection_resistance_counts_bounded(path: &Path) {
             .position(|column| column == name)
             .unwrap_or_else(|| panic!("summary CSV should include {name}"))
     };
-    let newly_infected_idx = index("newly_infected_count");
-    let any_resistance_idx = index("newly_infected_with_resistance_count");
-    let serious_resistance_idx = index("newly_infected_with_serious_resistance_count");
-    let marker_eligible_idx = index("newly_infected_serious_resistance_marker_eligible_count");
+    let acquisition_people_idx = index("infection_acquisition_people_count");
+    let any_resistance_idx = index("infection_acquisition_people_with_any_r_count");
+    let serious_resistance_idx = index("infection_acquisition_people_with_serious_r_count");
+    let marker_eligible_idx = index("infection_acquisition_people_serious_r_marker_eligible_count");
 
     for (row_idx, record) in reader.records().enumerate() {
         let record = record.expect("CSV data row should parse");
@@ -134,29 +156,29 @@ fn assert_new_infection_resistance_counts_bounded(path: &Path) {
                 .parse::<usize>()
                 .expect("count field should parse as usize")
         };
-        let newly_infected = parse_usize(newly_infected_idx);
+        let acquisition_people = parse_usize(acquisition_people_idx);
         let any_resistance = parse_usize(any_resistance_idx);
         let serious_resistance = parse_usize(serious_resistance_idx);
         let marker_eligible = parse_usize(marker_eligible_idx);
 
         assert!(
-            any_resistance <= newly_infected,
-            "newly infected any-resistance count should be bounded by newly infected count in CSV row {}",
+            any_resistance <= acquisition_people,
+            "acquisition people with any-R should be bounded by all acquisition people in CSV row {}",
             row_idx + 2
         );
         assert!(
-            serious_resistance <= newly_infected,
-            "newly infected serious-R count should be bounded by newly infected count in CSV row {}",
+            serious_resistance <= acquisition_people,
+            "acquisition people with serious-R should be bounded by all acquisition people in CSV row {}",
             row_idx + 2
         );
         assert!(
-            marker_eligible <= newly_infected,
-            "newly infected serious-R marker-eligible count should be bounded by newly infected count in CSV row {}",
+            marker_eligible <= acquisition_people,
+            "serious-R marker-eligible acquisition people should be bounded by all acquisition people in CSV row {}",
             row_idx + 2
         );
         assert!(
             serious_resistance <= any_resistance,
-            "newly infected serious-R count should be bounded by newly infected any-resistance count in CSV row {}",
+            "acquisition people with serious-R should be bounded by acquisition people with any-R in CSV row {}",
             row_idx + 2
         );
     }
@@ -246,7 +268,7 @@ fn assert_resistance_care_setting_counts_bounded(path: &Path) {
     }
 }
 
-fn assert_new_infection_split_columns_preserve_bacterium_values(path: &Path) {
+fn assert_acquisition_split_columns_preserve_bacterium_values(path: &Path) {
     let mut reader = csv::Reader::from_path(path).expect("CSV should open");
     let header = reader
         .headers()
@@ -262,15 +284,21 @@ fn assert_new_infection_split_columns_preserve_bacterium_values(path: &Path) {
         let slug = bacteria.replace(' ', "_");
         let expected_columns = [
             (
-                format!("{slug}_newly_infected_carrier"),
+                format!("{slug}_infection_acquisition_events_carrier_at_acquisition"),
                 1_000 + bacteria_idx,
             ),
             (
-                format!("{slug}_newly_infected_non_carrier"),
+                format!("{slug}_infection_acquisition_events_non_carrier_at_acquisition"),
                 2_000 + bacteria_idx,
             ),
-            (format!("{slug}_newly_infected_under_5"), 100 + bacteria_idx),
-            (format!("{slug}_newly_infected_over_65"), 200 + bacteria_idx),
+            (
+                format!("{slug}_infection_acquisition_events_under_5"),
+                100 + bacteria_idx,
+            ),
+            (
+                format!("{slug}_infection_acquisition_events_over_65"),
+                200 + bacteria_idx,
+            ),
         ];
 
         for (column, expected) in expected_columns {
@@ -363,9 +391,42 @@ fn assert_summary_has_figure_11_columns(path: &Path) {
 fn assert_summary_has_person_level_sepsis_incidence(path: &Path) {
     let header = csv_header(path);
     assert!(
-        header.iter().any(|column| column == "new_sepsis_cases"),
+        header
+            .iter()
+            .any(|column| column == "sepsis_episode_onset_people_count"),
         "summary CSV should include unique person-level sepsis incidence"
     );
+    for bacteria in BACTERIA_LIST {
+        let column = format!("{bacteria}_sepsis_onset_events");
+        assert!(
+            header.iter().any(|candidate| candidate == column),
+            "summary CSV should include bacterium-level onset column {column}"
+        );
+    }
+}
+
+fn assert_retired_ambiguous_event_columns_are_absent(path: &Path) {
+    let header = csv_header(path);
+    for retired in [
+        "new_sepsis_cases",
+        "newly_infected_count",
+        "newly_infected_with_resistance_count",
+        "newly_infected_with_serious_resistance_count",
+        "newly_infected_serious_resistance_marker_eligible_count",
+        "new_drug_initiations_count_infected",
+        "newly_infected_past_year",
+        "drug_stops_due_to_toxicity",
+        "infected_on_drug_with_previous_failure",
+        "new_active_infections_by_bacteria",
+        "treated_infection_days_by_bacteria",
+        "effective_treated_infection_days_by_bacteria",
+        "sepsis_onset_count_by_bacteria",
+    ] {
+        assert!(
+            !header.iter().any(|candidate| candidate == retired),
+            "retired ambiguous summary column {retired} should be absent"
+        );
+    }
 }
 
 fn assert_summary_has_model_scope_infection_deaths(path: &Path) {
@@ -419,12 +480,11 @@ fn assert_summary_has_supplementary_figure_s1_columns(path: &Path) {
 fn assert_summary_has_supplementary_table_s1_columns(path: &Path) {
     let header = csv_header(path);
     let expected = [
-        "new_active_infections_by_bacteria",
+        "infection_acquisition_events_by_bacteria",
         "active_infection_days_by_bacteria",
-        "treated_infection_days_by_bacteria",
-        "effective_treated_infection_days_by_bacteria",
+        "antibiotic_exposed_infection_days_by_bacteria",
+        "effective_antibiotic_exposed_infection_days_by_bacteria",
         "infection_resolution_count_by_bacteria",
-        "sepsis_onset_count_by_bacteria",
         "infection_death_count_by_bacteria",
         "drug_failure_count_by_bacteria",
     ];
@@ -442,10 +502,10 @@ fn assert_summary_has_supplementary_figure_s3_columns(path: &Path) {
     let expected = [
         "carrier_at_risk_person_days_by_bacteria",
         "non_carrier_at_risk_person_days_by_bacteria",
-        "new_infections_in_carriers_by_bacteria",
-        "new_infections_in_non_carriers_by_bacteria",
-        "new_any_r_infections_in_carriers_by_bacteria",
-        "new_any_r_infections_in_non_carriers_by_bacteria",
+        "infection_acquisition_events_in_preexisting_carriers_by_bacteria",
+        "infection_acquisition_events_in_preexisting_non_carriers_by_bacteria",
+        "infection_acquisition_events_with_any_r_in_preexisting_carriers_by_bacteria",
+        "infection_acquisition_events_with_any_r_in_preexisting_non_carriers_by_bacteria",
     ];
 
     for expected_name in expected {
@@ -562,12 +622,14 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
         .expect("summary export should succeed");
 
     assert_csv_rows_match_header_width(&path);
+    assert_summary_schema_version(&path);
     assert_local_persistence_counters_sum(&path);
-    assert_new_infection_split_columns_preserve_bacterium_values(&path);
+    assert_acquisition_split_columns_preserve_bacterium_values(&path);
     assert_antibiotic_context_counts_sum(&path);
-    assert_new_infection_resistance_counts_bounded(&path);
+    assert_acquisition_person_resistance_counts_bounded(&path);
     assert_resistance_care_setting_counts_bounded(&path);
     assert_summary_has_person_level_sepsis_incidence(&path);
+    assert_retired_ambiguous_event_columns_are_absent(&path);
     assert_summary_has_model_scope_infection_deaths(&path);
     assert_retired_regional_resistance_composite_is_absent(&path);
     assert_summary_has_figure_11_columns(&path);

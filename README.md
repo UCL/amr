@@ -1,6 +1,14 @@
 # AMR Simulation
 
-Agent-based simulation of antimicrobial resistance dynamics across 42 bacterial species, 58 antibiotics, 35 resistance mechanisms, and 6 world regions over the period 1930–2035.
+Agent-based simulation of antimicrobial resistance dynamics across 42 bacterial species, 62 antibiotics, 46 resistance mechanisms, and 6 world regions over the period 1930–2035.
+
+## Model Inventory Authority
+
+The executable bacteria, drug, and resistance-mechanism inventories are defined by
+`BACTERIA_LIST`, `DRUG_SHORT_NAMES`, and `ResistanceMechanism::all()` in
+`src/simulation/population.rs`. Current parameter values are defined in `src/config.rs`.
+Files under `archive/` are historical evidence only and are never model or analysis inputs.
+Repository tests keep the counts above aligned with the executable inventories.
 
 ## Quick Start
 
@@ -21,8 +29,8 @@ The executable is named `executable_amr`. All configuration is hardcoded in `src
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `population_size` | 1,000,000 | Number of simulated individuals |
-| `calibration_mode` | `CalibrationMode::Full` | Output/detail mode for calibration vs full policy runs |
+| `population_size` | 3,000,000 | Number of simulated individuals |
+| `calibration_mode` | `CalibrationMode::Partial` | Output/detail mode for calibration vs full policy runs |
 | `time_steps` | 35,040 for calibration; 38,325 for policy runs | Days simulated by mode |
 | `log_individuals` | `false` | Per-individual logging (very verbose) |
 | `log_infection_journeys` | `false` | Infection lifecycle logging |
@@ -81,7 +89,7 @@ amr_simulation_output_analysis/  Python analysis package
 ├── polars_loader.py             Polars-based fast loader
 ├── multi_run_activity_r_plot.py Multi-run resistance comparison
 ├── utils.py                     Shared utilities
-├── empirical/                   Empirical data loading & normalisation
+├── empirical/                   Provenance-controlled comparison overlays
 │   ├── acquire_empirical_data.py
 │   ├── data_loader.py
 │   ├── enhanced_empirical_loader.py
@@ -94,7 +102,7 @@ amr_simulation_output_analysis/  Python analysis package
 amr_simulation_output_analysis_outputs/
     simulation_summary_NNNNNN.csv   Output CSVs (one per run)
 
-archive/                         Historical code and process documentation
+archive/                         Historical, non-executable snapshots and documentation
 data/                            Empirical reference data
 infection_journeys/              Infection journey log output
 output_graphs/                   Generated plots
@@ -259,7 +267,7 @@ Key analysis modules:
 | `plotting/base_plots.py` | Time series, prevalence plots |
 | `plotting/detail_plots.py` | Per-bacteria/drug detailed views |
 | `plotting/grouped_plots.py` | Drug-class and region aggregations |
-| `empirical/` | Load and normalise empirical AMR data for comparison |
+| `empirical/` | Load provenance-checked observed comparisons and optional best-guess placeholder overlays |
 
 ## Dependencies
 

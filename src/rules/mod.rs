@@ -82,16 +82,17 @@
 
 use crate::config::{
     get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
-    get_drug_introduction_time_step, get_global_param, parameter_store,
+    get_drug_introduction_time_step, get_global_param, parameter_store, ParameterStore,
     RUN_PATHWAY_HGT_MULTIPLIER_KEY, RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
     RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
-    self, days_since_recorded_event, load_float, store_float, AntibioticUseContext,
-    CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType,
-    Region, ResistanceAcquisitionType, ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP,
-    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD, MISSING_EVENT_DATE,
+    self, bacterium_has_separate_microbiome_compartment, days_since_recorded_event, load_float,
+    store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus, ImmunodeficiencyType,
+    Individual, InfectionResolutionType, Region, ResistanceAcquisitionType, ResistanceMechanism,
+    BACTERIA_COUNT, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
+    MICROBIOME_MAJORITY_THRESHOLD, MISSING_EVENT_DATE,
 };
 use rand::Rng;
 
@@ -2339,10 +2340,158 @@ fn is_non_negligible_active_drug(level: f64, potency: f64, potency_threshold: f6
     level > 0.0 && potency >= potency_threshold
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+/// One successful bacterium acquisition, snapshotted at the transition before
+/// later person-day rules can clear or otherwise mutate the infection.
+pub(crate) struct InfectionAcquisitionEvent {
+    pub bacteria_idx: usize,
+    pub syndrome_id: i32,
+    pub hospital_acquired: bool,
+    pub acquisition_region: Region,
+    pub carrier_at_acquisition: bool,
+    pub has_any_r: bool,
+    pub serious_marker_eligible: bool,
+    pub has_serious_r: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+/// One active infection observed where antibiotic activity is applied to its
+/// level. Every numerator and denominator uses this same within-day state.
+pub(crate) struct AppliedActivityObservation {
+    pub bacteria_idx: usize,
+    pub activity_sum: f64,
+    pub max_possible_activity_sum: f64,
+    pub pure_activity_sum: f64,
+    pub max_possible_pure_activity_sum: f64,
+    pub best_activity: f64,
+}
+
+#[derive(Debug)]
+pub(crate) struct SparseRuleEvents<T> {
+    first: Option<T>,
+    additional: Vec<T>,
+}
+
+impl<T> Default for SparseRuleEvents<T> {
+    fn default() -> Self {
+        Self {
+            first: None,
+            additional: Vec::new(),
+        }
+    }
+}
+
+impl<T> SparseRuleEvents<T> {
+    fn push(&mut self, event: T) {
+        if self.first.is_none() {
+            self.first = Some(event);
+        } else {
+            self.additional.push(event);
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.first.is_none()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
+        self.first.iter().chain(self.additional.iter())
+    }
+}
+
+#[derive(Debug, Default)]
 pub(crate) struct RuleEvents {
     pub local_persistence_profile_incorporations_infection: usize,
     pub local_persistence_profile_incorporations_carriage: usize,
+    pub infection_acquisitions: SparseRuleEvents<InfectionAcquisitionEvent>,
+    pub sepsis_onset_mask: u64,
+    pub toxicity_stop_mask: u64,
+    pub applied_activity: SparseRuleEvents<AppliedActivityObservation>,
+}
+
+impl RuleEvents {
+    fn record_sepsis_onset(&mut self, bacteria_idx: usize) {
+        self.sepsis_onset_mask |= 1u64 << bacteria_idx;
+    }
+
+    fn record_toxicity_stop(&mut self, drug_idx: usize) {
+        self.toxicity_stop_mask |= 1u64 << drug_idx;
+    }
+}
+
+fn infection_acquisition_event(
+    individual: &Individual,
+    bacteria_idx: usize,
+    hospital_acquired: bool,
+) -> InfectionAcquisitionEvent {
+    let marker_drugs = serious_resistance_marker_drugs(BACTERIA_LIST[bacteria_idx]);
+    let has_serious_r = marker_drugs.iter().any(|drug_name| {
+        DRUG_INDEX_BY_NAME.get(drug_name).is_some_and(|&drug_idx| {
+            load_float(individual.resistances[bacteria_idx][drug_idx].any_r) > INFECTION_EPS
+        })
+    });
+    let acquisition_region = match individual.region_cur_in {
+        Region::Home => individual.region_living,
+        region => region,
+    };
+
+    InfectionAcquisitionEvent {
+        bacteria_idx,
+        syndrome_id: individual.infectious_syndrome[bacteria_idx],
+        hospital_acquired,
+        acquisition_region,
+        carrier_at_acquisition: individual.presence_microbiome[bacteria_idx],
+        has_any_r: individual.resistances[bacteria_idx]
+            .iter()
+            .any(|resistance| load_float(resistance.any_r) > 0.0),
+        serious_marker_eligible: !marker_drugs.is_empty(),
+        has_serious_r,
+    }
+}
+
+fn applied_activity_observation(
+    individual: &Individual,
+    bacteria_idx: usize,
+    param_cache: &ParameterKeyCache,
+    store: &ParameterStore,
+    max_resistance_level: f64,
+) -> Option<AppliedActivityObservation> {
+    let mut observation = AppliedActivityObservation {
+        bacteria_idx,
+        activity_sum: 0.0,
+        max_possible_activity_sum: 0.0,
+        pure_activity_sum: 0.0,
+        max_possible_pure_activity_sum: 0.0,
+        best_activity: 0.0,
+    };
+    let mut has_active_exposure = false;
+
+    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+        let drug_level = individual.cur_level_drug[drug_idx];
+        if drug_level <= 0.0 {
+            continue;
+        }
+
+        has_active_exposure = true;
+        let resistance_data = &individual.resistances[bacteria_idx][drug_idx];
+        let activity = load_float(resistance_data.activity_r);
+        observation.activity_sum += activity;
+        observation.best_activity = observation.best_activity.max(activity);
+
+        let base_potency = param_cache.potency(bacteria_idx, drug_idx);
+        let syndrome_id = individual.infectious_syndrome[bacteria_idx] as usize;
+        let penetration_factor = store.syndrome.drug_penetration(syndrome_id, drug_idx);
+        observation.max_possible_activity_sum += base_potency * drug_level * penetration_factor;
+        let normalized_any_r = if max_resistance_level > 0.0 {
+            load_float(resistance_data.any_r) / max_resistance_level
+        } else {
+            0.0
+        };
+        observation.pure_activity_sum += base_potency * (1.0 - normalized_any_r).clamp(0.0, 1.0);
+        observation.max_possible_pure_activity_sum += base_potency;
+    }
+
+    has_active_exposure.then_some(observation)
 }
 
 /// applies model rules to an individual for one time step.
@@ -2357,6 +2506,8 @@ pub(crate) fn apply_rules(
     policy: &PolicyAdjustments,
 ) -> RuleEvents {
     let mut events = RuleEvents::default();
+    debug_assert!(BACTERIA_COUNT <= u64::BITS as usize);
+    debug_assert!(DRUG_SHORT_NAMES.len() <= u64::BITS as usize);
     let store = parameter_store();
     // Policy can tighten or loosen randomness when deciding among viable drugs.
     let selection_temperature = policy
@@ -2835,6 +2986,7 @@ pub(crate) fn apply_rules(
                     // Set sepsis status to true for this bacteria and record onset day
                     individual.sepsis[b_idx] = true;
                     individual.sepsis_onset_day[b_idx] = time_step as i32;
+                    events.record_sepsis_onset(b_idx);
                 }
             }
             // Note: Recovery logic will be applied later, after death risk is calculated
@@ -4832,6 +4984,7 @@ pub(crate) fn apply_rules(
 
             // Record this as a toxicity stop for the avoidance window
             individual.toxicity_stopped_drug_day[drug_idx] = time_step as i32;
+            events.record_toxicity_stop(drug_idx);
 
             // Zero the reservoir so threshold isn't immediately re-triggered
             // for the next-most-toxic drug on subsequent days
@@ -5267,7 +5420,7 @@ pub(crate) fn apply_rules(
     // --- update per-bacteria fields ---
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         individual.predicted_infection_risk[b_idx] = 0.0;
-        let allows_microbiome = bacteria != "helicobacter_pylori";
+        let allows_microbiome = bacterium_has_separate_microbiome_compartment(b_idx);
         let mut is_infected = individual.level[b_idx] > INFECTION_EPS;
 
         if !is_infected {
@@ -5910,6 +6063,14 @@ pub(crate) fn apply_rules(
                             false,
                         );
 
+                        events
+                            .infection_acquisitions
+                            .push(infection_acquisition_event(
+                                individual,
+                                b_idx,
+                                is_hospital_acquired,
+                            ));
+
                         if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
                             for d_idx in 0..DRUG_SHORT_NAMES.len() {
                                 let has_community_mechanism = ResistanceMechanism::all()
@@ -6403,11 +6564,15 @@ pub(crate) fn apply_rules(
                 }
             }
 
-            for (drug_idx, _drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                if individual.cur_level_drug[drug_idx] > 0.0 {
-                    let resistance_data = &individual.resistances[b_idx][drug_idx];
-                    total_reduction_due_to_antibiotic += load_float(resistance_data.activity_r);
-                }
+            if let Some(observation) = applied_activity_observation(
+                individual,
+                b_idx,
+                param_cache,
+                store,
+                cached_max_resistance_level,
+            ) {
+                total_reduction_due_to_antibiotic = observation.activity_sum;
+                events.applied_activity.push(observation);
             }
 
             // --- TB-specific multi-drug synergy logic ---
@@ -7243,25 +7408,25 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_rules, carriage_profile_sampling_probability, clear_microbiome_compartment,
-        collect_active_symptomatic_syndromes, collect_regional_surveillance_bacteria,
-        complete_resistance_test_if_ready, emerge_microbiome_mechanisms_once,
-        existing_therapy_prevents_incoming_infection, exogenous_mechanism_floor_probability,
-        has_serious_resistance_test_positive, hgt_context_multiplier,
-        hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
-        identified_resistance_results_ready, is_under_medical_care, mechanism_applies_to_drug,
-        mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
-        prepare_individual_for_active_day, promote_minority_mechanisms_once,
-        propagate_mechanism_resistance, ratchet_floor_from_peak, ratchet_mechanism_is_eligible,
-        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
-        reset_resistance_test_state, revert_unselected_microbiome_mechanisms,
-        sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
-        ParameterKeyCache,
+        applied_activity_observation, apply_rules, carriage_profile_sampling_probability,
+        clear_microbiome_compartment, collect_active_symptomatic_syndromes,
+        collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
+        emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
+        exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
+        hgt_context_multiplier, hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
+        identified_resistance_results_ready, infection_acquisition_event, is_under_medical_care,
+        mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
+        not_under_medical_care_log_odds, prepare_individual_for_active_day,
+        promote_minority_mechanisms_once, propagate_mechanism_resistance, ratchet_floor_from_peak,
+        ratchet_mechanism_is_eligible, record_hgt_mechanism_in_present_compartments,
+        record_sampled_microbiome_profile, reset_resistance_test_state,
+        revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
+        vaccination_acquisition_log_odds, ParameterKeyCache, RuleEvents,
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
         bacterium_mechanism_host_is_eligible, days_since_recorded_event, load_float,
-        mechanism_is_hgt_transferable, store_float, DrugClass, HospitalStatus, Individual,
+        mechanism_is_hgt_transferable, store_float, DrugClass, HospitalStatus, Individual, Region,
         ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, MISSING_EVENT_DATE,
     };
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
@@ -7320,6 +7485,82 @@ mod tests {
     }
 
     #[test]
+    fn transition_event_masks_preserve_onsets_and_stops_independently() {
+        let mut events = RuleEvents::default();
+        events.record_sepsis_onset(1);
+        events.record_sepsis_onset(3);
+        events.record_toxicity_stop(0);
+        events.record_toxicity_stop(DRUG_SHORT_NAMES.len() - 1);
+
+        assert_eq!(events.sepsis_onset_mask.count_ones(), 2);
+        assert_ne!(events.sepsis_onset_mask & (1u64 << 1), 0);
+        assert_ne!(events.sepsis_onset_mask & (1u64 << 3), 0);
+        assert_eq!(events.toxicity_stop_mask.count_ones(), 2);
+    }
+
+    #[test]
+    fn acquisition_event_retains_transition_attributes_after_state_reset() {
+        let (mut individual, _) = individual_with_seed(88);
+        let gonorrhoea_idx = bacteria_idx("neisseria_gonorrhoeae");
+        let ceftriaxone_idx = drug_idx("ceftriaxone");
+        individual.infectious_syndrome[gonorrhoea_idx] = 8;
+        individual.region_living = Region::Europe;
+        individual.region_cur_in = Region::Asia;
+        individual.presence_microbiome[gonorrhoea_idx] = true;
+        individual.resistances[gonorrhoea_idx][ceftriaxone_idx].any_r = store_float(0.75);
+
+        let event = infection_acquisition_event(&individual, gonorrhoea_idx, true);
+
+        individual.infectious_syndrome[gonorrhoea_idx] = 0;
+        individual.region_cur_in = Region::Home;
+        individual.presence_microbiome[gonorrhoea_idx] = false;
+        individual.resistances[gonorrhoea_idx][ceftriaxone_idx].any_r = store_float(0.0);
+
+        assert_eq!(event.bacteria_idx, gonorrhoea_idx);
+        assert_eq!(event.syndrome_id, 8);
+        assert_eq!(event.acquisition_region, Region::Asia);
+        assert!(event.hospital_acquired);
+        assert!(event.carrier_at_acquisition);
+        assert!(event.has_any_r);
+        assert!(event.serious_marker_eligible);
+        assert!(event.has_serious_r);
+    }
+
+    #[test]
+    fn applied_activity_observation_is_a_coherent_stage_snapshot() {
+        let (mut individual, _) = individual_with_seed(87);
+        let e_coli_idx = bacteria_idx("escherichia_coli");
+        let meropenem_idx = drug_idx("meropenem");
+        let cache = ParameterKeyCache::new();
+        let store = parameter_store();
+        individual.infectious_syndrome[e_coli_idx] = 2;
+        individual.cur_use_drug[meropenem_idx] = true;
+        individual.cur_level_drug[meropenem_idx] = 0.8;
+        individual.resistances[e_coli_idx][meropenem_idx].any_r = store_float(0.4);
+        individual.resistances[e_coli_idx][meropenem_idx].activity_r = store_float(0.25);
+
+        let observation = applied_activity_observation(
+            &individual,
+            e_coli_idx,
+            &cache,
+            store,
+            cache.max_resistance_level,
+        )
+        .expect("positive drug exposure should produce an activity observation");
+        let expected_activity =
+            load_float(individual.resistances[e_coli_idx][meropenem_idx].activity_r);
+
+        individual.resistances[e_coli_idx][meropenem_idx].any_r = store_float(0.9);
+        individual.resistances[e_coli_idx][meropenem_idx].activity_r = store_float(0.0);
+
+        assert_eq!(observation.bacteria_idx, e_coli_idx);
+        assert_eq!(observation.activity_sum, expected_activity);
+        assert!(observation.max_possible_activity_sum > 0.0);
+        assert!(observation.pure_activity_sum > 0.0);
+        assert!(observation.max_possible_pure_activity_sum > 0.0);
+    }
+
+    #[test]
     fn infection_and_carriage_dates_default_to_missing() {
         let (individual, _) = individual_with_seed(89);
 
@@ -7353,6 +7594,8 @@ mod tests {
         individual.date_last_infected_keep[e_coli_idx] = time_step as i32 - 30;
         individual.clearance_ready_day[e_coli_idx] = time_step as i32 - 1;
         individual.infectious_syndrome[e_coli_idx] = 2;
+        individual.sepsis[e_coli_idx] = true;
+        individual.sepsis_onset_day[e_coli_idx] = time_step as i32 - 5;
         individual.predicted_infection_risk[e_coli_idx] = 0.375;
         individual.infection_resolution_this_timestep[e_coli_idx].fill(0);
 
@@ -7375,13 +7618,16 @@ mod tests {
         );
 
         assert_eq!(individual.date_of_death, Some(time_step));
+        assert_eq!(individual.cause_of_death.as_deref(), Some("sepsis_related"));
         assert_eq!(individual.level[e_coli_idx], 2.0);
+        assert!(individual.sepsis[e_coli_idx]);
         assert_eq!(individual.predicted_infection_risk[e_coli_idx], 0.375);
 
         let resolutions = &individual.infection_resolution_this_timestep[e_coli_idx];
         assert_eq!(resolutions.iter().sum::<u32>(), 1);
-        assert_eq!(resolutions[0] + resolutions[1], 0);
-        assert_eq!(resolutions[2..].iter().sum::<u32>(), 1);
+        assert_eq!(resolutions[2], 1);
+        assert_eq!(resolutions[..2].iter().sum::<u32>(), 0);
+        assert_eq!(resolutions[3..].iter().sum::<u32>(), 0);
     }
 
     #[test]

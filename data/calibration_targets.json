@@ -88,7 +88,7 @@
       "label": "People on antibiotics on an average day (millions)",
       "unit": "millions",
       "target": 100.0,
-      "rationale": "Model-calibrated prevalence proxy revised down from the earlier DDD-based 130M anchor. Klein et al. reports consumption rather than unique daily users; a 100M daily-user target is a more defensible person-prevalence approximation after allowing for dose intensity, stock-sales mismatch, and non-human/wastage leakage."
+      "rationale": "Model-calibrated prevalence proxy revised down from the earlier DDD-based 130M benchmark. Klein et al. reports consumption rather than unique daily users; a 100M daily-user target is a more defensible person-prevalence approximation after allowing for dose intensity, stock-sales mismatch, and non-human/wastage leakage."
     },
     {
       "key": "annual_infection_incidence_percent",

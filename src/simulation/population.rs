@@ -610,6 +610,14 @@ pub const BACTERIA_LIST: [&str; 42] = [
 
 pub const BACTERIA_COUNT: usize = BACTERIA_LIST.len();
 
+pub const BACTERIA_WITHOUT_SEPARATE_MICROBIOME_COMPARTMENT: [&str; 1] = ["helicobacter_pylori"];
+
+pub fn bacterium_has_separate_microbiome_compartment(bacteria_idx: usize) -> bool {
+    BACTERIA_LIST
+        .get(bacteria_idx)
+        .is_some_and(|name| !BACTERIA_WITHOUT_SEPARATE_MICROBIOME_COMPARTMENT.contains(name))
+}
+
 pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
     BacteriaGroup::NonFermenter,     // acinetobacter_baumannii
     BacteriaGroup::Enterobacterales, // citrobacter_spp.
@@ -1556,7 +1564,7 @@ pub struct Individual {
     pub days_hospitalized: u32,
 
     // -------------------------------------------------------------------------
-    // INFECTION STATE (per-bacteria arrays, size = BACTERIA_COUNT = 39)
+    // INFECTION STATE (per-bacteria arrays, size = BACTERIA_COUNT)
     // -------------------------------------------------------------------------
     /// Day (time_step) when infection started for each bacteria. -1 = no active infection.
     /// Reset to -1 when infection clears; day 0 is a valid infection date.

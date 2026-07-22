@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""
-Empirical data loading functionality for AMR simulation analysis.
-
-This module contains functions for loading empirical calibration data
-extracted from the original analyze_simulation.py script.
-"""
+"""Load provenance-controlled optional model-comparison overlays."""
 
 import pandas as pd
 from pathlib import Path
 from .normalizers import normalize_name_for_empirical_matching
+from .provenance import (
+    annotate_overlay_provenance,
+    filter_overlay_rows,
+)
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _canonicalize_bacteria_column(df: pd.DataFrame, context: str) -> pd.DataFrame:
@@ -24,93 +26,52 @@ def _canonicalize_bacteria_column(df: pd.DataFrame, context: str) -> pd.DataFram
     df['bacteria'] = df['bacteria'].apply(_convert)
     return df
 
-def load_empirical_calibration_data():
+def load_empirical_calibration_data(
+    include_best_guess_placeholders: bool = False,
+):
     """
-    Load empirical calibration data for overlay on simulation plots.
-    Uses real surveillance data from WHO GLASS, ECDC EARS-Net, CDC NARMS, and GBD Study.
-    Enhanced with integrated surveillance data from major global sources.
-    Returns dictionary with data for drug usage, resistance, incidence, and deaths.
+    Load optional model-comparison overlays under the provenance contract.
+
+    The retained legacy files contain generated or source-informed best-guess
+    placeholders, not verified observations. They are excluded unless the
+    caller explicitly opts in. Future observed rows must carry complete
+    row-level provenance metadata before this loader will expose them by
+    default.
     """
-    
-    # Try to use enhanced integrated loader if available
-    try:
-        import sys
-        from pathlib import Path
-        
-        # Add project root to path
-        project_root = Path(__file__).parent.parent.parent
-        if str(project_root) not in sys.path:
-            sys.path.insert(0, str(project_root))
-            
-        from enhanced_empirical_loader import load_integrated_empirical_data
-        
-        print("\n[INFO] Loading integrated empirical data (WHO GLASS, ECDC EARS-Net, Australian NNDSS, CDDEP ResistanceMap)...")
-        integrated_data = load_integrated_empirical_data()
-        
-        # Show enhanced coverage
-        total_records = sum(len(df) if df is not None else 0 for df in integrated_data.values())
-        print(f"[OK] Enhanced empirical data loaded: {total_records:,} total records from integrated surveillance sources")
-        
-        return integrated_data
-        
-    except Exception as e:
-        print(f"[WARN] Enhanced loader unavailable ({e}), using standard calibration data...")
-    
-    # Fallback to standard calibration loading
-    empirical_data = {
+
+    overlay_data = {
         'drug_usage': None,
         'resistance': None, 
         'incidence': None,
         'deaths': None,
-        # NEW TIER 1 CLINICAL METRICS
         'drug_failure': None,
         'mic_values': None,
         'hospital_incidence': None
     }
-    
-    # Standard empirical files with real surveillance data
-    empirical_files = {
+
+    overlay_files = {
         'drug_usage': 'data/empirical/calibration_drug_usage_empirical.csv',
         'resistance': 'data/empirical/calibration_resistance_empirical.csv',
         'incidence': 'data/empirical/calibration_infection_incidence_empirical.csv', 
         'deaths': 'data/empirical/calibration_deaths_empirical.csv',
-        # NEW TIER 1 CLINICAL FILES
         'drug_failure': 'data/empirical/calibration_drug_failure_empirical.csv',
         'mic_values': 'data/empirical/calibration_mic_empirical.csv',
         'hospital_incidence': 'data/empirical/calibration_hospital_incidence_empirical.csv'
     }
-    
-    # Check if empirical files exist
-    empirical_files_exist = all(Path(f).exists() for f in empirical_files.values())
-    
-    # Check for empirical enhancement module
-    try:
-        from empirical_enhancement import enhance_empirical_data
-        HAS_EMPIRICAL_ENHANCEMENT = True
-    except ImportError:
-        HAS_EMPIRICAL_ENHANCEMENT = False
-    
-    FORCE_REGENERATE_EMPIRICAL = False  # Set based on config if needed
-    
-    # Generate empirical data if missing or forced regeneration
-    if HAS_EMPIRICAL_ENHANCEMENT and (not empirical_files_exist or FORCE_REGENERATE_EMPIRICAL):
-        print("\n[INFO] Generating empirical data with real surveillance patterns...")
+
+    display_mode = (
+        "observed comparisons plus best-guess placeholders"
+        if include_best_guess_placeholders
+        else "verified observed comparisons only"
+    )
+    print(f"\nLoading optional model-comparison overlays ({display_mode})...")
+
+    for data_type, relative_filename in overlay_files.items():
+        filename = PROJECT_ROOT / relative_filename
         try:
-            enhance_empirical_data(force_regenerate=FORCE_REGENERATE_EMPIRICAL)
-            print("Empirical data ready with WHO GLASS, ECDC, CDC, and GBD patterns")
-            empirical_files_exist = True
-        except Exception as e:
-            print(f"WARNING: Empirical data generation failed: {e}")
-            print("[FOLDER] Analysis will proceed without empirical overlays...")
-            return empirical_data
-    
-    print("\nLoading empirical calibration data (real surveillance patterns)...")
-    
-    for data_type, filename in empirical_files.items():
-        try:
-            if Path(filename).exists():
-                df = pd.read_csv(filename)
-                
+            if filename.exists():
+                df = pd.read_csv(filename, keep_default_na=False, na_values=[""])
+
                 # Fix: Drug failure data has bacteria/drug columns swapped
                 if data_type == 'drug_failure' and 'bacteria' in df.columns and 'drug' in df.columns:
                     # Check if swap is needed (if bacteria column contains drug names)
@@ -119,30 +80,36 @@ def load_empirical_calibration_data():
                         print(f"   Fixing swapped bacteria/drug columns in {filename}")
                         df['bacteria'], df['drug'] = df['drug'], df['bacteria']
 
-                df = _canonicalize_bacteria_column(df, filename)
-                
-                empirical_data[data_type] = df
-                
-                # Show empirical data coverage
-                empirical_indicator = ""
-                if 'notes' in df.columns:
-                    empirical_count = len([r for _, r in df.iterrows() 
-                                         if any(pattern in str(r.get('notes', '')) 
-                                               for pattern in ['who_glass', 'ecdc', 'cdc', 'gbd', 'integrated'])])
-                    if empirical_count > 0:
-                        empirical_indicator = f" ({empirical_count:,} real surveillance records, {empirical_count/len(df)*100:.1f}%)"
-                    else:
-                        empirical_indicator = " (baseline synthetic data)"
-                
-                print(f"   Loaded {len(df):,} records from {filename}{empirical_indicator}")
+                df = _canonicalize_bacteria_column(df, str(filename))
+                annotated = annotate_overlay_provenance(df, source_path=filename)
+                observed_count = int(annotated['eligible_as_observed_comparison'].sum())
+                placeholder_count = len(annotated) - observed_count
+                overlay_data[data_type] = filter_overlay_rows(
+                    annotated,
+                    include_best_guess_placeholders=include_best_guess_placeholders,
+                )
+
+                print(
+                    f"   {data_type}: {observed_count:,} observed; "
+                    f"{placeholder_count:,} best-guess placeholders "
+                    f"({'shown' if include_best_guess_placeholders else 'hidden'})"
+                )
             else:
-                print(f"   WARNING: {filename} not found, skipping empirical overlay for {data_type}")
+                print(f"   WARNING: {filename} not found, skipping comparison overlay for {data_type}")
         except Exception as e:
             print(f"   ERROR loading {filename}: {e}")
-    
-    return empirical_data
 
-def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=None, metric_type=None, data_source=None):
+    return overlay_data
+
+def get_empirical_data_for_plot(
+    empirical_df,
+    drug=None,
+    bacteria=None,
+    region=None,
+    metric_type=None,
+    data_source=None,
+    include_best_guess_placeholders=False,
+):
     """
     Extract empirical data points for a specific drug/bacteria/region combination.
     If region=None, averages across all regions for global plots.
@@ -158,9 +125,12 @@ def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=N
     """
     if empirical_df is None:
         return None, None, None, None
-    
+
     # Filter data based on parameters
-    filtered_df = empirical_df.copy()
+    filtered_df = filter_overlay_rows(
+        empirical_df,
+        include_best_guess_placeholders=include_best_guess_placeholders,
+    )
     
     if drug is not None:
         # Normalize drug name for matching
