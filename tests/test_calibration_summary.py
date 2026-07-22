@@ -287,6 +287,17 @@ class CalibrationTargetDataTests(unittest.TestCase):
             self.assertIn("Non-cloacae", generic_note)
             self.assertIn("separately modelled", cloacae_note)
 
+    def test_2025_drug_class_shares_form_a_complete_composition(self) -> None:
+        target_path = (
+            Path(__file__).resolve().parents[1]
+            / "data"
+            / "drug_class_share_history_targets.csv"
+        )
+        targets = pd.read_csv(target_path)
+
+        self.assertEqual(len(targets), 28)
+        self.assertAlmostEqual(targets["Share_2025 (%)"].sum(), 100.0, places=6)
+
 
 class ResistancePublicationTerminologyTests(unittest.TestCase):
     def test_resistance_tables_can_use_benchmark_label(self) -> None:
