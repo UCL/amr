@@ -7737,7 +7737,7 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -19.0); // was -22.2; 0->0.003
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -15.9); // was -17.2; 0.0079->0.03 (3.8x)
-        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.6);
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.25); // 2025 incidence calibration after birth-cohort pneumococcal vaccine rollout
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -14.4); // was -14.8; 0.13->0.20 (1.5x)
         map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -12.7); // was -13.2; 0.063->0.10 (1.6x)
         map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.65); // was -18.5; close

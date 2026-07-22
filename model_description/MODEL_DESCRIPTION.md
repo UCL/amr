@@ -2611,7 +2611,7 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | stenotrophomonas_maltophilia | -19 | 0.01 | 0.45 | 5 | 0.06 | 7 | 0.0045 | 0.9 | 2.5 | -7.4 | 4e-4 |
 | staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 7.5 | 0.015 | 0.5 | 1 | -7.4 | 4e-4 |
 | staphylococcus_epidermidis | -16 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | 0.0045 | 1 | 3 | -7.4 | 4e-4 |
-| streptococcus_pneumoniae | -12.6 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -9.9 | 4e-4 |
+| streptococcus_pneumoniae | -12.25 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -9.9 | 4e-4 |
 | salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -7 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
 | salmonella_enterica_serovar_paratyphi_a | -16.8 | 0.01 | 0.45 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -8.4 | 4e-4 |
 | invasive_non-typhoidal_salmonella_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 |
