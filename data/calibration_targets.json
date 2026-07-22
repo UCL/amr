@@ -1,0 +1,358 @@
+{
+  "target_year": 2025,
+  "population_scaling": {
+    "world_population": 8200000000
+  },
+  "calibration_score": {
+    "cap": 4.0,
+    "report_top_contributors": 8,
+    "weights": {
+      "headline": 0.20,
+      "drug_usage": 0.25,
+      "resistance": 0.45,
+      "burden": 0.05,
+      "resistance_locus": 0.05
+    },
+    "thresholds": {
+      "strong": 1.0,
+      "usable": 1.5
+    },
+    "gates": {
+      "people_on_antibiotics_millions": {
+        "relative_tolerance": 0.25
+      },
+      "infection_deaths_millions": {
+        "relative_tolerance": 0.25
+      },
+      "resistance_weighted_abs_delta_pp": {
+        "max": 15.0
+      },
+      "worst_infection_resistance_distance": {
+        "max": 4.0
+      }
+    },
+    "headline": {
+      "relative_tolerance": 0.15,
+      "minimum_absolute_scale": 0.1,
+      "metric_overrides": {
+        "infection_deaths_millions": {
+          "relative_tolerance": 0.20,
+          "minimum_absolute_scale": 0.25
+        },
+        "people_on_antibiotics_millions": {
+          "relative_tolerance": 0.15,
+          "minimum_absolute_scale": 2.0
+        },
+        "annual_infection_incidence_percent": {
+          "absolute_tolerance": 3.0
+        },
+        "sepsis_incident_cases_millions": {
+          "relative_tolerance": 0.20,
+          "minimum_absolute_scale": 1.0
+        }
+      }
+    },
+    "drug_usage": {
+      "absolute_tolerance_pp": 3.0
+    },
+    "resistance": {
+      "component_weights": {
+        "infection": 4.0,
+        "average": 1.0
+      },
+      "tolerances_pp": {
+        "infection": 10.0,
+        "average": 10.0
+      }
+    },
+    "burden": {
+      "relative_tolerance": 0.50,
+      "minimum_absolute_scales": {
+        "infection": 0.05,
+        "carriage": 0.05,
+        "deaths": 0.01
+      }
+    }
+  },
+  "headline_metrics": [
+    {
+      "key": "infection_deaths_millions",
+      "label": "Infection deaths (millions)",
+      "unit": "millions",
+      "target": 6.4,
+      "rationale": "Model-scope bacterial infection deaths exclude H. pylori and MDR-TB to match the simulation numerator. This 6.4M target is the rounded sum of per-organism annual death targets after those two exclusions; it sits below the 7.7M GBD/33-pathogen central estimate and avoids calibrating the model to out-of-scope gastric-cancer and tuberculosis mortality."
+    },
+    {
+      "key": "people_on_antibiotics_millions",
+      "label": "People on antibiotics on an average day (millions)",
+      "unit": "millions",
+      "target": 100.0,
+      "rationale": "Model-calibrated prevalence proxy revised down from the earlier DDD-based 130M anchor. Klein et al. reports consumption rather than unique daily users; a 100M daily-user target is a more defensible person-prevalence approximation after allowing for dose intensity, stock-sales mismatch, and non-human/wastage leakage."
+    },
+    {
+      "key": "annual_infection_incidence_percent",
+      "label": "Incidence of bacterial infection per year (%)",
+      "unit": "percent",
+      "target": 15.0
+    },
+    {
+      "key": "sepsis_incident_cases_millions",
+      "label": "Incident cases of sepsis (millions)",
+      "unit": "millions",
+      "target": 30.0,
+      "rationale": "Revised from 35M to 30M because Rudd et al. reports all-cause sepsis, whereas the model is bacteria-only. A 30M target preserves a large global sepsis burden while allowing for the substantial viral, fungal, and parasitic share outside model scope."
+    }
+  ],
+  "microbiome_resistance": {
+    "label": "Population with resistant microbiome (%)",
+    "unit": "percent"
+  },
+  "bacteria_burden_targets": {
+    "infection_incidence_path": "data/infection_incidence_by_bacteria.csv",
+    "microbiome_carriage_path": "data/microbiome_carriage_by_bacteria.csv",
+    "deaths_by_bacteria_path": "data/deaths_by_bacteria.csv"
+  },
+  "drug_class_targets": {
+    "path": "data/number_on_drug_by_class.csv",
+    "history": {
+      "share_path": "data/drug_class_share_history_targets.csv",
+      "years": [2025],
+      "window_years_before": 0,
+      "window_years_after": 0
+    },
+    "classes": [
+      {
+        "name": "Penicillins (J01C)",
+        "label": "Penicillins (J01C)",
+        "drugs": [
+          "penicillin_g",
+          "ampicillin",
+          "amoxicillin",
+          "piperacillin",
+            "ticarcillin",
+            "flucloxacillin"
+        ]
+      },
+      {
+        "name": "Beta-lactamase combinations (J01CR)",
+        "label": "Beta-lactamase combinations (J01CR)",
+        "drugs": [
+          "ampicillin_sulbactam",
+          "amoxicillin_clavulanate",
+          "piperacillin_tazobactam",
+          "ticarcillin_clavulanate"
+        ]
+      },
+      {
+        "name": "Cephalosporins 1-2G",
+        "label": "Cephalosporins 1-2G",
+        "drugs": [
+          "cephalexin",
+          "cefazolin",
+          "cefuroxime"
+        ]
+      },
+      {
+        "name": "Cephalosporins 3G",
+        "label": "Cephalosporins 3G",
+        "drugs": [
+          "ceftriaxone",
+            "ceftazidime",
+            "cefixime"
+        ]
+      },
+      {
+        "name": "Cephalosporins 3G/BLI",
+        "label": "Cephalosporins 3G/BLI",
+        "drugs": [
+          "ceftolozane_tazobactam"
+        ]
+      },
+      {
+        "name": "Cephalosporins 4G",
+        "label": "Cephalosporins 4G",
+        "drugs": [
+          "cefepime"
+        ]
+      },
+      {
+        "name": "Anti-MRSA Cephalosporins (5G)",
+        "label": "Anti-MRSA Cephalosporins (5G)",
+        "drugs": [
+          "ceftaroline"
+        ]
+      },
+      {
+        "name": "Siderophore Cephalosporins",
+        "label": "Siderophore Cephalosporins",
+        "drugs": [
+          "cefiderocol"
+        ]
+      },
+      {
+        "name": "Novel BL/BLI",
+        "label": "Novel BL/BLI",
+        "drugs": [
+          "ceftazidime_avibactam",
+            "meropenem_vaborbactam",
+            "aztreonam_avibactam"
+        ]
+      },
+      {
+        "name": "Monobactams",
+        "label": "Monobactams",
+        "drugs": [
+          "aztreonam"
+        ]
+      },
+      {
+        "name": "Macrolides (J01F)",
+        "label": "Macrolides (J01F)",
+        "drugs": [
+          "azithromycin",
+          "clarithromycin",
+          "erythromycin"
+        ]
+      },
+      {
+        "name": "Lincosamides (J01FF)",
+        "label": "Lincosamides (J01FF)",
+        "drugs": [
+          "clindamycin"
+        ]
+      },
+      {
+        "name": "Quinolones/Fluoroquinolones (J01M)",
+        "label": "Quinolones/Fluoroquinolones (J01M)",
+        "drugs": [
+          "ciprofloxacin",
+          "levofloxacin",
+          "moxifloxacin",
+          "ofloxacin"
+        ]
+      },
+      {
+        "name": "Tetracyclines (J01A)",
+        "label": "Tetracyclines (J01A)",
+        "drugs": [
+          "tetracycline",
+          "doxycycline",
+          "minocycline",
+          "tigecycline"
+        ]
+      },
+      {
+        "name": "Carbapenems (J01DH)",
+        "label": "Carbapenems (J01DH)",
+        "drugs": [
+          "meropenem",
+          "imipenem_c",
+          "ertapenem"
+        ]
+      },
+      {
+        "name": "Aminoglycosides (J01G)",
+        "label": "Aminoglycosides (J01G)",
+        "drugs": [
+          "gentamicin",
+          "tobramycin",
+          "amikacin"
+        ]
+      },
+      {
+        "name": "Sulfonamides (J01E)",
+        "label": "Sulfonamides (J01E)",
+        "drugs": [
+          "sulfanilamide",
+          "trim_sulf"
+        ]
+      },
+      {
+        "name": "Nitrofurans (J01XE)",
+        "label": "Nitrofurans (J01XE)",
+        "drugs": [
+          "nitrofurantoin",
+          "furazolidone"
+        ]
+      },
+      {
+        "name": "Fosfomycin (J01XX01)",
+        "label": "Fosfomycin (J01XX01)",
+        "drugs": [
+          "fosfomycin"
+        ]
+      },
+      {
+        "name": "Glycopeptides (J01XA)",
+        "label": "Glycopeptides (J01XA)",
+        "drugs": [
+          "vancomycin",
+          "teicoplanin"
+        ]
+      },
+      {
+        "name": "Lipoglycopeptides & Oxazolidinones",
+        "label": "Lipoglycopeptides & Oxazolidinones",
+        "drugs": [
+          "dalbavancin",
+          "linezolid",
+          "tedizolid"
+        ]
+      },
+      {
+        "name": "Lipopeptides (J01XX09)",
+        "label": "Lipopeptides (J01XX09)",
+        "drugs": [
+          "daptomycin"
+        ]
+      },
+      {
+        "name": "Fidaxomicin",
+        "label": "Fidaxomicin",
+        "drugs": [
+          "fidaxomicin"
+        ]
+      },
+      {
+        "name": "Nitroimidazoles",
+        "label": "Nitroimidazoles",
+        "drugs": [
+          "metronidazole"
+        ]
+      },
+      {
+        "name": "Polymyxins (J01XB)",
+        "label": "Polymyxins (J01XB)",
+        "drugs": [
+          "colistin"
+        ]
+      },
+      {
+        "name": "Rifamycins (J04AB)",
+        "label": "Rifamycins (J04AB)",
+        "drugs": [
+          "rifampicin"
+        ]
+      },
+      {
+        "name": "Chloramphenicol (J01BA)",
+        "label": "Chloramphenicol (J01BA)",
+        "drugs": [
+          "chloramphenicol"
+        ]
+      },
+      {
+        "name": "Other Antibiotics",
+        "label": "Other Antibiotics",
+        "drugs": [
+          "fusidic_a",
+          "retapamulin",
+          "quinu_dalfo"
+        ]
+      }
+    ]
+  },
+  "resistance_targets": {
+    "path": "data/resistance_prevalence_values.csv"
+  }
+}

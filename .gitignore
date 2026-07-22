@@ -56,6 +56,9 @@ Thumbs.db
 !/data/infection_incidence_by_bacteria.csv
 !/data/microbiome_carriage_by_bacteria.csv
 !/data/deaths_by_bacteria.csv
+!/data/calibration_targets.json
+!/data/number_on_drug_by_class.csv
+!/data/drug_class_share_history_targets.csv
 !/data/empirical/
 !/data/empirical/calibration_drug_usage_empirical.csv
 !/data/empirical/calibration_resistance_empirical.csv
