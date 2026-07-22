@@ -1,4 +1,5 @@
 import unittest
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from amr_simulation_output_analysis.calibration_summary import (
     _calculate_calibration_score,
     _calculate_resistance_fit_metrics,
     _calculate_serious_resistance_locus_table,
+    _write_calibration_score_summary,
 )
 from amr_simulation_output_analysis.make_paper_tables import (
     _RESISTANCE_TARGET_SOURCE_NOTES,
@@ -251,6 +253,33 @@ class CalibrationGateTests(unittest.TestCase):
 
         self.assertEqual(burden_block["Score"], 0.0)
         self.assertEqual(burden_block["Targets"], 1)
+
+    def test_score_summary_reports_gate_results(self) -> None:
+        output = StringIO()
+        _write_calibration_score_summary(
+            output,
+            {
+                "enabled": True,
+                "overall_score": 1.25,
+                "passed_gates": False,
+                "gate_rows": pd.DataFrame(
+                    [
+                        {
+                            "Gate": "Infection-resistance normalized distance p99",
+                            "Passed": "no",
+                            "Detail": "p99=5.00 (limit 4.00); worst=8.00",
+                        }
+                    ]
+                ),
+                "block_rows": pd.DataFrame(),
+                "top_contributors": pd.DataFrame(),
+            },
+        )
+
+        summary = output.getvalue()
+        self.assertIn("- Acceptance gates: failed", summary)
+        self.assertIn("Acceptance Gates", summary)
+        self.assertIn("p99=5.00 (limit 4.00); worst=8.00", summary)
 
 
 class CalibrationTargetDataTests(unittest.TestCase):

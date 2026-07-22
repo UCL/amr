@@ -3768,10 +3768,13 @@ def _write_calibration_score_summary(
 
     overall_score = _coerce_float(score_result.get("overall_score"))
     block_df = score_result.get("block_rows")
+    gate_df = score_result.get("gate_rows")
+    passed_gates = bool(score_result.get("passed_gates", True))
     contributors_df = score_result.get("top_contributors")
     contributors_note = str(score_result.get("top_contributors_note") or "")
 
     handle.write(f"- Overall score: {overall_score:,.3f}\n" if overall_score is not None else "- Overall score: n/a\n")
+    handle.write(f"- Acceptance gates: {'passed' if passed_gates else 'failed'}\n")
 
     if isinstance(block_df, pd.DataFrame) and not block_df.empty:
         display_df = block_df.copy()
@@ -3784,6 +3787,11 @@ def _write_calibration_score_summary(
                 na_rep="---",
             )
         )
+        handle.write("\n")
+
+    if isinstance(gate_df, pd.DataFrame) and not gate_df.empty:
+        handle.write("\nAcceptance Gates\n")
+        handle.write(gate_df.to_string(index=False, na_rep="---"))
         handle.write("\n")
 
     if isinstance(contributors_df, pd.DataFrame) and not contributors_df.empty:
