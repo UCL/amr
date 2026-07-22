@@ -253,6 +253,22 @@ class CalibrationGateTests(unittest.TestCase):
         self.assertEqual(burden_block["Targets"], 1)
 
 
+class CalibrationTargetDataTests(unittest.TestCase):
+    def test_typhoid_targets_use_current_who_central_estimates(self) -> None:
+        data_root = Path(__file__).resolve().parents[1] / "data"
+        incidence = pd.read_csv(data_root / "infection_incidence_by_bacteria.csv")
+        deaths = pd.read_csv(data_root / "deaths_by_bacteria.csv")
+        bacterium = "salmonella enterica serovar typhi"
+
+        incidence_row = incidence.loc[incidence["Bacteria"] == bacterium].iloc[0]
+        death_row = deaths.loc[deaths["Bacteria"] == bacterium].iloc[0]
+
+        self.assertAlmostEqual(incidence_row["annual_infection_proportion"], 0.0011)
+        self.assertAlmostEqual(death_row["annual_deaths_millions"], 0.11)
+        self.assertIn("2019", incidence_row["notes"])
+        self.assertIn("2019", death_row["notes"])
+
+
 class ResistancePublicationTerminologyTests(unittest.TestCase):
     def test_resistance_tables_can_use_benchmark_label(self) -> None:
         result = _clean_df(

@@ -4671,7 +4671,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    including S. aureus (1.1M associated deaths), E. coli (0.83M), K. pneumoniae\n"
             "    (0.71M), S. pneumoniae (0.65M), A. baumannii (0.38M), and P. aeruginosa\n"
             "    (0.33M); IARC/GBD for H. pylori gastric cancer deaths (0.8M); WHO Global\n"
-            "    TB Report 2024 for MDR-TB (0.19M); WHO estimates for typhoid (0.14M),\n"
+            "    TB Report 2024 for MDR-TB (0.19M); WHO 2019 estimates for typhoid (0.11M),\n"
             "    cholera (0.1M), and pertussis (0.16M); GBD 2019 for diarrhoeal deaths\n"
             "    (Shigella 0.2M). Smaller healthcare-associated organisms use placeholder\n"
             "    estimates extrapolated from case-fatality rates applied to incidence data.\n"
