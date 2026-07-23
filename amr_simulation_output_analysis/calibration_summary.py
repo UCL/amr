@@ -2215,7 +2215,7 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
 def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataFrame:
     """Per-bacterium H:C resistance gap using only the clinically 'serious' drug(s).
 
-    Instead of averaging across all 61 drugs, this uses a single curated marker per
+    Instead of averaging across all modelled drugs, this uses a single curated marker per
     organism (e.g. meropenem for Gram-negatives, flucloxacillin for staphylococci,
     vancomycin for enterococci).  Prefers hospital/community split resistant-stock columns
     when present so percentages remain bounded by 0-100 within the summary window.

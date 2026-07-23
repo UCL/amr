@@ -162,6 +162,8 @@ CALIBRATION_PATTERNS = [
     r'.*_infection_acquisition_events_under_5$',
     r'.*_infection_acquisition_events_over_65$',
     r'^infection_acquisition_events_by_bacteria$',
+    r'.*_currently_infected_hospital_count$',
+    r'.*_currently_infected_community_count$',
     r'.*_deaths_under_5$',
     r'.*_deaths_over_65$',
     r'.*_deaths_hospital_acquired$',

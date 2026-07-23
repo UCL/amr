@@ -568,6 +568,29 @@ class HospitalCommunityTargetDefinitionTests(unittest.TestCase):
 
         self.assertNotIn("Target H:C ratio", result.columns)
 
+    def test_serious_r_table_reports_simulation_values_without_target(self) -> None:
+        slug = "streptococcus_pneumoniae"
+        result = _calculate_serious_resistance_locus_table(
+            pd.DataFrame(
+                {
+                    f"{slug}_currently_infected": [30.0],
+                    f"{slug}_currently_infected_hospital_count": [10.0],
+                    f"{slug}_currently_infected_community_count": [20.0],
+                    f"{slug}_infected_with_any_r_positive_hospital_penicillin_g": [3.0],
+                    f"{slug}_infected_with_any_r_positive_community_penicillin_g": [2.0],
+                    f"{slug}_infection_acquisition_events_home_region_europe": [12.0],
+                    "penicillin_g_currently_on_drug": [1.0],
+                }
+            )
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result.loc[0, "Overall Serious-R (%)"], 100.0 / 6.0)
+        self.assertAlmostEqual(result.loc[0, "Hospital Serious-R (%)"], 30.0)
+        self.assertAlmostEqual(result.loc[0, "Community Serious-R (%)"], 10.0)
+        self.assertAlmostEqual(result.loc[0, "Sim H:C ratio"], 3.0)
+        self.assertNotIn("Target H:C ratio", result.columns)
+
     def test_figure_parser_accepts_serious_r_table_without_target(self) -> None:
         content = """Serious Resistance Locus Summary (hospital vs community)
 - Mean overall serious-R: 20.00%

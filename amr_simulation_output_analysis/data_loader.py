@@ -54,6 +54,20 @@ def get_csv_columns(csv_path: Path) -> List[str]:
     validate_summary_header(columns, csv_path)
     return columns
 
+
+def _missing_required_analysis_columns(
+    cached_columns: List[str],
+    source_columns: List[str],
+) -> List[str]:
+    """Return grouped/calibration source columns absent from an analysis cache."""
+    required_columns = get_required_columns(
+        source_columns,
+        include_grouped_plots=True,
+        include_calibration=True,
+    )
+    cached_column_set = set(cached_columns)
+    return [column for column in required_columns if column not in cached_column_set]
+
 # Import Polars loader for optimized CSV processing
 try:
     from .polars_loader import (
@@ -207,11 +221,22 @@ class DataCache:
                         self._preprocessed_data = pd.read_parquet(preprocessed_parquet_path)
                         print(f"[TIME] pandas preprocessed parquet read took {_time.time() - _t_preproc:.1f}s")
                     validate_summary_frame(self._preprocessed_data, preprocessed_parquet_path)
+                    source_columns = get_csv_columns(self._simulation_csv_path)
+                    missing_required_columns = _missing_required_analysis_columns(
+                        self._preprocessed_data.columns.tolist(),
+                        source_columns,
+                    )
+                    if missing_required_columns:
+                        raise ValueError(
+                            f"preprocessed cache is missing {len(missing_required_columns)} "
+                            "required analysis column(s)"
+                        )
                     self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
                     logger.info(f"Loaded preprocessed data from cache: {len(self._preprocessed_data)} rows")
                     print(f"Loaded preprocessed data from cache ({len(self._preprocessed_data)} rows)")
                     return self._preprocessed_data
                 except Exception as e:
+                    self._preprocessed_data = None
                     logger.warning(f"Failed to read preprocessed cache, will reprocess: {e}")
                     print(f"[WARN] Failed to read preprocessed cache: {e}")
 
