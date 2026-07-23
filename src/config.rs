@@ -8169,7 +8169,7 @@ lazy_static! {
     map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 7.1); // target 30%; latest sim 37.0%
     map.insert("staphylococcus_epidermidis_log_odds_microbiome_vs_infection".to_string(), 13.5); // target 95% (was 20.6%)
     map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 10.6); // target 8%; latest sim 10.1%
-    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 15.0); // target 6%; latest sim remains 0.0% and likely needs stronger push
+    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 11.3); // target 6%; two-run schema-v1 sim ~72%, corrected from 15.0 using prevalence odds
     map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 9.8); // target 5%; latest sim 6.9%
     map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 8.5); // target 5%; current value retained
     map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 10.0); // target 2% (was 0.47%)
@@ -11785,28 +11785,29 @@ lazy_static! {
 
 
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity).
-        // The eight major sepsis contributors adjusted below use a first-pass schema-v1
-        // calibration against the four-run 2025 mortality ensemble.
+        // Eight major sepsis contributors received a first-pass schema-v1 calibration
+        // against the four-run 2025 mortality ensemble. The five largest remaining
+        // mortality excesses received a bounded second adjustment after runs 017842 and 741969.
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
             ("acinetobacter_baumannii", -5.1),
             ("citrobacter_spp.", -8.6),
             ("enterobacter_spp.", -6.0),
             ("enterococcus_faecalis", -5.2),       // was -8.0; CFR 0.74x under-death
             ("enterococcus_faecium", -4.2),         // was -8.0; CFR 0.40x under-death
-            ("escherichia_coli", -9.8),
-            ("klebsiella_pneumoniae", -6.5),
+            ("escherichia_coli", -10.1),
+            ("klebsiella_pneumoniae", -7.5),
             ("morganella_spp.", -7.1),
             ("proteus_spp.", -6.1),
             ("serratia_spp.", -7.3),
             ("pseudomonas_aeruginosa", -5.0),       // was -8.0; CFR 0.38x under-death
             ("stenotrophomonas_maltophilia", -7.3),
-            ("staphylococcus_aureus", -9.1),
+            ("staphylococcus_aureus", -9.7),
             ("staphylococcus_epidermidis", -7.3),
-            ("streptococcus_pneumoniae", -9.8),
+            ("streptococcus_pneumoniae", -10.2),
             ("salmonella_enterica_serovar_typhi", -8.4),
             ("salmonella_enterica_serovar_paratyphi_a", -8.3), // was -8.0; CFR 3.4x over-death
             ("invasive_non-typhoidal_salmonella_spp.", -8.5),  // was -8.0; CFR 1.9x over-death
-            ("shigella_spp.", -13.1),
+            ("shigella_spp.", -14.1),
             ("neisseria_gonorrhoeae", -23.3),
             ("streptococcus_pyogenes", -5.6),
             ("streptococcus_agalactiae", -5.7),     // was -8.0; CFR 0.55x under-death
