@@ -103,7 +103,7 @@ class EmpiricalDataAcquirer:
     
     def acquire_who_glass_data(self, years: List[int] = None) -> bool:
         """
-        Acquire WHO GLASS surveillance data.
+        Attempt WHO GHO ingestion, then create labelled placeholders if needed.
         
         WHO GLASS provides country-level AMR and AMU surveillance data.
         Access through WHO Global Health Observatory and GLASS dashboard.
@@ -126,7 +126,7 @@ class EmpiricalDataAcquirer:
                 logger.info("WHO GLASS best-guess pattern dataset created")
                 return True
                 
-            # Method 3: Create synthetic WHO GLASS structured data
+            # Method 3: create a small labelled placeholder template.
             logger.warning("⚠️  Direct WHO GLASS access unavailable, creating structured data template")
             self._create_who_glass_template()
             return True
@@ -196,12 +196,10 @@ class EmpiricalDataAcquirer:
     def _create_patterned_who_glass_data(self, years: List[int]) -> bool:
         """Create source-shaped best-guess values; this does not access GLASS."""
         
-        # This would access the Shiny app API endpoints if available
-        # For now, create structured sample data based on GLASS reports
-        
+        # No GLASS endpoint is used in this path.
         logger.info("   Creating explicitly labelled WHO GLASS pattern placeholders...")
         
-        # Sample GLASS-style data structure based on published reports
+        # Source-shaped placeholder dimensions
         glass_countries = [
             "Australia", "Austria", "Belgium", "Bulgaria", "Canada", "Croatia", 
             "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany",
@@ -222,7 +220,7 @@ class EmpiricalDataAcquirer:
             for country in glass_countries:
                 for pathogen in pathogens:
                     for antibiotic in antibiotics:
-                        # Generate realistic resistance rates based on known patterns
+                        # Generate broad illustrative ranges for placeholder rows.
                         if "Staphylococcus aureus" in pathogen and "Methicillin" in antibiotic:
                             # MRSA rates vary 1-50% across countries
                             resistance_rate = np.random.uniform(0.01, 0.50)
@@ -265,7 +263,7 @@ class EmpiricalDataAcquirer:
     def _create_who_glass_template(self):
         """Create WHO GLASS data template with proper structure."""
         
-        # Basic GLASS template based on official methodology
+        # Fixed source-shaped placeholder rows
         template_data = {
             'country': ['Germany', 'France', 'Italy', 'Spain', 'Netherlands'],
             'year': [2022] * 5,
@@ -289,7 +287,7 @@ class EmpiricalDataAcquirer:
     
     def acquire_ecdc_ears_net_data(self, years: List[int] = None) -> bool:
         """
-        Acquire ECDC EARS-Net surveillance data.
+        Attempt ECDC ingestion, then create labelled placeholders if needed.
         
         ECDC EARS-Net is the largest publicly-funded AMR surveillance in Europe.
         Data accessible through ECDC Surveillance Atlas.
@@ -328,7 +326,7 @@ class EmpiricalDataAcquirer:
         return False
     
     def _create_comprehensive_ecdc_data(self, years: List[int]) -> bool:
-        """Create comprehensive ECDC EARS-Net data based on published patterns."""
+        """Create source-shaped EARS-Net placeholder rows."""
         
         # EU/EEA countries in EARS-Net
         eu_countries = [
@@ -365,7 +363,7 @@ class EmpiricalDataAcquirer:
                 for pathogen in ears_pathogens:
                     for antibiotic in pathogen_antibiotics[pathogen]:
                         
-                        # Generate realistic resistance rates based on ECDC trends
+                        # Generate an illustrative bounded placeholder rate.
                         resistance_rate = self._get_realistic_resistance_rate(country, pathogen, antibiotic, year)
                         tested_isolates = np.random.randint(100, 5000)
                         
@@ -399,9 +397,9 @@ class EmpiricalDataAcquirer:
         return True
     
     def _get_realistic_resistance_rate(self, country: str, pathogen: str, antibiotic: str, year: int) -> float:
-        """Generate realistic resistance rates based on known epidemiological patterns."""
+        """Generate a bounded illustrative rate for a placeholder row."""
         
-        # Base rates by pathogen-antibiotic combination (approximate European averages)
+        # Illustrative seed values; these are not observations.
         base_rates = {
             ("Escherichia coli", "Ciprofloxacin"): 22.0,
             ("Escherichia coli", "Ceftazidime"): 12.0,
@@ -416,7 +414,7 @@ class EmpiricalDataAcquirer:
         key = (pathogen, antibiotic)
         base_rate = base_rates.get(key, 15.0)  # Default 15% if not specified
         
-        # Country adjustments (simplified)
+        # Coarse placeholder country factors
         country_factors = {
             "Germany": 0.8, "Netherlands": 0.6, "Denmark": 0.5, "Sweden": 0.5,
             "France": 1.0, "Italy": 1.3, "Spain": 1.2, "Poland": 1.4,
@@ -433,11 +431,11 @@ class EmpiricalDataAcquirer:
         
         final_rate = base_rate * country_factor * year_factor * variation
         
-        # Keep within realistic bounds
+        # Bound the generated placeholder.
         return max(0.1, min(80.0, final_rate))
     
     def _acquire_ecdc_annual_reports(self, years: List[int]) -> bool:
-        """Extract data from ECDC annual surveillance reports."""
+        """Check configured report years; report parsing is not implemented."""
         
         report_urls = {
             2023: "https://www.ecdc.europa.eu/en/publications-data/antimicrobial-resistance-eueea-ears-net-annual-epidemiological-report-2023",
@@ -450,8 +448,7 @@ class EmpiricalDataAcquirer:
                 try:
                     logger.info(f"   Accessing ECDC {year} annual report...")
                     
-                    # This would parse the actual PDF or web data
-                    # For now, note the available report URLs
+                    # Report parsing is not implemented in this acquisition path.
                     
                 except Exception as e:
                     logger.warning(f"   Failed to process ECDC {year} report: {e}")
@@ -459,9 +456,9 @@ class EmpiricalDataAcquirer:
         return False  # Return False to trigger template creation
     
     def _create_ecdc_template(self):
-        """Create ECDC template with current sample data expanded."""
+        """Create a small fixed ECDC-shaped placeholder template."""
         
-        # Expand the existing minimal ECDC data
+        # Fixed illustrative rows
         current_data = {
             'Country': ['Germany', 'France', 'Spain', 'Germany', 'Netherlands'],
             'Year': [2022, 2022, 2022, 2021, 2022],  
@@ -483,7 +480,7 @@ class EmpiricalDataAcquirer:
     
     def acquire_australian_nndss_data(self, years: List[int] = None) -> bool:
         """
-        Acquire Australian NNDSS surveillance data.
+        Create labelled Australian NNDSS-shaped placeholders.
         
         National Notifiable Diseases Surveillance System data for AMR.
         """
@@ -499,7 +496,7 @@ class EmpiricalDataAcquirer:
                 logger.info("Australian NNDSS best-guess pattern dataset created")
                 return True
                 
-            # Create Australian surveillance template
+            # Create a smaller fixed placeholder if pattern generation fails.
             logger.warning("⚠️  Direct NNDSS access unavailable, creating template")
             self._create_australian_template()
             return True
@@ -589,7 +586,7 @@ class EmpiricalDataAcquirer:
     
     def acquire_cddep_resistancemap_data(self, years: List[int] = None) -> bool:
         """
-        Acquire CDDEP ResistanceMap data.
+        Create labelled ResistanceMap-shaped placeholders.
         
         Center for Disease Dynamics, Economics & Policy global resistance data.
         """
@@ -599,13 +596,12 @@ class EmpiricalDataAcquirer:
             years = list(range(2018, 2024))
             
         try:
-            # CDDEP ResistanceMap API/portal
             success = self._create_patterned_resistancemap_data(years)
             if success:
                 logger.info("ResistanceMap best-guess pattern dataset created")
                 return True
                 
-            # Create global resistance mapping template
+            # Create a smaller fixed placeholder if pattern generation fails.
             logger.warning("⚠️  Direct ResistanceMap access unavailable, creating global template")
             self._create_cddep_template()
             return True
@@ -665,9 +661,9 @@ class EmpiricalDataAcquirer:
         return True
     
     def _get_global_resistance_rate(self, country: str, pathogen: str, antibiotic: str) -> float:
-        """Generate realistic global resistance rates by region."""
+        """Generate a bounded illustrative rate for a placeholder row."""
         
-        # Regional base rates (simplified)
+        # Coarse illustrative rates by income group
         regional_rates = {
             "High-income": {"E. coli": 15.0, "K. pneumoniae": 12.0, "S. aureus": 20.0},
             "Upper-middle": {"E. coli": 25.0, "K. pneumoniae": 20.0, "S. aureus": 30.0}, 
@@ -690,7 +686,7 @@ class EmpiricalDataAcquirer:
         return max(1.0, min(80.0, base_rate * np.random.uniform(0.7, 1.3)))
     
     def _get_region(self, country: str) -> str:
-        """Get WHO region for country."""
+        """Return the coarse region grouping used by the placeholder generator."""
         regions = {
             "Americas": ["United States", "Canada", "Brazil", "Argentina"],
             "Europe": ["United Kingdom", "Germany", "France", "Italy", "Spain", "Netherlands", "Russia"],
@@ -706,19 +702,19 @@ class EmpiricalDataAcquirer:
         return "Other"
     
     def _get_income_level(self, country: str) -> str:
-        """Get World Bank income classification."""
+        """Return the coarse income grouping used by the placeholder generator."""
         income_levels = {
             "High-income": ["United States", "Canada", "United Kingdom", "Germany", "France", 
                            "Italy", "Spain", "Netherlands", "Japan", "South Korea", "Australia"],
             "Upper-middle": ["Brazil", "Argentina", "Russia", "Turkey", "China", "South Africa"],
             "Lower-middle": ["India", "Egypt", "Kenya"],
-            "Low-income": []  # Add as needed
+            "Low-income": []
         }
         
         for level, countries in income_levels.items():
             if country in countries:
                 return level
-        return "Upper-middle"  # Default
+        return "Upper-middle"
     
     def _create_cddep_template(self):
         """Create CDDEP global resistance mapping template."""

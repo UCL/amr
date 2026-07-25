@@ -881,50 +881,51 @@ def _is_infection_death_excluded_bacteria(name: object) -> bool:
     return _slugify_bacteria_value(clean_name) in INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS
 
 
-# Per-organism hospital-acquisition % targets (central literature estimates).
-# Keys match the canonicalized slug form (lower-case, spaces, no underscores).
+# Expert-informed best-guess placeholders for the percentage of infections
+# acquired in hospital. The inline notes give qualitative rationale, not
+# row-level empirical provenance. Keys use canonical lower-case names.
 _HA_PCT_TARGETS: Dict[str, float] = {
-    "acinetobacter baumannii":                   65.0,  # ESKAPE; ICU/VAP ~60-80%
-    "bacteroides fragilis":                       30.0,  # post-surgical intra-abdominal ~20-40%
+    "acinetobacter baumannii":                   65.0,  # ESKAPE organism; ICU/VAP concentration
+    "bacteroides fragilis":                       30.0,  # Post-surgical intra-abdominal infections
     "bordetella pertussis":                        5.0,  # occasionally nosocomial in neonates
-    "burkholderia cepacia complex":               65.0,  # CF centres / CGD ~50-80%
-    "campylobacter jejuni":                        2.0,  # foodborne; very rare HA
-    "chlamydia trachomatis":                       1.0,  # STI; negligible HA
-    "citrobacter spp.":                           45.0,  # opportunistic; device-associated ~40-55%
-    "clostridioides difficile":                   50.0,  # classic HAI ~40-60%
-    "enterobacter cloacae":                       45.0,  # nosocomial ~40-55%
+    "burkholderia cepacia complex":               65.0,  # CF centres and CGD care
+    "campylobacter jejuni":                        2.0,  # Predominantly foodborne
+    "chlamydia trachomatis":                       1.0,  # Predominantly sexually transmitted
+    "citrobacter spp.":                           45.0,  # Opportunistic and device-associated
+    "clostridioides difficile":                   50.0,  # Strong healthcare association
+    "enterobacter cloacae":                       45.0,  # Strong nosocomial association
     "enterobacter spp.":                          45.0,
-    "enterococcus faecalis":                      30.0,  # UTI/wound HA ~20-40%
-    "enterococcus faecium":                       50.0,  # VRE; BSI/UTI ~40-60%
-    "escherichia coli":                           15.0,  # CAUTI/BSI ~10-20%
-    "haemophilus influenzae":                     10.0,  # mainly community; HA neonates/elderly
-    "helicobacter pylori":                        10.0,  # endoscopy-related seeding possible
+    "enterococcus faecalis":                      30.0,  # Healthcare-associated UTI and wound infection
+    "enterococcus faecium":                       50.0,  # VRE and healthcare-associated BSI/UTI
+    "escherichia coli":                           15.0,  # CAUTI and healthcare-associated BSI
+    "haemophilus influenzae":                     10.0,  # Mainly community acquired
+    "helicobacter pylori":                        10.0,  # Possible healthcare-associated transmission
     "invasive non-typhoidal salmonella spp.":     10.0,
-    "klebsiella pneumoniae":                      40.0,  # HAI ~30-50%
-    "legionella pneumophila":                     20.0,  # hospital water systems ~15-30%
-    "listeria monocytogenes":                     10.0,  # foodborne; HA in immunocompromised
+    "klebsiella pneumoniae":                      40.0,  # Strong healthcare association
+    "legionella pneumophila":                     20.0,  # Hospital water-system transmission
+    "listeria monocytogenes":                     10.0,  # Mainly foodborne
     "mdr mycobacterium tuberculosis":              8.0,
     "moraxella catarrhalis":                      10.0,
-    "morganella spp.":                            40.0,  # UTI/wound HA ~30-50%
-    "mycoplasma genitalium":                       1.0,  # STI
-    "mycoplasma pneumoniae":                       8.0,  # community; HA in elderly/outbreaks
-    "neisseria gonorrhoeae":                       1.0,  # STI
-    "neisseria meningitidis":                     20.0,  # HA in infants/elderly ~15-25%
-    "proteus spp.":                               30.0,  # catheter-associated ~25-35%
-    "providencia stuartii":                       65.0,  # long-term-care catheter ~60-75%
-    "pseudomonas aeruginosa":                     45.0,  # VAP/wound HA ~35-55%
+    "morganella spp.":                            40.0,  # Healthcare-associated UTI and wound infection
+    "mycoplasma genitalium":                       1.0,  # Predominantly sexually transmitted
+    "mycoplasma pneumoniae":                       8.0,  # Mainly community acquired
+    "neisseria gonorrhoeae":                       1.0,  # Predominantly sexually transmitted
+    "neisseria meningitidis":                     20.0,  # Healthcare exposure in vulnerable groups
+    "proteus spp.":                               30.0,  # Catheter-associated infection
+    "providencia stuartii":                       65.0,  # Long-term-care catheter association
+    "pseudomonas aeruginosa":                     45.0,  # VAP and healthcare-associated wound infection
     "salmonella enterica serovar paratyphi a":     3.0,
     "salmonella enterica serovar typhi":           3.0,
-    "serratia spp.":                              50.0,  # ICU/NICU ~40-60%
-    "shigella spp.":                               2.0,  # foodborne/waterborne
-    "staphylococcus aureus":                      25.0,  # MRSA/SSTI HA ~20-30%
-    "staphylococcus epidermidis":                 75.0,  # device/implant ~70-85%
-    "stenotrophomonas maltophilia":               70.0,  # ventilated/immunocompromised ~60-80%
-    "streptococcus agalactiae":                   30.0,  # neonatal/obstetric HA ~20-35%
-    "streptococcus pneumoniae":                   10.0,  # mostly community; HA in elderly
+    "serratia spp.":                              50.0,  # ICU and NICU association
+    "shigella spp.":                               2.0,  # Predominantly foodborne or waterborne
+    "staphylococcus aureus":                      25.0,  # Healthcare-associated MRSA and SSTI
+    "staphylococcus epidermidis":                 75.0,  # Device and implant association
+    "stenotrophomonas maltophilia":               70.0,  # Ventilation and immunocompromise
+    "streptococcus agalactiae":                   30.0,  # Neonatal and obstetric care
+    "streptococcus pneumoniae":                   10.0,  # Mainly community acquired
     "streptococcus pyogenes":                     10.0,
-    "treponema pallidum":                          1.0,  # STI
-    "vibrio cholerae":                             2.0,  # waterborne
+    "treponema pallidum":                          1.0,  # Predominantly sexually transmitted
+    "vibrio cholerae":                             2.0,  # Predominantly waterborne
     "yersinia enterocolitica":                     3.0,
 }
 
@@ -3055,10 +3056,7 @@ def _calculate_drug_class_table(
             
             # Calculate residual users based on the share of the total
             if scale_factor:
-                 # Re-derive total users from the first record or calculate directly
-                 # total_users_est = total_on_drug * scale_factor / 1e6
-                 # residual_users = total_users_est * (residual_share / 100.0)
-                 residual_users = (total_drug_days * scale_factor / 1e6) * (residual_share / 100.0)
+                residual_users = (total_drug_days * scale_factor / 1e6) * (residual_share / 100.0)
 
             records.append({
                 "Class": DEFAULT_DRUG_CLASS_LABEL,
@@ -4244,19 +4242,31 @@ def _calculate_syndrome_incidence_table(
         9: "Bone and joint",
         10: "Other"
     }
+
+    syndrome_columns = {
+        sid: f"syndrome_{sid}_infection_acquisition_people_count"
+        for sid in syndrome_labels
+    }
+    missing_columns = [
+        column for column in syndrome_columns.values()
+        if column not in year_df.columns
+    ]
+    if missing_columns:
+        raise ValueError(
+            "Syndrome incidence requires all person-level acquisition counters; "
+            f"missing {len(missing_columns)} column(s): "
+            + ", ".join(missing_columns)
+        )
     
     records = []
     total_all_syndromes = 0.0
     syndrome_totals = {}
     
     for sid, label in syndrome_labels.items():
-        col = f"syndrome_{sid}_infection_acquisition_people_count"
-        if col in year_df.columns:
-            yearly_infections = float(year_df[col].sum(skipna=True)) / annualization_factor
-            syndrome_totals[sid] = yearly_infections
-            total_all_syndromes += yearly_infections
-        else:
-            syndrome_totals[sid] = 0.0
+        col = syndrome_columns[sid]
+        yearly_infections = float(year_df[col].sum(skipna=True)) / annualization_factor
+        syndrome_totals[sid] = yearly_infections
+        total_all_syndromes += yearly_infections
             
     for sid, label in syndrome_labels.items():
         val = syndrome_totals[sid]
@@ -4762,25 +4772,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         )
 
         _write_calibration_score_summary(handle, calibration_score)
-
-        # Drug Class Usage Benchmarks table removed - replaced by more comprehensive Drug Class Share History
-        # if not combined_drug_df.empty:
-        #     handle.write("Drug Class Usage Benchmarks (daily users in millions)\n")
-        #     handle.write(
-        #         combined_drug_df.to_string(
-        #             index=False,
-        #             float_format=lambda x: f"{x:,.2f}",
-        #             na_rep="---",
-        #         )
-        #     )
-        #     if reserve_share is not None and reserve_users is not None and total_users is not None:
-        #         handle.write(
-        #             "\nReserve row derived from mean daily reserve users "
-        #             f"{reserve_users:,.0f} of total antibiotic users {total_users:,.0f}."
-        #         )
-        #     handle.write("\n\n")
-        # else:
-        #     handle.write("Drug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n\n")
 
         if not drug_class_history_df.empty:
             drug_history_display = drug_class_history_df.copy()

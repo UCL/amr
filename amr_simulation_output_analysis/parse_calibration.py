@@ -92,6 +92,7 @@ _SECTION_PATTERNS: list[tuple[str, str]] = [
     ("Headline Metrics",                          "headline_metrics"),
     ("Testing Summary",                           "testing_summary"),
     ("Syndrome Incidence Breakdown",              "syndrome_incidence"),
+    ("Infection Death Rates by Age Group and Region", "age_region_death_rates"),
     ("Infection Incidence Fit Summary",           "fit_infection_incidence"),
     ("Microbiome Carriage Fit Summary",           "fit_carriage"),
     ("Infection Deaths Fit Summary",              "fit_infection_deaths"),

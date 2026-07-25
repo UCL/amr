@@ -1,84 +1,6 @@
-// =====================================================================================
-// src/rules/mod.rs
-// =====================================================================================
-//
-// CORE UPDATE LOGIC FOR AMR SIMULATION
-//
-// This is the largest and most important file in the simulation. It contains all the
-// logic that updates individual state each time step (day).
-//
-// =====================================================================================
-// KEY FUNCTIONS
-// =====================================================================================
-//
-// apply_rules() - Main entry point, called once per individual per day
-//   This function orchestrates all updates in the correct order:
-//   1. Age update
-//   2. Hospitalization updates
-//   3. Infection acquisition (community, hospital, microbiome seeding)
-//   4. Infection progression (level growth, symptoms, sepsis)
-//   5. Drug selection and treatment initiation
-//   6. Drug effects (level decay, activity calculations, toxicity)
-//   7. Infection clearance (immune or drug-assisted)
-//   8. Resistance dynamics (emergence, HGT, reversion, persistence pathways)
-//   9. Microbiome dynamics (colonization, clearance)
-//   10. Mortality check
-//
-// =====================================================================================
-// IMPORTANT HELPER FUNCTIONS
-// =====================================================================================
-//
-// Drug Selection:
-//   - select_drug_for_bacteria(): Chooses antibiotic based on scoring algorithm
-//   - calculate_drug_score(): Computes selection score for one drug
-//   - drug_available(): Checks if drug exists in simulated time period
-//
-// Resistance:
-//   - update_resistance_from_drug_use(): De novo emergence during treatment
-//   - apply_hgt(): Horizontal gene transfer between bacteria
-//   - apply_resistance_reversion(): Fitness-cost-driven resistance decay
-//   - exogenous_mechanism_floor_probability(): Environmental and ratchet reseeding
-//
-// Infection:
-//   - infection_acquisition(): Check for new infections
-//   - infection_progression(): Update infection levels
-//   - check_clearance(): Immune and drug-assisted clearance
-//
-// Drug Effects:
-//   - update_drug_levels(): Pharmacokinetic decay
-//   - calculate_drug_activity(): Compute drug effect on bacteria
-//   - update_toxicity(): Accumulate drug toxicity
-//
-// =====================================================================================
-// UNDERSTANDING THE CODE
-// =====================================================================================
-//
-// ARRAY INDEXING PATTERN:
-//   Most loops iterate over bacteria or drugs by index:
-//     for bacteria_idx in 0..BACTERIA_LIST.len() { ... }
-//     for drug_idx in 0..DRUG_SHORT_NAMES.len() { ... }
-//
-// PARAMETER ACCESS:
-//   Configuration parameters are accessed via parameter_store():
-//     let params = parameter_store();
-//     let value = params.get_bacteria_drug_param(bacteria, drug, "potency");
-//
-// STOCHASTIC EVENTS:
-//   Random events use rng.gen_bool(probability):
-//     if rng.gen_bool(infection_probability) { ... }
-//
-// =====================================================================================
-// DOCUMENTATION REFERENCES
-// =====================================================================================
-// For detailed documentation, see the docs/ folder:
-//   - docs/02_resistance_system.md: Resistance emergence, HGT, mechanisms
-//   - docs/03_drug_treatment.md: Drug selection, pharmacokinetics
-//   - docs/04_infection_dynamics.md: Acquisition, progression, clearance
-//   - docs/07_simulation_flow.md: Daily update sequence
-//
-// =====================================================================================
-
-// for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
+//! Daily state-transition rules for infection, treatment, resistance, care, and mortality.
+//!
+//! The maintained process description is in `model_description/MODEL_DESCRIPTION.md`.
 
 use crate::config::{
     get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
@@ -133,9 +55,10 @@ fn sample_weighted_index(weights: &[f64], rng: &mut impl Rng) -> Option<usize> {
 // CONSTANTS
 // =====================================================================================
 
-/// Drugs that should be avoided in individuals with perceived penicillin allergy.
-/// These are all penicillin-class drugs including beta-lactam/beta-lactamase inhibitor combos.
-/// If perceived_penicillin_allergy is true, these drugs get score=0 during selection.
+/// Configured drugs suppressed by the model's perceived-penicillin-allergy rule.
+///
+/// The set includes selected penicillins and beta-lactam/beta-lactamase inhibitor
+/// combinations; it is not a complete pharmacological penicillin inventory.
 const PENICILLIN_CLASS_DRUGS: &[&str] = &[
     "penicillin_g",
     "ampicillin",
@@ -148,14 +71,12 @@ const PENICILLIN_CLASS_DRUGS: &[&str] = &[
     "ticarcillin_clavulanate",
 ];
 
-/// Historical sanitation adjustment factors (log-odds scale).
-/// Models improvement in sanitation over time, reducing community-acquired infections.
-/// Format: (year, log_odds_adjustment). Linear interpolation between anchors.
+/// Historical community-acquisition adjustment on the log-odds scale.
+/// Entries are `(year, log_odds_adjustment)` with linear interpolation.
 const COMMUNITY_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
     &[(1930.0, 0.2), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
-/// Hospital sanitation adjustment factors (log-odds scale).
-/// Models improvement in infection control practices over time.
+/// Historical hospital-acquisition adjustment on the log-odds scale.
 const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
     &[(1930.0, 0.2), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
@@ -168,10 +89,7 @@ const DRUG_ASSISTED_CLEARANCE_EFFECT_THRESHOLD: f64 = 1e-6;
 // DRUG AVAILABILITY HELPER
 // =====================================================================================
 
-/// Check whether a drug is both historically introduced and regionally available.
-/// Returns `true` when availability ≥ 0.01 **and** the drug's introduction time step
-/// has been reached.  This consolidates the repeated availability + introduction
-/// checks that previously appeared in 5+ places.
+/// Return whether a drug has been introduced and its regional availability is at least 0.01.
 #[inline]
 fn is_drug_available(
     drug_idx: usize,
@@ -191,8 +109,7 @@ fn is_drug_available(
 }
 
 #[inline]
-/// Tier 1 — Always inpatient: continuous/frequent infusion or ICU-context drugs.
-/// These both force admission and block discharge while active.
+/// Model Tier 1: selection forces admission and active use blocks discharge.
 fn is_always_inpatient_drug(drug_name: &str) -> bool {
     matches!(
         drug_name,
@@ -218,8 +135,7 @@ fn is_always_inpatient_drug(drug_name: &str) -> bool {
     )
 }
 
-/// Tier 2 — OPAT-eligible: once-daily or long-interval IV drugs commonly given outside hospital.
-/// Probabilistically triggers admission (default 70%) but does NOT block discharge while active.
+/// Model Tier 2: selection can trigger admission, but active use does not block discharge.
 fn is_opat_eligible_drug(drug_name: &str) -> bool {
     matches!(
         drug_name,
@@ -234,8 +150,7 @@ fn is_opat_eligible_drug(drug_name: &str) -> bool {
     )
 }
 
-/// Tier 3 — Historical/light IV: historically given IM/short-course; no forced admission.
-/// penicillin_g was mostly IM injection (1942–1970s); gentamicin often a single ED stat dose.
+/// Reserved light-parenteral category; currently not used by treatment logic.
 #[allow(dead_code)]
 fn is_light_iv_drug(drug_name: &str) -> bool {
     matches!(drug_name, "penicillin_g" | "gentamicin")
@@ -246,8 +161,9 @@ fn is_hospital_restricted_reserve_drug(drug_name: &str) -> bool {
     matches!(drug_name, "linezolid" | "tedizolid")
 }
 
-/// Returns true for any drug that *may* trigger inpatient management (Tier 1 or 2 or reserve).
-/// Used only for the discharge blocker — only Tier 1 and reserve block discharge.
+/// Return whether an active drug blocks discharge.
+///
+/// Tier 1 and hospital-restricted reserve drugs block discharge; OPAT-eligible drugs do not.
 #[inline]
 fn requires_hospital_management(drug_name: &str) -> bool {
     is_always_inpatient_drug(drug_name) || is_hospital_restricted_reserve_drug(drug_name)
@@ -452,8 +368,7 @@ fn existing_therapy_prevents_incoming_infection(
 // HELPER FUNCTIONS
 // =====================================================================================
 
-/// Returns sanitation-related log-odds adjustment for infection probability.
-/// Decreases over historical time as sanitation improved.
+/// Return the historical acquisition adjustment for the current care setting.
 #[inline]
 fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     let anchors = if in_hospital {
@@ -464,8 +379,7 @@ fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     interpolate_piecewise_linear(year, anchors)
 }
 
-/// Linear interpolation between piecewise anchor points.
-/// Used for time-varying parameters like sanitation improvements.
+/// Linearly interpolate between ordered `(year, value)` anchors.
 #[inline]
 fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     if anchors.is_empty() {
@@ -493,7 +407,6 @@ fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     anchors[last_idx].1
 }
 
-/// Helper function to update the current number of drugs counter
 #[inline]
 fn update_drug_counter(individual: &mut Individual) {
     individual.current_number_of_drugs =
@@ -503,20 +416,18 @@ fn update_drug_counter(individual: &mut Individual) {
 use rand::distributions::Distribution;
 use rand::distributions::WeightedIndex;
 
-/// Propagate mechanism-based resistance to `any_r` (and optionally `microbiome_r`)
-/// for ALL drugs an organism's active mechanisms apply to.
+/// Project mechanism state onto `any_r` and, optionally, `microbiome_r` for every
+/// applicable drug.
 ///
 /// When a mechanism like ESBL CTX-M is acquired under amoxicillin pressure,
 /// every drug affected by that mechanism immediately reflects the resistance
 /// because the mechanism is on the bacterium, not on the selecting drug.
 ///
-/// When `raise_only` is true, `any_r` is only increased (never lowered) — used after
-/// mechanism acquisition. When false, `any_r` is reset to the mechanism-derived level
-/// — used after mechanism reversion.
+/// With `raise_only`, the mechanism-derived value acts as a lower bound. Without it,
+/// resistance is reset to the exact value derived from the current mechanism mask.
 ///
-/// When `propagate_microbiome_r` is true, `microbiome_r` is also recomputed from
-/// `mechanism_microbiome` — the authoritative boolean store for microbiome resistance.
-/// `any_r` is always derived from `mechanism_any`.
+/// When `propagate_microbiome_r` is true, the same rule is applied from the
+/// `mechanism_microbiome` mask.
 fn propagate_mechanism_resistance(
     individual: &mut Individual,
     b_idx: usize,
@@ -573,11 +484,11 @@ fn propagate_mechanism_resistance(
                 resistance_data.any_r = store_float(new_any_r);
             }
         } else {
-            // Reset mode (reversion) — set any_r to exact mechanism-derived level
+            // Reset mode sets `any_r` to the exact mechanism-derived level.
             resistance_data.any_r = store_float(new_any_r);
         }
 
-        // Derive microbiome_r from mechanism_microbiome state
+        // Derive `microbiome_r` from the microbiome mechanism mask.
         if propagate_microbiome_r {
             let new_microbiome_r = ((1.0 - microbiome_susceptibility) * max_resistance_level)
                 .min(max_resistance_level)
@@ -896,10 +807,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
             | "ceftolozane_tazobactam"  // MBLs hydrolyze ceftolozane
-            // cefiderocol NOT included: siderophore cephalosporin designed to resist MBL hydrolysis
+            // Cefiderocol is not assigned a standalone MBL route in this model.
             | "ceftazidime_avibactam" | "meropenem_vaborbactam"  // MBLs not inhibited by avibactam/vaborbactam
-            | "aztreonam_avibactam" // Residual partner-drug / combination-level impairment is configured explicitly
-            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "meropenem" | "imipenem_c" | "ertapenem" // Plain and avibactam-protected aztreonam are outside the direct MBL phenotype.
         ),
 
         EnzymeOxa48 => matches!(
@@ -907,10 +817,11 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
-            | "ceftazidime_avibactam" | "aztreonam_avibactam"
-            // OXA-48 has weak but real cephalosporinase activity; low config enhancement values reflect this
+            | "ceftazidime_avibactam"
+            // The model retains low OXA-48 effects for the listed cephalosporins.
             | "meropenem" | "imipenem_c" | "ertapenem"
             | "meropenem_vaborbactam" // Vaborbactam does NOT inhibit OXA-48
+                                      // Avibactam-protected aztreonam is outside the direct OXA-48 phenotype.
         ),
 
         TargetSitePbp2aMecA => matches!(
@@ -918,7 +829,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime"
-            | "ceftolozane_tazobactam" | "ceftazidime_avibactam" | "meropenem_vaborbactam" // PBP2a does not bind to these
+            | "ceftolozane_tazobactam" | "ceftazidime_avibactam" | "meropenem_vaborbactam"
             | "aztreonam" | "aztreonam_avibactam"
               | "meropenem" | "imipenem_c" | "ertapenem"
         ),
@@ -934,7 +845,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "ciprofloxacin" | "ofloxacin" | "levofloxacin" | "moxifloxacin"
         ),
 
-        // QNR target protection is class-wide — all FQs displaced from gyrase/topoisomerase IV
+        // The model applies Qnr target protection across its later fluoroquinolones.
         ProtectionQnr => matches!(
             drug,
             "ciprofloxacin" | "ofloxacin" | "levofloxacin" | "moxifloxacin"
@@ -944,13 +855,15 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         EnzymeCat => matches!(drug, "chloramphenicol"),
 
+        // ErmB affects the streptogramin-B component, but is not sufficient to resist the
+        // quinupristin-dalfopristin combination without a complementary A-component route.
         TargetSiteErmB => matches!(
             drug,
-            "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin" | "quinu_dalfo" // MLSB cross-resistance affects streptogramin B component
+            "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
         ),
 
-        // Cfr methylates 23S rRNA A2503 → PhLOPSA phenotype:
-        // Phenicols, Lincosamides, Oxazolidinones, Pleuromutilins, Streptogramin A
+        // Cfr route: phenicols, lincosamides, oxazolidinones, and pleuromutilins
+        // represented in the model inventory.
         TargetSiteCfr => matches!(
             drug,
             "linezolid" | "tedizolid"      // Oxazolidinones
@@ -959,32 +872,33 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "retapamulin" // Pleuromutilins
         ),
 
-        TargetSiteVanA => matches!(drug, "vancomycin" | "teicoplanin" | "dalbavancin"), // VanA confers resistance to all glycopeptides/lipoglycopeptides
+        TargetSiteVanA => matches!(drug, "vancomycin" | "teicoplanin" | "dalbavancin"),
 
         TargetSiteVanB => matches!(drug, "vancomycin"),
 
         ModificationMcr1 | MutationPolymyxinRegulatory => matches!(drug, "colistin"),
 
+        // The compressed AcrAB-TolC route covers the listed substrates.
         EffluxAcrabTolc => matches!(
             drug,
-            "tetracycline" | "doxycycline" | "minocycline"  // All classical tetracyclines affected by RND efflux
-           | "tigecycline"          // AcrAB-TolC overexpression (via ramA/marA) is the primary documented tigecycline resistance in Enterobacterales
+            "tetracycline" | "doxycycline" | "minocycline"
+           | "tigecycline"
            | "chloramphenicol" | "ciprofloxacin"
         ),
 
-        // MexXY-OprM: primary aminoglycoside efflux pump in P. aeruginosa;
-        // also effluxes tetracyclines, chloramphenicol, ciprofloxacin. Tigecycline NOT included.
+        // The compressed MexXY-OprM route excludes tigecycline.
         EffluxMexxyOprm => matches!(
             drug,
-            "tetracycline" | "doxycycline" | "minocycline"  // Classical tetracyclines
-           | "gentamicin" | "tobramycin" | "amikacin"           // Primary aminoglycoside efflux
+            "tetracycline" | "doxycycline" | "minocycline"
+           | "gentamicin" | "tobramycin" | "amikacin"
            | "chloramphenicol" | "ciprofloxacin"
         ),
 
+        // The global-efflux abstraction covers the listed substrates.
         GlobalEffluxPump => matches!(
             drug,
-            "tetracycline" | "doxycycline" | "minocycline"  // Classical tetracyclines
-           | "tigecycline"          // Tigecycline evades tet-specific efflux but susceptible to broad RND pumps
+            "tetracycline" | "doxycycline" | "minocycline"
+           | "tigecycline"
            | "chloramphenicol" | "ciprofloxacin"
         ),
 
@@ -1020,7 +934,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // Folate pathway: DHPS (sul genes) and DHFR (dfr genes) mutations
         MutationFolatePathway => matches!(drug, "sulfanilamide" | "trim_sulf"),
 
-        // Nitroreductase loss/modification: affects all prodrugs requiring nitroreduction
+        // Compressed nitroreductase route for the listed nitro prodrugs.
         MutationNitroreductase => {
             matches!(drug, "metronidazole" | "nitrofurantoin" | "furazolidone")
         }
@@ -1034,17 +948,16 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // Enterococcal daptomycin resistance: liaFSR / cls remodeling
         MutationLiafsrCls => matches!(drug, "daptomycin"),
 
-        // RpoB mutation: fidaxomicin resistance (C. difficile) + rifampicin resistance (all bacteria)
+        // RpoB route for fidaxomicin and rifampicin in eligible hosts.
         MutationRpoB => matches!(drug, "fidaxomicin" | "rifampicin"),
 
         // FusB/FusC protection proteins: fusidic acid resistance
         ProtectionFusB => matches!(drug, "fusidic_a"),
 
-        // TetM/TetO ribosomal protection: GTPases that displace tetracyclines from 30S ribosomal subunit
-        // Tigecycline EXCLUDED: 9-t-butylglycylamido group sterically blocks TetM displacement
+        // TetM/TetO ribosomal-protection route for the listed tetracyclines.
         ProtectionTetM => matches!(drug, "tetracycline" | "doxycycline" | "minocycline"),
 
-        // AAC/APH/ANT aminoglycoside-modifying enzymes: gentamicin, tobramycin, amikacin, streptomycin, neomycin
+        // Combined AAC/APH/ANT aminoglycoside-modifying-enzyme route.
         EnzymeAacAph => matches!(
             drug,
             "gentamicin" | "tobramycin" | "amikacin" | "streptomycin" | "neomycin"
@@ -1058,30 +971,29 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
         ),
 
-        // mphA macrolide 2'-phosphotransferase: inactivates macrolides by phosphorylation of 2'-OH
-        // Covers all three macrolides; does NOT cover lincosamides (clindamycin) or streptogramins
+        // The MphA route covers the three modelled macrolides but not lincosamides
+        // or streptogramins.
         EnzymeMphA => matches!(drug, "azithromycin" | "erythromycin" | "clarithromycin"),
 
-        // OXA-23/40/58: A. baumannii carbapenemases — carbapenems; variable cephalosporin activity
+        // Compressed Acinetobacter OXA carbapenemase route.
         EnzymeOxaAcinetobacter => matches!(
             drug,
             "meropenem" | "imipenem_c" | "ertapenem"
-            | "ceftazidime" | "cefepime" // OXA-23/58 have weak but real cephalosporinase activity
-            | "ceftazidime_avibactam" // avibactam does not inhibit class D OXA carbapenemases
+            | "ceftazidime" | "cefepime"
+            | "ceftazidime_avibactam"
         ),
 
-        // 23S rRNA point mutation: macrolides (NOT lincosamides/streptogramins — distinct binding site)
+        // This compressed 23S rRNA route is limited to the modelled macrolides.
         Mutation23sRrna => matches!(drug, "erythromycin" | "azithromycin" | "clarithromycin"),
 
         // 23S rRNA domain V mutation: oxazolidinones
         Mutation23sRrnaOxazolidinone => matches!(drug, "linezolid" | "tedizolid"),
 
-        // TetA/B/C efflux: classical tetracyclines — tigecycline and minocycline excluded
-        // (tigecycline 9-substituent and minocycline 7-dimethylamino group block efflux)
+        // The combined TetA/B/C route is limited here to tetracycline and doxycycline.
         EffluxTetAbc => matches!(drug, "tetracycline" | "doxycycline"),
 
-        // PBP mosaic mutations: reduced β-lactam affinity — penicillins, cephalosporins, aztreonam
-        // NOT carbapenems (PBP mosaic doesn't affect carbapenem binding pocket)
+        // The compressed mosaic-PBP route covers the listed beta-lactams; carbapenems
+        // are excluded from this model route.
         MutationPbpMosaic => matches!(
             drug,
             "penicillin_g"
@@ -1259,9 +1171,8 @@ fn hgt_context_multiplier(
 ) -> f64 {
     let mut multiplier = 1.0;
 
-    // This folds together the model's coarse-grained biology for HGT opportunity:
-    // hospitals, antibiotic pressure, true co-infection, and shared gut carriage all
-    // make cell-to-cell transfer more plausible than background microbiome-only contact.
+    // Multipliers represent modeled HGT opportunities associated with hospitalization,
+    // antibiotic pressure, infection status, and shared carriage compartments.
 
     if is_hospitalized {
         multiplier *= globals.hgt_hospital_multiplier;
@@ -1277,7 +1188,7 @@ fn hgt_context_multiplier(
         multiplier *= globals.hgt_microbiome_only_penalty;
     }
 
-    // Gut compartment has higher bacterial density → more conjugation
+    // The model assigns an additional multiplier to shared gut carriage.
     use crate::simulation::population::CarriageCompartment;
     if shared_compartment_mask & CarriageCompartment::Gut.bit() != 0 {
         multiplier *= globals.hgt_gut_compartment_multiplier;
@@ -1286,8 +1197,8 @@ fn hgt_context_multiplier(
     multiplier
 }
 
-/// Assess treatment failure and switch drugs if necessary
-/// Returns true if a drug switch occurred
+/// Assess an eligible infection for treatment failure and, when possible, replace the regimen.
+/// Returns true only when a replacement drug is started.
 fn assess_treatment_failure(
     individual: &mut Individual,
     time_step: usize,
@@ -1299,7 +1210,6 @@ fn assess_treatment_failure(
 ) -> bool {
     let store = parameter_store();
 
-    // Check if treatment failure assessment is enabled
     if !store.globals.treatment_failure_enabled {
         return false;
     }
@@ -1310,17 +1220,14 @@ fn assess_treatment_failure(
     let assessment_day =
         treatment_failure_assessment_day_for(bacteria_name, syndrome_id, base_assessment_day);
 
-    // Check if we've reached the assessment window for this organism/syndrome
     if individual.days_on_current_treatment[bacteria_idx] < assessment_day {
         return false;
     }
 
-    // Check if we've already assessed this treatment course
     if individual.treatment_failure_assessed[bacteria_idx] {
         return false;
     }
 
-    // Check if there's a current infection and bacteria level recorded at drug start
     let Some(bacteria_initial_level) = individual.bacteria_level_at_drug_start[bacteria_idx] else {
         return false;
     };
@@ -1329,23 +1236,21 @@ fn assess_treatment_failure(
     }
     let current_level = individual.level[bacteria_idx];
 
-    // Get failure threshold (default 0.5 = 50% of initial level)
+    // Failure is assessed against a configured fraction of the level at treatment start.
     let threshold_level = bacteria_initial_level * store.globals.treatment_failure_threshold;
 
-    // Treatment failure criterion: current bacteria level >= threshold × initial level
     let treatment_failed = current_level >= threshold_level;
 
-    // Mark assessment as completed for this treatment course
     individual.treatment_failure_assessed[bacteria_idx] = true;
 
     if !treatment_failed {
-        return false; // Treatment is working, no switch needed
+        return false;
     }
 
-    // Record drug failure date for this bacteria
     individual.date_last_drug_failure[bacteria_idx] = time_step as i32;
 
-    // Find current drugs being used for this bacteria
+    // Active drugs are not attributed to individual infections, so every active drug is
+    // treated as part of the regimen being replaced.
     let current_drugs: Vec<usize> = individual
         .cur_use_drug
         .iter()
@@ -1355,49 +1260,40 @@ fn assess_treatment_failure(
         .collect();
 
     if current_drugs.is_empty() {
-        return false; // No current drugs to switch from
+        return false;
     }
 
-    // Per-organism "no second-line" pathway: models patients who do not receive rescue
-    // therapy after first-line failure (loss to follow-up, access barriers, side-effect
-    // burden).  When this fires the current (failed) drugs are stopped but no substitute
-    // is started, leaving the patient chronically infected with a resistant profile that
-    // continuously feeds the community mechanism cache.  The dominant use-case is
-    // H. pylori, where bismuth quadruple uptake after clarithromycin-triple failure is
-    // substantially incomplete in most regions.
+    // A bacterium-specific probability can stop the failed regimen without initiating
+    // rescue treatment. Subsequent infection transitions still determine persistence.
     let no_second_line_prob =
         store.bacteria.treatment_failure_no_second_line_probability[bacteria_idx];
     if no_second_line_prob > 0.0 && rng.gen_bool(no_second_line_prob.clamp(0.0, 1.0)) {
         for &current_drug_idx in &current_drugs {
             stop_drug_course(individual, current_drug_idx);
         }
-        return false; // Persistent-carrier pathway: no drug switch
+        return false;
     }
 
-    // Try to find an alternative drug using the same selection logic as initial prescription
-    // but excluding recently failed drugs
+    // Rescue treatment uses a simplified potency-and-preference score. Because failure
+    // history is not stored by drug, recent initiation is used as the exclusion proxy.
     let failure_memory_days = store.globals.drug_failure_memory_days;
 
-    // Build list of available alternative drugs
     let mut alternative_scores = Vec::new();
 
     for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-        // Skip if currently taking this drug
         if current_drugs.contains(&drug_idx) {
             continue;
         }
 
-        // Skip if this drug failed recently (within memory period)
+        // Exclude any drug initiated within the configured lookback period.
         if individual.date_drug_initiated_keep[drug_idx] != i32::MIN {
             let days_since_last_use =
                 (time_step as i32) - individual.date_drug_initiated_keep[drug_idx];
             if days_since_last_use >= 0 && days_since_last_use < failure_memory_days {
-                // This is a recently used drug, skip it for now (simple approach)
                 continue;
             }
         }
 
-        // Check if drug is available and historically introduced
         if !is_drug_available(
             drug_idx,
             drug_name,
@@ -1409,10 +1305,8 @@ fn assess_treatment_failure(
             continue;
         }
 
-        // Calculate drug score using same logic as original selection
         let mut score = 0.0;
 
-        // Base potency score
         let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
             continue;
         };
@@ -1423,8 +1317,6 @@ fn assess_treatment_failure(
             score += potency;
         }
 
-        // Apply clinical multipliers (same as original logic)
-        // Use pre-computed clinical preference multiplier from cache
         let preference_multiplier =
             param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
         if preference_multiplier != 1.0 {
@@ -1436,10 +1328,8 @@ fn assess_treatment_failure(
         }
     }
 
-    // If we found alternatives, select one and switch
     if !alternative_scores.is_empty() {
-        // Use same weighted selection as original logic
-        // Lower global value here makes the softmax pick higher-scoring drugs more deterministically; higher values spread the randomness.
+        // Lower temperatures concentrate choices on higher scores.
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = alternative_scores
             .iter()
@@ -1449,30 +1339,25 @@ fn assess_treatment_failure(
         if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
             let new_drug_idx = alternative_scores[chosen_idx].0;
 
-            // Stop current drugs
             for &current_drug_idx in &current_drugs {
                 stop_drug_course(individual, current_drug_idx);
             }
 
-            // Start new drug
             let course_context = active_infection_course_context(individual, bacteria_idx);
             start_drug_course(individual, new_drug_idx, time_step, course_context);
 
-            // Update drug counter
             update_drug_counter(individual);
 
-            // Set drug level
             let drug_initial_level = store.drug.initial_level(new_drug_idx);
             individual.cur_level_drug[new_drug_idx] = drug_initial_level;
 
-            // Reset treatment failure tracking for this bacteria
             mark_new_treatment_course(individual, bacteria_idx, current_level, rng);
 
-            return true; // Drug switch occurred
+            return true;
         }
     }
 
-    false // No switch occurred
+    false
 }
 
 fn treatment_failure_assessment_day_for(
@@ -1482,16 +1367,13 @@ fn treatment_failure_assessment_day_for(
 ) -> i32 {
     let mut final_day = default_day.max(1);
 
-    // Acute syndromes should declare failure quickly because clinicians expect visible
-    // improvement within a few days; indolent syndromes keep longer windows to avoid
-    // misclassifying slow-but-appropriate responses as treatment failure.
-    // Rapid infection syndromes: respiratory (3), bloodstream (4), intra-abdominal (5), CNS (6)
+    // These acute syndrome categories use the model's shorter assessment window.
     let fast_track_syndromes = [3, 4, 5, 6];
     if fast_track_syndromes.contains(&syndrome_id) {
         final_day = final_day.min(3).max(2);
     }
 
-    // Chronic or slow pathogens: TB and indolent infections get longer assessment windows
+    // TB, H. pylori, and syndrome 9 use longer assessment windows.
     if bacteria_name == "mdr_mycobacterium_tuberculosis" {
         final_day = final_day.max(10);
     } else if bacteria_name == "helicobacter_pylori" || syndrome_id == 9 {
@@ -1604,12 +1486,10 @@ fn assess_restart_window(
 ) -> bool {
     let store = parameter_store();
 
-    // Check if restart window is enabled
     if !store.globals.restart_window_enabled {
         return false;
     }
 
-    // Check if there's a cessation to assess
     if let Some(cessation_day) = individual.drug_stopped_with_infection_day[bacteria_idx] {
         let restart_window_days = store.globals.restart_window_days;
         let days_since_cessation = (time_step as i32) - cessation_day;
@@ -1618,7 +1498,6 @@ fn assess_restart_window(
         // A drug switch counts as ongoing care, so reviving the old regimen here would
         // double-count escalation and recreate drugs that were deliberately stopped.
         if individual.cur_use_drug.iter().any(|&on| on) {
-            // Already being treated, clear the restart tracking for this bacteria to prevent future firing
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
             individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
             individual.stopped_drug_index[bacteria_idx] = None;
@@ -1626,38 +1505,33 @@ fn assess_restart_window(
             return false;
         }
 
-        // Within restart window?
         if days_since_cessation >= 1 && days_since_cessation <= restart_window_days {
-            // Haven't assessed yet?
             if !individual.restart_window_assessed[bacteria_idx] {
                 individual.restart_window_assessed[bacteria_idx] = true;
 
-                // Check if bacteria level has worsened enough to trigger restart
                 if let Some(cessation_level) =
                     individual.bacteria_level_at_drug_cessation[bacteria_idx]
                 {
                     let current_level = individual.level[bacteria_idx];
                     let threshold_multiplier = store.globals.restart_bacteria_level_threshold;
 
-                    // Restart criteria: bacteria level increased significantly OR still very high
                     let bacteria_worsened =
                         current_level >= (cessation_level * threshold_multiplier);
-                    let bacteria_still_high = current_level > 2.0; // Arbitrary high threshold for severe infection
+                    // Absolute fallback threshold in the model's bacteria-level units.
+                    let bacteria_still_high = current_level > 2.0;
 
                     if (bacteria_worsened || bacteria_still_high)
                         && individual.level[bacteria_idx] > 0.1
                     {
-                        // Patient decides to return to care?
                         let return_probability = store.globals.restart_window_probability;
 
                         if rng.gen_bool(return_probability) {
-                            // Clear restart tracking
                             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
                             individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
                             let stopped_drug_idx = individual.stopped_drug_index[bacteria_idx];
                             individual.stopped_drug_index[bacteria_idx] = None;
 
-                            // Start restart treatment, preferring the previously effective drug
+                            // Prefer the stopped drug when it remains available and potent.
                             return start_restart_treatment(
                                 individual,
                                 time_step,
@@ -1672,7 +1546,6 @@ fn assess_restart_window(
                 }
             }
         } else if days_since_cessation > restart_window_days {
-            // Restart window expired - clear tracking
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
             individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
             individual.stopped_drug_index[bacteria_idx] = None;
@@ -1683,8 +1556,7 @@ fn assess_restart_window(
     false
 }
 
-/// Start restart treatment for a patient who returns to care after stopping drugs early
-/// Prefers the previously effective drug that was stopped
+/// Restart treatment after early cessation, preferring the stopped drug when eligible.
 fn start_restart_treatment(
     individual: &mut Individual,
     time_step: usize,
@@ -1699,11 +1571,9 @@ fn start_restart_treatment(
     let bacteria_name = BACTERIA_LIST[bacteria_idx];
     let minimal_potency_threshold = store.globals.minimal_potency_threshold_for_drug_selection;
 
-    // Check if we can restart the previously effective drug
     if let Some(prev_drug_idx) = stopped_drug_idx {
         let prev_drug_name = DRUG_SHORT_NAMES[prev_drug_idx];
 
-        // Check if previously effective drug is still available
         let drug_avail = is_drug_available(
             prev_drug_idx,
             prev_drug_name,
@@ -1714,7 +1584,6 @@ fn start_restart_treatment(
         );
 
         if drug_avail && !individual.cur_use_drug[prev_drug_idx] {
-            // Check if drug has adequate potency (basic safety check)
             let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
                 return false;
             };
@@ -1722,18 +1591,14 @@ fn start_restart_treatment(
                 .drug_bacteria
                 .potency(bacteria_idx_for_cache, prev_drug_idx);
             if potency >= minimal_potency_threshold {
-                // Restart the previously effective drug!
                 let course_context = active_infection_course_context(individual, bacteria_idx);
                 start_drug_course(individual, prev_drug_idx, time_step, course_context);
 
-                // Update drug counter
                 update_drug_counter(individual);
 
-                // Set drug level
                 let initial_level = store.drug.initial_level(prev_drug_idx);
                 individual.cur_level_drug[prev_drug_idx] = initial_level;
 
-                // Reset treatment failure tracking for new treatment
                 mark_new_treatment_course(
                     individual,
                     bacteria_idx,
@@ -1741,27 +1606,19 @@ fn start_restart_treatment(
                     rng,
                 );
 
-                return true; // Successfully restarted previously effective drug
+                return true;
             }
         }
     }
 
-    // If we can't restart the previous drug, use standard drug selection with preference bonus
-
-    // Build list of available drugs for restart treatment
+    // Otherwise use the same simplified potency-and-preference score as rescue treatment.
     let mut drug_scores = Vec::new();
 
     for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-        // Skip if currently taking this drug
         if individual.cur_use_drug[drug_idx] {
             continue;
         }
 
-        // Only avoid drugs that actually failed (not drugs that were stopped due to adherence)
-        // We'll identify failed drugs by checking against treatment failure history
-        // For now, we don't avoid any recently used drugs since stopped ≠ failed
-
-        // Check if drug is available and historically introduced
         if !is_drug_available(
             drug_idx,
             drug_name,
@@ -1773,10 +1630,8 @@ fn start_restart_treatment(
             continue;
         }
 
-        // Calculate drug score
         let mut score = 0.0;
 
-        // Base potency score
         let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
             continue;
         };
@@ -1787,7 +1642,6 @@ fn start_restart_treatment(
             score += potency;
         }
 
-        // Apply clinical preference multipliers using cached values
         let preference_multiplier =
             param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
         if preference_multiplier != 1.0 {
@@ -1799,9 +1653,8 @@ fn start_restart_treatment(
         }
     }
 
-    // Select and start restart treatment
     if !drug_scores.is_empty() {
-        // Lower global value here makes the softmax emphasize high scores; higher values keep choices more random.
+        // Lower temperatures concentrate choices on higher scores.
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = drug_scores
             .iter()
@@ -1811,18 +1664,14 @@ fn start_restart_treatment(
         if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
             let new_drug_idx = drug_scores[chosen_idx].0;
 
-            // Start restart treatment
             let course_context = active_infection_course_context(individual, bacteria_idx);
             start_drug_course(individual, new_drug_idx, time_step, course_context);
 
-            // Update drug counter
             update_drug_counter(individual);
 
-            // Set drug level
             let initial_level = store.drug.initial_level(new_drug_idx);
             individual.cur_level_drug[new_drug_idx] = initial_level;
 
-            // Reset treatment failure tracking for new treatment
             mark_new_treatment_course(
                 individual,
                 bacteria_idx,
@@ -1830,14 +1679,14 @@ fn start_restart_treatment(
                 rng,
             );
 
-            return true; // Restart treatment started
+            return true;
         }
     }
 
-    false // No restart treatment started
+    false
 }
 
-/// Cached parameter data to avoid string allocation and redundant lookups during simulation
+/// Parameter data precomputed for the daily simulation loop.
 const SEPSIS_AGE_BUCKET_COUNT: usize = 4;
 const NEONATAL_MAX_DAYS: u32 = 28;
 const PEDIATRIC_MAX_DAYS: u32 = 365 * 18;
@@ -1849,7 +1698,6 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
     365 * 80, // elderly representative
 ];
 
-/// Pre-computed parameter keys to avoid string allocation during simulation
 #[allow(dead_code)]
 pub struct ParameterKeyCache {
     drug_count: usize,
@@ -1861,8 +1709,8 @@ pub struct ParameterKeyCache {
     mechanism_host_eligible_masks: Vec<u64>,
     mechanism_de_novo_masks: Vec<u64>,
     mechanism_hgt_recipient_masks: Vec<u64>,
-    /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
-    /// Value of 1.0 means no preference adjustment (default)
+    /// Clinical preference multipliers indexed by bacterium then drug.
+    /// A value of 1.0 leaves the score unchanged.
     clinical_preference_multipliers: Vec<f64>,
     pub microbiome_majority_threshold: f64,
     pub majority_r_evolution_rate: f64,
@@ -1968,10 +1816,8 @@ impl ParameterKeyCache {
                         default_applies
                     };
 
-                    // Prevent acquired mechanisms from applying if the bacteria is intrinsically
-                    // resistant (baseline potency below the global non-negligible threshold), but
-                    // preserve explicit overrides and any bacterium-drug pairs that intentionally
-                    // carry a configured resistance floor.
+                    // Low-potency bacterium-drug pairs are excluded unless configuration
+                    // explicitly overrides the default applicability rule.
                     let potency = store.drug_bacteria.potency(b_idx, d_idx);
                     let negligible_potency_threshold =
                         store.globals.minimal_potency_threshold_for_drug_selection;
@@ -2189,7 +2035,7 @@ impl ParameterKeyCache {
         profile & self.host_eligible_mechanism_mask(bacteria_idx)
     }
 
-    /// Get the pre-computed clinical preference multiplier for a bacteria-drug pair.
+    /// Get the precomputed clinical preference multiplier for a bacterium-drug pair.
     /// Returns 1.0 if no preference is configured.
     #[inline]
     pub fn clinical_preference_multiplier(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
@@ -2494,7 +2340,7 @@ fn applied_activity_observation(
     has_active_exposure.then_some(observation)
 }
 
-/// applies model rules to an individual for one time step.
+/// Apply one day of model rules to an individual.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
@@ -2528,11 +2374,12 @@ pub(crate) fn apply_rules(
         get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
     let ratchet_enabled = get_global_param(RUN_PATHWAY_RATCHET_ENABLED_KEY).unwrap_or(1.0) > 0.5;
 
-    // New stewardship policy levers
+    // Policy adjustments to prescribing and course duration.
     let reserve_drug_penalty_multiplier = policy.reserve_drug_penalty_multiplier.unwrap_or(1.0);
     let drug_initiation_rate_multiplier = policy.drug_initiation_rate_multiplier.unwrap_or(1.0);
     let drug_cessation_rate_multiplier = policy.drug_cessation_rate_multiplier.unwrap_or(1.0);
-    // Policy 4: equal global access — override per-region multipliers with high-income (NA) reference values
+    // Equal-access policy uses North American reference values for selected regional
+    // initiation, cessation, and testing multipliers.
     let equalize_regional_access = policy.equalize_regional_access;
 
     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
@@ -2551,7 +2398,6 @@ pub(crate) fn apply_rules(
         *flag = false;
     }
 
-    // --- all these parameter lookups at the top so they're in scope everywhere ---
     let transfer_prob = store
         .globals
         .microbiome_resistance_transfer_probability_per_day;
@@ -2560,7 +2406,7 @@ pub(crate) fn apply_rules(
     let antibiotic_init_log_odds_symptomatic = store
         .globals
         .antibiotic_initiation_log_odds_symptomatic_infection;
-    let antibiotic_init_log_odds_sepsis = store.globals.antibiotic_initiation_log_odds_sepsis; // NEW
+    let antibiotic_init_log_odds_sepsis = store.globals.antibiotic_initiation_log_odds_sepsis;
     let antibiotic_init_log_odds_hospitalized =
         store.globals.antibiotic_initiation_log_odds_hospitalized;
     let antibiotic_init_log_odds_test_identified =
@@ -2578,7 +2424,7 @@ pub(crate) fn apply_rules(
     let random_drug_cessation_prob = store.globals.random_drug_cessation_probability;
     let resistance_test_result_delay_days = param_cache.resistance_test_result_delay_days;
 
-    // --- Pre-compute per-individual constants that were previously looked up inside the per-bacteria loop ---
+    // Values shared by every bacterium update for this individual-day.
     let cached_majority_r_evolution_rate = param_cache.majority_r_evolution_rate;
     let cached_max_resistance_level = param_cache.max_resistance_level;
     let cached_test_delay_days = param_cache.test_delay_days;
@@ -2599,42 +2445,32 @@ pub(crate) fn apply_rules(
         param_cache.microbiome_clearance_on_drug_treatment;
     let cached_drug_evaluation_days = param_cache.drug_evaluation_days;
 
-    // update non-infection, bacteria or antibiotic-specific variables
-    // need a variable for vulnerability to serious toxicity ?
     individual.age += 1;
 
-    // ---  Update Contact and Exposure Levels ---
-    //  update immunodeficiency status based on onset/recovery rates and type
-
+    // Update immunodeficiency state.
     let immunodeficiency_params = &store.immunodeficiency;
 
-    // Get rates for both types
     let temp_onset_rate = immunodeficiency_params.temporary_onset_rate();
     let temp_recovery_rate = immunodeficiency_params.temporary_recovery_rate();
     let chronic_onset_rate = immunodeficiency_params.chronic_onset_rate();
     let chronic_recovery_rate = immunodeficiency_params.chronic_recovery_rate();
 
-    // Get age-based probability for chronic vs temporary assignment
     let chronic_probability = immunodeficiency_params.chronic_probability(individual.age);
 
     match individual.immunodeficiency_type {
         Some(ImmunodeficiencyType::Temporary) => {
-            // Currently has temporary immunodeficiency, check for recovery
             if rng.gen_bool(temp_recovery_rate) {
                 individual.immunodeficiency_type = None;
             }
         }
         Some(ImmunodeficiencyType::Chronic) => {
-            // Currently has chronic immunodeficiency, check for recovery
             if rng.gen_bool(chronic_recovery_rate) {
                 individual.immunodeficiency_type = None;
             }
         }
         None => {
-            // Not currently immunodeficient, check for onset
             let total_onset_rate = temp_onset_rate + chronic_onset_rate;
             if rng.gen_bool(total_onset_rate) {
-                // Determine type based on age
                 if rng.gen_bool(chronic_probability) {
                     individual.immunodeficiency_type = Some(ImmunodeficiencyType::Chronic);
                 } else {
@@ -2644,8 +2480,7 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // Get parameters from config.rs once per individual for this time step
-    // Logistic hospitalization parameters
+    // Logistic hospitalization parameters.
     let hosp_base_log_odds = store.globals.hospitalization_base_log_odds;
     let hosp_log_odds_per_age_year = store.globals.hospitalization_log_odds_per_age_year;
     let hosp_log_odds_sepsis = store.globals.hospitalization_log_odds_sepsis;
@@ -2660,11 +2495,9 @@ pub(crate) fn apply_rules(
     let max_days_in_hospital = store.globals.hospital_max_days.max(0.0) as u32;
     let prevent_discharge_with_sepsis = store.globals.hospital_prevent_discharge_with_sepsis > 0.5;
 
-    // Check if individual has any active sepsis
     let has_sepsis = individual.sepsis.iter().any(|&s| s);
 
-    // Check if individual has a severe symptomatic infection (level above threshold with symptoms)
-    // This drives pre-antibiotic era hospitalizations and ensures illness itself causes admission
+    // Symptomatic burden can trigger admission independently of antibiotic availability.
     let has_severe_symptomatic_infection =
         individual.level.iter().enumerate().any(|(b_idx, &lvl)| {
             lvl > hosp_symptomatic_level_threshold
@@ -2673,22 +2506,18 @@ pub(crate) fn apply_rules(
     let has_active_infection = individual.level.iter().any(|&lvl| lvl > INFECTION_EPS);
     let has_serious_resistance_test = has_serious_resistance_test_positive(individual);
 
-    // Potentially get hospitalized (if not currently hospitalized)
     if !individual.hospital_status.is_hospitalized() {
-        // Calculate hospitalization probability using LOGISTIC MODEL
+        // Daily admission follows a logistic model:
         // P(hospitalization) = 1 / (1 + exp(-log_odds))
         // log_odds = base + age_effect + sepsis_effect + symptomatic_infection_effect + region_effect
 
         let age_years = individual.age as f64 / 365.0;
         let mut log_odds = hosp_base_log_odds + (age_years * hosp_log_odds_per_age_year);
 
-        // Strong sepsis admission effect - sepsis patients are very likely to be hospitalized
         if has_sepsis {
             log_odds += hosp_log_odds_sepsis;
         }
 
-        // Severe symptomatic infection effect - patients with high bacterial burden + symptoms
-        // seek hospital care even without antibiotics being available (pre-antibiotic era driver)
         if has_severe_symptomatic_infection {
             log_odds += hosp_log_odds_symptomatic;
         }
@@ -2704,16 +2533,14 @@ pub(crate) fn apply_rules(
             .region
             .hospitalization_log_odds(individual.region_living);
 
-        // Logistic transformation: P = 1 / (1 + exp(-log_odds))
         let prob_hospitalization_today = 1.0 / (1.0 + (-log_odds).fast_exp());
 
         if rng.gen::<f64>() < prob_hospitalization_today {
             individual.hospital_status = HospitalStatus::InHospital;
-            individual.days_hospitalized = 0; // Initialize days hospitalized
+            individual.days_hospitalized = 0;
         }
     } else {
-        // If already hospitalized, consider recovery or max days limit
-        individual.days_hospitalized += 1; // Increment days hospitalized
+        individual.days_hospitalized += 1;
 
         // Determine if discharge is allowed
         // Only Tier 1 (always-inpatient) and reserve drugs block discharge; Tier 2 (OPAT) does not.
@@ -2730,46 +2557,37 @@ pub(crate) fn apply_rules(
                 });
 
         let can_discharge = if prevent_discharge_with_sepsis && has_sepsis {
-            false // Cannot discharge if patient has sepsis
+            false
         } else if has_active_infection {
-            false // Cannot discharge while any active infection remains above the model threshold
+            false
         } else if is_on_discharge_blocking_drug {
-            false // Cannot discharge if on Tier 1 / reserve IV drug
+            false
         } else {
-            true // Can otherwise discharge (includes OPAT-eligible Tier 2 drugs)
+            true
         };
 
-        // Potentially recover from hospitalization (only if discharge is allowed)
         if can_discharge && rng.gen::<f64>() < recovery_rate {
-            individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
+            individual.hospital_status = HospitalStatus::NotInHospital;
             individual.days_hospitalized = 0;
-            // println!("individual {} recovered from hospitalization.", individual.id);
         }
-        // discharge after max_days_in_hospital (only if discharge is allowed)
         else if can_discharge && individual.days_hospitalized >= max_days_in_hospital {
-            individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
+            individual.hospital_status = HospitalStatus::NotInHospital;
             individual.days_hospitalized = 0;
         }
     }
-    // --- end hospitalization Rules ---
 
-    // ---  region travel ---
+    // Region travel.
     let base_travel_prob = store.globals.travel_probability_per_day;
 
-    // Apply region-specific travel multiplier based on individual's home region
     let travel_prob = base_travel_prob * store.region.travel_multiplier(individual.region_living);
 
-    const VISIT_LENGTH_DAYS: u32 = 30; // Fixed visit length
+    const VISIT_LENGTH_DAYS: u32 = 30;
 
-    // Check if the individual is currently in their home region
     let at_home = individual.region_cur_in == individual.region_living;
 
     if at_home {
-        // If not hospitalized, consider initiating travel
         if !individual.hospital_status.is_hospitalized() && rng.gen::<f64>() < travel_prob {
-            // Initiate travel: select a random new region different from their living region
-            // We pre-define standard travel matrix probabilities.
-            // Notice: it no longer uses dynamic vectors!
+            // Select a destination from the home-region travel weights.
             let (raw_destinations, len) = match individual.region_living {
                 Region::NorthAmerica | Region::Europe | Region::Oceania => (
                     [
@@ -2842,7 +2660,7 @@ pub(crate) fn apply_rules(
             }
 
             let mut rand_val = rng.gen::<f64>() * total_weight;
-            let mut new_region = valid_destinations[dest_count - 1].0; // Default to last
+            let mut new_region = valid_destinations[dest_count - 1].0;
             for i in 0..dest_count {
                 if rand_val < valid_destinations[i].1 {
                     new_region = valid_destinations[i].0;
@@ -2852,60 +2670,46 @@ pub(crate) fn apply_rules(
             }
 
             individual.region_cur_in = new_region;
-            individual.days_visiting = 1; // Start the visit counter at 1
+            individual.days_visiting = 1;
         }
     } else {
-        // Individual is currently visiting another region
-        individual.days_visiting += 1; // Increment the visit duration
+        individual.days_visiting += 1;
 
-        // Check if the visit duration has been reached
         if individual.days_visiting >= VISIT_LENGTH_DAYS {
-            // End of visit, rto home region
-            individual.region_cur_in = individual.region_living; // Return to living region
-            individual.days_visiting = 0; // Reset visit counter
-                                          // println!("individual {} (Age: {}) returned home from a trip.",
-                                          //     time_step, individual.id, individual.age);
+            individual.region_cur_in = individual.region_living;
+            individual.days_visiting = 0;
         }
     }
-    // --- end region travel updates ---
 
-    // ---  sepsis risk  ---
+    // Sepsis onset.
     let mut under_medical_care_at_sepsis_onset = None;
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         let current_level = individual.level[b_idx];
 
         if current_level > 0.0 {
-            // Only calculate sepsis onset risk if not already septic from this bacteria
             if !individual.sepsis[b_idx] {
                 let last_infected_day = individual.date_last_infected[b_idx];
-                let duration_of_infection = (time_step as i32 - last_infected_day).max(0); // Ensure non-negative duration
+                let duration_of_infection = (time_step as i32 - last_infected_day).max(0);
 
-                // Logistic regression model for sepsis risk
-                // Retrieve logistic parameters, falling back to global defaults
+                // Daily sepsis onset follows a logistic model.
                 let sepsis_baseline_log_odds = store.bacteria.sepsis_baseline_log_odds(b_idx);
                 let log_odds_infection_level =
                     store.bacteria.sepsis_log_odds_infection_level(b_idx);
                 let log_odds_infection_duration =
                     store.bacteria.sepsis_log_odds_infection_duration(b_idx);
 
-                // ENHANCED BACTERIA SEPSIS RISK CALCULATION
-                // Combines: bacteria-specific baseline risk plus age-dependent interactions
                 let age_specific_log_odds =
                     param_cache.bacteria_age_log_odds(b_idx, individual.age.max(0) as u32);
 
-                // Add syndrome-specific sepsis risk (infection site effect)
-                // This allows the same bacteria to have different sepsis risks depending on infection site
-                // e.g., E. coli UTI vs E. coli bacteremia have very different sepsis risks
+                // Syndrome captures infection-site differences within a bacterium.
                 let syndrome_log_odds = if individual.infectious_syndrome[b_idx] > 0 {
                     store
                         .syndrome
                         .sepsis_log_odds(individual.infectious_syndrome[b_idx] as usize)
                 } else {
-                    0.0 // No syndrome specified, no effect
+                    0.0
                 };
 
-                // Add regional sepsis risk factors (healthcare access, population density, resources)
-                // Uses per-region parameters for fine-grained differentiation
                 let region_log_odds = match individual.region_living {
                     Region::NorthAmerica => {
                         store.globals.log_odds_sepsis_onset_region_north_america
@@ -2917,17 +2721,16 @@ pub(crate) fn apply_rules(
                         store.globals.log_odds_sepsis_onset_region_south_america
                     }
                     Region::Africa => store.globals.log_odds_sepsis_onset_region_africa,
-                    Region::Home => 0.0, // Neutral/no effect for home region
+                    Region::Home => 0.0,
                 };
 
-                // Add immunodeficiency effect on sepsis onset
                 let immunodeficiency_log_odds = if individual.immunodeficiency_type.is_some() {
                     store.globals.log_odds_sepsis_onset_immunosuppressed
                 } else {
                     0.0
                 };
 
-                // Add hospitalization effect on sepsis onset (sicker patients more likely to develop sepsis)
+                // Hospitalization is a configured risk-state covariate.
                 let hospitalization_log_odds = if individual.hospital_status.is_hospitalized() {
                     store.globals.log_odds_sepsis_onset_hospitalized
                 } else {
@@ -2943,9 +2746,6 @@ pub(crate) fn apply_rules(
                     store.globals.log_odds_sepsis_onset_not_under_care,
                 );
 
-                // COMPREHENSIVE SEPSIS RISK CALCULATION
-                // Integrates: bacteria risk, age interactions, syndrome site, regional factors,
-                // immunodeficiency, hospitalization status, and whether under care
                 let log_odds_sepsis = sepsis_baseline_log_odds
                     + (current_level * log_odds_infection_level)
                     + (duration_of_infection as f64 * log_odds_infection_duration)
@@ -2956,10 +2756,8 @@ pub(crate) fn apply_rules(
                     + hospitalization_log_odds
                     + not_under_care_log_odds;
 
-                // EXPLICIT H. PYLORI SEPSIS PREVENTION
-                // If H. pylori is the only infection, force sepsis risk to zero
+                // H. pylori alone cannot initiate sepsis in the model.
                 let prob_sepsis_today = if bacteria == "helicobacter_pylori" {
-                    // Check if this is the only active infection
                     let other_infections_exist = individual
                         .level
                         .iter()
@@ -2967,40 +2765,31 @@ pub(crate) fn apply_rules(
                         .any(|(idx, &level)| idx != b_idx && level > INFECTION_EPS);
 
                     if !other_infections_exist {
-                        // H. pylori as sole infection = ZERO sepsis risk
-                        // Also clear any existing sepsis status from H. pylori
                         if individual.sepsis[b_idx] {
                             individual.sepsis[b_idx] = false;
                         }
                         0.0
                     } else {
-                        // H. pylori + other bacteria = use calculated risk
                         1.0 / (1.0 + (-log_odds_sepsis).fast_exp())
                     }
                 } else {
-                    // Non-H. pylori bacteria = use calculated risk
                     1.0 / (1.0 + (-log_odds_sepsis).fast_exp())
                 };
 
                 if rng.gen::<f64>() < prob_sepsis_today {
-                    // Set sepsis status to true for this bacteria and record onset day
                     individual.sepsis[b_idx] = true;
                     individual.sepsis_onset_day[b_idx] = time_step as i32;
                     events.record_sepsis_onset(b_idx);
                 }
             }
-            // Note: Recovery logic will be applied later, after death risk is calculated
         } else {
-            // If infection has cleared, sepsis should also clear
             if individual.sepsis[b_idx] {
                 individual.sepsis[b_idx] = false;
             }
         }
     }
-    // --- end sepsis updates ---
-
-    // --- drug updates---
-    // Empiric prescribing can use only syndromes that are clinically visible now.
+    // Drug use.
+    // Empiric prescribing uses syndromes from active infections whose symptom state has latched.
     let mut active_syndrome_ids_buf = [0usize; 10];
     let active_syndrome_ids =
         collect_active_symptomatic_syndromes(individual, &mut active_syndrome_ids_buf);
@@ -3008,14 +2797,13 @@ pub(crate) fn apply_rules(
     let active_modelled_bacterial_infection_present =
         individual.level.iter().any(|&level| level > INFECTION_EPS);
     let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
-    // Only count identified infections that also have symptoms (can't identify asymptomatic infections clinically)
+    // The identification boost is limited to active infections with a latched symptom state.
     let has_any_identified_infection = individual
         .test_identified_infection
         .iter()
         .enumerate()
         .any(|(b_idx, &identified)| identified && individual.infection_has_caused_symptoms[b_idx]);
 
-    // --- count number of drugs currently being used ---
     let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
 
     let mut syndrome_administration_multiplier: f64 = 1.0;
@@ -3026,31 +2814,27 @@ pub(crate) fn apply_rules(
 
     let mut drugs_initiated_this_time_step: usize = 0;
 
-    // --- drug stopping ---
+    // Drug cessation.
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         if individual.cur_use_drug[drug_idx] {
             let mut relevant_infection_active_for_this_drug = false;
             let mut primary_bacteria_idx: Option<usize> = None;
             let mut highest_bacteria_level = 0.0;
 
-            // Find the most significant bacteria infection relevant to this drug
+            // Use the highest-level recognized infection for the cessation parameter.
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
-                    // Check if bacteria treatment was recognized in current year
                     let current_year = 1930.0 + (time_step as f64 / 365.0);
                     if let Some(recognition_year) = store.bacteria.treatment_recognition_year(b_idx)
                     {
                         if current_year < recognition_year {
-                            // Skip this bacteria - treatment not yet recognized, don't continue drugs for it
                             continue;
                         }
                     }
 
-                    // Use potency_when_no_r to determine if drug is relevant for this bacteria
                     let drug_potency = param_cache.potency(b_idx, drug_idx);
                     if drug_potency > 0.0 {
                         relevant_infection_active_for_this_drug = true;
-                        // Track the bacteria with highest level (most significant infection)
                         if individual.level[b_idx] > highest_bacteria_level {
                             highest_bacteria_level = individual.level[b_idx];
                             primary_bacteria_idx = Some(b_idx);
@@ -3062,52 +2846,45 @@ pub(crate) fn apply_rules(
             let mut stop_drug = false;
 
             if !relevant_infection_active_for_this_drug {
-                // No relevant infection - use higher cessation rate
                 let random_cessation_if_no_infection = store
                     .globals
                     .random_drug_cessation_probability_if_no_active_infection;
-                // Apply policy multiplier for shorter courses
                 let adjusted_cessation =
                     (random_cessation_if_no_infection * drug_cessation_rate_multiplier).min(0.99);
                 if rng.gen_bool(adjusted_cessation) {
                     stop_drug = true;
                 }
             } else {
-                // Calculate bacteria-specific and region-specific cessation probability
                 let base_cessation_prob = primary_bacteria_idx
                     .map(|bacteria_idx| store.bacteria.drug_cessation_probability[bacteria_idx])
                     .unwrap_or(random_drug_cessation_prob);
 
-                // Apply regional multiplier based on individual's current region
-                // Policy 4: equal access → use North America reference (0.85) for all regions
+                // Equal access substitutes the North American cessation reference.
                 let region_multiplier = if equalize_regional_access {
-                    0.85 // North America high-income cessation reference
+                    0.85
                 } else {
                     store.region.cessation_multiplier(individual.region_cur_in)
                 };
 
-                // Apply Syndrome-Specific Duration Modifiers (Crucial for Site Penetration Logic)
-                // Low penetration sites (Bone, CNS) require much longer treatment courses.
-                // Multiplier < 1.0 extends duration (reduces daily stop probability).
+                // Fixed syndrome modifiers reduce daily cessation for longer modeled courses.
                 let mut syndrome_duration_multiplier = 1.0;
                 if let Some(b_idx) = primary_bacteria_idx {
                     let syndrome = individual.infectious_syndrome[b_idx];
                     syndrome_duration_multiplier = match syndrome {
-                        4 => 0.5,  // Bloodstream (Endocarditis risk): 2x longer
-                        5 => 0.8,  // Intra-abdominal (Abscess risk): 1.25x longer
-                        6 => 0.3,  // CNS (Meningitis/Abscess): 3.3x longer
-                        8 => 0.5, // Genital (PID/Syphilis): 2x longer (often treated past symptoms)
-                        9 => 0.15, // Bone/Joint (Osteomyelitis): ~6x longer (weeks vs days)
-                        _ => 1.0, // UTI(1), Skin(2), Resp(3), GI(7), Other(10) use baseline
+                        4 => 0.5,
+                        5 => 0.8,
+                        6 => 0.3,
+                        8 => 0.5,
+                        9 => 0.15,
+                        _ => 1.0,
                     };
                 }
 
-                // Apply policy multiplier for shorter/longer courses (stewardship intervention)
                 let final_cessation_prob = (base_cessation_prob
                     * region_multiplier
                     * drug_cessation_rate_multiplier
                     * syndrome_duration_multiplier)
-                    .min(0.99); // Cap at 99%
+                    .min(0.99);
 
                 if rng.gen_bool(final_cessation_prob) {
                     stop_drug = true;
@@ -3119,24 +2896,22 @@ pub(crate) fn apply_rules(
             if stop_drug {
                 stop_drug_course(individual, drug_idx);
 
-                // Update drug counter
                 update_drug_counter(individual);
 
-                // Check if stopping while infection persists (restart window logic)
+                // Drug-to-infection attribution is not stored, so cessation updates every
+                // infection currently tracked as being under treatment.
                 for bacteria_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[bacteria_idx] > 0.1 && // Still infected (threshold for meaningful infection)
+                    if individual.level[bacteria_idx] > 0.1 &&
                        individual.bacteria_level_at_drug_start[bacteria_idx].is_some()
                     {
-                        // Record cessation for restart window tracking
                         individual.drug_stopped_with_infection_day[bacteria_idx] =
                             Some(time_step as i32);
                         individual.bacteria_level_at_drug_cessation[bacteria_idx] =
                             Some(individual.level[bacteria_idx]);
-                        individual.stopped_drug_index[bacteria_idx] = Some(drug_idx); // Track which drug was stopped
+                        individual.stopped_drug_index[bacteria_idx] = Some(drug_idx);
                         individual.restart_window_assessed[bacteria_idx] = false;
                     }
 
-                    // Reset treatment failure tracking when drug is stopped naturally
                     if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
                         clear_treatment_tracking(individual, bacteria_idx);
                     }
@@ -3145,18 +2920,17 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // apply decay if stopped, or set to initial level if continued/re-initiated.
+    // Active courses stay at their configured level; stopped drugs decay by half-life.
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         let drug_initial_level = store.drug.initial_level(drug_idx);
         if individual.cur_use_drug[drug_idx] {
             individual.cur_level_drug[drug_idx] = drug_initial_level;
         } else {
-            // Use exponential decay based on drug-specific half-life
             let half_life_days = store.drug.half_life_days(drug_idx);
-            let decay_constant = (2.0_f64).fast_ln() / half_life_days; // k = ln(2) / t_half
-            let decay_factor = (-decay_constant).fast_exp(); // e^(-k*t) where t=1 day
+            let decay_constant = (2.0_f64).fast_ln() / half_life_days;
+            let decay_factor = (-decay_constant).fast_exp();
             let new_drug_level = individual.cur_level_drug[drug_idx] * decay_factor;
-            // Set levels below INFECTION_EPS to zero so residual traces do not keep treatments active
+            // Remove negligible residual exposure.
             individual.cur_level_drug[drug_idx] = if new_drug_level < INFECTION_EPS {
                 0.0
             } else {
@@ -3165,8 +2939,7 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // --- drug initiation (two-stage process) ---
-    // Stage 1: Decide whether to start any antibiotic
+    // Drug initiation first decides whether to prescribe, then selects a drug.
     let region_cur_str = individual.region_cur_in.as_str();
     let region_liv_str = individual.region_living.as_str();
     let mut available_drugs_buf = [0usize; 70];
@@ -3186,7 +2959,8 @@ pub(crate) fn apply_rules(
     }
     let available_drugs = &available_drugs_buf[..available_drugs_len];
     let available_drugs_count = available_drugs.len();
-    let min_available_drugs = 5; // Adjustable threshold
+    let min_available_drugs = 5;
+    // Compensate initiation odds when the historical formulary contains fewer than five drugs.
     let scaling_factor = if available_drugs_count < min_available_drugs && available_drugs_count > 0
     {
         (min_available_drugs as f64) / (available_drugs_count as f64)
@@ -3194,51 +2968,42 @@ pub(crate) fn apply_rules(
         1.0
     };
 
-    // Restriction: if already using three or more drugs, cannot start another (allow up to 3 drugs for severe infections)
+    // No individual can exceed three concurrent antibiotics.
     if num_drugs_currently_used + drugs_initiated_this_time_step < 3 && available_drugs_count > 0 {
-        // Stage 1: Calculate probability to start any antibiotic using LOGISTIC MODEL
+        // Daily initiation follows a logistic model:
         // P(initiation) = 1 / (1 + exp(-log_odds))
         // log_odds = base + sum of applicable effects (additive in log-odds space)
-        // This naturally bounds P ∈ (0,1) without clamping
 
-        // Build log-odds by adding applicable effects
         let mut log_odds = antibiotic_init_base_log_odds;
 
-        // Symptomatic infection present, including newly acquired infections.
-        // Blocking day-0 symptomatic starts suppresses clinically plausible early treatment.
+        // Apply the configured effect for active infections with a latched symptom state.
         if symptomatic_infection_present {
             log_odds += antibiotic_init_log_odds_symptomatic;
         }
 
-        // Sepsis present - strong emergency care logic
-        // This ensures septic patients get treated almost immediately regardless of
-        // region or other factors, reflecting emergency medical necessity.
+        // Sepsis adds the configured emergency-treatment effect.
         if individual.sepsis.iter().any(|&s| s) {
             log_odds += antibiotic_init_log_odds_sepsis;
         }
 
-        // Inpatients are more likely to receive earlier empiric treatment once infection is active.
+        // Hospitalization adds the configured initiation effect.
         if individual.hospital_status.is_hospitalized() {
             log_odds += antibiotic_init_log_odds_hospitalized;
         }
 
-        // Laboratory test has identified an infection
         if has_any_identified_infection {
             log_odds += antibiotic_init_log_odds_test_identified;
         }
 
-        // Already on antibiotic therapy (modest boost for layered/combination therapy)
         if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
             log_odds += antibiotic_init_log_odds_already_on_drug;
         }
 
-        // Immunocompromised patients - prophylactic prescribing
         if individual.immunodeficiency_type.is_some() {
             log_odds += antibiotic_init_log_odds_immunodeficiency;
         }
 
-        // No clinical indication (no symptomatic infection, not immunocompromised)
-        // This is a penalty term that reduces odds when prescribing without justification
+        // Penalize starts without a symptomatic or immunodeficiency indication.
         if !symptomatic_infection_present && individual.immunodeficiency_type.is_none() {
             log_odds += antibiotic_init_log_odds_no_indication;
         }
@@ -3249,33 +3014,26 @@ pub(crate) fn apply_rules(
             log_odds += syndrome_administration_multiplier.fast_ln();
         }
 
-        // Apply scaling factor for limited drug availability (converted to log-odds)
         if scaling_factor != 1.0 && scaling_factor > 0.0 {
             log_odds += scaling_factor.fast_ln();
         }
 
-        // Regional healthcare access adjustment
-        // Reflects disparities in access to prescribers and antibiotic availability
-        // Policy 4: equal access → use North America reference (0.0) for all regions
+        // Equal access removes the regional initiation adjustment, using the North
+        // American reference value of zero.
         if !equalize_regional_access {
             log_odds += store
                 .region
                 .antibiotic_initiation_log_odds(individual.region_living);
         }
-        // (North America reference value is 0.0, so no adjustment needed when equalizing)
-
-        // Apply policy adjustment for drug initiation rate (stewardship intervention)
-        // Multiplier < 1.0 reduces initiation (less unnecessary prescribing)
-        // Convert multiplier to log-odds adjustment: ln(0.85) ≈ -0.16 reduces odds by ~15%
+        // This policy multiplier applies to all initiation odds.
         if drug_initiation_rate_multiplier != 1.0 && drug_initiation_rate_multiplier > 0.0 {
             log_odds += drug_initiation_rate_multiplier.fast_ln();
         }
 
-        // Logistic transformation: P = 1 / (1 + exp(-log_odds))
         let start_any_antibiotic_prob = 1.0 / (1.0 + (-log_odds).fast_exp());
 
         if rng.gen_bool(start_any_antibiotic_prob) {
-            // Identify primary bacteria for drug score tracking (highest level among infected bacteria)
+            // Retain the highest-level infection for event attribution.
             let mut primary_bacteria_idx = -1i32;
             let mut highest_bacteria_level = 0.0;
             for b_idx in 0..BACTERIA_LIST.len() {
@@ -3287,17 +3045,9 @@ pub(crate) fn apply_rules(
                 }
             }
 
-            // Store primary bacteria index for this drug selection event
             individual.bacteria_on_selection_day = primary_bacteria_idx;
 
-            // Stage 2: Choose the most appropriate drug using weighted probabilistic selection
-            // Score each available drug and collect scores for probabilistic selection
-            // NOTE: TB-specific multi-drug selection logic is not implemented here because:
-            // 1. Current potency-based scoring already favors effective TB drugs (rifampicin=0.6, FQs=0.4-0.5)
-            // 2. Multi-drug synergy system activates automatically when ≥2 TB drugs are selected
-            // 3. Implementing TB-specific simultaneous multi-drug initiation would require substantial
-            //    modification to this single-drug selection framework
-            // 4. Clinical TB programs often start with sequential drug addition anyway due to tolerance testing
+            // This pass selects one drug; combination therapy accrues through later starts.
             let prophylaxis_candidate =
                 !symptomatic_infection_present && individual.immunodeficiency_type.is_some();
             let misdiagnosed_symptom_start =
@@ -3355,11 +3105,7 @@ pub(crate) fn apply_rules(
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
                 let prophylaxis_score = if prophylaxis_candidate {
                     match drug_name {
-                        // Keep generic immunodeficiency prophylaxis tightly constrained to a small
-                        // outpatient-oriented set rather than the full empiric pool.
-                        // Focused calibration pass reduces TMP-SMX overshoot while modestly
-                        // restoring macrolide and fluoroquinolone prophylaxis pressure.
-                        // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
+                        // Generic immunodeficiency prophylaxis uses this restricted candidate set.
                         "trim_sulf" => 0.45,
                         "azithromycin" => 1.0,
                         "ciprofloxacin" => 1.2,
@@ -3393,8 +3139,7 @@ pub(crate) fn apply_rules(
                     continue;
                 }
 
-                // BLOCK: Age-based contraindications
-                // Tetracyclines avoid < 8 years due to tooth discoloration/bone growth issues
+                // The model excludes tetracycline, doxycycline, and minocycline below age eight.
                 if individual.age < 2920
                     && matches!(drug_name, "tetracycline" | "doxycycline" | "minocycline")
                 {
@@ -3407,20 +3152,15 @@ pub(crate) fn apply_rules(
                     continue;
                 }
 
-                // BLOCK: Syndrome restrictions for compartment-limited agents.
-                // Nitrofurantoin and fosfomycin should stay restricted to uncomplicated lower UTI use,
-                // while furazolidone is better modeled as a GI-local agent rather than a urinary drug.
+                // Syndrome restrictions for compartment-limited agents.
                 if matches!(drug_name, "nitrofurantoin" | "furazolidone" | "fosfomycin") {
-                    // Block if sepsis present
                     if individual.sepsis.iter().any(|&s| s) {
                         continue;
                     }
-                    // Block if bloodstream infection (syndrome 4) present
                     if active_syndrome_ids.contains(&4) {
                         continue;
                     }
                     if matches!(drug_name, "nitrofurantoin" | "fosfomycin") {
-                        // Allow when UTI syndrome (1) is present (can be alongside other syndromes).
                         let has_uti_syndrome = active_syndrome_ids.contains(&1);
                         if !has_uti_syndrome {
                             continue;
@@ -3428,7 +3168,6 @@ pub(crate) fn apply_rules(
                     }
 
                     if matches!(drug_name, "furazolidone") {
-                        // Treat furazolidone as GI-local rather than a urinary agent.
                         let is_gi_only = !active_syndrome_ids.is_empty()
                             && active_syndrome_ids.iter().all(|&sid| sid == 7);
                         if !is_gi_only {
@@ -3437,9 +3176,8 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // BLOCK: Topical/niche anti-staphylococcal agents outside plausible use.
-                // Retapamulin remains skin-focused; fusidic acid is broader but should still be
-                // excluded from sepsis, undifferentiated starts, and non-targeted systemic use.
+                // Restrict both drugs to skin contexts; targeted fusidic acid can also cover
+                // the modeled bone/joint context.
                 if matches!(drug_name, "retapamulin" | "fusidic_a") {
                     let has_skin_only_syndrome = !active_syndrome_ids.is_empty()
                         && active_syndrome_ids.iter().all(|&sid| sid == 2);
@@ -3544,7 +3282,7 @@ pub(crate) fn apply_rules(
                     score *= empiric_multiplier;
                 }
 
-                // INTRINSIC ACTIVITY AND PATHOGEN GUIDELINES apply only when infections are identified
+                // Identified infections use intrinsic potency and model-specific prescribing weights.
                 let mut max_potency_against_infections: f64 = 0.0;
                 if targeted_selection {
                     if identified_bacteria.is_empty() {
@@ -3553,13 +3291,11 @@ pub(crate) fn apply_rules(
                     let mut has_meaningful_activity = false;
 
                     for &b_idx in identified_bacteria {
-                        // Check if bacteria treatment was recognized in current year
                         let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
                             store.bacteria.treatment_recognition_year(b_idx)
                         {
                             if current_year < recognition_year {
-                                // Skip this bacteria - treatment not yet recognized
                                 continue;
                             }
                         }
@@ -3572,22 +3308,22 @@ pub(crate) fn apply_rules(
                         }
                     }
 
-                    // Block drugs with insufficient activity against any current infection
+                    // Require meaningful activity against at least one identified infection.
                     if !has_meaningful_activity && symptomatic_infection_present {
-                        continue; // Skip this drug entirely - no meaningful activity
+                        continue;
                     }
 
-                    // PATHOGEN-SPECIFIC CLINICAL GUIDELINES: Boost appropriate drugs, block inappropriate ones
+                    // Bacterium-specific targeted-selection weights.
                     for &b_idx in identified_bacteria {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
-                            // streptococcus_agalactiae (Group B Strep)
-                            ("streptococcus_agalactiae", "penicillin_g" | "ampicillin") => score *= 25.0, // Preferred
-                            ("streptococcus_agalactiae", "cefazolin" | "cephalexin" | "ceftriaxone") => score *= 10.0, // Alternatives
-                            ("streptococcus_agalactiae", "vancomycin" | "clindamycin") => score *= 5.0, // Penicillin-allergic
-                            ("streptococcus_agalactiae", "tetracycline") => score *= 0.1, // Poor choice
+                            // Streptococcus agalactiae.
+                            ("streptococcus_agalactiae", "penicillin_g" | "ampicillin") => score *= 25.0,
+                            ("streptococcus_agalactiae", "cefazolin" | "cephalexin" | "ceftriaxone") => score *= 10.0,
+                            ("streptococcus_agalactiae", "vancomycin" | "clindamycin") => score *= 5.0,
+                            ("streptococcus_agalactiae", "tetracycline") => score *= 0.1,
 
-                            // pseudomonas_aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
+                            // Pseudomonas aeruginosa.
                             ("pseudomonas_aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
                             ("pseudomonas_aeruginosa", "ceftazidime") => score *= 10.0,
                             ("pseudomonas_aeruginosa", "cefepime") => score *= 10.0,
@@ -3601,18 +3337,16 @@ pub(crate) fn apply_rules(
                                 "penicillin_g" | "ampicillin" | "amoxicillin" | "cephalexin"
                                 | "ceftriaxone" | "vancomycin",
                             ) => {
-                                score = 0.0; // Completely block - no intrinsic activity
+                                score = 0.0;
                                 break;
                             }
 
-                            // staphylococcus_aureus - DRAMATICALLY strengthen MSSA vs MRSA logic
+                            // Staphylococcus aureus, with coarse calendar-era weights.
                             ("staphylococcus_aureus", "penicillin_g") => {
-                                // Early periods: penicillin should dominate (MSSA era)
                                 if time_step < 7300 {
-                                    // First ~20 years
                                     score *= 25.0;
                                 } else {
-                                    score *= 2.5; // Retain modest preference where susceptible
+                                    score *= 2.5;
                                 }
                             }
                             ("staphylococcus_aureus", "flucloxacillin") => {
@@ -3623,24 +3357,20 @@ pub(crate) fn apply_rules(
                                 "amoxicillin_clavulanate" | "ampicillin_sulbactam",
                             ) => {
                                 if time_step < 10950 {
-                                    // First ~30 years
-                                    score *= 350.0; // MASSIVELY STRENGTHENED to compete with penicillins (was 80.0)
+                                    score *= 350.0;
                                 } else {
-                                    score *= 100.0; // STRENGTHENED for continued MSSA utility (was 20.0)
+                                    score *= 100.0;
                                 }
                             }
                             ("staphylococcus_aureus", "vancomycin") => {
                                 if time_step < 7300 {
-                                    // Early years
                                     score *= 1.5;
                                 } else {
-                                    // MRSA era
                                     score *= 18.0;
                                 }
                             }
                             ("staphylococcus_aureus", "linezolid" | "tedizolid") => {
                                 if time_step >= 10950 {
-                                    // Late period only
                                     score *= 12.0;
                                 } else {
                                     score *= 0.5;
@@ -3648,7 +3378,7 @@ pub(crate) fn apply_rules(
                             }
                             ("staphylococcus_aureus", "clindamycin") => score *= 5.0,
 
-                            // staphylococcus_epidermidis - device-associated, glycopeptide preferred
+                            // Staphylococcus epidermidis.
                             ("staphylococcus_epidermidis", "vancomycin") => {
                                 score *= 14.0;
                             }
@@ -3669,7 +3399,7 @@ pub(crate) fn apply_rules(
                                 score *= 0.05;
                             }
 
-                            // stenotrophomonas_maltophilia - favor TMP-SMX/minocycline, avoid carbapenems/aminoglycosides
+                            // Stenotrophomonas maltophilia.
                             ("stenotrophomonas_maltophilia", "trim_sulf") => {
                                 score *= 14.0;
                             }
@@ -3692,10 +3422,10 @@ pub(crate) fn apply_rules(
                                 score *= 0.05;
                             }
 
-                            // streptococcus_pneumoniae - prefer penicillins and targeted agents
-                            ("streptococcus_pneumoniae", "penicillin_g") => score *= 100.0, // STRENGTHENED for drug class share (was 35.0)
-                            ("streptococcus_pneumoniae", "ampicillin") => score *= 110.0, // STRENGTHENED for drug class share (was 32.0)
-                            ("streptococcus_pneumoniae", "amoxicillin") => score *= 120.0, // STRENGTHENED for drug class share (was 35.0)
+                            // Streptococcus pneumoniae.
+                            ("streptococcus_pneumoniae", "penicillin_g") => score *= 100.0,
+                            ("streptococcus_pneumoniae", "ampicillin") => score *= 110.0,
+                            ("streptococcus_pneumoniae", "amoxicillin") => score *= 120.0,
                             (
                                 "streptococcus_pneumoniae",
                                 "amoxicillin_clavulanate" | "ampicillin_sulbactam",
@@ -3716,13 +3446,13 @@ pub(crate) fn apply_rules(
                                 score *= 0.15;
                             }
 
-                            // streptococcus_pyogenes - strong penicillin preference
-                            ("streptococcus_pyogenes", "penicillin_g") => score *= 150.0, // STRENGTHENED for drug class share (was 45.0)
+                            // Streptococcus pyogenes.
+                            ("streptococcus_pyogenes", "penicillin_g") => score *= 150.0,
                             ("streptococcus_pyogenes", "ampicillin" | "amoxicillin") => {
-                                score *= 130.0; // STRENGTHENED for drug class share (was 35.0)
+                                score *= 130.0;
                             }
                             ("streptococcus_pyogenes", "amoxicillin_clavulanate") => {
-                                score *= 120.0; // STRENGTHENED for drug class share (was 10.0)
+                                score *= 120.0;
                             }
                             (
                                 "streptococcus_pyogenes",
@@ -3736,12 +3466,12 @@ pub(crate) fn apply_rules(
                                 score *= 0.1;
                             }
 
-                            // haemophilus_influenzae - favor aminopenicillins with beta-lactamase coverage
+                            // Haemophilus influenzae.
                             ("haemophilus_influenzae", "amoxicillin_clavulanate") => {
-                                score *= 300.0; // MASSIVELY STRENGTHENED to compete with penicillins (was 60.0)
+                                score *= 300.0;
                             }
-                            ("haemophilus_influenzae", "ampicillin_sulbactam") => score *= 280.0, // MASSIVELY STRENGTHENED (was 55.0)
-                            ("haemophilus_influenzae", "amoxicillin") => score *= 50.0, // Keep moderate (was 10.0)
+                            ("haemophilus_influenzae", "ampicillin_sulbactam") => score *= 280.0,
+                            ("haemophilus_influenzae", "amoxicillin") => score *= 50.0,
                             ("haemophilus_influenzae", "ceftriaxone" | "cefuroxime") => {
                                 score *= 6.0;
                             }
@@ -3750,7 +3480,7 @@ pub(crate) fn apply_rules(
                                 "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "colistin",
                             ) => score *= 0.25,
 
-                            // neisseria_meningitidis - penicillin and third-gen cephalosporins preferred
+                            // Neisseria meningitidis.
                             ("neisseria_meningitidis", "penicillin_g" | "ampicillin") => {
                                 score *= 18.0;
                             }
@@ -3766,35 +3496,31 @@ pub(crate) fn apply_rules(
                                 | "linezolid",
                             ) => score *= 0.2,
 
-                            // E. coli - MASSIVELY strengthen first-line agents
+                            // Escherichia coli.
                             ("escherichia_coli", "ciprofloxacin") => score *= 7.0,
                             ("escherichia_coli", "nitrofurantoin") => score *= 3.5,
                             ("escherichia_coli", "trim_sulf") => score *= 3.0,
                             ("escherichia_coli", "ceftriaxone") => score *= 9.0,
-                            ("escherichia_coli", "amoxicillin_clavulanate") => score *= 50.0, // reduced from 150 (was originally 16.0); 150 was indefensible — revisit if drug class share drifts
-                            ("escherichia_coli", "ampicillin_sulbactam") => score *= 140.0, // MASSIVELY STRENGTHENED (was 10.0)
+                            ("escherichia_coli", "amoxicillin_clavulanate") => score *= 50.0,
+                            ("escherichia_coli", "ampicillin_sulbactam") => score *= 140.0,
                             ("escherichia_coli", "ampicillin") => {
                                 if time_step < 7300 {
-                                    // Early susceptible era
                                     score *= 15.0;
                                 } else {
                                     score *= 4.0;
                                 }
                             }
                             ("escherichia_coli", "meropenem" | "imipenem_c") => {
-                                // Carbapenems should be rare for E. coli except ESBL era
                                 if time_step >= 14600 {
-                                    // Later periods for ESBL
                                     score *= 6.0;
                                 } else {
                                     score *= 0.3;
                                 }
                             }
 
-                            // klebsiella_pneumoniae - strengthen appropriate agents
+                            // Klebsiella pneumoniae.
                             ("klebsiella_pneumoniae", "ceftriaxone") => {
                                 if time_step < 10950 {
-                                    // Before ESBL dominance
                                     score *= 10.0;
                                 } else {
                                     score *= 6.0;
@@ -3802,21 +3528,19 @@ pub(crate) fn apply_rules(
                             }
                             ("klebsiella_pneumoniae", "meropenem" | "imipenem_c") => {
                                 if time_step >= 10950 {
-                                    // ESBL era
                                     score *= 12.0;
                                 } else {
                                     score *= 4.0;
                                 }
                             }
                             ("klebsiella_pneumoniae", "ciprofloxacin") => score *= 4.5,
-                            ("klebsiella_pneumoniae", "piperacillin_tazobactam") => score *= 150.0, // MASSIVELY STRENGTHENED (was 15.0)
-                            ("klebsiella_pneumoniae", "amoxicillin_clavulanate") => score *= 120.0, // MASSIVELY STRENGTHENED (was 11.0)
+                            ("klebsiella_pneumoniae", "piperacillin_tazobactam") => score *= 150.0,
+                            ("klebsiella_pneumoniae", "amoxicillin_clavulanate") => score *= 120.0,
 
-                            // enterococcus_faecalis - strengthen appropriate agents
+                            // Enterococcus faecalis.
                             ("enterococcus_faecalis", "ampicillin") => score *= 20.0,
                             ("enterococcus_faecalis", "vancomycin") => {
                                 if time_step >= 10950 {
-                                    // VRE era
                                     score *= 12.0;
                                 } else {
                                     score *= 5.0;
@@ -3824,14 +3548,13 @@ pub(crate) fn apply_rules(
                             }
                             ("enterococcus_faecalis", "linezolid") => {
                                 if time_step >= 14600 {
-                                    // Late VRE era
                                     score *= 10.0;
                                 } else {
                                     score *= 2.0;
                                 }
                             }
 
-                            // enterococcus_faecium - more resistant, different pattern
+                            // Enterococcus faecium.
                             ("enterococcus_faecium", "ampicillin") => score *= 4.0,
                             ("enterococcus_faecium", "vancomycin") => {
                                 if time_step >= 10950 {
@@ -3849,15 +3572,13 @@ pub(crate) fn apply_rules(
                             }
                             ("enterococcus_faecium", "quinu_dalfo") => {
                                 if time_step >= 16425 {
-                                    // Very late introduction
                                     score *= 10.0;
                                 }
                             }
 
-                            // acinetobacter_baumannii - highly resistant pathogen
+                            // Acinetobacter baumannii.
                             ("acinetobacter_baumannii", "meropenem" | "imipenem_c") => {
                                 if time_step < 18250 {
-                                    // Before extensive carbapenem resistance
                                     score *= 12.0;
                                 } else {
                                     score *= 6.0;
@@ -3865,7 +3586,6 @@ pub(crate) fn apply_rules(
                             }
                             ("acinetobacter_baumannii", "colistin") => {
                                 if time_step >= 14600 {
-                                    // Later periods for MDR
                                     score *= 10.0;
                                 } else {
                                     score *= 5.0;
@@ -3873,47 +3593,44 @@ pub(crate) fn apply_rules(
                             }
                             ("acinetobacter_baumannii", "ampicillin_sulbactam") => score *= 12.0,
 
-                            // Salmonella species (Typhi, Paratyphi, iNTS)
-                            // Guidelines: Cipro (1st line adult), Ceftriaxone (severe/child), Azithro (uncomplicated)
-                            // Avoid: Metronidazole (no activity), Aminoglycosides (poor intracellular), 1st/2nd gen Cephs (ineffective)
+                            // Salmonella groups represented in the model.
                             (
                                 "salmonella_enterica_serovar_typhi"
                                 | "salmonella_enterica_serovar_paratyphi_a"
                                 | "invasive_non-typhoidal_salmonella_spp.",
                                 "ciprofloxacin" | "ofloxacin" | "levofloxacin",
-                            ) => score *= 15.0, // Primary choice (fluoroquinolones)
+                            ) => score *= 15.0,
                             (
                                 "salmonella_enterica_serovar_typhi"
                                 | "salmonella_enterica_serovar_paratyphi_a"
                                 | "invasive_non-typhoidal_salmonella_spp.",
                                 "ceftriaxone",
-                            ) => score *= 14.0, // Severe disease / children
+                            ) => score *= 14.0,
                             (
                                 "salmonella_enterica_serovar_typhi"
                                 | "salmonella_enterica_serovar_paratyphi_a"
                                 | "invasive_non-typhoidal_salmonella_spp.",
                                 "azithromycin",
-                            ) => score *= 12.0, // Alternative
+                            ) => score *= 12.0,
                             (
                                 "salmonella_enterica_serovar_typhi"
                                 | "salmonella_enterica_serovar_paratyphi_a"
                                 | "invasive_non-typhoidal_salmonella_spp.",
                                 "trim_sulf" | "ampicillin" | "amoxicillin",
-                            ) => score *= 8.0, // Historical options (susceptibility permitting)
+                            ) => score *= 8.0,
                             (
                                 "salmonella_enterica_serovar_typhi"
                                 | "salmonella_enterica_serovar_paratyphi_a"
                                 | "invasive_non-typhoidal_salmonella_spp.",
                                 "metronidazole" | "gentamicin" | "tobramycin" | "amikacin" | "cefazolin" | "cephalexin",
-                            ) => score *= 0.05, // Ineffective or poor clinical activity
+                            ) => score *= 0.05,
 
-                            // proteus_spp. - intrinsically resistant to nitrofurantoin/tetracyclines, sensitive to penicillins
+                            // Proteus spp.
                             ("proteus_spp.", "ampicillin" | "amoxicillin" | "penicillin_g") => score *= 15.0,
                             ("proteus_spp.", "ceftriaxone" | "cefepime") => score *= 10.0,
                             ("proteus_spp.", "nitrofurantoin" | "doxycycline" | "minocycline" | "tetracycline") => score *= 0.1,
 
-                            // "Other" Enterobacterales (Enterobacter, Serratia, Citrobacter, Morganella)
-                            // These often have AmpC (resistant to 1st/2nd gen Cephs) but are erroneously getting Aminoglycosides in sim
+                            // Other modeled Enterobacterales.
                             (
                                 "enterobacter_spp."
                                 | "enterobacter_cloacae"
@@ -3922,45 +3639,30 @@ pub(crate) fn apply_rules(
                                 | "morganella_spp."
                                 | "proteus_spp.",
                                 "gentamicin" | "tobramycin" | "amikacin",
-                            ) => score *= 0.05, // Reserve status - do not use as primary empiric
+                            ) => score *= 0.05,
 
-                            // --- neisseria_gonorrhoeae ---
-                            // Single-dose STI treatment. Initiation_multipliers handle era-specific
-                            // preferences (penicillin_g pre-1987; cipro 1987-2007; ceftriaxone 2007+).
-                            // Here: explicitly block drugs with no legitimate role in GC management,
-                            // preventing them from competing even when potency > 0 or resistance is high.
+                            // Gonorrhoea era weights are applied later; this list is excluded from
+                            // targeted gonorrhoea selection in every era.
                             (
                                 "neisseria_gonorrhoeae",
-                                // Glycopeptides: GC is gram-negative; wall synthesis target absent
                                 "vancomycin" | "teicoplanin" | "dalbavancin"
-                                // Oxazolidinones: no clinically meaningful GC activity
                                 | "linezolid" | "tedizolid"
-                                // Lipopeptide / streptogramin: no GC spectrum
                                 | "daptomycin" | "quinu_dalfo"
-                                // Topical / staphylococcal-only agents
                                 | "retapamulin" | "fusidic_a"
-                                // C. diff-only narrow-spectrum agents
                                 | "fidaxomicin"
-                                // Carbapenems: not indicated for uncomplicated GC (reserved as last resort
-                                // for XDR; first_second_line penalty handles residual score suppression)
                                 | "meropenem" | "imipenem_c" | "ertapenem",
                             ) => {
-                                score = 0.0; // No clinical role in gonorrhea treatment
+                                score = 0.0;
                             }
 
-                            // --- MDR-TB (mdr_mycobacterium_tuberculosis) ---
-                            // WHO MDR-TB treatment: Group A (levo/moxi + linezolid) always used;
-                            // Group B (clofazimine, cycloserine) not modelled; Group C (amikacin) for XDR.
-                            // This model includes MDR-TB to capture prolonged FQ/linezolid/aminoglycoside
-                            // consumption and its selection pressure on other bacteria.
-                            // Strongly boost the real MDR-TB backbone drugs; penalise all non-TB antibiotics.
-                            ("mdr_mycobacterium_tuberculosis", "levofloxacin" | "moxifloxacin") => score *= 30.0, // Group A — core MDR-TB drugs
-                            ("mdr_mycobacterium_tuberculosis", "linezolid") => score *= 25.0, // Group B — always included in modern regimens
-                            ("mdr_mycobacterium_tuberculosis", "ciprofloxacin" | "ofloxacin") => score *= 8.0, // Older FQs — used where levo/moxi unavailable
-                            ("mdr_mycobacterium_tuberculosis", "amikacin") => score *= 10.0, // Group C injectable — XDR/pre-XDR
-                            ("mdr_mycobacterium_tuberculosis", "gentamicin" | "tobramycin") => score *= 0.05, // Wrong aminoglycosides for TB
-                            ("mdr_mycobacterium_tuberculosis", "rifampicin") => score *= 0.01, // MDR = rifampicin-resistant by definition
-                            // Drugs with zero TB potency — completely block from targeted TB selection
+                            // The model represents a compressed subset of MDR-TB regimen drugs.
+                            ("mdr_mycobacterium_tuberculosis", "levofloxacin" | "moxifloxacin") => score *= 30.0,
+                            ("mdr_mycobacterium_tuberculosis", "linezolid") => score *= 25.0,
+                            ("mdr_mycobacterium_tuberculosis", "ciprofloxacin" | "ofloxacin") => score *= 8.0,
+                            ("mdr_mycobacterium_tuberculosis", "amikacin") => score *= 10.0,
+                            ("mdr_mycobacterium_tuberculosis", "gentamicin" | "tobramycin") => score *= 0.05,
+                            ("mdr_mycobacterium_tuberculosis", "rifampicin") => score *= 0.01,
+                            // Exclude the model's zero-potency TB candidates.
                             (
                                 "mdr_mycobacterium_tuberculosis",
                                 "erythromycin" | "azithromycin" | "clarithromycin"
@@ -3978,23 +3680,18 @@ pub(crate) fn apply_rules(
                                 | "ceftazidime_avibactam" | "ceftolozane_tazobactam"
                                 | "flucloxacillin" | "cefixime",
                             ) => {
-                                score = 0.0; // No TB activity — block entirely from targeted selection
+                                score = 0.0;
                             }
 
-                            _ => {} // No specific guideline
+                            _ => {}
                         }
 
-                        // --- Stewardship: Restrict Reserve/Toxic Drugs ---
-
-                        // Severe restriction on Colistin (Polymyxin)
-                        // It is a last-resort drug with high toxicity. Should only be used when essential.
+                        // Global targeted-selection restriction for colistin.
                         if matches!(drug_name, "colistin") {
                             score *= 0.00000001;
                         }
 
-                        // --- Stewardship: Avoid recently toxicity-stopped drugs ---
-                        // If this drug was recently discontinued due to toxicity,
-                        // strongly penalise but don't absolutely block (may be last resort).
+                        // Penalize recent toxicity-related discontinuation without a hard block.
                         {
                             let avoidance_days =
                                 store.globals.toxicity_discontinuation_avoidance_days;
@@ -4003,12 +3700,11 @@ pub(crate) fn apply_rules(
                                 && last_tox_stop != i32::MIN
                                 && (time_step as i32 - last_tox_stop) < avoidance_days
                             {
-                                score *= 0.001; // 1000× penalty — strong avoidance
+                                score *= 0.001;
                             }
                         }
 
-                        // --- Stewardship: Promote Narrow Spectrum Beta-Lactams ---
-                        // Favor Penicillins for Streptococcus, Enterococcus, Syphilis, Neisseria when susceptible
+                        // Narrow-spectrum preference for selected identified bacteria.
                         if matches!(drug_name, "penicillin_g" | "ampicillin" | "amoxicillin") {
                             if matches!(
                                 bacteria_name,
@@ -4019,7 +3715,7 @@ pub(crate) fn apply_rules(
                                     | "treponema_pallidum"
                                     | "neisseria_meningitidis"
                             ) {
-                                score *= 15.0; // STRENGTHENED: Strong preference for appropriate narrow spectrum (was 3.0)
+                                score *= 15.0;
                             }
                         }
 
@@ -4042,20 +3738,18 @@ pub(crate) fn apply_rules(
                                         | "escherichia_coli"
                                 ));
                             if !carbapenem_indicated {
-                                score *= 0.12; // Enforce stewardship penalty even after species boosts
+                                score *= 0.12;
                             }
                         }
                     }
                 }
 
-                // If drug was blocked by pathogen-specific guidelines, skip it
                 if score <= 0.0 {
                     continue;
                 }
 
                 if targeted_selection {
-                    // CLINICAL CONCENTRATION FORCE: Heavily penalize drugs that aren't first/second-line
-                    // This creates realistic clinical concentration patterns
+                    // Prefer the model's bacterium-specific candidate sets.
                     let mut is_first_or_second_line = false;
                     for &b_idx in identified_bacteria {
                         let bacteria_name = BACTERIA_LIST[b_idx];
@@ -4077,7 +3771,7 @@ pub(crate) fn apply_rules(
                                 "linezolid",
                                 "tedizolid",
                                 "clindamycin",
-                                "rifampicin", // combination partner for MRSA prosthetic joint, biofilm, decolonisation (DAIR protocols)
+                                "rifampicin",
                             ],
                             "staphylococcus_epidermidis" => vec![
                                 "vancomycin",
@@ -4160,7 +3854,7 @@ pub(crate) fn apply_rules(
                                 "colistin",
                                 "ampicillin_sulbactam",
                                 "minocycline",
-                                "rifampicin", // MDR/XDR combination regimens (colistin+rifampicin, sulbactam+rifampicin)
+                                "rifampicin",
                             ],
                             "enterobacter_spp."
                             | "enterobacter_cloacae"
@@ -4189,47 +3883,40 @@ pub(crate) fn apply_rules(
                                 "ofloxacin",
                                 "amikacin",
                             ],
-                            // N. gonorrhoeae — all guideline-appropriate drugs across all eras.
-                            // Initiation_multipliers handle era-specific preferences (cipro 1987-2007,
-                            // ceftriaxone post-2007). Listing all legitimate options ensures only
-                            // truly inappropriate drugs (carbapenems, glycopeptides, etc.) receive
-                            // the off-guideline ×0.15 penalty during targeted GC selection.
+                            // All-era gonorrhoea candidates; calendar weights are applied separately.
                             "neisseria_gonorrhoeae" => vec![
-                                "ceftriaxone",     // 2007+: WHO/CDC sole first-line (500 mg IM)
-                                "cefixime",        // Oral 3GC alternative (some guidelines)
-                                "azithromycin", // Dual-therapy partner / single-dose (until 2020s)
-                                "doxycycline",  // Chlamydia co-treatment; pre-1987 alternative
-                                "tetracycline", // Historical (1950s–1987)
-                                "ciprofloxacin", // 1987–2007: sole first-line in high-income settings
-                                "ofloxacin",     // 1990–2007: co-first-line FQ option
-                                "penicillin_g",  // pre-1987: dominant first-line
-                                "amoxicillin",   // Oral penicillin alternative
-                                "gentamicin",    // WHO-recommended single-dose alternative
-                                "trim_sulf",     // 1968–1990: TMP-SMX
-                                "chloramphenicol", // Historical pre-penicillin era
-                                "sulfanilamide", // 1937–1965: original sulfonamide era
+                                "ceftriaxone",
+                                "cefixime",
+                                "azithromycin",
+                                "doxycycline",
+                                "tetracycline",
+                                "ciprofloxacin",
+                                "ofloxacin",
+                                "penicillin_g",
+                                "amoxicillin",
+                                "gentamicin",
+                                "trim_sulf",
+                                "chloramphenicol",
+                                "sulfanilamide",
                             ],
-                            // Shigella spp. — all era-appropriate guideline drugs across eras.
-                            // Initiation_multipliers drive era-specific preferences; listing all
-                            // legitimate options prevents truly inappropriate drugs (carbapenems,
-                            // vancomycin, daptomycin, etc.) from getting the ×0.15 off-guideline penalty.
+                            // All-era Shigella candidates; calendar weights are applied separately.
                             "shigella_spp." => vec![
-                                "ciprofloxacin",   // 1990–2010: dominant first-line
-                                "ofloxacin",       // 1990+: widely used in Asia/Africa
-                                "levofloxacin",    // 1997+: alternative FQ
-                                "azithromycin",    // 2010+: preferred for FQ-resistant strains
-                                "ceftriaxone",     // 2010+: hospital second-line
-                                "ampicillin",      // 1961–2000: historical first-line
-                                "trim_sulf",       // 1968–2000: historical first-line (TMP-SMX)
-                                "tetracycline",    // 1948–1990: historical first-line
-                                "doxycycline",     // 1967–2010: preferred tetracycline alternative
-                                "chloramphenicol", // 1949–1975: historical dominant first-line
-                                "nalidixic_acid", // 1963–1990: first LMIC FQ-class; drove gyrA mutations
-                                "sulfanilamide",  // 1938–1968: sole pre-antibiotic-era first-line
-                                "gentamicin",     // Severe/hospital cases (IV)
-                                "pivmecillinam",  // Some European/LMIC guidelines
+                                "ciprofloxacin",
+                                "ofloxacin",
+                                "levofloxacin",
+                                "azithromycin",
+                                "ceftriaxone",
+                                "ampicillin",
+                                "trim_sulf",
+                                "tetracycline",
+                                "doxycycline",
+                                "chloramphenicol",
+                                "nalidixic_acid",
+                                "sulfanilamide",
+                                "gentamicin",
+                                "pivmecillinam",
                             ],
-                            _ => vec![], // For other bacteria, no specific restriction
+                            _ => vec![],
                         };
 
                         if first_second_line_drugs.contains(&drug_name) {
@@ -4238,31 +3925,28 @@ pub(crate) fn apply_rules(
                         }
                     }
 
-                    // Heavily penalize drugs that aren't first/second-line for current infections
                     if symptomatic_infection_present && !is_first_or_second_line {
-                        score *= 0.15; // Apply strong but not overwhelming penalty to off-guideline choices
+                        score *= 0.15;
                     }
 
-                    // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (REDUCED)
+                    // Potency bands provide additional positive weighting.
                     if max_potency_against_infections >= 0.5 {
-                        score *= 4.0; // Very high potency - boosted (was 15.0)
+                        score *= 4.0;
                     } else if max_potency_against_infections >= 0.3 {
-                        score *= 2.5; // High potency - boosted (was 10.0)
+                        score *= 2.5;
                     } else if max_potency_against_infections >= 0.15 {
-                        score *= 1.5; // Moderate potency - boosted (was 6.0)
+                        score *= 1.5;
                     } else if max_potency_against_infections >= minimal_potency_threshold {
-                        score *= 1.1; // Minimal acceptable potency (was 2.0)
+                        score *= 1.1;
                     }
 
                     let mut max_bacteria_specific_multiplier: f64 = 1.0;
                     for &b_idx in identified_bacteria {
-                        // Check if bacteria treatment was recognized in current year
                         let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
                             store.bacteria.treatment_recognition_year(b_idx)
                         {
                             if current_year < recognition_year {
-                                // Skip this bacteria - treatment not yet recognized
                                 continue;
                             }
                         }
@@ -4281,8 +3965,8 @@ pub(crate) fn apply_rules(
                 if !identified_ast_results_ready {
                     let mut regional_resistance_penalty = 1.0_f64;
 
-                    // Override resistance penalty for penicillins treating Strep species
-                    // These pathogens remain highly susceptible to penicillins in real-world practice
+                    // Model override: selected penicillin-bacterium pairs do not receive a
+                    // regional-surveillance penalty before AST results are ready.
                     let penicillin_strep_override = if has_any_identified_infection
                         && PENICILLIN_CLASS_DRUGS.contains(&drug_name)
                     {
@@ -4301,10 +3985,10 @@ pub(crate) fn apply_rules(
                     };
 
                     if penicillin_strep_override {
-                        regional_resistance_penalty = 1.0; // No penalty for penicillin-susceptible Strep
+                        regional_resistance_penalty = 1.0;
                     } else {
-                        // Override: gentler resistance penalty for BL/BLI combinations against E. coli/Klebsiella
-                        // Beta-lactamase inhibitors maintain efficacy despite ESBL resistance
+                        // Model override: selected BL/BLI combinations receive a gentler
+                        // regional-surveillance penalty.
                         let bl_bli_reduced_penalty = if has_any_identified_infection
                             && matches!(
                                 drug_name,
@@ -4367,12 +4051,9 @@ pub(crate) fn apply_rules(
                                         1.0
                                     };
 
-                                // Apply gentler penalty for BL/BLI combinations against E. coli/Klebsiella
                                 let adjusted_penalty =
                                     if bl_bli_reduced_penalty && resistance_penalty < 1.0 {
-                                        // Interpolate between no penalty (1.0) and full penalty
-                                        // Use square root to reduce severity: e.g., 0.25 -> 0.50, 0.50 -> 0.71
-                                        resistance_penalty.sqrt().max(0.5) // Cap minimum at 50% penalty
+                                        resistance_penalty.sqrt().max(0.5)
                                     } else {
                                         resistance_penalty
                                     };
@@ -4381,7 +4062,7 @@ pub(crate) fn apply_rules(
                                     regional_resistance_penalty.min(adjusted_penalty);
                             }
                         }
-                    } // Close else block for penicillin_strep_override
+                    }
                     score *= regional_resistance_penalty;
                 }
 
@@ -4416,13 +4097,9 @@ pub(crate) fn apply_rules(
                         | "tigecycline"
                 );
                 if has_any_identified_infection {
-                    // RESERVE DRUG GATE FOR TARGETED THERAPY
-                    // Even with identified infection, carbapenems and other reserve agents should require
-                    // documented prior treatment failure to maintain antimicrobial stewardship
+                    // Targeted reserve candidates are strongly penalized unless a recent
+                    // treatment failure or severe hospital context supports escalation.
                     if reserve_candidate {
-                        // Targeted therapy can escalate to reserve agents, but only when there is
-                        // evidence that an earlier regimen already failed; otherwise the model
-                        // would jump straight to carbapenems/last-line drugs too often.
                         let mut failure_documented = false;
                         let failure_memory_days = store.globals.drug_failure_memory_days;
                         for b_idx in 0..BACTERIA_LIST.len() {
@@ -4441,12 +4118,8 @@ pub(crate) fn apply_rules(
                             }
                         }
                         if !failure_documented && !severe_hospital_gram_negative_context {
-                            // Block reserve drugs in targeted therapy without prior failure
-                            // Apply heavy penalty rather than complete block to allow rare exceptions
-                            score *= 0.02; // 50x penalty - reserve drugs very rarely chosen without failure
+                            score *= 0.02;
                         } else if !failure_documented {
-                            // Severe hospitalized Gram-negative infections sometimes warrant
-                            // immediate reserve escalation before a formal prior-failure step.
                             score *= 0.65;
                         }
                     }
@@ -4494,7 +4167,7 @@ pub(crate) fn apply_rules(
                             score *= 1.25;
                         }
                     } else {
-                        // Empirical therapy: rely on syndrome-level scoring rather than omniscient potency
+                        // Empiric therapy uses syndrome scores rather than pathogen potency.
                         let empiric_broad_bonus =
                             store.globals.empiric_therapy_broad_spectrum_bonus;
                         let empiric_ineffective_penalty =
@@ -4503,10 +4176,8 @@ pub(crate) fn apply_rules(
                         let has_any_activity = empiric_signal_present;
 
                         if reserve_candidate {
-                            // Empiric reserve use is deliberately stricter than targeted use:
-                            // require both a recent failure signal and surveillance evidence that
-                            // high resistance pressure justifies spending a last-line agent.
-                            // Stage therapy: require documented recent failure before escalating to reserve agents
+                            // Empiric reserve use requires recent failure and high surveillance
+                            // resistance, except in the severe hospital context.
                             let mut failure_documented = false;
                             let failure_memory_days = store.globals.drug_failure_memory_days;
                             for b_idx in 0..BACTERIA_LIST.len() {
@@ -4527,7 +4198,7 @@ pub(crate) fn apply_rules(
                             }
 
                             if !failure_documented && !severe_hospital_gram_negative_context {
-                                score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
+                                score = 0.0;
                             } else {
                                 let mut high_resistance_observed = false;
                                 if !regional_surveillance_bacteria.is_empty() {
@@ -4558,10 +4229,8 @@ pub(crate) fn apply_rules(
                                 if !high_resistance_observed
                                     && !severe_hospital_gram_negative_context
                                 {
-                                    score = 0.0; // Without high resistance pressure, reserve agents stay off empirical regimens
+                                    score = 0.0;
                                 } else if severe_hospital_gram_negative_context {
-                                    // Preserve a strong stewardship penalty, but allow empiric
-                                    // reserve use in severe hospitalized Gram-negative scenarios.
                                     score *= 0.5;
                                 }
                             }
@@ -4575,10 +4244,9 @@ pub(crate) fn apply_rules(
                             if drug_spectrum >= 3.5 {
                                 score *= empiric_broad_bonus;
                             } else if drug_spectrum <= 2.0 {
-                                score *= 1.2; // MINOR BONUS: Actively promote narrow-spectrum empirical agents (was 2.5)
+                                score *= 1.2;
                             }
                         } else {
-                            // Drug has no syndrome-informed activity signal - heavily penalize
                             score *= empiric_ineffective_penalty;
                         }
                     }
@@ -4586,7 +4254,7 @@ pub(crate) fn apply_rules(
 
                 if reserve_candidate {
                     let base_reserve_penalty = store.globals.reserve_drug_score_penalty;
-                    // Apply policy multiplier: higher multiplier = stronger penalty (more restrictive)
+                    // The policy value is an exponent on the base reserve score factor.
                     let reserve_penalty =
                         base_reserve_penalty.powf(reserve_drug_penalty_multiplier);
                     if reserve_penalty >= 0.0 {
@@ -4594,17 +4262,16 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // Shared stewardship penalties should apply to both empirical and targeted choices.
+                // Shared score restrictions apply to empiric and targeted choices.
                 let has_sepsis = individual.sepsis.iter().any(|&s| s);
 
                 if matches!(drug_name, "gentamicin" | "tobramycin" | "amikacin") {
-                    // Aminoglycosides: restrict to serious infection contexts rather than blanket penalty
                     let is_severe_context = has_sepsis
                         || active_syndrome_ids
                             .iter()
                             .any(|&sid| matches!(sid, 4 | 5 | 6 | 10));
                     if !is_severe_context {
-                        score *= 0.04; // Penalize strongly in non-severe contexts
+                        score *= 0.04;
                     }
 
                     let pseudomonas_targeted_tobramycin = targeted_selection
@@ -4664,9 +4331,7 @@ pub(crate) fn apply_rules(
                         score *= 0.2;
                     }
                 }
-                // Apply drug availability multiplier (drug is already in available_drugs
-                // so introduction check passed, but we still use the continuous availability
-                // value as a score weight)
+                // Availability is both an eligibility gate and a continuous score weight.
                 let drug_availability = get_drug_availability_time_aware(
                     drug_name,
                     region_cur_str,
@@ -4675,32 +4340,26 @@ pub(crate) fn apply_rules(
                 );
 
                 score *= drug_availability;
-                // Introduction gate: drugs not yet introduced get zero score.
-                // (available_drugs pre-filter already handles this, but guard defensively)
+                // Retain a defensive introduction gate after scoring.
                 if let Some(intro_time) = get_drug_introduction_time_step(drug_name) {
                     if time_step < intro_time {
                         score = 0.0;
                     }
                 }
 
-                // Store drug score for the primary bacteria
                 if primary_bacteria_idx >= 0 {
                     individual.drug_score_on_selection_day[drug_idx] = score;
                 }
 
-                // Only include drugs with positive scores for selection
                 if score > 0.0 {
                     drug_scores_buf[drug_scores_len] = (drug_idx, score);
                     drug_scores_len += 1;
                 }
             }
 
-            // Weighted probabilistic selection from scored drugs
             let drug_scores = &drug_scores_buf[..drug_scores_len];
             if !drug_scores.is_empty() {
-                // Add stochasticity parameter to control randomness vs determinism
-                // Apply randomness scaling: lower value = more deterministic (clinically realistic)
-                // Value of 0.5 = strongly favor best drugs, 1.0 = moderate, 2.0+ = random
+                // Lower temperatures concentrate probability on higher-scoring drugs.
                 let mut weights_buf = [0.0f64; 70];
                 for i in 0..drug_scores.len() {
                     let score = drug_scores[i].1;
@@ -4708,17 +4367,13 @@ pub(crate) fn apply_rules(
                 }
                 let weights = &weights_buf[..drug_scores.len()];
 
-                // Handle edge case where all weights are zero or infinite
                 if let Some(chosen_idx) = sample_weighted_index(weights, rng) {
                     let chosen_drug_idx = drug_scores[chosen_idx].0;
 
-                    // Initiate the selected drug
                     let drug_name = DRUG_SHORT_NAMES[chosen_drug_idx];
 
-                    // Hospitalization trigger based on IV drug tier:
-                    // Tier 1 (always inpatient) and reserve drugs: force admission unconditionally.
-                    // Tier 2 (OPAT-eligible): probabilistic admission (opat_admission_probability, default 0.70).
-                    // Tier 3 (light IV / historical IM): no forced admission.
+                    // Tier 1 and reserve drugs force admission. OPAT-eligible drugs use
+                    // a configured admission probability; other drugs do not force admission.
                     if !individual.hospital_status.is_hospitalized() {
                         let should_admit = if requires_hospital_management(drug_name) {
                             true
@@ -4748,27 +4403,21 @@ pub(crate) fn apply_rules(
                     };
                     start_drug_course(individual, chosen_drug_idx, time_step, course_context);
 
-                    // SMART SWITCHING: If this is targeted therapy (infection identified),
-                    // stop existing drugs that are ineffective against the identified pathogen.
-                    // This prevents "overlap" days where patients take both ineffective empiric
-                    // and effective targeted drugs simultaneously.
+                    // In targeted care, stop existing drugs whose baseline potency is below
+                    // threshold for every identified bacterium.
                     if !identified_bacteria.is_empty() {
                         let min_potency =
                             store.globals.minimal_potency_threshold_for_drug_selection;
                         for existing_drug_idx in 0..DRUG_SHORT_NAMES.len() {
                             if existing_drug_idx == chosen_drug_idx {
                                 continue;
-                            } // Don't stop what we just started
+                            }
                             if !individual.cur_use_drug[existing_drug_idx] {
                                 continue;
-                            } // Only check active drugs
+                            }
 
-                            // Check effectiveness against identified bacteria
-                            // If a drug is effective against ANY identified bacteria, keep it (e.g. for co-infection)
-                            // If it is effective against NONE, stop it.
                             let mut has_efficacy = false;
                             for &b_idx in identified_bacteria {
-                                // Use the same potency logic as selection
                                 let potency = param_cache.potency(b_idx, existing_drug_idx);
                                 if potency >= min_potency {
                                     has_efficacy = true;
@@ -4776,11 +4425,9 @@ pub(crate) fn apply_rules(
                                 }
                             }
 
-                            // If existing drug is ineffective against all identified targets, stop it
                             if !has_efficacy {
                                 stop_drug_course(individual, existing_drug_idx);
-                                // Note: We don't record this as "failure" or "toxicity stop", just a clinical switch.
-                                // We reset heuristics to avoid "Restart Window" logic thinking we stopped prematurely
+                                // A selection-driven switch is not recorded as failure or toxicity.
                                 for b_idx in 0..BACTERIA_LIST.len() {
                                     if individual.drug_stopped_with_infection_day[b_idx].is_some()
                                         && individual.stopped_drug_index[b_idx]
@@ -4793,15 +4440,12 @@ pub(crate) fn apply_rules(
                             }
                         }
                     } else {
-                        // EMPIRIC SWITCHING: If this is EMPIRIC therapy (no ID), prevent polypharmacy
-                        // by stopping existing empiric drugs unless the patient is in severe condition (Sepsis).
-                        // This fixes the "Overlap" issue where mild cases (like Campylobacter) stack Metronidazole + Clarithromycin.
-                        // In real practice, if a patient fails first-line empiric, they usually SWAP to second-line, not ADD it.
+                        // Without an identified bacterium, a new nonsepsis start replaces all
+                        // other active drugs rather than adding coverage.
                         let has_sepsis = individual.sepsis.iter().any(|&s| s);
-                        let is_severe = has_sepsis; // Retain dual coverage for septic patients
+                        let is_severe = has_sepsis;
 
                         if !is_severe {
-                            // In non-severe empiric cases, assume "fail and switch" rather than "add-on".
                             for existing_drug_idx in 0..DRUG_SHORT_NAMES.len() {
                                 if existing_drug_idx == chosen_drug_idx {
                                     continue;
@@ -4810,10 +4454,8 @@ pub(crate) fn apply_rules(
                                     continue;
                                 }
 
-                                // Stop the existing drug to swap to the new one
                                 stop_drug_course(individual, existing_drug_idx);
 
-                                // Reset heuristics to prevent "Restart Window" from re-triggering the old drug
                                 for b_idx in 0..BACTERIA_LIST.len() {
                                     if individual.drug_stopped_with_infection_day[b_idx].is_some()
                                         && individual.stopped_drug_index[b_idx]
@@ -4827,7 +4469,6 @@ pub(crate) fn apply_rules(
                         }
                     }
 
-                    // Update drug counter
                     update_drug_counter(individual);
                     drugs_initiated_this_time_step += 1;
                     debug_assert!(
@@ -4849,10 +4490,10 @@ pub(crate) fn apply_rules(
                     }
                     individual.cur_level_drug[chosen_drug_idx] = chosen_initial_level;
 
-                    // Update treatment failure tracking for all infected bacteria
+                    // Drug-to-infection attribution is not stored, so a new course resets
+                    // failure tracking for every active infection.
                     for bacteria_idx in 0..BACTERIA_LIST.len() {
                         if individual.level[bacteria_idx] > 0.0 {
-                            // Record bacteria level at drug start and reset tracking
                             mark_new_treatment_course(
                                 individual,
                                 bacteria_idx,
@@ -4866,15 +4507,8 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // === DRUG TOXICITY RESERVOIR MODEL ===
-    // The "toxicity reservoir" is a per-drug accumulator that models how drug toxicity
-    // builds up during treatment and decays after stopping. Key properties:
-    //   - Accumulation: While on a drug, toxicity adds daily (drug_level × hazard_rate)
-    //   - Decay: Each day the reservoir decays exponentially (half-life ~7 days typical)
-    //   - Per-drug: Each antibiotic has its own reservoir (colistin more toxic than amoxicillin)
-    //   - Aggregated: All reservoirs sum to total toxicity exposure for death risk
-    // This captures the clinical reality that organ damage (nephrotoxicity, etc.) doesn't
-    // disappear instantly when treatment stops, and prolonged courses accumulate more risk.
+    // Each drug has a toxicity reservoir. Exposure adds hazard, configured half-lives
+    // produce exponential decay, and reservoirs sum for mortality and discontinuation.
     let default_half_life = store.globals.default_toxicity_reservoir_half_life_days;
     let default_decay_factor = if default_half_life > 0.0 {
         (-LN_2 / default_half_life).fast_exp()
@@ -4907,8 +4541,7 @@ pub(crate) fn apply_rules(
         aggregated_toxicity_hazard += individual.drug_toxicity_reservoir[drug_idx];
     }
 
-    // === MICROBIOME DISRUPTION RESERVOIR (ECOLOGICAL HANGOVER) ===
-    // Accumulate daily disruption from active drugs and decay logarithmically
+    // Microbiome disruption accumulates during exposure and decays exponentially.
     let disruption_half_life = store.globals.antibiotic_disruption_decay_half_life_days;
     let disruption_decay_factor = if disruption_half_life > 0.0 {
         (-LN_2 / disruption_half_life).fast_exp()
@@ -4924,11 +4557,8 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // === MULTIPLICATIVE MODEL FOR DRUG TOXICITY DEATH ===
-    // Death risk is directly proportional to accumulated toxicity in the reservoir.
-    // The hazard_per_unit_level values are pre-calibrated to give appropriate
-    // per-day death probabilities (typically 10^-7 to 10^-8 range).
-    // Multipliers adjust for patient factors that affect toxicity vulnerability.
+    // Toxicity mortality is linear in the summed reservoirs, with multiplicative
+    // age, immunodeficiency, and hospital modifiers.
 
     let age_years = individual.age as f64 / 365.0;
     let age_toxicity_multiplier = if age_years < 1.0 {
@@ -4956,16 +4586,13 @@ pub(crate) fn apply_rules(
     individual.current_toxicity_hazard = aggregated_toxicity_hazard;
     individual.mortality_risk_current_toxicity = toxicity_death_risk;
 
-    // --- Sub-lethal toxicity-triggered drug discontinuation ---
-    // If the adjusted toxicity risk exceeds a sub-lethal threshold, stop the most
-    // toxic active drug.  This models the far-more-common clinical response of
-    // discontinuing a drug when toxicity signs appear, rather than waiting for death.
+    // Above the configured discontinuation threshold, stop the active drug with the
+    // largest toxicity reservoir.
     let tox_disc_threshold = store.globals.toxicity_discontinuation_threshold;
     if tox_disc_threshold > 0.0
         && toxicity_death_risk > tox_disc_threshold
         && individual.current_number_of_drugs > 0
     {
-        // Find the currently-active drug with the highest toxicity reservoir
         let mut worst_drug_idx: Option<usize> = None;
         let mut worst_reservoir = 0.0_f64;
         for drug_idx in 0..DRUG_SHORT_NAMES.len() {
@@ -4978,19 +4605,17 @@ pub(crate) fn apply_rules(
         }
 
         if let Some(drug_idx) = worst_drug_idx {
-            // Stop this drug (same pattern as regular cessation)
             stop_drug_course(individual, drug_idx);
             update_drug_counter(individual);
 
-            // Record this as a toxicity stop for the avoidance window
             individual.toxicity_stopped_drug_day[drug_idx] = time_step as i32;
             events.record_toxicity_stop(drug_idx);
 
-            // Zero the reservoir so threshold isn't immediately re-triggered
-            // for the next-most-toxic drug on subsequent days
+            // Remove the stopped drug's accumulated contribution.
             individual.drug_toxicity_reservoir[drug_idx] = 0.0;
 
-            // Restart window tracking (same as regular cessation)
+            // Drug-to-infection attribution is not stored, so this updates all tracked
+            // active infections.
             for bacteria_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[bacteria_idx] > 0.1
                     && individual.bacteria_level_at_drug_start[bacteria_idx].is_some()
@@ -5009,16 +4634,12 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // --- Treatment failure tracking and assessment ---
-    // Update treatment days counter and assess treatment failure
+    // Treatment failure and restart assessment.
     for bacteria_idx in 0..BACTERIA_LIST.len() {
-        // Only track treatment days if there's an active infection
         if individual.level[bacteria_idx] > 0.0 {
-            // Increment treatment days if we have recorded a drug start
             if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
                 individual.days_on_current_treatment[bacteria_idx] += 1;
 
-                // Assess treatment failure if conditions are met
                 assess_treatment_failure(
                     individual,
                     time_step,
@@ -5030,17 +4651,14 @@ pub(crate) fn apply_rules(
                 );
             }
         } else {
-            // No active infection - reset all tracking
             clear_treatment_tracking(individual, bacteria_idx);
 
-            // Also clear restart window tracking since infection has resolved
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
             individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
             individual.stopped_drug_index[bacteria_idx] = None;
             individual.restart_window_assessed[bacteria_idx] = false;
         }
 
-        // Assess restart window (independent of current infection status)
         assess_restart_window(
             individual,
             time_step,
@@ -5051,10 +4669,8 @@ pub(crate) fn apply_rules(
         );
     }
 
-    // --- death
-
+    // Mortality.
     if individual.date_of_death.is_none() {
-        // --- New Logistic Background Mortality Model ---
         let mut total_log_odds = store.globals.background_mortality_baseline_log_odds;
 
         // Time-varying mortality component (1930-2035): reflects historical mortality decline
@@ -5068,7 +4684,7 @@ pub(crate) fn apply_rules(
         let end_years_since_1930 = 2035.0 - 1930.0;
         let time_multiplier = if half_life_years > 0.0 {
             let clamped_years = years_since_1930.clamp(0.0, end_years_since_1930);
-            let decay_rate = (2.0_f64).fast_ln() / half_life_years; // ln(2) / half_life
+            let decay_rate = (2.0_f64).fast_ln() / half_life_years;
             let end_decay = (-decay_rate * end_years_since_1930).fast_exp();
             let current_decay = (-decay_rate * clamped_years).fast_exp();
             let normalized_decay = if (1.0 - end_decay).abs() > f64::EPSILON {
@@ -5111,7 +4727,6 @@ pub(crate) fn apply_rules(
             total_log_odds += store.globals.log_odds_mortality_hospitalized;
         }
 
-        // Convert total log odds to probability
         let background_risk = 1.0 / (1.0 + (-total_log_odds).fast_exp());
 
         let background_risk = background_risk.min(1.0);
@@ -5181,11 +4796,9 @@ pub(crate) fn apply_rules(
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
         let mut sepsis_death_risk = 0.0;
         if has_sepsis {
-            // === LOGISTIC MODEL FOR SEPSIS DEATH ===
+            // Daily sepsis mortality follows a logistic model:
             // P(death) = 1 / (1 + exp(-log_odds))
-            // This gives a proper S-curve bounded by 0-1 without artificial clamping
 
-            // Start with base log-odds
             let mut log_odds = store.globals.sepsis_death_base_log_odds;
 
             // Age effect (log-odds scale)
@@ -5201,8 +4814,7 @@ pub(crate) fn apply_rules(
             };
             log_odds += age_log_odds;
 
-            // Region effect (healthcare quality) - convert multiplier to log-odds
-            // multiplier of 2.0 → log(2.0) ≈ 0.69 log-odds
+            // Convert the configured regional mortality multiplier to log odds.
             let region_sepsis_multiplier = store
                 .region
                 .sepsis_mortality_multiplier(individual.region_living);
@@ -5213,8 +4825,7 @@ pub(crate) fn apply_rules(
                 log_odds += store.globals.sepsis_death_log_odds_immunosuppressed;
             }
 
-            // Bacteria level effect - higher bacterial load = worse prognosis
-            // Find maximum bacteria level among septic infections (scale 0-5)
+            // The highest burden among septic infections drives the level effect.
             let max_septic_bacteria_level = individual
                 .sepsis
                 .iter()
@@ -5225,8 +4836,7 @@ pub(crate) fn apply_rules(
             log_odds +=
                 max_septic_bacteria_level * store.globals.sepsis_death_log_odds_bacteria_level;
 
-            // Duration effect with early-phase surge
-            // Sepsis mortality is front-loaded: ~60% of deaths occur in first 72 hours
+            // A configured early-phase term tapers before the later duration term applies.
             let max_sepsis_duration = individual
                 .sepsis
                 .iter()
@@ -5238,12 +4848,9 @@ pub(crate) fn apply_rules(
 
             let early_phase_days = store.globals.sepsis_death_early_phase_days;
             if max_sepsis_duration <= early_phase_days {
-                // Early phase: elevated acute risk (septic shock, cardiovascular collapse)
-                // Linearly taper from full early_phase bonus at day 0 to zero at early_phase_days
                 let early_phase_fraction = 1.0 - (max_sepsis_duration / early_phase_days);
                 log_odds += store.globals.sepsis_death_log_odds_early_phase * early_phase_fraction;
             } else {
-                // Late phase: gradual increase from multi-organ failure, secondary infections
                 let days_after_early = max_sepsis_duration - early_phase_days;
                 log_odds += days_after_early * store.globals.sepsis_death_log_odds_duration;
             }
@@ -5254,8 +4861,7 @@ pub(crate) fn apply_rules(
                 store.globals.sepsis_death_log_odds_not_under_care,
             );
 
-            // Per-organism CFR adjustment (e.g. meningococcal purpura fulminans, S. aureus endocarditis).
-            // Take the maximum override among all septic bacteria (worst-case organism drives outcome).
+            // The largest bacterium-specific log-odds override drives coinfection risk.
             let organism_cfr_delta = individual
                 .sepsis
                 .iter()
@@ -5267,23 +4873,18 @@ pub(crate) fn apply_rules(
                 log_odds += organism_cfr_delta;
             }
 
-            // Convert log-odds to probability using logistic function
-            // P = 1 / (1 + exp(-log_odds))
             sepsis_death_risk = 1.0 / (1.0 + (-log_odds).fast_exp());
         }
         let toxicity_death_risk_for_individual = individual.mortality_risk_current_toxicity;
 
-        // Independent cause-of-death evaluation: each cause is checked with its own random draw.
-        // Stop as soon as one cause kills the individual. Order: sepsis (most acute) → toxicity →
-        // infection (non-sepsis) → background mortality.
+        // Independent cause-specific draws are evaluated in this fixed attribution order:
+        // sepsis, toxicity, nonsepsis infection, then background mortality.
         let mut death_cause: Option<&str> = None;
 
-        // 1. Sepsis death (most acute/lethal - check first)
         if has_sepsis && sepsis_death_risk > 0.0 && rng.gen::<f64>() < sepsis_death_risk {
             death_cause = Some("sepsis_related");
         }
 
-        // 2. Drug toxicity death (acute adverse event)
         if death_cause.is_none()
             && toxicity_death_risk_for_individual > 0.0
             && rng.gen::<f64>() < toxicity_death_risk_for_individual
@@ -5291,7 +4892,6 @@ pub(crate) fn apply_rules(
             death_cause = Some("drug_toxicity_related");
         }
 
-        // 3. Infection (non-sepsis) death
         if death_cause.is_none()
             && infection_non_sepsis_risk > 0.0
             && rng.gen::<f64>() < infection_non_sepsis_risk
@@ -5299,17 +4899,14 @@ pub(crate) fn apply_rules(
             death_cause = Some("infection_non_sepsis_related");
         }
 
-        // 4. Background mortality (age-related, always possible)
         if death_cause.is_none() && background_risk > 0.0 && rng.gen::<f64>() < background_risk {
             death_cause = Some("background_mortality");
         }
 
-        // If any cause triggered death, record it
         if let Some(cause_label) = death_cause {
             individual.date_of_death = Some(time_step);
             individual.cause_of_death = Some(cause_label.to_string());
 
-            // Track death resolution for all current infections
             let resolution_type = match cause_label {
                 "sepsis_related" => InfectionResolutionType::DeathFromSepsis,
                 "infection_non_sepsis_related" => {
@@ -5319,7 +4916,7 @@ pub(crate) fn apply_rules(
                 _ => InfectionResolutionType::DeathFromBackground,
             };
 
-            // Record resolution for ALL bacteria where person is currently infected
+            // Every active infection receives the person's terminal resolution category.
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > INFECTION_EPS {
                     let resolution_idx = match resolution_type {
@@ -5336,18 +4933,15 @@ pub(crate) fn apply_rules(
             }
         }
     }
-    // --- death logic end
-
     // Death is terminal for this person-day. Preserve infection state at the moment of death for
     // attribution and do not consume random draws in rules that can no longer affect the person.
     if individual.date_of_death.is_some() {
         return events;
     }
 
-    // --- sepsis recovery logic (applied after death risk, only if individual is alive) ---
+    // Sepsis recovery is evaluated only after the day's mortality draws.
     if individual.date_of_death.is_none() {
         for b_idx in 0..BACTERIA_LIST.len() {
-            // Only consider recovery if individual currently has sepsis from this bacteria
             if individual.sepsis[b_idx] {
                 // Drop lingering sepsis once the triggering infection has cleared
                 if individual.level[b_idx] <= INFECTION_EPS {
@@ -5359,26 +4953,21 @@ pub(crate) fn apply_rules(
                     (time_step as i32 - individual.sepsis_onset_day[b_idx]).max(0);
                 let minimum_duration = store.globals.sepsis_minimum_duration_days;
 
-                // Only allow recovery after minimum duration
                 if sepsis_duration >= minimum_duration {
-                    // Logistic regression model for sepsis recovery
                     let base_log_odds = store.globals.sepsis_recovery_base_log_odds_per_day;
 
                     let mut total_log_odds = base_log_odds;
 
-                    // (1) Bacteria level effect - higher bacteria level decreases recovery probability
                     let bacteria_level_coefficient =
                         store.globals.sepsis_recovery_log_odds_bacteria_level;
                     total_log_odds += individual.level[b_idx] * bacteria_level_coefficient;
 
-                    // (2) Hospital status effect - being in hospital increases recovery probability
                     if individual.hospital_status.is_hospitalized() {
                         let hospital_coefficient =
                             store.globals.sepsis_recovery_log_odds_in_hospital;
                         total_log_odds += hospital_coefficient;
                     }
 
-                    // (3) Age effects with categories
                     let age_years = individual.age as f64 / 365.0;
                     let age_coefficient = if age_years < 1.0 {
                         store.globals.sepsis_recovery_log_odds_age_infant
@@ -5391,33 +4980,27 @@ pub(crate) fn apply_rules(
                     };
                     total_log_odds += age_coefficient;
 
-                    // (4) Severe immunosuppression effect
                     if individual.immunodeficiency_type.is_some() {
                         let immunosuppressed_coefficient =
                             store.globals.sepsis_recovery_log_odds_immunosuppressed;
                         total_log_odds += immunosuppressed_coefficient;
                     }
 
-                    // (5) Region-specific effect (healthcare quality and ICU availability)
+                    // Region-specific recovery adjustment.
                     total_log_odds += store
                         .region
                         .sepsis_recovery_log_odds(individual.region_living);
 
-                    // Convert log odds to probability using logistic function
                     let recovery_probability = 1.0 / (1.0 + (-total_log_odds).fast_exp());
 
-                    // Check for recovery
                     if rng.gen::<f64>() < recovery_probability {
                         individual.sepsis[b_idx] = false;
-                        // Keep sepsis_onset_day for tracking purposes (don't reset to -1)
                     }
                 }
             }
         }
     }
-    // --- end sepsis recovery logic ---
-
-    // --- update per-bacteria fields ---
+    // Infection acquisition and within-host updates.
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         individual.predicted_infection_risk[b_idx] = 0.0;
         let allows_microbiome = bacterium_has_separate_microbiome_compartment(b_idx);
@@ -5429,8 +5012,7 @@ pub(crate) fn apply_rules(
                 simulation_year,
                 individual.hospital_status.is_hospitalized(),
             );
-            // --- Logistic model for bacteria acquisition probability ---
-            // All risk factors contribute additively to log-odds, then logistic function is applied.
+            // Acquisition covariates combine additively on the log-odds scale.
             let region = individual.region_cur_in;
             let age_idx = crate::config::AgeCategoryParameters::age_category_index(individual.age);
 
@@ -5469,7 +5051,6 @@ pub(crate) fn apply_rules(
             };
             log_odds += hospital_log_odds;
 
-            // Convert log-odds to probability
             let acquisition_log_odds = log_odds;
             let mut acquisition_probability = 1.0 / (1.0 + (-acquisition_log_odds).fast_exp());
 
@@ -5502,17 +5083,10 @@ pub(crate) fn apply_rules(
 
             individual.predicted_infection_risk[b_idx] = acquisition_probability;
 
-            // --- microbiome presence (Carriage) ---
-            // Carriage (asymptomatic colonization) is modeled separately from infection because:
-            // 1. It's vastly more common than infection (e.g., 20-30% carry S. aureus, only ~1% infected)
-            // 2. Carriers are the primary reservoir for resistance transmission in the population
-            // 3. Antibiotic use disrupts normal microbiome, creating niches for pathogen colonization
-            // 4. When carriers develop infections, they're highly likely to have resistant infections (carrier amplification)
+            // Eligible bacteria have a carriage compartment separate from active infection.
             if allows_microbiome {
                 if !individual.presence_microbiome[b_idx] {
-                    // Logistic model for carriage acquisition (consistent framework with infection acquisition)
-                    // Baseline includes same demographic and geographic risk factors as infection, but with different
-                    // baseline probability (typically higher for carriage than infection)
+                    // Carriage reuses infection covariates with a bacterium-specific intercept shift.
                     let mut log_odds = store.bacteria.acquisition_log_odds_baseline[b_idx]
                         + store.age_categories.bacteria_age_log_odds(b_idx, age_idx)
                         + store.region_bacteria.acquisition_log_odds(region, b_idx)
@@ -5533,31 +5107,20 @@ pub(crate) fn apply_rules(
                         log_odds += store.bacteria.log_odds_hospital_acquired[b_idx];
                     }
 
-                    // Add the extra log-odds for microbiome vs infection (bacteria-specific)
-                    // This parameter shifts the baseline rate between carriage and infection (typically positive for carriage)
                     log_odds += store.bacteria.microbiome_vs_infection_log_odds(b_idx);
 
-                    // --- Antibiotic disruption effect on carriage acquisition ---
-                    // MECHANISM: Antibiotics kill commensal bacteria, disrupting colonization resistance and creating
-                    // ecological niches that pathogenic bacteria can exploit. This is why C. difficile infections
-                    // spike during/after broad-spectrum antibiotic use, and why antibiotic courses increase MRSA
-                    // and ESBL-producing bacteria colonization risk.
-                    // EMPIRICAL BASIS: Studies show 5-15x increased colonization risk during antibiotic therapy,
-                    // persisting for weeks to months after cessation. We leverage the individual's persistent
-                    // disruption reservoir (which decays via half-life) to capture this ecological hangover.
+                    // The persistent disruption reservoir raises carriage-acquisition log odds.
                     let antibiotic_disruption_log_odds = individual.microbiome_disruption_level;
                     let mut acquisition_on_drug = false;
 
                     for &drug_level in individual.cur_level_drug.iter() {
                         if drug_level > 0.1 {
-                            // Only count drugs with meaningful levels for tracking stats
                             acquisition_on_drug = true;
                             break;
                         }
                     }
                     log_odds += antibiotic_disruption_log_odds;
 
-                    // Convert log-odds to probability
                     let mut microbiome_acquisition_probability =
                         1.0 / (1.0 + (-log_odds).fast_exp());
 
@@ -5595,11 +5158,7 @@ pub(crate) fn apply_rules(
 
                     if rng.gen_bool(microbiome_acquisition_probability) {
                         individual.presence_microbiome[b_idx] = true;
-                        // Track acquisition date for duration-dependent clearance modeling
-                        // RATIONALE: Recent colonization is more easily cleared by immune response or antibiotics,
-                        // while established colonization (months to years) is much more persistent.
-                        // This mirrors clinical observations that recent MRSA carriers respond better to
-                        // decolonization protocols than chronic carriers.
+                        // Acquisition date feeds duration-dependent carriage clearance.
                         individual.date_microbiome_acquired[b_idx] = time_step as i32;
                         individual.microbiome_acquired_today[b_idx] = true;
                         individual.microbiome_acquired_on_drug_today[b_idx] = acquisition_on_drug;
@@ -5667,58 +5226,35 @@ pub(crate) fn apply_rules(
             }
 
             if allows_microbiome && individual.presence_microbiome[b_idx] {
-                // --- Enhanced microbiome clearance with logistic model ---
-                // RATIONALE FOR LOGISTIC FRAMEWORK: Clearance is influenced by multiple independent factors
-                // (duration of carriage, antibiotic pressure, immune response) that combine multiplicatively
-                // in probability space, which translates to additive effects in log-odds space.
-                // This allows us to model complex interactions while maintaining interpretable parameters.
+                // Carriage clearance uses additive effects on the log-odds scale.
 
-                // Baseline clearance probability (bacteria-specific or default)
-                // Represents spontaneous clearance rate from immune surveillance and microbial competition
                 let baseline_clearance_prob = store
                     .bacteria
                     .microbiome_clearance_probability_per_day(b_idx);
 
-                // Convert baseline probability to log-odds for additive modeling
                 let baseline_log_odds =
                     (baseline_clearance_prob / (1.0 - baseline_clearance_prob)).fast_ln();
                 let mut clearance_log_odds = baseline_log_odds;
                 let max_resistance_level = store.globals.max_resistance_level;
 
-                // --- Duration effect: longer carriage = harder to clear (established colonization) ---
-                // MECHANISM: Newly acquired bacteria are more susceptible to immune clearance and competition.
-                // Over time, successful colonizers establish stable niches, develop biofilms, and evade
-                // immune responses, making them progressively harder to eliminate.
-                // EMPIRICAL BASIS: MRSA decolonization success: ~70% for recent carriers vs ~30% for chronic carriers.
-                // S. aureus carriage often persists for months to years once established.
-                // IMPLEMENTATION: Negative coefficient (longer duration → lower clearance probability),
-                // with maximum effect cap to prevent unrealistic persistence.
+                // Duration contributes a capped, configured log-odds effect.
                 if let Some(days_carried) = days_since_recorded_event(
                     individual.date_microbiome_acquired[b_idx],
                     time_step as i32,
                 ) {
                     let days_carried = days_carried.max(0) as f64;
-                    let duration_coefficient = store.globals.carriage_duration_log_odds_coefficient; // Negative value
-                    let max_duration_effect = store.globals.carriage_duration_max_log_odds_effect; // Negative cap
+                    let duration_coefficient = store.globals.carriage_duration_log_odds_coefficient;
+                    let max_duration_effect = store.globals.carriage_duration_max_log_odds_effect;
                     let duration_effect =
                         (days_carried * duration_coefficient).max(max_duration_effect);
                     clearance_log_odds += duration_effect;
                 }
 
-                // --- Antibiotic effect: active drugs targeting this bacteria increase clearance ---
-                // MECHANISM: Antibiotics with activity against the colonizing pathogen can suppress or eliminate it,
-                // even at sub-therapeutic concentrations insufficient to treat infection. This is why antibiotic
-                // prophylaxis can prevent colonization, and why treatment of infections often clears carriage.
-                // EMPIRICAL BASIS: Decolonization protocols use antibiotics (e.g., mupirocin for MRSA nasal carriage).
-                // Treatment courses often clear S. aureus carriage as a side effect.
-                // IMPLEMENTATION: For microbiome (colonization sites like gut, nasal, skin), we use blood drug level
-                // directly - these sites are well-perfused unlike protected infection compartments (CNS, bone, abscess).
-                // Microbiome activity = potency × blood_level × (1 - microbiome_resistance)
+                // Carriage activity uses the unmodified drug level, baseline potency, and
+                // carriage resistance rather than syndrome penetration or infection resistance.
                 for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
                     if drug_level > 0.1 {
                         let resistance_data = &individual.resistances[b_idx][d_idx];
-                        // Calculate microbiome-specific activity using blood level (not site-adjusted level)
-                        // and microbiome_r (not any_r which is for infections)
                         let normalized_micro_r = if max_resistance_level <= f64::EPSILON {
                             1.0
                         } else {
@@ -5729,7 +5265,6 @@ pub(crate) fn apply_rules(
                         let effective_activity =
                             (base_potency * drug_level * (1.0 - normalized_micro_r)).max(0.0);
 
-                        // Use this microbiome-specific activity for clearance boost
                         if effective_activity > 0.1 {
                             let clearance_boost = effective_activity
                                 * store
@@ -5740,7 +5275,6 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // Convert log-odds back to probability
                 let clearance_probability = 1.0 / (1.0 + (-clearance_log_odds).fast_exp());
 
                 if rng.gen_bool(clearance_probability.clamp(0.0, 1.0)) {
@@ -5748,9 +5282,7 @@ pub(crate) fn apply_rules(
                     individual.microbiome_cleared_today[b_idx] = true;
                 }
 
-                // --- de novo resistance emergence in microbiome when on drug ---
                 if individual.presence_microbiome[b_idx] {
-                    // --- Microbiome mechanism reversion (replaces float half-life decay) ---
                     // Each mechanism can revert independently when no applicable active drug
                     // selects for it, using the same rates as infection-side reversion.
                     let any_microbiome_reverted = revert_unselected_microbiome_mechanisms(
@@ -5761,7 +5293,6 @@ pub(crate) fn apply_rules(
                         rng,
                     );
                     if any_microbiome_reverted {
-                        // Re-derive microbiome_r from updated mechanism_microbiome
                         propagate_mechanism_resistance(
                             individual,
                             b_idx,
@@ -5770,9 +5301,6 @@ pub(crate) fn apply_rules(
                             true,  // propagate_microbiome_r: this is microbiome context
                         );
                     }
-                    // --- end microbiome mechanism reversion ---
-
-                    // --- mechanism emergence in microbiome under drug pressure ---
                     // Each absent mechanism receives one daily attempt whenever at least one
                     // active drug selects for it. Regimen size must not multiply the rate.
                     let microbiome_mechanism_changed = emerge_microbiome_mechanisms_once(
@@ -5794,13 +5322,10 @@ pub(crate) fn apply_rules(
                             true, // propagate_microbiome_r: this is the microbiome context
                         );
                     }
-                    // --- end mechanism emergence in microbiome ---
                 }
-                // --- end de novo resistance emergence in microbiome ---
             }
 
-            // ...resistance transfer (each way) between infection site and microbiome ...
-            // Mechanism-driven: copy mechanism bits between compartments, then re-derive floats.
+            // A successful within-bacterium transfer unions the infection and carriage masks.
             if individual.presence_microbiome[b_idx] && individual.level[b_idx] > 0.0 {
                 let host_eligible_mask = param_cache.host_eligible_mechanism_mask(b_idx);
                 let infection_mask = individual.any_mechanism_mask(b_idx) & host_eligible_mask;
@@ -5813,7 +5338,6 @@ pub(crate) fn apply_rules(
                     && rng.gen_bool(transfer_prob)
                 {
                     let mut any_transferred = false;
-                    // Transfer infection→microbiome: copy mechanism_any bits to mechanism_microbiome
                     if has_infection_only_mechanisms || has_microbiome_only_mechanisms {
                         let combined_mask = infection_mask | microbiome_mask;
                         any_transferred =
@@ -5832,16 +5356,10 @@ pub(crate) fn apply_rules(
                     }
                 }
             } else if !individual.presence_microbiome[b_idx] {
-                // No microbiome presence — ensure microbiome_r is zero
                 for d_idx in 0..DRUG_SHORT_NAMES.len() {
                     individual.resistances[b_idx][d_idx].microbiome_r = store_float(0.0);
                 }
             }
-
-            // NOTE: HGT (Horizontal Gene Transfer) has been moved outside this per-bacteria loop
-            // for performance optimization. It now runs once per individual after all bacteria
-            // have been processed, instead of redundantly running 36 times (once per b_idx).
-            // See the HGT block after the main bacteria loop ends.
 
             if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
                 // Keep the prospective infection local until existing therapy has been
@@ -5854,10 +5372,8 @@ pub(crate) fn apply_rules(
                     let mut inherited_mask = 0_u64;
                     let mut sampled_from_local_persistence = false;
 
-                    // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
                     let is_tb = bacteria == "mdr_mycobacterium_tuberculosis";
 
-                    // Time-dependent MDR TB incidence (historically accurate)
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
 
                     let guaranteed_rifampicin_resistance = if is_tb && simulation_year >= 1966.0 {
@@ -5873,28 +5389,21 @@ pub(crate) fn apply_rules(
                         r => r as usize,
                     };
 
-                    // Community resistance dilution: community-acquired infections draw
-                    // resistance from a broader pool that includes susceptible strains
-                    // from the general environment and animal sources.
-                    // Per-bacteria dilution factor reflects how much of the community reservoir
-                    // is susceptible environmental/animal strains vs. human-circulating strains.
+                    // Community dilution is the probability of drawing from the human
+                    // circulating-profile cache rather than the exogenous source.
                     let community_dilution = if !is_hospital_acquired {
                         store.bacteria.community_resistance_dilution_factor[b_idx]
                     } else {
                         1.0
                     };
 
-                    // Decide epidemiologically which reservoir this infection came from.
-                    // If derived from the human reservoir, we map to existing cached resistances.
-                    // If drawn from the environmental pool, we default to wild type (0.0 acquired resistance).
                     let from_human_reservoir = rng.gen_bool(community_dilution.clamp(0.0, 1.0));
 
-                    // --- Mechanism profile sampling ---
                     // Sample a complete mechanism genotype from the profile reservoir.
                     // Hospital-acquired infections can temporarily prune a configured fraction
                     // of mechanism-free candidates. Community infections use uniform sampling.
-                    // If the profile cache is empty (early warm-up), the individual stays
-                    // fully susceptible.
+                    // If the profile cache is empty (early warm-up), this sampling route
+                    // contributes no mechanisms.
                     let prune_susceptible_percent =
                         store.bacteria.hospital_resistance_prune_susceptible_percent[b_idx];
                     if from_human_reservoir {
@@ -5929,29 +5438,11 @@ pub(crate) fn apply_rules(
                     }
                     community_acquired_mask |= incoming_any_mask;
 
-                    // --- Environmental / agricultural floor (exogenous draw only) ---
-                    // When the infection was drawn from the non-cache reservoir (from_human_reservoir
-                    // == false), apply per-mechanism floor probabilities representing resistance
-                    // maintained outside the local human cache through agricultural/food-chain
-                    // reservoirs, global importation, or explicit off-model selection pathways.
+                    // Exogenous draws can acquire independently sampled mechanisms from static
+                    // environmental floors or the nondecaying ratchet floor.
                     // Each mechanism is rolled independently, so these probabilities specify
-                    // marginal frequencies and do not encode plasmid linkage. Correlated profiles
-                    // can subsequently propagate through the human cache.
-                    //
-                    // Two sources of floor probability are combined with max():
-                    // 1. Static environmental floor (configured exogenous reseeding probability).
-                    // 2. Ratchet floor (dynamic; computed from the simulation's own peak achieved
-                    //    prevalence for selected persistent mechanisms). Mechanistic basis:
-                    //    once a low-fitness-cost resistance mechanism has reached a prevalence
-                    //    threshold in the circulating pool, co-selection, ecological persistence,
-                    //    and HGT can provide continued reseeding after direct selection declines.
-                    //    The ratchet prevents the simulation from "forgetting" historically-built-up
-                    //    resistance when drug selection pressure is later removed (e.g. post-2010
-                    //    ciprofloxacin de-listing for Shigella: without the ratchet, gyrA prevalence
-                    //    would decay toward zero in the community pool despite real-world persistence).
-                    //
-                    // Organisms with no static floor and no peak prevalence above threshold are
-                    // unaffected; the loop is cheap for them.
+                    // marginal frequencies rather than linked genotypes. The ratchet uses the
+                    // region-specific community peak for eligible persistent mechanisms.
                     if !from_human_reservoir {
                         use crate::simulation::population::ResistanceMechanism;
                         for (m_idx, _) in ResistanceMechanism::all().iter().enumerate() {
@@ -5974,14 +5465,12 @@ pub(crate) fn apply_rules(
                         }
                     }
 
-                    // --- TB-specific guaranteed rifampicin resistance ---
-                    // Per R4: seed MutationRpoB mechanism at probability 1.0 for MDR-TB
-                    // (year >= 1966), removing direct float injection.
+                    // A positive configured MDR-TB rifampicin gate seeds every applicable
+                    // rifampicin-resistance mechanism at acquisitions from 1966 onward.
                     if is_tb && guaranteed_rifampicin_resistance > 0.0 {
                         if let Some(rifampicin_idx) =
                             DRUG_SHORT_NAMES.iter().position(|&n| n == "rifampicin")
                         {
-                            // Seed the rifampicin-resistance mechanism(s) instead of injecting floats
                             use crate::simulation::population::ResistanceMechanism;
                             for (mech_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
@@ -5994,7 +5483,6 @@ pub(crate) fn apply_rules(
                                     continue;
                                 }
 
-                                // At TB acquisition (MDR era), guarantee mechanism is present
                                 let mechanism_bit = 1u64 << mech_idx;
                                 incoming_any_mask |= mechanism_bit;
                                 incoming_majority_mask |= mechanism_bit;
@@ -6003,12 +5491,8 @@ pub(crate) fn apply_rules(
                         }
                     }
 
-                    // --- Carrier resistance inheritance (THE KEY MECHANISM FOR RESISTANCE AMPLIFICATION) ---
-                    // Mechanism-driven: copy mechanism_microbiome bits to mechanism_any with
-                    // per-mechanism probability = infection_from_microbiome_dampening.
-                    // This replaces the previous float-copy approach. The dampening parameter
-                    // now represents the fraction of microbiome mechanisms that colonize the
-                    // infection site, which is mechanism-native and composes cleanly.
+                    // Carriage inheritance uses a person-level gate followed by an independent
+                    // dampening draw for each carriage mechanism absent from the incoming profile.
                     if individual.presence_microbiome[b_idx] {
                         let inheritance_prob =
                             store.globals.carrier_resistance_inheritance_probability;
@@ -6022,7 +5506,6 @@ pub(crate) fn apply_rules(
                                 let m_idx = candidate_mask.trailing_zeros() as usize;
                                 candidate_mask &= candidate_mask - 1;
                                 let mechanism_bit = 1u64 << m_idx;
-                                // Per-mechanism transfer probability = dampening parameter
                                 if rng.gen_bool(dampening.clamp(0.0, 1.0)) {
                                     incoming_any_mask |= mechanism_bit;
                                     inherited_mask |= mechanism_bit;
@@ -6114,18 +5597,15 @@ pub(crate) fn apply_rules(
                 }
             }
         } else {
-            // Bacteria is already present (infection progression)
-            // --- majority mechanism evolution ---
+            // Existing infection progression.
             let majority_r_evolution_rate = cached_majority_r_evolution_rate;
             let max_resistance_level = cached_max_resistance_level;
 
             {
-                // bacteria_full_idx == b_idx (avoid redundant .position() lookup)
                 let bacteria_full_idx = b_idx;
                 let mut infection_mechanism_changed = false;
-                // --- De novo resistance mechanism emergence (evaluated ONCE per bacterium per timestep) ---
-                // Moved outside the per-drug loop so each mechanism gets exactly one emergence roll per day,
-                // using the strongest selective pressure across all active applicable drugs.
+                // Each absent mechanism receives at most one de novo draw per bacterium-day,
+                // using the strongest pressure among applicable active drugs.
                 {
                     use crate::simulation::population::ResistanceMechanism;
 
@@ -6133,14 +5613,12 @@ pub(crate) fn apply_rules(
                     let any_drug_present = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
 
                     if any_drug_present && current_bacteria_level > 0.0001 {
-                        // Bacteria level dependency: Log-scale factor
-                        // Mutation emergence scales with population size which varies over orders of magnitude.
-                        // Log-scale respects this: 10^3 bacteria contribute much less than 10^9.
+                        // Transform the abstract bacteria level to a bounded log-scale modifier.
                         let max_bacteria_level = store.bacteria.max_level[b_idx];
                         let bacteria_level_effect_multiplier =
                             store.globals.resistance_emergence_bacteria_level_multiplier;
-                        let min_threshold = 0.0001_f64; // minimum bacteria level for emergence guard
-                        let log_range = max_bacteria_level.log10() - min_threshold.log10(); // e.g. log10(10) - log10(0.0001) = 5
+                        let min_threshold = 0.0001_f64;
+                        let log_range = max_bacteria_level.log10() - min_threshold.log10();
                         let bacteria_level_factor = if log_range > 0.0 {
                             ((current_bacteria_level.max(min_threshold).log10()
                                 - min_threshold.log10())
@@ -6151,9 +5629,8 @@ pub(crate) fn apply_rules(
                             0.0
                         };
 
-                        // Pre-compute emergence_drug_factor for each drug
-                        // Gaussian curve peaking at 0.5 (half of standard dose at site), sigma=0.2
-                        // Baseline of 0.01 so emergence is very low at high concentrations
+                        // The exposure factor is Gaussian in normalized site exposure, peaking
+                        // at 0.5 with sigma 0.2 and retaining a 0.01 floor for active drugs.
                         let peak_x = 0.5_f64;
                         let sigma = 0.2_f64;
                         let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
@@ -6192,13 +5669,10 @@ pub(crate) fn apply_rules(
                             store.globals.multi_drug_penalty_threshold_num_drugs as usize;
 
                         for (mechanism_idx, _) in ResistanceMechanism::all().iter().enumerate() {
-                            // Skip if mechanism already present
                             if individual.has_any_mechanism(bacteria_full_idx, mechanism_idx) {
                                 continue;
                             }
 
-                            // Find the maximum emergence_drug_factor across all active drugs
-                            // where this mechanism is applicable — represents the strongest selective pressure
                             let mut max_emergence_drug_factor = 0.0_f64;
                             let mut mechanism_applicable_to_any_drug = false;
                             for d_i in 0..num_drugs {
@@ -6230,7 +5704,8 @@ pub(crate) fn apply_rules(
                                 0.0
                             };
 
-                            // Multi-drug penalty: how many active relevant drugs does this mechanism NOT cover?
+                            // Combination therapy reduces emergence when the mechanism does not
+                            // cover every active, non-negligible drug.
                             let mut multi_drug_penalty_factor = 1.0;
                             if active_relevant_drug_count >= multi_drug_penalty_threshold {
                                 let mut affected_count = 0;
@@ -6290,8 +5765,6 @@ pub(crate) fn apply_rules(
                         false, // propagate_microbiome_r: this is an active infection
                     );
                 }
-                // --- end resistance mechanism emergence logic ---
-
                 // Each minority mechanism receives one daily promotion attempt whenever at
                 // least one active drug selects for it. Regimen size must not multiply the
                 // configured per-day transition probability.
@@ -6309,7 +5782,6 @@ pub(crate) fn apply_rules(
                     let resistance_data =
                         &mut individual.resistances[bacteria_full_idx][drug_index];
 
-                    // Clamp any_r to valid range
                     resistance_data.any_r = store_float(
                         load_float(resistance_data.any_r)
                             .min(max_resistance_level)
@@ -6317,7 +5789,6 @@ pub(crate) fn apply_rules(
                     );
 
                     if drug_current_level > 0.0 {
-                        // Fetch potency from cached lookup
                         let base_potency = param_cache.potency(bacteria_full_idx, drug_index);
 
                         // any_r is updated when mechanism state changes; this loop only
@@ -6325,16 +5796,12 @@ pub(crate) fn apply_rules(
                         let normalized_any_r =
                             load_float(resistance_data.any_r) / max_resistance_level;
 
-                        // Apply syndrome-specific drug penetration factor
-                        // This accounts for pharmacokinetic differences at different infection sites
-                        // Penetration factor represents the fraction of blood concentration that achieves
-                        // therapeutic effect at the infection site (already incorporates clinical treatment outcomes)
+                        // Apply the configured syndrome-specific site multiplier.
                         let syndrome_id =
                             individual.infectious_syndrome[bacteria_full_idx] as usize;
                         let penetration_factor =
                             store.syndrome.drug_penetration(syndrome_id, drug_index);
 
-                        // Effective drug level at infection site
                         let effective_drug_level = drug_current_level * penetration_factor;
 
                         resistance_data.activity_r = store_float(
@@ -6347,17 +5814,14 @@ pub(crate) fn apply_rules(
             }
         }
 
-        // testing and diagnosis - Enhanced testing framework
+        // Testing and diagnosis.
         let last_infected_time = individual.date_last_infected[b_idx];
         let test_delay_days = cached_test_delay_days;
 
-        // Check if bacterial testing is available yet (historically realistic dates)
         let bacterial_testing_available_from_day = cached_bacterial_testing_available_from_day;
         let bacterial_testing_available = cached_bacterial_testing_available;
 
-        // Check bacteria-specific test availability for late-discovered bacteria (e.g., H. pylori 1982)
-        // Most bacteria are available once general bacterial testing is available (~1945)
-        // Only specific bacteria have delayed discovery dates
+        // Optional bacterium-specific dates can delay identification beyond general testing.
         let bacteria_specific_available = if let Some(bacteria_discovery_day) =
             param_cache.bacteria_test_availability_day[b_idx]
         {
@@ -6374,7 +5838,6 @@ pub(crate) fn apply_rules(
             && bacteria_specific_available
             && individual.infection_has_caused_symptoms[b_idx]
         {
-            // Calculate comprehensive testing probability
             let testing_probability = calculate_testing_probability(
                 individual,
                 time_step,
@@ -6389,17 +5852,13 @@ pub(crate) fn apply_rules(
             }
         }
 
-        // --- test_r assignment logic ---
         let test_r_error_prob = cached_test_r_error_prob;
         let test_r_error_value = cached_test_r_error_value;
-        // Check if resistance testing is available yet (historically realistic dates)
         let resistance_testing_available_from_day = cached_resistance_testing_available_from_day;
         let resistance_testing_available = cached_resistance_testing_available;
 
         if individual.test_identified_infection[b_idx] && resistance_testing_available {
-            // Check if we should initiate resistance testing (if not already initiated)
             if individual.resistance_test_initiated_day[b_idx] == -1 {
-                // Calculate comprehensive resistance testing probability
                 let resistance_testing_probability = calculate_testing_probability(
                     individual,
                     time_step,
@@ -6429,14 +5888,11 @@ pub(crate) fn apply_rules(
             reset_resistance_test_state(individual, b_idx);
         }
 
-        // bacteria level change (growth/decay)
-        // This entire block should only execute if the individual is currently infected with this bacteria
+        // Infection-level growth and clearance.
         if is_infected {
             let baseline_change = store.bacteria.base_level_change(b_idx);
 
-            // Apply host-factor multipliers to bacteria growth rate
-            // Age multiplier: infants and elderly have reduced immune containment
-            // Map fine-grained age categories to 4-bucket system (infant, child, adult, elderly)
+            // Map model age categories to the four growth-modifier groups.
             let age_growth_multiplier = {
                 let age_category = crate::simulation::population::get_age_category(individual.age);
                 use crate::simulation::population::AgeCategory;
@@ -6454,18 +5910,17 @@ pub(crate) fn apply_rules(
                 }
             };
 
-            // Immunodeficiency accelerates bacterial proliferation
+            // Apply the configured immunodeficiency growth multiplier.
             let immuno_growth_multiplier = if individual.immunodeficiency_type.is_some() {
                 store.globals.bacteria_growth_immunodeficiency_multiplier
             } else {
                 1.0
             };
 
-            // Syndrome-specific growth multiplier (some syndromes progress faster)
+            // Apply the configured syndrome-specific growth multiplier.
             let syndrome_id = individual.infectious_syndrome[b_idx] as usize;
             let syndrome_growth_multiplier = store.syndrome.bacteria_growth_multiplier(syndrome_id);
 
-            // Combined multiplier for natural bacteria growth
             let adjusted_baseline_change = baseline_change
                 * age_growth_multiplier
                 * immuno_growth_multiplier
@@ -6475,14 +5930,14 @@ pub(crate) fn apply_rules(
             let mut immune_hazard = 0.0;
             let mut immune_clearance_triggered = false;
 
-            // Self-correcting logic: If we are infected but proper clearance day wasn't set, fallback to date_last_infected
+            // Backfill infections created without an armed clearance date from their acquisition day.
             let effective_clearance_ready_day = if individual.clearance_ready_day[b_idx] == -1 {
                 individual.date_last_infected[b_idx]
             } else {
                 individual.clearance_ready_day[b_idx]
             };
 
-            // Ensure the individual struct is updated so checking logic works consistently elsewhere
+            // Persist the fallback so later checks use the same date.
             if individual.clearance_ready_day[b_idx] == -1 && effective_clearance_ready_day != -1 {
                 individual.clearance_ready_day[b_idx] = effective_clearance_ready_day;
             }
@@ -6493,7 +5948,6 @@ pub(crate) fn apply_rules(
                 let duration_days =
                     (time_step as i32 - effective_clearance_ready_day).max(0) as u32;
 
-                // Logistic model naturally bounds to (0,1), no clamp needed
                 immune_hazard = store.clearance.hazard_for(
                     b_idx,
                     individual.age,
@@ -6529,8 +5983,8 @@ pub(crate) fn apply_rules(
                     individual.clear_majority_mechanism(b_idx, mechanism_idx);
                 }
 
-                // Mechanismless reversion guardrail: if no mechanisms remain in any compartment,
-                // clear current resistance state while retaining any already reported AST snapshot.
+                // When both mechanism masks are empty but resistance fields remain, sample the
+                // configured no-drug cleanup while retaining any already reported AST snapshot.
                 let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
                 if !on_any_drug {
                     let has_active_mechanism = individual.any_mechanism_mask(b_idx) != 0
@@ -6575,16 +6029,10 @@ pub(crate) fn apply_rules(
                 events.applied_activity.push(observation);
             }
 
-            // --- TB-specific multi-drug synergy logic ---
-            // WHY TB IS SPECIAL: Unlike other bacteria, TB has an absolute biological requirement for multi-drug therapy.
-            // Single-drug TB treatment always fails due to rapid resistance development (~10^-6 mutation rate).
-            // Other bacteria can often be treated with monotherapy, but TB biology (intracellular location,
-            // thick cell wall, slow metabolism) requires sustained multi-drug pressure through different mechanisms.
-            // This synergy bonus captures the mechanistic requirement that TB treatment guidelines mandate
-            // ≥4 drugs initially, ≥2 for continuation - reflecting clinical reality, not just preference.
+            // MDR-TB receives a configured treatment bonus when enough concurrently active
+            // drugs have non-negligible baseline potency.
             let mut tb_synergy_bonus = 0.0;
             if bacteria == "mdr_mycobacterium_tuberculosis" {
-                // Count active TB drugs with meaningful potency
                 let active_tb_drugs_count = DRUG_SHORT_NAMES
                     .iter()
                     .enumerate()
@@ -6601,34 +6049,27 @@ pub(crate) fn apply_rules(
 
                 if active_tb_drugs_count >= synergy_threshold {
                     let synergy_multiplier = cached_tb_synergy_multiplier;
-                    // Background effectiveness represents unmodeled TB-specific drugs (bedaquiline, pretomanid, delamanid,
-                    // cycloserine, ethionamide, p-aminosalicylic acid) that are critical for MDR-TB treatment but not
-                    // explicitly tracked in this general AMR model. Value reflects their collective contribution when
-                    // proper multi-drug TB regimens are used.
+                    // This additive term represents treatment activity not captured by the
+                    // explicitly modelled drugs.
                     let mut background_effectiveness = cached_tb_background_effectiveness;
 
-                    // Apply historical treatment effectiveness modifier
+                    // Scale the additive term across the model's three treatment eras.
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
                     if simulation_year < 1944.0 {
-                        // Pre-antibiotic era: no effective TB treatment available
-                        background_effectiveness *= 0.01; // 99% reduction in effectiveness
+                        background_effectiveness *= 0.01;
                     } else if simulation_year < 1966.0 {
-                        // Early antibiotic era: limited effectiveness with monotherapy
-                        background_effectiveness *= 0.3; // 70% reduction in effectiveness
+                        background_effectiveness *= 0.3;
                     }
-                    // Modern era (1966+): full effectiveness (no change needed)
 
-                    // Apply synergy: multiply existing drug effects + add background effectiveness
+                    // Increase explicit drug activity and add the era-scaled background term.
                     tb_synergy_bonus = (total_reduction_due_to_antibiotic
                         * (synergy_multiplier - 1.0))
                         + background_effectiveness;
                 }
             }
 
-            // ^^^ Antibiotic effectiveness is now determined through bacteria-drug specific potency values
-            // rather than a universal treatment response modifier
-            // TB synergy bonus is added here because multi-drug synergy is fundamental to TB treatment effectiveness -
-            // it's not an optional enhancement but a biological requirement for meaningful bacterial killing
+            // Scale per-drug activity and the MDR-TB bonus by the individual's
+            // treatment-response multiplier.
             let antibiotic_effect_multiplier = individual.drug_activity_response_multiplier[b_idx];
 
             let bacteria_level_scaling_factor = if individual.level[b_idx] < 1.0 {
@@ -6727,7 +6168,6 @@ pub(crate) fn apply_rules(
                         individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
                     }
                 }
-                // Clear mechanism booleans on infection clearance
                 individual.clear_infection_mechanisms(b_idx);
                 individual.level[b_idx] = 0.0;
                 individual.infectious_syndrome[b_idx] = 0;
@@ -6738,7 +6178,7 @@ pub(crate) fn apply_rules(
                 individual.infection_hospital_acquired[b_idx] = false;
                 individual.test_identified_infection[b_idx] = false;
                 reset_resistance_test_state(individual, b_idx);
-                individual.infection_has_caused_symptoms[b_idx] = false; // Reset symptom status when infection clears
+                individual.infection_has_caused_symptoms[b_idx] = false;
             } else {
                 // Update level for infections that are continuing
                 individual.level[b_idx] = new_bacteria_level;
@@ -6751,40 +6191,29 @@ pub(crate) fn apply_rules(
             individual.infection_has_caused_symptoms[b_idx] = false;
         }
 
-        // Clearance dynamics: arm hazard once infection persists, reset when cleared
+        // Arm clearance from the acquisition day and reset clearance state when infection is absent.
         if is_infected {
             if individual.clearance_ready_day[b_idx] == -1 {
-                // REMOVE DELAY AS REQUESTED (User: "remove the immune 'delay period' entirely")
-                // Previously:  let delay_days = store.clearance.delay_days(b_idx) as i32;
-                //              individual.clearance_ready_day[b_idx] = individual.date_last_infected[b_idx] + delay_days;
-
-                // Now: Clearance is possible starting from the day of infection itself
-                // We set it to date_last_infected so (time_step >= clearance_ready_day) is true immediately
                 individual.clearance_ready_day[b_idx] = individual.date_last_infected[b_idx];
             }
 
-            // --- Symptom onset logic for infected bacteria ---
+            // Symptom status latches after onset and remains true until infection clearance.
             if !individual.infection_has_caused_symptoms[b_idx] {
-                // Get bacteria-specific symptom parameters (logistic model)
                 let base_log_odds = store.bacteria.symptom_onset_base_log_odds(b_idx);
                 let threshold_level = store.bacteria.symptom_onset_threshold_level(b_idx);
                 let delay_days = store.bacteria.symptom_onset_delay_days(b_idx) as i32;
                 let log_odds_per_level =
                     store.bacteria.symptom_onset_log_odds_per_level_unit(b_idx);
 
-                // Check if minimum delay has passed
                 let infection_duration = (time_step as i32) - individual.date_last_infected[b_idx];
 
                 if infection_duration >= delay_days && individual.level[b_idx] >= threshold_level {
-                    // Calculate symptom onset probability using LOGISTIC MODEL
-                    // log_odds = base + (level_above_threshold × per_level_effect)
+                    // Onset probability is logistic in the level above the configured threshold.
                     let level_above_threshold = individual.level[b_idx] - threshold_level;
                     let log_odds = base_log_odds + (level_above_threshold * log_odds_per_level);
 
-                    // Logistic transformation: P = 1 / (1 + exp(-log_odds))
                     let symptom_probability = 1.0 / (1.0 + (-log_odds).fast_exp());
 
-                    // Roll for symptom onset
                     if rng.gen_bool(symptom_probability) {
                         individual.infection_has_caused_symptoms[b_idx] = true;
                     }
@@ -6798,13 +6227,8 @@ pub(crate) fn apply_rules(
 
     let antibiotic_pressure_present = individual.cur_level_drug.iter().any(|&level| level > 0.5);
 
-    // --- HORIZONTAL GENE TRANSFER (HGT) BETWEEN DIFFERENT BACTERIA ---
-    // PERFORMANCE OPTIMIZATION: This block was moved outside the per-bacteria loop.
-    // Previously it ran redundantly for each b_idx where !is_infected (up to 36 times),
-    // even though it always checked all 36x36 bacteria pairs. Now it runs exactly once.
-    //
-    // ADDITIONAL OPTIMIZATION: We first identify which bacteria have any presence AND any resistance,
-    // then only check HGT pairs involving those bacteria as donors.
+    // Within-person HGT considers bacteria that share an active-infection or carriage
+    // compartment. Donor mechanism states are snapshotted before any transfers.
     {
         let mut potential_donors: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
         let mut potential_recipients: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
@@ -6814,7 +6238,7 @@ pub(crate) fn apply_rules(
             [HgtDonorMechanismSnapshot::default(); BACTERIA_LIST.len()];
 
         for b_idx in 0..BACTERIA_LIST.len() {
-            // Skip TB from HGT entirely
+            // MDR-TB is outside the modelled HGT network.
             if BACTERIA_LIST[b_idx] == "mdr_mycobacterium_tuberculosis" {
                 continue;
             }
@@ -6842,8 +6266,7 @@ pub(crate) fn apply_rules(
             }
         }
 
-        // Only process HGT if there are potential donors AND recipients
-        // note that "donors" and "recipients" are bacteria present in the same person
+        // Donors and recipients are bacteria present in this individual.
         if !potential_donors.is_empty() && potential_recipients.len() > 1 {
             let is_hospitalized = individual.hospital_status.is_hospitalized();
 
@@ -6886,13 +6309,8 @@ pub(crate) fn apply_rules(
                         * hgt_multiplier
                         * counterfactual_resistance_multiplier;
 
-                    // ── Mechanism-driven HGT transfer ──────────────────────────
-                    // Instead of iterating over drugs and copying any_r values,
-                    // we transfer individual *mechanisms* that the donor carries
-                    // and that are biologically HGT-transferable (plasmid/transposon-borne).
-                    // After transferring mechanisms, we call propagate_mechanism_resistance()
-                    // which derives the correct any_r for every drug from the
-                    // mechanism state.
+                    // Transfer eligible mechanisms; derived per-drug resistance is recomputed
+                    // after the recipient mechanism state changes.
                     let mut any_mechanism_transferred = false;
 
                     for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
@@ -6906,7 +6324,6 @@ pub(crate) fn apply_rules(
                             continue;
                         };
 
-                        // Calculate per-mechanism probability roll
                         let mut mech_prob = base_effective_prob * donor_multiplier;
 
                         mech_prob = mech_prob.min(1.0);
@@ -6915,7 +6332,7 @@ pub(crate) fn apply_rules(
                             continue;
                         }
 
-                        // Mechanism must be HGT-transferable (not a chromosomal mutation)
+                        // The mechanism must participate in the modelled HGT pathway.
                         if !population::mechanism_is_hgt_transferable(*mechanism) {
                             continue;
                         }
@@ -6947,8 +6364,8 @@ pub(crate) fn apply_rules(
                             individual,
                             recipient_idx,
                             param_cache,
-                            true, // raise_only — don't lower existing resistance
-                            true, // propagate_microbiome_r — update microbiome too
+                            true, // raise_only: don't lower existing resistance
+                            true, // propagate_microbiome_r: update microbiome too
                         );
 
                         // Provenance bookkeeping disabled for memory-saving runs.
@@ -6969,46 +6386,37 @@ pub(crate) fn apply_rules(
             }
         }
     }
-    // --- END HORIZONTAL GENE TRANSFER ---
-
-    // Check for post-infection drug usage evaluation (configurable timing)
+    // Record whether any drug was initiated by the configured post-infection day.
     let evaluation_days = cached_drug_evaluation_days;
 
     for b_idx in 0..BACTERIA_LIST.len() {
         let infection_start_day = individual.date_last_infected_keep[b_idx];
 
-        // Only evaluate if there was an infection and today is exactly the evaluation day after infection start
         if days_since_recorded_event(infection_start_day, time_step as i32) == Some(evaluation_days)
         {
-            // Check if any drug was initiated since the infection started
             let mut drug_used_since_infection = false;
 
             for d_idx in 0..DRUG_SHORT_NAMES.len() {
                 let drug_start_day = individual.date_drug_initiated_keep[d_idx];
 
-                // Drug was started if it was initiated on or after the infection start day
                 if drug_start_day != i32::MIN && drug_start_day >= infection_start_day {
                     drug_used_since_infection = true;
                     break;
                 }
             }
 
-            // Set the evaluation result for this bacteria (this will be counted once in summary stats)
             individual.day_7_since_last_infection_drug_used[b_idx] =
                 Some(drug_used_since_infection);
         }
     }
 
-    // Note: We do NOT reset day_7_since_last_infection_drug_used values here because
-    // the summary statistics need to capture them during this timestep.
-    // They will be reset when a new infection occurs or when the infection clears.
+    // Retain results for summary collection; acquisition or clearance resets them.
 
-    // Update the current number of drugs counter at the end of each timestep
     update_drug_counter(individual);
     events
 }
 
-/// Calculate comprehensive testing probability based on multiple factors
+/// Calculate the daily test probability conditional on test eligibility.
 fn calculate_testing_probability(
     individual: &Individual,
     time_step: usize,
@@ -7018,7 +6426,6 @@ fn calculate_testing_probability(
     is_bacterial_testing: bool,
 ) -> f64 {
     let store = parameter_store();
-    // Get base parameters
     let base_rate_raw = if is_bacterial_testing {
         get_global_param("bacterial_testing_base_rate_per_day").unwrap_or(0.15)
     } else {
@@ -7032,7 +6439,7 @@ fn calculate_testing_probability(
     };
     let base_rate = (base_rate_raw * policy_multiplier).clamp(0.0, 1.0);
 
-    // Calculate temporal multiplier (testing adoption over time)
+    // Testing adoption follows a fixed sigmoid after the relevant availability date.
     let years_since_availability = (time_step - testing_available_from_day) as f64 / 365.0;
     let (initial_rate, max_multiplier) = if is_bacterial_testing {
         (
@@ -7046,17 +6453,14 @@ fn calculate_testing_probability(
         )
     };
 
-    // Use sigmoid (S-curve) model for more realistic technology adoption
-    // Formula: initial_rate + (max_multiplier - initial_rate) * (1 / (1 + e^(-steepness * (years - midpoint))))
-    let adoption_years = if is_bacterial_testing { 40.0 } else { 50.0 }; // Years to reach ~95% adoption
-    let midpoint = adoption_years / 2.0; // Inflection point (fastest growth)
-    let steepness = 6.0 / adoption_years; // Controls how steep the S-curve is
+    let adoption_years = if is_bacterial_testing { 40.0 } else { 50.0 };
+    let midpoint = adoption_years / 2.0;
+    let steepness = 6.0 / adoption_years;
 
     let sigmoid_factor =
         1.0 / (1.0 + (-steepness * (years_since_availability - midpoint)).fast_exp());
     let temporal_multiplier = initial_rate + (max_multiplier - initial_rate) * sigmoid_factor;
 
-    // Hospital status multiplier
     let hospital_multiplier = if individual.hospital_status.is_hospitalized() {
         if is_bacterial_testing {
             get_global_param("bacterial_testing_hospital_multiplier").unwrap_or(8.0)
@@ -7067,29 +6471,25 @@ fn calculate_testing_probability(
         1.0
     };
 
-    // Regional resource multiplier
-    // Policy 4: equal access → use North America reference (1.1) for all regions
+    // Policy 4 substitutes the North America testing reference for every region.
     let region_multiplier = if policy.equalize_regional_access {
-        1.1 // North America high-income testing reference
+        1.1
     } else {
         store.region.testing_multiplier(individual.region_cur_in)
     };
 
-    // Immunosuppression multiplier
     let immunosuppression_multiplier = if individual.immunodeficiency_type.is_some() {
         get_global_param("testing_immunosuppressed_multiplier").unwrap_or(2.5)
     } else {
         1.0
     };
 
-    // Sepsis multiplier
     let sepsis_multiplier = if individual.sepsis.iter().any(|&s| s) {
         get_global_param("testing_sepsis_multiplier").unwrap_or(4.0)
     } else {
         1.0
     };
 
-    // Calculate final probability
     let final_probability = base_rate
         * temporal_multiplier
         * hospital_multiplier
@@ -7097,7 +6497,6 @@ fn calculate_testing_probability(
         * immunosuppression_multiplier
         * sepsis_multiplier;
 
-    // Cap at 1.0 (100% probability)
     final_probability.min(1.0)
 }
 
@@ -7751,8 +7150,8 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_585,
-            "applicability count should include the corrected reserve-drug routes"
+            applicable_cells, 5_535,
+            "applicability count should preserve the reviewed mechanism-drug scope"
         );
     }
 
@@ -7803,11 +7202,12 @@ mod tests {
                 "cefiderocol"
             ));
             assert!(param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, cefiderocol_idx));
-            assert_eq!(
+            assert!(
                 store
                     .bacteria_mechanism_emergence
-                    .rate(bacteria_idx, mechanism_idx),
-                0.0001
+                    .rate(bacteria_idx, mechanism_idx)
+                    > 0.0,
+                "{bacterium} should retain a live siderophore-uptake emergence route"
             );
         }
 
@@ -7834,11 +7234,12 @@ mod tests {
             mechanism
         ));
         assert!(param_cache.mechanism_applicable(mechanism_idx, burkholderia_idx, cefiderocol_idx));
-        assert_eq!(
+        assert!(
             store
                 .bacteria_mechanism_emergence
-                .rate(burkholderia_idx, mechanism_idx),
-            0.0001
+                .rate(burkholderia_idx, mechanism_idx)
+                > 0.0,
+            "Burkholderia should retain a live siderophore-uptake emergence route"
         );
 
         assert!(!mechanism_applies_to_drug(
@@ -7908,6 +7309,143 @@ mod tests {
             bacteria_idx("klebsiella_pneumoniae"),
             drug_idx(drug),
         ));
+    }
+
+    #[test]
+    fn reviewed_carbapenemase_combination_effects_are_explicit() {
+        let store = parameter_store();
+        let cache = ParameterKeyCache::new();
+        let e_coli_idx = bacteria_idx("escherichia_coli");
+
+        let ndm = ResistanceMechanism::EnzymeNdmVim;
+        let ndm_idx = super::mechanism_idx(ndm);
+        for (drug_class, expected) in [
+            (DrugClass::CeftazidimeAvibactam, 0.95),
+            (DrugClass::MeropenemVaborbactam, 0.95),
+            (DrugClass::AztreonamAvibactam, 0.0),
+            (DrugClass::Monobactams, 0.0),
+        ] {
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(ndm_idx, drug_class.index()),
+                expected,
+                "unexpected NDM/VIM effect for {}",
+                drug_class.as_str()
+            );
+        }
+        for drug in ["ceftazidime_avibactam", "meropenem_vaborbactam"] {
+            assert!(mechanism_applies_to_drug(ndm, "escherichia_coli", drug));
+            assert!(cache.mechanism_applicable(ndm_idx, e_coli_idx, drug_idx(drug)));
+        }
+        for drug in ["aztreonam", "aztreonam_avibactam"] {
+            assert!(!mechanism_applies_to_drug(ndm, "escherichia_coli", drug));
+            assert!(!cache.mechanism_applicable(ndm_idx, e_coli_idx, drug_idx(drug)));
+        }
+
+        let oxa_48 = ResistanceMechanism::EnzymeOxa48;
+        let oxa_48_idx = super::mechanism_idx(oxa_48);
+        for (drug_class, expected) in [
+            (DrugClass::CeftazidimeAvibactam, 0.15),
+            (DrugClass::MeropenemVaborbactam, 0.70),
+            (DrugClass::AztreonamAvibactam, 0.0),
+            (DrugClass::CarbapenemsGroup2, 0.70),
+        ] {
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(oxa_48_idx, drug_class.index()),
+                expected,
+                "unexpected OXA-48 effect for {}",
+                drug_class.as_str()
+            );
+        }
+        for drug in ["ceftazidime_avibactam", "meropenem_vaborbactam"] {
+            assert!(mechanism_applies_to_drug(oxa_48, "escherichia_coli", drug));
+            assert!(cache.mechanism_applicable(oxa_48_idx, e_coli_idx, drug_idx(drug)));
+        }
+        assert!(!mechanism_applies_to_drug(
+            oxa_48,
+            "escherichia_coli",
+            "aztreonam_avibactam"
+        ));
+        assert!(!cache.mechanism_applicable(
+            oxa_48_idx,
+            e_coli_idx,
+            drug_idx("aztreonam_avibactam")
+        ));
+    }
+
+    #[test]
+    fn ampc_plain_aztreonam_effects_use_the_strong_substrate_band() {
+        let store = parameter_store();
+        let cache = ParameterKeyCache::new();
+        let e_coli_idx = bacteria_idx("escherichia_coli");
+        let aztreonam_idx = drug_idx("aztreonam");
+
+        for (mechanism, expected) in [
+            (ResistanceMechanism::EnzymeAmpcCmy, 0.80),
+            (ResistanceMechanism::EnzymeAmpcDha, 0.75),
+            (ResistanceMechanism::MutationAmpCDerepression, 0.80),
+        ] {
+            let mechanism_idx = super::mechanism_idx(mechanism);
+            assert_eq!(
+                store
+                    .resistance_mechanism
+                    .enhancement_multiplier(mechanism_idx, DrugClass::Monobactams.index()),
+                expected,
+                "unexpected plain-aztreonam effect for {}",
+                mechanism.as_str()
+            );
+            assert!(mechanism_applies_to_drug(
+                mechanism,
+                "escherichia_coli",
+                "aztreonam"
+            ));
+            assert!(cache.mechanism_applicable(mechanism_idx, e_coli_idx, aztreonam_idx));
+        }
+    }
+
+    #[test]
+    fn ermb_does_not_resist_quinupristin_dalfopristin_alone() {
+        let store = parameter_store();
+        let cache = ParameterKeyCache::new();
+        let mechanism = ResistanceMechanism::TargetSiteErmB;
+        let mechanism_idx = super::mechanism_idx(mechanism);
+        let e_faecium_idx = bacteria_idx("enterococcus_faecium");
+
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .enhancement_multiplier(mechanism_idx, DrugClass::Macrolides.index()),
+            0.90
+        );
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .enhancement_multiplier(mechanism_idx, DrugClass::Lincosamides.index()),
+            0.90
+        );
+        assert_eq!(
+            store
+                .resistance_mechanism
+                .enhancement_multiplier(mechanism_idx, DrugClass::Streptogramins.index()),
+            0.0
+        );
+
+        for drug in ["erythromycin", "azithromycin", "clindamycin"] {
+            assert!(mechanism_applies_to_drug(
+                mechanism,
+                "enterococcus_faecium",
+                drug
+            ));
+        }
+        assert!(!mechanism_applies_to_drug(
+            mechanism,
+            "enterococcus_faecium",
+            "quinu_dalfo"
+        ));
+        assert!(!cache.mechanism_applicable(mechanism_idx, e_faecium_idx, drug_idx("quinu_dalfo")));
     }
 
     #[test]
@@ -8071,11 +7609,12 @@ mod tests {
             );
         }
 
-        assert_eq!(
+        assert!(
             store
                 .bacteria_mechanism_emergence
-                .rate(bacteria_idx("klebsiella_pneumoniae"), mechanism_idx),
-            0.000_01
+                .rate(bacteria_idx("klebsiella_pneumoniae"), mechanism_idx)
+                > 0.0,
+            "K. pneumoniae OmpK35/36 must remain de novo reachable"
         );
         assert_eq!(
             store.resistance_mechanism.reversion_rate(mechanism_idx),

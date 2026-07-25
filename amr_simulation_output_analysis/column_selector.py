@@ -4,7 +4,7 @@ Column selector for memory-efficient CSV loading.
 
 This module determines which columns are needed based on enabled plot types,
 allowing the data loader to skip unnecessary columns and reduce memory usage
-by 70-90% for large simulation files.
+for large simulation files.
 """
 
 from typing import List, Set, Optional
@@ -86,7 +86,7 @@ GROUPED_PLOT_PATTERNS = [
     r'.*_infection_resolution_death_from_infection_non_sepsis$',
     r'.*_infection_resolution_death_from_toxicity$',
     
-    # Day-7 drug initiation columns (for grouped figure 7)
+    # Day-7 drug initiation columns
     r'.*_day_7_evaluations$',
     r'.*_day_7_drug_used$',
     
@@ -106,7 +106,7 @@ GROUPED_PLOT_PATTERNS = [
     r'.*_microbiome_acquired_today$',
     r'.*_microbiome_cleared_today$',
     
-    # Region columns (for grouped figure 8)
+    # Region-level population, death, and infection columns
     r'^region_.*_population$',
     r'^region_.*_deaths$',
     r'^region_.*_infected$',
@@ -117,10 +117,10 @@ GROUPED_PLOT_PATTERNS = [
     r'^europe_population$',
     r'^oceania_population$',
     
-    # Drug failure events (for grouped figure 8)
+    # Drug failure events
     r'.*_drug_failure_events_.*',
     
-    # Syndrome columns (for grouped figure 8)
+    # Syndrome-level infection and death columns
     r'^syndrome_\d+_infected$',
     r'^syndrome_\d+_count$',
     r'^syndrome_\d+_deaths$',
@@ -162,6 +162,8 @@ CALIBRATION_PATTERNS = [
     r'.*_infection_acquisition_events_under_5$',
     r'.*_infection_acquisition_events_over_65$',
     r'^infection_acquisition_events_by_bacteria$',
+    # Person-level acquisition events used by the syndrome-incidence summary
+    r'^syndrome_(?:[1-9]|10)_infection_acquisition_people_count$',
     r'.*_currently_infected_hospital_count$',
     r'.*_currently_infected_community_count$',
     r'.*_deaths_under_5$',
@@ -172,10 +174,10 @@ CALIBRATION_PATTERNS = [
     r'.*_resistant_infected_community_count$',
     r'.*_presence_microbiome_resistant$',
 
-    # Age-specific infection death rates by region (sepsis + infection_non_sepsis, 60 columns)
+    # Age-specific infection deaths by region and cause
     r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)_deaths_sepsis$',
     r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)_deaths_infection_non_sepsis$',
-    # Age proportion denominators for computing per-age-group rates (30 columns)
+    # Age-proportion denominators for computing per-age-group rates
     r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)$',
     # Regional population totals (denominator fallback; also in GROUPED_PLOT_PATTERNS)
     r'^(north_america|south_america|africa|asia|europe|oceania)_population$',
@@ -183,11 +185,10 @@ CALIBRATION_PATTERNS = [
 
 
 # Patterns for specific detail plots (opt-in, not all columns)
-# Each detail plot type has its own pattern set with estimated column counts
-# LIGHTWEIGHT plots (~234 columns each): Can enable multiple together
-# HEAVY plots (1000+ columns): Enable one at a time or disable grouped_plots
+# Each detail plot type has its own pattern set. Matrix-wide plots are the
+# largest and should be enabled selectively when memory is constrained.
 DETAIL_PLOT_PATTERNS = {
-    # === LIGHTWEIGHT PLOTS (~234 columns each, bacteria×region) ===
+    # === BACTERIUM-REGION PLOTS ===
     # death_rate_by_bacteria_region - needs deaths_infected per region
     'death_rate_by_bacteria_region': [
         r'.*_deaths_infected_.*',            # {bacteria}_deaths_infected_{region}
@@ -216,12 +217,7 @@ DETAIL_PLOT_PATTERNS = {
     ],
     # infection_resolution_by_bacteria (already in grouped patterns)
     'infection_resolution_by_bacteria': [],
-    # source_of_new_resistance_by_drug_bacteria
-    'source_of_new_resistance_by_drug_bacteria': [
-        #r'.*_new_resistance_.*',
-    ],
-    
-    # === MODERATE PLOTS (~500-1000 columns) ===
+    # === OTHER AGGREGATE PLOTS ===
     # incidence_of_infection_hospital
     'incidence_of_infection_hospital': [
         r'.*_infection_acquisition_events_hospital_.*',
@@ -272,8 +268,9 @@ DETAIL_PLOT_PATTERNS = {
         r'.*_carriage_duration_days_.*',
     ],
     
-    # === HEAVY PLOTS (1000+ columns, bacteria×drug matrix) ===
-    # mean_mic_by_drug_for_each_bacteria (~3640 columns - MIC distributions)
+    # === BACTERIUM-DRUG MATRIX PLOTS ===
+    # Legacy "MIC" fields are unitless reciprocal-activity proxies, not
+    # laboratory MIC measurements.
     'mean_mic_by_drug_for_each_bacteria': [
         r'.*_mic_lt_2_.*',
         r'.*_mic_.*_count$',
@@ -283,29 +280,26 @@ DETAIL_PLOT_PATTERNS = {
     'for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2': [
         r'.*_infected_and_mic_lt2_.*',
     ],
-    # drug_score plots (~1820 columns - bacteria×drug scores)
+    # Bacterium-drug treatment scores
     'drug_score_analysis_by_bacteria': [
         r'.*_drug_score_.*',
     ],
     'drug_score_summary': [
         r'.*_drug_score_.*',
     ],
-    # mean_any_r_by_drug plots (~1820 columns)
+    # Bacterium-drug mean any_r
     'mean_any_r_by_drug_for_each_bacteria': [
         r'.*_any_r_.*_mean$',
     ],
     # resistance_mechanism_by_bacteria
     'resistance_mechanism_by_bacteria': [
         r'.*_resistance_source_.*',
-        #r'.*_new_resistance_.*',
     ],
     # source_of_new_resistance_by_drug_bacteria
     'source_of_new_resistance_by_drug_bacteria': [
         r'.*_resistance_source_.*',
-        #r'.*_new_resistance_.*',
     ],
     # global_antibiotic_activity: needs _currently_infected and _sum_any_r_ columns
-    # (~1820 columns — same footprint as mean_any_r plots)
     'global_antibiotic_activity': [
         r'.*_currently_infected$',
         r'.*_sum_any_r_(?!hospital).*',   # exclude hospital split variants
@@ -317,24 +311,23 @@ DETAIL_PLOT_PATTERNS = {
 # NOTE: Calibration columns (sum_any_r, infected_with_any_r_positive) are now
 # explicitly included via CALIBRATION_PATTERNS, so they take precedence.
 EXCLUDED_PATTERNS = [
-    # Full bacteria-drug resistance matrix - MEAN values (not needed for calibration)
+    # Full bacterium-drug resistance matrix means, unless explicitly requested
     r'.*_any_r_.*_mean$',           # Skip detailed any_r mean per drug
     r'.*_majority_r_.*_mean$',      # Skip majority_r mean per drug
     r'.*_test_r_.*',                # Skip test_r details
     r'.*_microbiome_r_.*_mean$',    # Skip microbiome_r mean per drug
     
-    # MIC distributions (huge - 35 bacteria × 52 drugs × 2 = 3640)
+    # Legacy reciprocal-activity proxy distributions
     r'.*_mic_lt_2_.*',
     r'.*_mic_.*_count$',
     
-    # Drug scores (35 bacteria × 52 drugs = 1820)
+    # Bacterium-drug scores
     r'.*_drug_score_.*',
     
     # Detailed resistance source tracking
     r'.*_resistance_source_.*',
-    #r'.*_new_resistance_.*',
     
-    # Per-drug hospital columns (redundant with aggregated)
+    # Per-drug hospital columns, unless explicitly requested
     r'.*_hospital_.*_drug_.*',
 ]
 
@@ -351,7 +344,7 @@ def get_required_columns(
     
     Args:
         all_columns: List of all available column names in the CSV
-        include_grouped_plots: Include columns for grouped figures 1-10
+        include_grouped_plots: Include columns used by grouped plots
         include_calibration: Include columns for calibration_summary.txt
         include_detail_plots: DEPRECATED - use enabled_detail_plots instead.
                               If True and enabled_detail_plots is None, loads ALL columns.
@@ -402,10 +395,7 @@ def get_required_columns(
         if excluded:
             continue
             
-        # For columns not matching any pattern, include them by default
-        # (they're likely small core columns we missed)
-        if included:
-            required.add(col)
+        # Columns outside the explicit core and include patterns remain excluded.
     
     # Ensure we have columns in the order they appear in CSV
     result = [col for col in all_columns if col in required]

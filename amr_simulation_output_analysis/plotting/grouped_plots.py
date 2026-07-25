@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-Grouped plots (Figures 1-9) for AMR simulation analysis.
-
-This module contains the create_grouped_plots function extracted from
-the original analyze_simulation.py script.
+Grouped summary plots for AMR simulation analysis.
 """
 
 import gc
@@ -17,7 +14,6 @@ from matplotlib.lines import Line2D
 from pathlib import Path
 from typing import Optional
 
-# Import from the modular system
 from ..utils import safe_divide, setup_logging, normalize_policy_identifier_list, coerce_policy_identifier
 from ..config import PlotConfig
 from ..calibration_summary import (
@@ -53,12 +49,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         # Respect caller configuration even if this function is invoked directly
         return
     
-    # PERFORMANCE: Skip expensive policy break-row insertion
-    # The original logic inserted NaN rows between policy segments to avoid line jumps,
-    # but with 31k+ columns this concat operation takes forever.
-    # The visual discontinuity is acceptable vs hour-long runtimes.
-    # 
-    # Skip reset_index since data is already properly indexed from cache
+    # Policy series are plotted separately below, so no full-frame gap rows are needed.
     if not isinstance(df.index, pd.RangeIndex) or (len(df.index) > 0 and df.index[0] != 0):
         df = df.reset_index(drop=True)
 
@@ -486,7 +477,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes2[3].set_xlabel('Time (Years)')
                 axes2[3].set_ylabel('Deaths in Past Year / Current Population')
                 axes2[3].set_xlim(left=0)
-                # here here
                 axes2[3].set_ylim(0, 0.005)   
                 cause_handles = [
                     Line2D([0], [0], color=color, linewidth=2, linestyle='-', label=label)
@@ -978,7 +968,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     axes5[2].text(0.5, 0.5, 'No infection or drug data to plot', ha='center', va='center', fontsize=12, color='gray')
                     axes5[2].set_axis_off()
                 
-                # Removed the inset summary box to keep the plot uncluttered
             else:
                 axes5[2].text(0.5, 0.5, 'Data not available\n(total_currently_infected or currently_taking_drug_count)', 
                             ha='center', va='center', fontsize=12, color='gray')
@@ -1240,7 +1229,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes7[0].text(0.5, 0.5, 'No day-7 proportion data', ha='center', va='center')
                 axes7[0].set_axis_off()
             
-            # Removed the inset summary box to keep the plot uncluttered
             
             # 2. Number of Day 7 Evaluations Over Time (top-right)
             if plot_segmented_series(
@@ -1440,7 +1428,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             axes8[0].grid(True, alpha=0.3)
             axes8[0].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
             
-            # Removed the inset summary box to keep the plot uncluttered
             
             # Handle other panels with fallback for missing data
             # 2. Regional Population Distribution (top-right)
@@ -1504,7 +1491,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes8[1].ticklabel_format(style='plain', axis='y')
                 axes8[1].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x):,}'))
                 
-                # Removed the inset summary box to keep the plot uncluttered
             else:
                 # No region data found
                 axes8[1].text(0.5, 0.5, f'No region data found\nExpected columns: north_america_population, etc.\nFound columns: {len(region_cols)}', 
@@ -1592,7 +1578,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes8[3].grid(True, alpha=0.3)
                 axes8[3].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
                 
-                # Removed the previous summary textbox so the panel focuses purely on trend lines
             else:
                 axes8[3].text(0.5, 0.5, 'No death cause data\navailable', ha='center', va='center', fontsize=12, color='gray')
                 axes8[3].set_axis_off()
@@ -1655,7 +1640,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                              ha='center', va='center', fontsize=12, color='gray')
                 axes9[0].set_axis_off()
             
-            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes9[0].text(0.5, 0.5, 'New drug initiations data\nnot available', 
                          ha='center', va='center', fontsize=12, color='gray')
@@ -1687,7 +1671,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             axes9[1].grid(True, alpha=0.3)
             axes9[1].legend(loc='upper right')
             
-            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes9[1].text(0.5, 0.5, 'Polypharmacy data\nnot available', 
                          ha='center', va='center', fontsize=12, color='gray')
@@ -1727,7 +1710,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                              ha='center', va='center', fontsize=12, color='gray')
                 axes9[2].set_axis_off()
             
-            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes9[2].text(0.5, 0.5, 'Treatment failure data\nnot available', 
                          ha='center', va='center', fontsize=12, color='gray')
@@ -1735,7 +1717,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         
         # 4. Sepsis Deaths in the Past Year
         if 'deaths_sepsis_past_year' in df.columns or 'deaths_sepsis_past_year_proportion' in df.columns:
-            # We plot the proportion series, which should have been added by add_proportions in analysis.py
+            # Preprocessing derives this population proportion from the count column.
             prop_col = 'deaths_sepsis_past_year_proportion'
             if prop_col in df.columns:
                 plotted_sepsis = plot_segmented_series(
@@ -1835,7 +1817,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             if plotted_count > 0:
                 axes10[0].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=8)
             
-            # Removed the inset summary box to keep the plot uncluttered
             
             # Bottom panel: Total preventions across all bacteria
             total_preventions_per_day = sum_rows(prevention_cols)
@@ -1856,7 +1837,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes10[1].text(0.5, 0.5, 'Total prevention data\nnot available', ha='center', va='center', fontsize=12, color='gray')
                 axes10[1].set_axis_off()
             
-            # Removed the inset summary box to keep the plot uncluttered
             
         else:
             # Show message if no prevention data available

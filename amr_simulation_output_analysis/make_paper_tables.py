@@ -293,9 +293,9 @@ def _save_figure(
     _save(html_path, body)
 
 
-# Best-estimate targets for % of new infections that are hospital-acquired.
-# Sources: ECDC EARS-Net, WHO HAI reports, INICC, published HAI epidemiology ~2015–2024.
-# Ranges are broad; central estimates used as calibration targets.
+# Expert-informed best-guess placeholders for the percentage of infections
+# acquired in hospital. Broad surveillance sources inform the qualitative
+# ordering, but the values and inline ranges lack row-level provenance.
 _HA_PCT_TARGETS: dict[str, float] = {
     "acinetobacter baumannii":                   65.0,  # ESKAPE; ICU/VAP ~60–80%
     "bacteroides fragilis":                       30.0,  # post-surgical intra-abdominal ~20–40%

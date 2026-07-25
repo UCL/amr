@@ -1,9 +1,9 @@
 // Infection journey logger.
 //
 // This is a targeted debugging/analysis tool: instead of logging every individual every day,
-// it captures dense snapshots only for sampled infections while they are clinically active.
-// That keeps the output tractable while preserving enough detail to reconstruct treatment,
-// resistance, and clearance trajectories for a single journey.
+// it captures dense snapshots for sampled active infections and follows the selected primary
+// infection until death or seven logged days after clearance. The output is intended for
+// reconstructing individual treatment, resistance, and resolution trajectories.
 
 use crate::simulation::population::{
     load_float, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
@@ -142,7 +142,9 @@ pub struct InfectionJourneySnapshot {
     pub time_step: usize,
     pub day_of_journey: u32,
 
-    // Demographics (set at journey start)
+    // Demographic and location state at this snapshot.
+    // `age_at_onset` is a compatibility column name; it currently contains age in days
+    // at each snapshot rather than a frozen onset age.
     pub age_at_onset: i32,
     pub sex: String,
     pub region_living: String,
@@ -160,11 +162,12 @@ pub struct InfectionJourneySnapshot {
     pub all_bacteria_levels: Vec<(String, f64)>, // (bacteria_name, level)
 
     // Treatment details
-    pub current_drugs: Vec<(String, f64)>, // (drug_name, level)
+    pub current_drugs: Vec<(String, f64)>, // (drug_name, site-adjusted level or recent-use marker)
     pub days_on_current_treatment: i32,
     pub treatment_failures_count: u32,
 
-    // Resistance status for primary bacteria
+    // Resistance status for the primary bacterium. Across a clearance transition,
+    // the logger may retain the preceding snapshot or a cached pre-clearance activity vector.
     pub resistance_any_r: Vec<(String, f64)>, // (drug_name, any_r_level)
     pub resistance_activity_r: Vec<(String, f64)>, // (drug_name, activity_r_level)
     pub resistances_microbiome_r: Vec<(String, f64)>, // (drug_name, microbiome_r_level)
@@ -174,15 +177,15 @@ pub struct InfectionJourneySnapshot {
     pub resistance_mechanisms: Vec<String>,   // active mechanisms
     pub perceived_penicillin_allergy: bool,
 
-    // Drug selection information (captured when treatment starts)
+    // Most recently retained drug-selection state on the individual.
     pub drug_selection_bacteria: Option<String>, // bacteria that triggered drug selection
     pub drug_selection_scores: Vec<(String, f64)>, // all drug scores at selection time
-    pub selected_drug: Option<String>,           // which drug was actually selected
+    pub selected_drug: Option<String>, // most recently initiated drug among logged entries
 
     // Clinical status
     pub hospital_status: String,
     pub clearance_hazard: f64,
-    pub toxicity_level: f64,
+    pub toxicity_level: f64, // aggregate toxicity reservoir input, not mortality probability
     pub background_mortality_risk: f64,
 
     // Testing status
@@ -193,10 +196,11 @@ pub struct InfectionJourneySnapshot {
     // Journey outcome (only on final snapshot)
     pub resolution_type: Option<String>,
 
-    // De novo resistance detection
+    // Compatibility name: true for a qualifying microbiome-derived, infection-emergent,
+    // or HGT resistance acquisition while the primary infection is on treatment.
     pub has_de_novo_resistance: bool,
 
-    // Resistance source tracking
+    // Per-drug source labels are present only when provenance tracking is enabled.
     pub resistance_sources: Vec<(String, String)>, // (drug_name, acquisition_source)
 }
 
@@ -207,7 +211,7 @@ pub struct ActiveJourney {
     pub day_count: u32,
     pub snapshots: Vec<InfectionJourneySnapshot>,
     pub primary_bacteria_cleared_day: Option<u32>, // Day when primary bacteria cleared
-    pub has_de_novo_resistance: bool, // Track if de novo resistance emerged during this journey
+    pub has_de_novo_resistance: bool, // Compatibility flag with the broader semantics above.
     pub initial_failure_day: Option<i32>,
     pub last_recorded_failure_day: Option<i32>,
     pub treatment_failures_count: u32,
@@ -218,7 +222,7 @@ pub struct JourneyLogger {
     // Configuration
     pub enabled: bool,
     pub sample_rate: f64,
-    pub bacteria_filter: Option<String>, // Filter to log only specific bacteria
+    pub bacteria_filter: Option<String>, // Optional primary-bacterium filter.
 
     // Active tracking
     active_journeys: HashMap<usize, ActiveJourney>, // individual_id -> journey
@@ -273,8 +277,6 @@ impl JourneyLogger {
 
         self.csv_writer = Some(writer);
 
-        // Journey logging enabled silently
-
         Ok(())
     }
 
@@ -306,8 +308,6 @@ impl JourneyLogger {
 
         self.csv_writer = Some(writer);
 
-        // Journey logging enabled silently
-
         Ok(())
     }
 
@@ -329,9 +329,9 @@ impl JourneyLogger {
 
         match (is_currently_tracked, has_active_infection, is_dead) {
             (false, true, false) => {
-                // New infection - potentially start tracking
+                // Untracked active infection: potentially start a journey.
                 let has_de_novo_resistance = self.detect_de_novo_resistance_emergence(individual);
-                // Always sample if de novo resistance is detected, otherwise use normal sampling
+                // Qualifying resistance acquisition bypasses ordinary journey sampling.
                 if has_de_novo_resistance || self.rng.gen::<f64>() < self.sample_rate {
                     self.start_journey(individual, time_step, has_de_novo_resistance);
                 }
@@ -341,7 +341,7 @@ impl JourneyLogger {
                 self.complete_journey(individual, time_step);
             }
             (true, _, false) => {
-                // Continue tracking - check if we should terminate based on clearance + time
+                // Continue tracking or finish after the post-clearance follow-up.
                 if self.should_terminate_journey(individual, time_step) {
                     self.complete_journey(individual, time_step);
                 } else {
@@ -349,13 +349,13 @@ impl JourneyLogger {
                 }
             }
             (false, false, false) | (false, _, true) => {
-                // Not tracking - do nothing (covers dead/alive, no infection cases)
+                // No active journey to update.
             }
         }
     }
 
     fn start_journey(&mut self, individual: &Individual, time_step: usize, initial_de_novo: bool) {
-        // Find primary bacteria (highest level)
+        // Select the highest-level active bacterium as the primary infection.
         let mut primary_bacteria_idx = 0;
         let mut highest_level = 0.0;
 
@@ -370,13 +370,13 @@ impl JourneyLogger {
             return; // No significant infection
         }
 
-        // Check bacteria filter if specified
+        // Apply the optional primary-bacterium filter.
         if let Some(ref filter_bacteria) = self.bacteria_filter {
             let bacteria_name = BACTERIA_LIST[primary_bacteria_idx]
                 .to_lowercase()
                 .replace(" ", "_");
             if bacteria_name != *filter_bacteria {
-                return; // Skip this infection - doesn't match filter
+                return;
             }
         }
 
@@ -438,7 +438,7 @@ impl JourneyLogger {
     }
 
     fn update_journey(&mut self, individual: &Individual, time_step: usize) {
-        // Check for de novo resistance emergence before getting mutable reference
+        // Check for a qualifying resistance acquisition before borrowing the journey mutably.
         let has_new_resistance = self.detect_de_novo_resistance_emergence(individual);
 
         if let Some(journey) = self.active_journeys.get_mut(&individual.id) {
@@ -589,11 +589,10 @@ impl JourneyLogger {
             .map(|(idx, &level)| (BACTERIA_LIST[idx].to_string(), level))
             .collect();
 
-        // Collect ALL drugs with detectable levels (active AND decaying after cessation)
+        // Collect drugs with detectable levels, including post-cessation decay.
         let mut current_drugs: Vec<(String, f64)> = Vec::new();
 
-        // Include all drugs with levels above the detection threshold (INFECTION_EPS)
-        // This captures both actively taken drugs and drugs in decay phase after cessation
+        // Report syndrome-site-adjusted levels for detectable drugs.
         for (idx, &level) in individual.cur_level_drug.iter().enumerate() {
             if level > INFECTION_EPS {
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
@@ -615,32 +614,29 @@ impl JourneyLogger {
         for (idx, &initiation_day) in individual.date_drug_initiated.iter().enumerate() {
             if initiation_day == time_step as i32 {
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
-                // Check if not already added from cur_use_drug
+                // Avoid duplicating an entry already added from its current level.
                 let already_added = current_drugs.iter().any(|(name, _)| name == &drug_name);
                 if !already_added {
                     // Use initial level for newly initiated drugs
                     let initial_level = if individual.cur_level_drug[idx] > 0.0 {
                         individual.cur_level_drug[idx]
                     } else {
-                        10.0 // Standard initial level
+                        10.0 // Display fallback when the newly initiated level is unavailable.
                     };
                     current_drugs.push((drug_name, initial_level));
                 }
             }
         }
 
-        // Also include drugs that were initiated in the last few days even if no longer active
-        // This provides comprehensive drug history for better timing accuracy
+        // Add a recent-use marker for a drug initiated exactly two days earlier
+        // when no detectable level remains.
         for (idx, &initiation_day) in individual.date_drug_initiated.iter().enumerate() {
             if initiation_day >= 0 && initiation_day < time_step as i32 - 1 {
-                // Skip current and previous day (already handled above)
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
-                // Only add if not already in current_drugs
                 if !current_drugs.iter().any(|(name, _)| name == &drug_name) {
                     let days_since_initiation = time_step as i32 - initiation_day;
                     if days_since_initiation <= 2 {
-                        // Show drugs used within last 2 days
-                        // Show recently used drugs with minimal level to indicate they were used
+                        // A fixed marker distinguishes recent use from a measured level.
                         current_drugs.push((drug_name, 0.1));
                     }
                 }
@@ -774,7 +770,7 @@ impl JourneyLogger {
             }
         }
 
-        // Collect active resistance mechanisms
+        // Collect mechanisms present in the primary bacterium's current mask.
         let all_mechanisms = ResistanceMechanism::all();
         let resistance_mechanisms: Vec<String> = all_mechanisms
             .iter()
@@ -783,7 +779,7 @@ impl JourneyLogger {
             .map(|(_, mechanism)| mechanism.as_str().to_string())
             .collect();
 
-        // Collect resistance sources for primary bacteria
+        // Collect available per-drug source labels for the primary bacterium.
         let resistance_sources: Vec<(String, String)> =
             if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
                 DRUG_SHORT_NAMES
@@ -800,8 +796,7 @@ impl JourneyLogger {
                     })
                     .collect()
             } else {
-                // Provenance tracking is disabled for memory-saving calibration runs, so
-                // journey logs intentionally emit no resistance source labels.
+                // Without provenance state, journey logs emit no source labels.
                 Vec::new()
             };
 
@@ -829,7 +824,7 @@ impl JourneyLogger {
                 })
                 .collect();
 
-            // Find which drug was selected (the one currently being taken that was started most recently)
+            // Infer the selected drug as the most recently initiated logged entry.
             let selected = current_drugs
                 .iter()
                 .max_by_key(|(drug_name, _)| {
@@ -910,7 +905,8 @@ impl JourneyLogger {
             if journey.drug_supported_clearance {
                 "DrugAssistedClearance".to_string()
             } else {
-                // Fallback: if drugs are still active at resolution, classify as drug-assisted
+                // Compatibility heuristic: active treatment at resolution is classified
+                // as drug-assisted even without a positive activity signal.
                 let has_active_drugs = individual.cur_use_drug.iter().any(|&taking| taking);
                 if has_active_drugs {
                     "DrugAssistedClearance".to_string()
@@ -925,7 +921,8 @@ impl JourneyLogger {
         previous: Option<&InfectionJourneySnapshot>,
         current: &InfectionJourneySnapshot,
     ) -> bool {
-        // Any positive activity signal confirms drug contribution
+        // Compatibility heuristic: any positive activity signal marks the journey
+        // as drug-supported; this is not causal attribution.
         if current
             .resistance_activity_r
             .iter()
@@ -957,7 +954,7 @@ impl JourneyLogger {
             let prev_level = prev_snapshot.primary_bacteria_level;
             let current_level = current.primary_bacteria_level;
 
-            // Clearance to (or below) detection threshold while drug present
+            // Clearance to or below the modeled infection threshold while drug is present.
             if prev_level > INFECTION_EPS && current_level <= INFECTION_EPS {
                 if !current.current_drugs.is_empty()
                     && current
@@ -969,7 +966,7 @@ impl JourneyLogger {
                 }
             }
 
-            // New drug started with immediate notable decline
+            // A newly logged drug accompanied by an immediate decline also marks support.
             if prev_snapshot.current_drugs.is_empty() && !current.current_drugs.is_empty() {
                 if prev_level > INFECTION_EPS {
                     let level_drop = prev_level - current_level;
@@ -1151,9 +1148,9 @@ impl JourneyLogger {
         )
     }
 
-    // Detect if de novo resistance has emerged or is present in a way that warrants tracking
+    // Detect qualifying newly acquired resistance under the legacy de-novo flag name.
     fn detect_de_novo_resistance_emergence(&self, individual: &Individual) -> bool {
-        // Need to be on treatment for a de novo emergence to be considered relevant
+        // Only acquisitions in an infection currently under treatment qualify.
         if !individual.cur_use_drug.iter().any(|&taking| taking) {
             return false;
         }
@@ -1181,12 +1178,11 @@ impl JourneyLogger {
         const RESISTANCE_EPSILON: f64 = 1e-6;
 
         if !crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-            // Provenance tracking is disabled for memory-saving calibration runs, so
-            // journey logs cannot classify de novo/HGT source labels.
+            // Without provenance state, the logger cannot classify acquisition routes.
             return false;
         }
 
-        // Focus on the primary bacteria
+        // Inspect the selected primary bacterium.
         for (drug_idx, acquisition_type_opt) in individual.how_resistance_acquired
             [primary_bacteria_idx]
             .iter()
@@ -1211,12 +1207,10 @@ impl JourneyLogger {
                 continue;
             }
 
-            // Resistance source is De Novo.
-
             if let Some(journey) = journey_opt {
-                // TRACKED CASE: Check for INCREASE from previous snapshot
+                // For a tracked journey, require an increase from the previous snapshot.
                 let Some(previous_snapshot) = journey.snapshots.last() else {
-                    // Tracked but no snapshot? Should not happen if start_journey creates one.
+                    // A tracked journey is expected to have an initial snapshot.
                     return true;
                 };
 
@@ -1237,7 +1231,7 @@ impl JourneyLogger {
                     return true;
                 }
             } else {
-                // UNTRACKED CASE: Presence of De Novo marker while on drug is enough
+                // For an untracked infection, a qualifying source marker is sufficient.
                 return true;
             }
         }
@@ -1249,10 +1243,6 @@ impl JourneyLogger {
         if let Some(ref mut writer) = self.csv_writer {
             writer.flush()?;
         }
-
-        // Journey logging summary disabled for cleaner output
-
-        // Journey statistics summary disabled for cleaner output
 
         Ok(())
     }

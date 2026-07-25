@@ -1,68 +1,16 @@
-// =====================================================================================
-// src/simulation/population.rs
-// =====================================================================================
-//
-// CORE DATA STRUCTURES FOR AMR SIMULATION
-//
-// This module defines the fundamental data structures representing individuals in the
-// simulation and their health states. Understanding this file is essential for working
-// with the codebase.
-//
-// =====================================================================================
-// KEY CONCEPTS
-// =====================================================================================
-//
-// 1. INDIVIDUAL STATE
-//    Each person (Individual struct) tracks ~60+ variables including:
-//    - Demographics: age, sex, region, penicillin allergy status
-//    - Infection state: per-bacteria infection levels, symptoms, sepsis
-//    - Resistance: per-bacteria/drug resistance levels and mechanism masks
-//    - Drug use: current treatments, drug levels, toxicity
-//    - Microbiome: colonization/carriage status for each bacteria
-//
-// 2. ARRAY INDEXING
-//    Most state variables are arrays indexed by bacteria or drug.
-//    Example: individual.level[bacteria_idx] gives infection intensity
-//    Example: individual.resistances[bacteria_idx][drug_idx].any_r gives resistance
-//
-// 3. RESISTANCE MODEL
-//    The Resistance struct tracks multiple resistance perspectives:
-//    - any_r: Resistance in ANY bacteria the person is infected with (0.0-1.0)
-//    - microbiome_r: Resistance level in colonizing (carriage) bacteria
-//    - activity_r: Effective antibiotic activity after resistance and exposure
-//    - test_r: Resistance as would be reported by lab testing
-//    - mechanism_majority: Majority-strain resistance mechanism bitmask
-//
-// 4. RESISTANCE MECHANISMS
-//    The ResistanceMechanism enum tracks specific genetic/biochemical mechanisms:
-//    - ESBL, Carbapenemase: Beta-lactamase enzymes
-//    - MecA: Methicillin resistance in Staphylococcus
-//    - VanType: Vancomycin resistance genes
-//    - etc.
-//    These determine cross-resistance patterns and HGT (horizontal gene transfer) potential.
-//
-// 5. INFECTION RESOLUTION
-//    InfectionResolutionType tracks how infections end:
-//    - ImmuneClearance: Natural clearance by immune system
-//    - DrugAssistedClearance: Cleared with help from antibiotics
-//    - Death variants: Patient died (from sepsis, infection, background, toxicity)
-//
-// =====================================================================================
-// DOCUMENTATION REFERENCES
-// =====================================================================================
-// For detailed documentation, see the docs/ folder:
-//   - docs/01_individual_state.md: Complete variable reference
-//   - docs/02_resistance_system.md: Resistance modeling details
-//   - docs/08_enums_constants.md: All constants and enum values
-//
-// =====================================================================================
+//! Per-person state, canonical bacteria and drug inventories, and resistance-mechanism metadata.
+//!
+//! Most `Individual` vectors are indexed by `BACTERIA_LIST` or `DRUG_SHORT_NAMES`.
+//! Resistance mechanisms are packed into one bitmask per bacterium, while the derived
+//! resistance measures are stored for each bacterium-drug pair. See
+//! `model_description/MODEL_DESCRIPTION.md` for the model-level interpretation.
 
 use crate::config::parameter_store;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-// Minimum infection/drug level threshold; values below this are treated as cleared to avoid floating-point noise.
+// Values below this threshold are treated as zero in infection and drug-exposure state.
 pub const INFECTION_EPS: f64 = 0.001;
 /// Missing infection or carriage event date. Simulation day zero is a valid recorded date.
 pub(crate) const MISSING_EVENT_DATE: i32 = -1;
@@ -140,10 +88,7 @@ pub fn load_float<T: StoredFloatRepr>(value: T) -> f64 {
     value.load()
 }
 
-/// Specific resistance mechanisms that can be present in bacteria
-/// These mechanism bitmasks are the source of infection, majority-strain, and
-/// microbiome resistance projections.
-// EDITED: Expanded mechanism list for higher fidelity
+/// Resistance routes represented by the infection, majority-strain, and microbiome bitmasks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResistanceMechanism {
     EnzymeEsblCtxM,
@@ -172,28 +117,26 @@ pub enum ResistanceMechanism {
     ModificationMcr1,
     MutationPolymyxinRegulatory,
     GlobalEffluxPump,
-    // --- New mechanisms added to cover previously unmapped drugs ---
-    MutationFolatePathway,  // sul1/2/3 + dfrA: sulfanilamide, trim_sulf
-    MutationNitroreductase, // nim genes, nfsA/B loss: metronidazole, nitrofurantoin, furazolidone
-    EnzymeFos,              // fosA/B/C metalloenzymes: fosfomycin
-    MutationMprF,           // mprF/liaFSR membrane modification: daptomycin
-    MutationLiafsrCls,      // Enterococcal cell-envelope remodeling: daptomycin
-    MutationRpoB, // RNA polymerase β-subunit mutation: fidaxomicin (rifampicin resistance modeled via MDR TB bacteria parameters)
-    ProtectionFusB, // fusB/fusC protection proteins: fusidic_a
-    ProtectionTetM, // tet(M)/tet(O) ribosomal protection: tetracycline, doxycycline, minocycline (NOT tigecycline)
-    // --- Additional mechanisms for improved coverage ---
-    EnzymeAacAph, // AAC/APH/ANT family aminoglycoside-modifying enzymes (integrons/plasmids)
-    EnzymeBlaZ,   // blaZ staphylococcal penicillinase (plasmid-borne)
-    EnzymeNarrowSpectrumGramNegativePenicillinase, // TEM-1/ROB-1/BRO narrow-spectrum penicillinase proxy
-    EnzymeMphA, // mphA macrolide phosphotransferase (Enterobacterales/EntericPathogen, plasmid-borne; azithromycin/macrolide resistance)
-    EnzymeOxaAcinetobacter, // OXA-23/40/58 carbapenemases (A. baumannii, plasmid/Tn2006)
-    Mutation23sRrna, // 23S rRNA point mutation: clarithromycin/macrolide resistance (chromosomal)
-    Mutation23sRrnaOxazolidinone, // 23S rRNA domain V mutation: linezolid/tedizolid resistance
-    EffluxTetAbc, // TetA/B/C efflux pumps: Gram-negative tetracycline efflux (Tn10 / plasmids)
-    MutationPbpMosaic, // PBP mosaic mutations: reduced β-lactam affinity (penicillins, cephalosporins, aztreonam)
-    EffluxMtrCde, // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
-    Mutation16sRrnaTetracycline, // H. pylori 16S rRNA target mutation
-    MutationSiderophoreUptake, // Chromosomal loss or alteration of ferric-siderophore uptake used by cefiderocol
+    MutationFolatePathway, // Compressed sul/dfr route for sulfonamides and trimethoprim.
+    MutationNitroreductase, // Compressed nim/nfs route for nitroimidazole and nitrofuran resistance.
+    EnzymeFos,              // FosA/B/C-type fosfomycin-modifying enzymes.
+    MutationMprF,           // Staphylococcal membrane modification affecting daptomycin.
+    MutationLiafsrCls,      // Enterococcal cell-envelope remodeling affecting daptomycin.
+    MutationRpoB,           // RNA-polymerase target alteration affecting rifampicin/fidaxomicin.
+    ProtectionFusB,         // FusB/FusC-type protection affecting fusidic acid.
+    ProtectionTetM,         // Tet(M)/Tet(O)-type protection; excludes tigecycline.
+    EnzymeAacAph,           // AAC/APH/ANT aminoglycoside-modifying enzymes.
+    EnzymeBlaZ,             // Staphylococcal inhibitor-susceptible penicillinase.
+    EnzymeNarrowSpectrumGramNegativePenicillinase, // TEM-1/ROB-1/BRO policy-scale proxy.
+    EnzymeMphA,             // Mobile macrolide phosphotransferase.
+    EnzymeOxaAcinetobacter, // OXA-23/40/58-type Acinetobacter carbapenemases.
+    Mutation23sRrna,        // Chromosomal macrolide target alteration.
+    Mutation23sRrnaOxazolidinone, // Chromosomal oxazolidinone target alteration.
+    EffluxTetAbc,           // Mobile Gram-negative tetracycline efflux.
+    MutationPbpMosaic,      // Recombination-derived reduced beta-lactam target affinity.
+    EffluxMtrCde,           // Broad chromosomal efflux route represented by mtrCDE.
+    Mutation16sRrnaTetracycline, // H. pylori tetracycline target alteration.
+    MutationSiderophoreUptake, // Cefiderocol uptake or regulatory alteration.
 }
 
 impl ResistanceMechanism {
@@ -386,10 +329,8 @@ impl ResistanceAcquisitionType {
     }
 }
 
-// Memory-saving switch: disable dense per-person provenance tracking for resistance
-// acquisition. This bookkeeping is mainly explanatory/journey metadata rather than a
-// core driver of resistance biology, so we keep the types in place but leave the data
-// unallocated until we decide to restore it.
+// Allocating dense per-person acquisition provenance is optional because it is explanatory
+// metadata and does not drive resistance dynamics.
 pub const TRACK_RESISTANCE_ACQUISITION_PROVENANCE: bool = false;
 
 /// Tracks how an infection was resolved (why it ended)
@@ -436,14 +377,12 @@ impl InfectionResolutionType {
     }
 }
 
-/// Types of severe immunodeficiency based on expected duration
+/// Model categories for severe immunodeficiency, distinguished by duration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ImmunodeficiencyType {
-    /// Temporary immunodeficiency (chemotherapy, acute treatments, post-transplant induction)
-    /// Expected recovery within months to 1-2 years
+    /// Time-limited immunodeficiency governed by the configured recovery process.
     Temporary,
-    /// Chronic immunodeficiency (primary immunodeficiencies, long-term immunosuppression)
-    /// Lifelong or very long-term (>5 years)
+    /// Persistent immunodeficiency without the temporary-state recovery process.
     Chronic,
 }
 
@@ -544,25 +483,11 @@ impl ImmunodeficiencyType {
     }
 }
 
-/// **CONFIGURABLE BACTERIA LIST**
+/// Canonical bacterium roster and index order.
 ///
-/// To customize which bacteria are included in your simulation, simply edit this list.
-/// The model will automatically adapt to any number of bacteria (1-50+ supported).
-///
-/// **Single-bacteria runs are scientifically valid for:**
-/// - Pathogen-specific resistance studies (e.g., E. coli UTI resistance)
-/// - Drug development against specific organisms
-/// - Mechanism research (e.g., ESBL in Klebsiella)
-/// - Educational/training scenarios
-/// - Computational efficiency for parameter sweeps
-///
-/// **Multi-bacteria runs provide:**
-/// - Cross-resistance transfer via HGT
-/// - Microbiome competition dynamics
-/// - Realistic syndromic treatment scenarios
-/// - Population-level ecosystem effects
-///
-/// **Usage:** Simply add/remove bacteria names, recompile, and run!
+/// Several fixed-size arrays, parameter blocks, output columns, and invariant tests share this
+/// order. Changing the roster therefore requires a coordinated schema and configuration change,
+/// not an isolated edit to this constant.
 pub const BACTERIA_LIST: [&str; 42] = [
     "acinetobacter_baumannii",
     "citrobacter_spp.",
@@ -734,51 +659,57 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
     use ResistanceMechanism::*;
 
     match mechanism {
-        // Gram-Negative Focused Mechanisms
-        EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv |
-        EnzymeKpc | EnzymeNdmVim | EnzymeOxa48 |
-        EnzymeAmpcCmy | EnzymeAmpcDha | MutationAmpCDerepression |
-        ModificationMcr1 | MutationPolymyxinRegulatory |
-        EffluxAcrabTolc | EffluxMexxyOprm |
-        PorinLossOmpk35_36 | PorinLossOprd |
-        ProtectionQnr | Enzyme16sRrmt => mask_for_groups(&[
+        // Broad Gram-negative host gate; exact host and drug restrictions are applied later.
+        EnzymeEsblCtxM
+        | EnzymeEsblTem
+        | EnzymeEsblShv
+        | EnzymeKpc
+        | EnzymeNdmVim
+        | EnzymeOxa48
+        | EnzymeAmpcCmy
+        | EnzymeAmpcDha
+        | MutationAmpCDerepression
+        | ModificationMcr1
+        | MutationPolymyxinRegulatory
+        | EffluxAcrabTolc
+        | EffluxMexxyOprm
+        | PorinLossOmpk35_36
+        | PorinLossOprd
+        | ProtectionQnr
+        | Enzyme16sRrmt => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Fastidious,
-            BacteriaGroup::Anaerobe, // Allowed for Bacteroides (Gram-Neg Anaerobe)
+            BacteriaGroup::Anaerobe,
         ]),
 
-        // mecA/PBP2a: staphylococci only — S. pyogenes/Streptococci do NOT carry mecA
+        // mecA/PBP2a model route.
         TargetSitePbp2aMecA => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
-        // VanA/VanB glycopeptide resistance: Enterococcus (Streptococci group) + rarely VRSA (Staphylococci)
-        TargetSiteVanA | TargetSiteVanB => mask_for_groups(&[
-            BacteriaGroup::Staphylococci,
-            BacteriaGroup::Streptococci,
-        ]),
+        // VanA/VanB model route for enterococci and staphylococci.
+        TargetSiteVanA | TargetSiteVanB => {
+            mask_for_groups(&[BacteriaGroup::Staphylococci, BacteriaGroup::Streptococci])
+        }
 
-        // Macrolide/Lincosamide/Streptogramin (MLS) & Phenicol Resistance
-        // Broader host range including Anaerobes and Fastidious/Atypicals (Mycoplasma)
+        // Broad host gate for the ermB and cfr target-modification routes.
         TargetSiteErmB | TargetSiteCfr => mask_for_groups(&[
             BacteriaGroup::Staphylococci,
             BacteriaGroup::Streptococci,
             BacteriaGroup::Anaerobe,
             BacteriaGroup::Fastidious,
-            BacteriaGroup::Helicobacter, // Added for H. pylori Clarithromycin resistance
+            BacteriaGroup::Helicobacter,
         ]),
 
-        // Universal (or near universal) Mechanisms
-        MutationGyrAPrimary | MutationGyrAParCSecondary |
-        EnzymeCat |
-        GlobalEffluxPump // Fallback if used
-        => mask_for_groups(BacteriaGroup::all()),
+        // Broad host gates; configured rates and drug mappings determine active routes.
+        MutationGyrAPrimary | MutationGyrAParCSecondary | EnzymeCat | GlobalEffluxPump => {
+            mask_for_groups(BacteriaGroup::all())
+        }
 
-        // Folate pathway mutations: primarily Enterobacterales, but also Staph, Strep, others
+        // Compressed sul/dfr folate-pathway route.
         MutationFolatePathway => mask_for_groups(BacteriaGroup::all()),
 
-        // Nitroreductase loss: anaerobes (metronidazole), Enterobacterales (nitrofurans),
-        // and Gram-positives (nfsA/B homologs in Enterococcus, Staphylococcus — nitrofurans)
+        // Compressed nim/nfs nitroreduction route.
         MutationNitroreductase => mask_for_groups(&[
             BacteriaGroup::Staphylococci,
             BacteriaGroup::Streptococci,
@@ -786,11 +717,10 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Anaerobe,
             BacteriaGroup::Fastidious,
-            BacteriaGroup::Helicobacter, // Added for H. pylori Metronidazole resistance
+            BacteriaGroup::Helicobacter,
         ]),
 
-        // FosA (Gram-negative) and FosB (Gram-positive): both plasmid-mediated fosfomycin
-        // modifying enzymes with equivalent model behaviour — grouped as EnzymeFos
+        // FosA/B/C-type fosfomycin-modifying enzymes share one model route.
         EnzymeFos => mask_for_groups(&[
             BacteriaGroup::Staphylococci,
             BacteriaGroup::Streptococci,
@@ -799,28 +729,22 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::EntericPathogen,
         ]),
 
-        // MprF membrane modification: daptomycin resistance — staphylococci primarily
-        MutationMprF => mask_for_groups(&[
-            BacteriaGroup::Staphylococci,
-        ]),
+        // Staphylococcal MprF route affecting daptomycin.
+        MutationMprF => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
-        // Enterococcal daptomycin resistance: liaFSR / cls remodeling
-        MutationLiafsrCls => mask_for_groups(&[
-            BacteriaGroup::Streptococci,
-        ]),
+        // Enterococcal liaFSR/cls route affecting daptomycin.
+        MutationLiafsrCls => mask_for_groups(&[BacteriaGroup::Streptococci]),
 
-        // RpoB mutation: universal (TB, but also Staph for rifampicin, C. diff for fidaxomicin)
+        // Broad host gate for the rpoB target-alteration route.
         MutationRpoB => mask_for_groups(BacteriaGroup::all()),
 
-        // FusB protection: fusidic acid resistance — staphylococci only
-        ProtectionFusB => mask_for_groups(&[
-            BacteriaGroup::Staphylococci,
-        ]),
+        // Staphylococcal FusB/FusC route affecting fusidic acid.
+        ProtectionFusB => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
-        // TetM/TetO ribosomal protection: universal — Tn916 conjugative transposons found across all phyla
+        // Broad host gate for Tet(M)/Tet(O)-type ribosomal protection.
         ProtectionTetM => mask_for_groups(BacteriaGroup::all()),
 
-        // AAC/APH/ANT aminoglycoside-modifying enzymes: broad — all clinically relevant Gram-negatives + Gram-positives
+        // Broad host gate for AAC/APH/ANT aminoglycoside-modifying enzymes.
         EnzymeAacAph => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
@@ -833,41 +757,36 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // blaZ is the inhibitor-susceptible staphylococcal penicillinase.
         EnzymeBlaZ => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
-        // Policy-scale inhibitor-susceptible narrow-spectrum penicillinase slot for
-        // Gram-negative hosts (principally TEM-1, with ROB/BRO represented where relevant).
+        // Inhibitor-susceptible narrow-spectrum Gram-negative penicillinase proxy.
         EnzymeNarrowSpectrumGramNegativePenicillinase => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Fastidious,
         ]),
 
-        // mphA macrolide phosphotransferase: Enterobacterales + EntericPathogen
-        // Plasmid-borne (IncF/IncB/IncFII); co-selected on MDR R-plasmids with beta-lactam + FQ resistance genes
+        // Mobile mphA-type macrolide phosphotransferase route.
         EnzymeMphA => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::EntericPathogen,
         ]),
 
-        // OXA-23/40/58 carbapenemases: A. baumannii (NonFermenter) only
-        EnzymeOxaAcinetobacter => mask_for_groups(&[
-            BacteriaGroup::NonFermenter,
-        ]),
+        // OXA-23/40/58-type Acinetobacter carbapenemase route.
+        EnzymeOxaAcinetobacter => mask_for_groups(&[BacteriaGroup::NonFermenter]),
 
-        // 23S rRNA point mutation: H. pylori, Campylobacter, atypicals, Streptococci, Mycobacteria
+        // Broad host gate for chromosomal 23S rRNA macrolide target alteration.
         Mutation23sRrna => mask_for_groups(&[
             BacteriaGroup::Helicobacter,
-            BacteriaGroup::EntericPathogen, // Campylobacter
-            BacteriaGroup::Fastidious,      // Mycoplasma, Chlamydia, Legionella, Bordetella
-            BacteriaGroup::Streptococci,    // S. pneumoniae, S. pyogenes, S. agalactiae
-        ]),
-
-        // Oxazolidinone target-site mutations: staphylococci + enterococci
-        Mutation23sRrnaOxazolidinone => mask_for_groups(&[
-            BacteriaGroup::Staphylococci,
+            BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Fastidious,
             BacteriaGroup::Streptococci,
         ]),
 
-        // TetA/B/C efflux pumps: Gram-negative only (Gram-positives use ribosomal protection TetM)
+        // Oxazolidinone target-site route for staphylococci and enterococci.
+        Mutation23sRrnaOxazolidinone => {
+            mask_for_groups(&[BacteriaGroup::Staphylococci, BacteriaGroup::Streptococci])
+        }
+
+        // Gram-negative TetA/B/C-type tetracycline efflux route.
         EffluxTetAbc => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
@@ -875,30 +794,27 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Fastidious,
         ]),
 
-        // PBP mosaic mutations: all groups (PBP targets are universal)
+        // Permissive group gate; exact rates and drug mappings restrict the PBP mosaic route.
         MutationPbpMosaic => mask_for_groups(BacteriaGroup::all()),
-        // mtrCDE-type broad efflux: Fastidious (Neisseria, Haemophilus) + EntericPathogen (Campylobacter CmeABC)
-        EffluxMtrCde => mask_for_groups(&[
-            BacteriaGroup::Fastidious,
-            BacteriaGroup::EntericPathogen,
-        ]),
+        // Broad efflux route used for eligible fastidious and enteric-pathogen hosts.
+        EffluxMtrCde => {
+            mask_for_groups(&[BacteriaGroup::Fastidious, BacteriaGroup::EntericPathogen])
+        }
         // H. pylori tetracycline target-site mutations in both 16S rRNA copies.
         Mutation16sRrnaTetracycline => mask_for_groups(&[BacteriaGroup::Helicobacter]),
         // Cefiderocol enters through ferric-siderophore uptake systems in aerobic
         // Gram-negative bacteria. Keep this compressed route to the model's core
         // Enterobacterales and non-fermenter groups.
-        MutationSiderophoreUptake => mask_for_groups(&[
-            BacteriaGroup::Enterobacterales,
-            BacteriaGroup::NonFermenter,
-        ]),
+        MutationSiderophoreUptake => {
+            mask_for_groups(&[BacteriaGroup::Enterobacterales, BacteriaGroup::NonFermenter])
+        }
     }
 }
 
 /// Returns whether a mechanism is within scope for a specific bacterial host.
 ///
-/// Group masks provide the broad default. Exact host restrictions that were previously
-/// embedded in drug mapping live here so every acquisition and projection pathway can use
-/// the same decision.
+/// Group masks provide the broad default. Exact host restrictions live here so acquisition
+/// and resistance projection use the same decision.
 pub fn bacterium_mechanism_host_is_eligible(
     bacteria_idx: usize,
     mechanism: ResistanceMechanism,
@@ -950,14 +866,14 @@ pub fn bacterium_mechanism_host_is_eligible(
     }
 }
 
-/// Returns true if the mechanism is carried on mobile genetic elements (plasmids,
-/// transposons, integrons) and can therefore be horizontally transferred between
-/// bacteria.  Chromosomal point mutations, efflux up-regulation, and porin loss
-/// are NOT transferable — they arise only via *de novo* mutation / emergence.
+/// Returns whether the route participates in the model's mobile-element HGT pathway.
+///
+/// `false` means the route is represented through non-HGT acquisition pathways in this model;
+/// it is not a claim that recombination or transfer is biologically impossible.
 pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
     use ResistanceMechanism::*;
     match mechanism {
-        // --- Plasmid / transposon-borne enzymes & protection proteins → transferable ---
+        // Routes represented by the mobile-element HGT pathway.
         EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv => true,
         EnzymeKpc | EnzymeNdmVim | EnzymeOxa48 => true,
         EnzymeAmpcCmy | EnzymeAmpcDha => true,
@@ -973,7 +889,7 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         ProtectionFusB => true,                  // fusB/fusC on SCC elements
         ProtectionTetM => true,                  // tetM on Tn916 conjugative transposons
         MutationFolatePathway => true,           // sul1/2/3, dfrA on integrons / plasmids
-        MutationPbpMosaic => false, // PBP mosaic: chromosomal point mutations, not transferable
+        MutationPbpMosaic => false, // Recombination-derived target alteration; excluded from model HGT.
         EffluxMtrCde => false, // mtrCDE efflux: chromosomal regulatory mutations, not transferable
         Mutation16sRrnaTetracycline => false, // chromosomal 16S rRNA target mutation
         MutationSiderophoreUptake => false, // chromosomal iron-uptake receptor/regulatory changes
@@ -984,7 +900,7 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         EnzymeOxaAcinetobacter => true, // OXA-23/40/58 on plasmids / Tn2006
         EffluxTetAbc => true, // tetA/B/C on Tn10 and related plasmid transposons
 
-        // --- Chromosomal mutations / regulatory changes → NOT transferable ---
+        // Routes excluded from the model's mobile-element HGT pathway.
         Mutation23sRrna => false, // chromosomal 23S rRNA point mutation
         Mutation23sRrnaOxazolidinone => false, // chromosomal 23S rRNA domain V mutation
         MutationGyrAPrimary => false, // point mutation in gyrA
@@ -1298,7 +1214,7 @@ pub static DRUG_CLASS_LOOKUP: std::sync::LazyLock<Vec<usize>> = std::sync::LazyL
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HospitalStatus {
-    InHospital, // consider in future whether to have a variable for whether in icu
+    InHospital,
     NotInHospital,
 }
 
@@ -1308,7 +1224,6 @@ impl HospitalStatus {
     }
 }
 
-// Add Display to the derive attribute and implement it
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Region {
     NorthAmerica,
@@ -1320,7 +1235,6 @@ pub enum Region {
     Home, // This represents the individual's home region, which could be any of the above.
 }
 
-// Implement the Display trait for Region
 impl fmt::Display for Region {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_str())
@@ -1341,62 +1255,27 @@ impl Region {
     }
 }
 
-// =====================================================================================
-// RESISTANCE STRUCTURE
-// =====================================================================================
-// The Resistance struct is crucial for understanding how antimicrobial resistance is
-// tracked in the simulation. Each Individual has a 2D array of these:
-//   resistances[bacteria_index][drug_index] -> Resistance
-//
-// This allows tracking resistance for each bacteria-drug combination independently.
-// =====================================================================================
-
 /// Tracks resistance levels for a single bacteria-drug combination.
 ///
-/// # Resistance Perspectives
-///
-/// The model tracks resistance from multiple perspectives because resistance can
-/// be present at different levels and contexts:
-///
-/// - **any_r**: Effective resistance level (0.0-1.0). This is the primary resistance
-///   value used for drug activity calculations. Represents resistance present in ANY
-///   bacteria the person is infected with. Even a small subpopulation of resistant
-///   bacteria will contribute to treatment failure.
-///
-/// - **microbiome_r**: Resistance level in colonizing (carriage) bacteria (0.0-1.0).
-///   Carriage can harbor resistant strains that don't cause current infection but
-///   can seed future infections with pre-existing resistance.
-///
-/// - **activity_r**: Effective antibiotic activity used when calculating drug
-///   effects. It combines potency, site exposure, and the susceptible fraction
-///   after any_r is applied.
-///
-/// - **test_r**: Resistance as would be reported by laboratory susceptibility testing.
-///   May differ from actual resistance due to testing limitations.
-///
-/// # Update Sequence
-///
-/// Resistance values are updated through several pathways (see docs/02_resistance_system.md):
-/// 1. At infection acquisition: Inherit resistance from community/hospital/microbiome
-/// 2. De novo emergence: Resistance can emerge during treatment
-/// 3. HGT (Horizontal Gene Transfer): Between bacteria in microbiome
-/// 4. Reversion: Resistance can decay without drug pressure (fitness cost)
-/// 5. Resistance floors: Minimum levels maintained for certain bacteria
+/// `any_r` and `microbiome_r` are mechanism-derived resistance severity measures for
+/// infection and carriage, respectively. `activity_r` is effective drug activity after
+/// potency, exposure, site penetration, and `any_r` are applied. `test_r` stores the
+/// completed AST result, including the configured test error process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resistance {
     /// Resistance level in colonizing (carriage) bacteria. Range: 0.0-1.0.
     /// Derived from mechanism_microbiome via the multiplicative product formula.
     pub microbiome_r: StoredBoundedResistanceFloat,
 
-    /// Resistance as would be detected by laboratory testing. Range: 0.0-1.0.
-    /// May differ from actual resistance due to test sensitivity/specificity.
+    /// Completed AST-reported resistance. Range: 0.0-1.0.
+    /// Zero is also the reset value while no result is available; readiness is held separately.
     pub test_r: StoredBoundedResistanceFloat,
 
-    /// Effective resistance for drug activity calculations. Range: 0.0-1.0.
-    /// Takes into account mechanism-specific effects on drug binding/activity.
+    /// Effective drug activity after potency, exposure, site penetration, and resistance.
+    /// This is not a resistance fraction and is stored as an unbounded half-precision value.
     pub activity_r: StoredActivityResistanceFloat,
 
-    /// Primary resistance level - resistance present in ANY infected bacteria. Range: 0.0-1.0.
+    /// Infection resistance severity for this bacterium-drug pair. Range: 0.0-1.0.
     /// Derived from mechanism_any via the multiplicative product formula:
     ///   any_r = 1 - product(1 - enhancement_multiplier) over all present mechanisms.
     pub any_r: StoredBoundedResistanceFloat,
@@ -1424,39 +1303,6 @@ impl MicrobiomeResistanceLevel {
     }
 }
 
-// =====================================================================================
-// INDIVIDUAL STRUCTURE
-// =====================================================================================
-// The Individual struct is the core data structure of the simulation. Each person in
-// the simulated population is represented by one Individual instance containing all
-// their health state variables.
-//
-// Most variables are organized as arrays indexed by BACTERIA_LIST or
-// DRUG_SHORT_NAMES. This allows tracking infection/resistance/treatment state for
-// each pathogen independently.
-//
-// KEY ARRAY PATTERNS:
-//   Vec<f64> indexed by bacteria: level, predicted_infection_risk, clearance_hazard
-//   Vec<bool> indexed by bacteria: sepsis, symptoms, presence_microbiome
-//   Vec<Vec<Resistance>>: resistances[bacteria][drug] - 2D resistance matrix
-//   Vec<bool> indexed by drugs: cur_use_drug, ever_taken_drug
-//   Vec<AntibioticUseContext> indexed by drugs: drug_use_context
-//   Vec<f64> indexed by drugs: cur_level_drug, drug_toxicity_reservoir
-//
-// VARIABLE UPDATE TIMING:
-// Variables are updated daily in a specific order (see docs/07_simulation_flow.md):
-//   1. Age/demographics
-//   2. Location/hospitalization
-//   3. Infection acquisition
-//   4. Infection progression/symptoms/sepsis
-//   5. Drug selection
-//   6. Drug effects (levels, activity, toxicity)
-//   7. Infection clearance
-//   8. Resistance dynamics (emergence, reversion, floors)
-//   9. Microbiome dynamics (colonization, HGT)
-//   10. Mortality check
-// =====================================================================================
-
 /// Context in which an antibiotic course was started.
 ///
 /// This is assigned at course start and retained until that drug is stopped.
@@ -1466,7 +1312,7 @@ pub enum AntibioticUseContext {
     Empiric,
     Targeted,
     Prophylaxis,
-    /// Legacy fallback retained for saved state / old outputs; new starts should use a specific Other variant.
+    /// Unclassified fallback used when no more specific context is available.
     Other,
     OtherNoActiveModelledInfection,
     OtherActiveAsymptomaticModelledBacterialInfection,
@@ -1504,7 +1350,7 @@ impl Default for AntibioticUseContext {
 ///
 /// ## Resistance (2D arrays: [bacteria][drug])
 /// - `resistances[b][d]`: Resistance struct for each combination
-/// - `resistance_mechanisms[b][m]`: Specific mechanisms present
+/// - `mechanism_any[b]`, `mechanism_majority[b]`: Packed infection mechanism masks
 ///
 /// ## Drug Treatment (per-drug arrays)
 /// - `cur_use_drug[d]`: Currently taking this drug?
@@ -1528,7 +1374,7 @@ pub struct Individual {
     /// Unique identifier for this individual (0 to population_size-1)
     pub id: usize,
 
-    /// Age in days. Negative values indicate not yet born (for pregnancy modeling).
+    /// Age in days. Negative values identify future cohort members not yet active.
     /// Updated: +1 each time step. Used for age-specific parameters.
     pub age: i32,
 
@@ -1574,17 +1420,13 @@ pub struct Individual {
     /// Used for tracking infection history over time. -1 = no recorded infection.
     pub date_last_infected_keep: Vec<i32>,
 
-    /// Clinical syndrome type for each active infection.
-    /// Encoded as integer (0 = UTI, 1 = Pneumonia, etc.). See Syndrome enum.
+    /// Clinical syndrome identifier for each active infection.
+    /// Zero means no assigned syndrome; configured syndromes currently use IDs 1 through 10.
     pub infectious_syndrome: Vec<i32>,
 
-    /// Infection intensity level for each bacteria. Range: 0.0 to ~10.0.
-    /// - 0.0: No infection
-    /// - 0.01-0.1: Subclinical colonization
-    /// - 0.1-1.0: Mild infection
-    /// - 1.0-3.0: Moderate infection
-    /// - 3.0-6.0: Severe infection
-    /// - >6.0: Critical infection (high mortality risk)
+    /// Non-negative, unitless infection intensity for each bacterium.
+    /// Values above `INFECTION_EPS` indicate active infection; configured growth, clearance,
+    /// sepsis, treatment, and mortality processes use the magnitude.
     pub level: Vec<f64>,
 
     /// Logistic-model predicted infection risk for each bacteria on the current day.
@@ -1626,7 +1468,7 @@ pub struct Individual {
     #[serde(default)]
     pub sepsis_episode_first_effective_day: Vec<i32>,
 
-    /// Output-only guard to avoid double-counting the Figure 11 delay bucket.
+    /// Output-only guard to avoid assigning an effective-therapy delay category twice.
     #[serde(default)]
     pub sepsis_episode_delay_bucket_recorded: Vec<bool>,
 
@@ -1677,7 +1519,8 @@ pub struct Individual {
     pub presence_microbiome: Vec<bool>,
 
     /// Continuous tracking variable for ecological damage to natural flora.
-    /// Accumulates with antibiotic use and decays logarithmically. Promotes carriage acquisition.
+    /// Accumulates with antibiotic exposure and decays exponentially by a configured half-life.
+    /// Higher values promote carriage acquisition.
     pub microbiome_disruption_level: f64,
 
     /// Day when microbiome carriage was acquired. -1 = never acquired or cleared.
@@ -1702,7 +1545,7 @@ pub struct Individual {
     // VACCINATION AND SYMPTOMS
     // -------------------------------------------------------------------------
     /// Per-bacteria vaccination status: true if vaccinated against that pathogen.
-    /// Only covers bacterial vaccines: pneumococcal, meningococcal, Hib.
+    /// Supported targets are pneumococcal, meningococcal, Hib, and pertussis.
     pub vaccination_status: Vec<bool>,
 
     /// True if active infection has caused clinical symptoms.
@@ -1724,7 +1567,7 @@ pub struct Individual {
     pub resistance_test_initiated_day: Vec<i32>,
 
     // -------------------------------------------------------------------------
-    // DRUG TREATMENT (per-drug arrays, size = 52 drugs)
+    // DRUG TREATMENT (per-drug arrays, size = DRUG_SHORT_NAMES.len())
     // -------------------------------------------------------------------------
     /// True if currently taking this drug.
     pub cur_use_drug: Vec<bool>,
@@ -1733,24 +1576,10 @@ pub struct Individual {
     #[serde(default)]
     pub drug_use_context: Vec<AntibioticUseContext>,
 
-    /// Current drug concentration level in blood (pharmacokinetic level).
-    /// Standard level = 10.0 on a day when standard dose is taken.
-    /// Decays according to drug half-life when not dosed.
-    ///
-    /// NOTE: Drug level at the infection site differs from blood level due to tissue
-    /// penetration and accumulation kinetics. Site level is calculated on-the-fly as:
-    ///   site_level = blood_level × penetration_factor(syndrome, drug) × accumulation_factor(days_on_drug)
-    ///
-    /// We deliberately do NOT store site level as a parallel variable because:
-    /// 1. It depends on syndrome - an individual may have multiple infections with
-    ///    different syndromes, each with different penetration factors
-    /// 2. It's purely derived data - storing it would create synchronization burden
-    ///    and risk of stale/inconsistent values
-    /// 3. Blood level is always meaningful (PK happens regardless of infection),
-    ///    while site level only matters when infected
-    ///
-    /// The site-level calculation is performed in rules/mod.rs when computing activity_r,
-    /// using store.syndrome.drug_penetration() and accumulation kinetics.
+    /// Current unitless systemic exposure level for each drug.
+    /// Dosing raises this value and the configured half-life governs decay. When `activity_r`
+    /// is calculated, the current level is multiplied by the syndrome-specific penetration
+    /// factor rather than storing a separate infection-site level.
     pub cur_level_drug: Vec<f64>,
 
     /// Day (time_step) when each drug was last initiated.
@@ -1772,16 +1601,16 @@ pub struct Individual {
     /// Background all-cause mortality rate (age-dependent).
     pub background_all_cause_mortality_rate: f64,
 
-    /// True if this infection was acquired in hospital (nosocomial).
+    /// Per-bacterium flag indicating whether the current infection was acquired in hospital.
     pub infection_hospital_acquired: Vec<bool>,
 
     /// Accumulated toxicity from each drug. Toxicity contributes to mortality risk.
     pub drug_toxicity_reservoir: Vec<f64>,
 
-    /// Current overall toxicity hazard (mortality risk from drug toxicity).
+    /// Sum of per-drug toxicity reservoirs before age, immune-status, and hospital modifiers.
     pub current_toxicity_hazard: f64,
 
-    /// Mortality risk attributable to current toxicity level.
+    /// Daily mortality probability after applying modifiers to the toxicity reservoirs.
     pub mortality_risk_current_toxicity: f64,
 
     // -------------------------------------------------------------------------
@@ -1792,12 +1621,12 @@ pub struct Individual {
     pub resistances: Vec<Vec<Resistance>>,
 
     /// Active-infection resistance mechanisms packed as one bitmask per bacterium.
-    /// True when the mechanism is present in ANY of the bacteria causing infection.
+    /// A set bit means that route is present in any represented strain of that bacterium.
     /// Drives any_r derivation via the multiplicative product formula.
     pub mechanism_any: Vec<u64>,
 
     /// Majority-strain mechanisms packed as one bitmask per bacterium.
-    /// Invariant: mechanism_majority[b][m] => mechanism_any[b][m].
+    /// Invariant: every set majority bit is also set in `mechanism_any[b]`.
     /// Set at acquisition (established strain) or when de-novo mechanism becomes dominant.
     /// Used as the source for surveillance/acquisition seeding and HGT donor weighting.
     pub mechanism_majority: Vec<u64>,
@@ -1807,8 +1636,8 @@ pub struct Individual {
     /// Drives microbiome_r derivation; copied to mechanism_any on carrier→infection.
     pub mechanism_microbiome: Vec<u64>,
 
-    /// How resistance was acquired for each bacteria-drug combination.
-    /// None if never acquired resistance.
+    /// Optional acquisition provenance for each bacterium-drug combination.
+    /// This matrix is empty when `TRACK_RESISTANCE_ACQUISITION_PROVENANCE` is false.
     pub how_resistance_acquired: Vec<Vec<Option<ResistanceAcquisitionType>>>,
 
     // -------------------------------------------------------------------------
@@ -1835,9 +1664,7 @@ pub struct Individual {
     // -------------------------------------------------------------------------
     // IMMUNODEFICIENCY
     // -------------------------------------------------------------------------
-    /// Type of severe immunodeficiency, if any.
-    /// Temporary: chemotherapy, post-transplant (recovers in months-years).
-    /// Chronic: primary immunodeficiency (lifelong).
+    /// Modelled temporary or chronic severe immunodeficiency state, if any.
     pub immunodeficiency_type: Option<ImmunodeficiencyType>,
 
     // -------------------------------------------------------------------------
@@ -1861,7 +1688,7 @@ pub struct Individual {
     /// None = not applicable (drug completed or never started).
     pub drug_stopped_with_infection_day: Vec<Option<i32>>,
 
-    /// Bacteria level when drug was stopped due to non-adherence.
+    /// Bacterium level when a drug was stopped while infection persisted.
     pub bacteria_level_at_drug_cessation: Vec<Option<f64>>,
 
     /// Bacteria index that triggered drug selection on this day. -1 = no selection.
@@ -2014,7 +1841,7 @@ impl Individual {
         let test_identified_infection = vec![false; num_bacteria];
         let test_for_resistance = vec![false; num_bacteria];
         let resistance_test_initiated_day = vec![-1; num_bacteria];
-        let vaccination_status = vec![false; num_bacteria]; // Initialize all as unvaccinated at birth
+        let vaccination_status = vec![false; num_bacteria];
 
         let mut resistances = Vec::with_capacity(num_bacteria);
         for _ in 0..num_bacteria {
@@ -2030,12 +1857,11 @@ impl Individual {
             resistances.push(drug_resistances);
         }
 
-        // Initialize mechanism bitmasks (all clear initially)
+        // All mechanism bitmasks are clear initially.
         let mechanism_any = vec![0u64; num_bacteria];
         let mechanism_majority = vec![0u64; num_bacteria];
         let mechanism_microbiome = vec![0u64; num_bacteria];
-        // Memory-saving mode: keep the field for reversibility, but do not allocate the
-        // dense [bacteria][drug] provenance matrix while provenance tracking is disabled.
+        // Avoid the dense [bacteria][drug] matrix when provenance tracking is disabled.
         let how_resistance_acquired = if TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
             let mut how_resistance_acquired = Vec::with_capacity(num_bacteria);
             for _ in 0..num_bacteria {
@@ -2046,27 +1872,22 @@ impl Individual {
             Vec::new()
         };
 
-        // Initialize infection_resolution_this_timestep (all zeros initially)
         let mut infection_resolution_this_timestep = Vec::with_capacity(num_bacteria);
         for _ in 0..num_bacteria {
             infection_resolution_this_timestep
                 .push(vec![0u32; InfectionResolutionType::all().len()]);
         }
 
-        // Initialize day_7_since_last_infection_drug_used (all None initially)
         let day_7_since_last_infection_drug_used = vec![None; num_bacteria];
 
-        // Initialize treatment failure tracking variables
         let bacteria_level_at_drug_start = vec![None; num_bacteria];
         let days_on_current_treatment = vec![-1; num_bacteria]; // -1 means no current treatment
         let treatment_failure_assessed = vec![false; num_bacteria];
         let drug_activity_response_multiplier = vec![base_drug_activity_multiplier; num_bacteria];
 
-        // Initialize rescue window tracking variables
         let drug_stopped_with_infection_day = vec![None; num_bacteria];
         let bacteria_level_at_drug_cessation = vec![None; num_bacteria];
 
-        // Initialize drug score tracking (single bacteria focus, -1 indicates no drug selection)
         let bacteria_on_selection_day = -1;
         let drug_score_on_selection_day = vec![-1.0; num_drugs];
         let stopped_drug_index = vec![None; num_bacteria];
@@ -2218,7 +2039,6 @@ impl Population {
         let immunodeficiency_params = &parameter_store().immunodeficiency;
 
         for i in 0..size {
-            // Use new simplified demographic distribution
             let (region, age) = crate::config::sample_age_and_region_from_distribution(rng);
             let sex = if rng.gen_bool(0.5) {
                 "male".to_string()
@@ -2251,54 +2071,3 @@ impl Population {
         Population { individuals }
     }
 }
-
-/*
-
-Drug	        Subclass
-
-penicillin_g	    Penicillin (β‑lactam, natural penicillins)
-ampicillin	    Aminopenicillin
-amoxicillin	    Aminopenicillin
-piperacillin	Extended‑spectrum penicillin
-ticarcillin	    Extended‑spectrum penicillin
-cephalexin	    Cephalosporin (1st gen)
-cefazolin	    Cephalosporin (1st gen)
-cefuroxime	    Cephalosporin (2nd gen)
-ceftriaxone	    Cephalosporin (3rd gen)
-ceftazidime	    Cephalosporin (3rd gen)
-cefepime	    Cephalosporin (4th gen)
-ceftaroline	    Cephalosporin (5th gen)
-meropenem	    Carbapenem
-imipenem_c	    Carbapenem
-ertapenem	    Carbapenem
-aztreonam	    Monobactam
-erythromycin	Macrolide
-azithromycin	Macrolide
-clarithromycin	Macrolide
-clindamycin	    Lincosamide
-gentamicin	    Aminoglycoside
-tobramycin	    Aminoglycoside
-amikacin	    Aminoglycoside
-ciprofloxacin	Fluoroquinolone
-levofloxacin	Fluoroquinolone
-moxifloxacin	Fluoroquinolone
-ofloxacin	    Fluoroquinolone
-tetracycline	Tetracycline
-doxycycline	    Tetracycline (semi‑synthetic)
-minocycline	    Tetracycline (semi‑synthetic)
-vancomycin	    Glycopeptide
-teicoplanin	    Glycopeptide
-linezolid	    Oxazolidinone
-tedizolid	    Oxazolidinone
-quinu_dalfo
-(quinupristin
-/dalfopristin)	Streptogramin
-trim_sulf       Folate pathway inhibitor (sulfonamide + trimethoprim)
-chloramphenicol	Amphenicol
-nitrofurantoin	Nitrofuran
-retapamulin	    Pleuromutilin
-fusidic_a
-(fusidic acid)	Steroid‑like antibiotic
-metronidazole	Nitroimidazole
-
-*/

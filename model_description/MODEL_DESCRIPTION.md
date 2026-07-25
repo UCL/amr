@@ -1203,8 +1203,8 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
    | AmpC DHA | `ampc_dha` | Plasmid-mediated AmpC β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | AmpC derepression | `mutation_ampc_derepression` | Chromosomal AmpC derepression (*ampC* regulatory mutations in SPACE organisms: *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Providencia*) — chromosomal, non-transferable | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales |
    | KPC | `kpc` | *K. pneumoniae* carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | NDM/VIM | `ndm_vim` | Metallo-β-lactamases | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+   | NDM/VIM | `ndm_vim` | Metallo-β-lactamases | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+   | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
   | blaZ | `enzyme_bla_z` | Inhibitor-susceptible staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | *S. aureus*, *S. epidermidis* |
   | Narrow-spectrum Gram-negative penicillinase | `enzyme_narrow_spectrum_gram_negative_penicillinase` | Policy-scale inhibitor-susceptible route representing TEM-1 and, where explicitly assigned, related ROB/BRO enzymes | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin` | Reviewed Enterobacterales/enteric hosts, *N. gonorrhoeae*, *H. influenzae*, *M. catarrhalis* |
@@ -1216,7 +1216,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | Qnr | `qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | 16S rRMT | `16s_rrmt` | 16S rRNA methyltransferase | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
-  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
+  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
   | 23S rRNA | `23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Streptococci |
   | 23S rRNA (oxa) | `mutation_23s_rrna_oxazolidinone` | 23S rRNA domain V mutation conferring linezolid/tedizolid resistance — chromosomal, non-transferable | `linezolid`, `tedizolid` | Staphylococci, Streptococci |
   | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
@@ -1257,6 +1257,12 @@ There are 46 mechanisms × 39 drug classes = 1,794 individual values. The table 
 These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.
 
 The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for the plain-penicillin class and a zero legacy fallback. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.
+
+The protected beta-lactam combinations use mechanism-specific substrate logic. NDM/VIM has a `0.95` effect against both ceftazidime-avibactam and meropenem-vaborbactam because neither inhibitor blocks a class B metallo-beta-lactamase and the partner beta-lactams remain vulnerable. NDM/VIM has no direct effect on plain or avibactam-protected aztreonam. OXA-48 has the same `0.70` model effect against meropenem-vaborbactam as against group-2 carbapenems because vaborbactam does not inhibit OXA-48; its direct aztreonam-avibactam effect is zero. Co-produced mechanisms continue to combine independently, so these protected-aztreonam exceptions do not imply perfect activity against every multi-mechanism strain.
+
+Plasmid CMY, plasmid DHA, and derepressed chromosomal AmpC have strong effects against plain aztreonam (`0.80`, `0.75`, and `0.80`, respectively), aligned with their oxyimino-cephalosporin bands. This does not extend to aztreonam-avibactam: ordinary class C enzymes are inhibited by avibactam and are not standalone resistance routes for that combination.
+
+ErmB is a macrolide-lincosamide mechanism in the live drug map. Although it affects the streptogramin-B component quinupristin, it is not sufficient by itself to confer resistance to the combined quinupristin-dalfopristin product, so its explicit streptogramin-class effect is zero and that drug is outside ErmB applicability. The model currently has no separate complementary streptogramin-A mechanism. Existing quinupristin-dalfopristin benchmark values are therefore retained in the target source but marked inactive/model-unrepresentable rather than forcing an incorrect ErmB phenotype.
 
 Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` route with an expert model-scale effect of `0.60`. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is `0.0001` per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss no longer project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.
 
@@ -2006,6 +2012,8 @@ the intended schema, not downloaded observations.
 
 11. **Residual high-emergence-rate mechanisms are now treated as reviewed coarse-graining rather than open calibration defects**: The remaining bacteria–mechanism pairs with nominal `emergence_rate > 1.0` have been re-audited using the four-lever framework. Where the audit exposed a clean local miss, the model was changed: for example, gonorrhoea now has a simplified historical acquisition-volume correction, syphilis now has explicit historical macrolide alternative-treatment pressure, and *M. genitalium* no longer treats `erm_b` or `tet_m` as dominant pathways. The remaining high values are therefore not currently being interpreted as “obvious next bugs to fix”, but as coarse surrogate parameters sitting on top of other accepted abstractions already in the model, such as simplified exogenous reservoirs, coarse historical incidence trajectories, and omitted off-model drug exposures. Unless a future use case reveals another equally local, mechanistically defensible missing pathway, these residual high-emergence settings should be read as accepted limitations of the current policy-scale representation rather than as active pending calibration work.
 
+12. **No systematic asymptomatic diagnostic screening**: Bacterial identification currently requires an active infection to have crossed its modelled symptom-onset threshold. The corresponding state, `infection_has_caused_symptoms`, remains true until that infection clears, so it records that an infection has become clinically apparent rather than whether symptoms are necessarily present on the current day. The subsequent daily testing probability compresses presentation, access to care, specimen collection, and test ordering into one process; there is no separate healthcare-presentation event. An active infection that has never caused symptoms can coincide with background or prophylactic antibiotic use, but it cannot be identified by bacterial testing. Routine asymptomatic screening, contact tracing, antenatal screening, and incidental testing are therefore not represented, and diagnostic-policy results apply only to infections that have first become clinically apparent.
+
 ---
 
 
@@ -2267,11 +2275,11 @@ See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
 ## Appendix B — Parameter Reference
 
-This appendix is a documentation snapshot derived from the Rust configuration. The Rust source remains authoritative, and values should be regenerated or checked against `src/config.rs` before publication because calibration edits can move faster than this reference table.
+This appendix is auto-generated from the live Rust configuration. Parameters are organized thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level pathway sensitivity multipliers are applied.
 
-### B.1 Global Parameters
+### B.1 Global Scalar Parameters
 
-Global parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.
+Scalar parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.
 
 See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.7 Drug toxicity](#67-drug-toxicity), [§2.4 Hospitalisation](#24-hospitalisation), [§2.5 Travel](#25-travel), [§4.3 Sepsis](#43-sepsis), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs), [§8 Microbiome and Carriage](#8-microbiome-and-carriage), [§9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), [§10 Mortality](#10-mortality).
 
@@ -2280,13 +2288,13 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | Parameter | Value |
 | --- | ---: |
 | antibiotic_initiation_base_log_odds | -5.5 |
-| antibiotic_initiation_log_odds_symptomatic_infection | 6 |
+| antibiotic_initiation_log_odds_symptomatic_infection | 6.2 |
 | antibiotic_initiation_log_odds_test_identified | 0.92 |
 | antibiotic_initiation_log_odds_already_on_drug | 0.18 |
 | antibiotic_initiation_log_odds_immunodeficiency | 0.2 |
+| antibiotic_initiation_log_odds_sepsis | 6.5 |
 | antibiotic_initiation_log_odds_hospitalized | 0.7 |
-| antibiotic_initiation_log_odds_sepsis | 6 |
-| antibiotic_initiation_log_odds_no_indication | -1.05 |
+| antibiotic_initiation_log_odds_no_indication | -1.2 |
 
 #### Drug Activity and Cessation
 
@@ -2308,8 +2316,6 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | drug_selection_temperature | 0.55 |
 | reserve_drug_score_penalty | 0.35 |
 
-Here, `drug_selection_temperature` is the prescribing-variability setting described in Section 6.2: smaller values concentrate choices on the highest-scoring drug, while larger values spread choices across clinically plausible alternatives.
-
 #### Treatment Failure and Restart
 
 | Parameter | Value |
@@ -2321,10 +2327,6 @@ Here, `drug_selection_temperature` is the prescribing-variability setting descri
 | restart_bacteria_level_threshold | 1.5 |
 | restart_window_probability | 0.3 |
 
-For organisms where rescue therapy following first-line failure is incomplete in practice, a per-bacteria `{bacteria}_treatment_failure_no_second_line_probability` parameter (default 0.0) controls the fraction of treatment failures that do not receive any alternative drug. When this probability fires, the current (failed) drugs are stopped but no second-line agent is started, leaving the patient with a persistent resistant infection. Because the community mechanism cache records `mechanism_majority` profiles from active infections, these chronic carriers continuously seed the pool of circulating resistant strains at acquisition, generating long-run resistance prevalence without a microbiome carriage reservoir and without floor overrides.
-
-*H. pylori* is the only organism currently configured with a non-zero value (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80`). This reflects the substantial real-world gap between the proportion of clarithromycin-triple failures that are confirmed and the proportion that actually complete bismuth quadruple rescue therapy, driven by side-effect burden (nausea, metallic taste, darkening stools), cost, and loss to follow-up.
-
 #### Hospitalization
 
 | Parameter | Value |
@@ -2333,6 +2335,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | hospitalization_log_odds_per_age_year | 0.02 |
 | hospitalization_log_odds_sepsis | 13 |
 | hospitalization_log_odds_symptomatic_infection | 9.5 |
+| hospitalization_log_odds_serious_resistance_test_positive | 2 |
 | hospitalization_symptomatic_infection_level_threshold | 3 |
 | hospital_recovery_rate_per_day | 0.28 |
 | hospital_max_days | 30 |
@@ -2349,8 +2352,6 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | resistance_development_inhibition_partial_cross | 0.3 |
 | mechanism_assignment_probability_on_any_r_gain | 0.8 |
 | community_profile_cache_retention | 0.999 |
-| hospital_profile_cache_retention | 0.999 |
-| run_pathway_reversion_rate_multiplier | 1 |
 
 #### Microbiome Dynamics
 
@@ -2363,17 +2364,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | carriage_duration_max_log_odds_effect | -2 |
 | antibiotic_clearance_log_odds_per_unit_activity | 0.5 |
 | carrier_resistance_inheritance_probability | 0.5 |
-| community_resistance_dilution_factor | per-bacteria (0.03–1.00; see Section 3.4) |
-
-#### Pathway Sensitivity Controls
-
-| Parameter | Value |
-| --- | ---: |
-| run_pathway_infection_de_novo_multiplier | 1 |
-| run_pathway_hgt_multiplier | 1 |
-| run_pathway_reversion_rate_multiplier | 1 |
-| run_pathway_microbiome_acquisition_multiplier | 1 |
-| counterfactual_resistance_multiplier | 1 by default; counterfactual branches set 0 |
+| community_resistance_dilution_factor | 0.3 |
 
 #### Horizontal Gene Transfer Modifiers
 
@@ -2390,7 +2381,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 
 | Parameter | Value |
 | --- | ---: |
-| travel_probability_per_day | 0.0002 |
+| travel_probability_per_day | 2e-4 |
 
 #### Bacteria Growth Age Multipliers
 
@@ -2434,7 +2425,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 
 | Parameter | Value |
 | --- | ---: |
-| sepsis_death_base_log_odds | -5 |
+| sepsis_death_base_log_odds | -5.2 |
 | sepsis_death_log_odds_age_infant | 1.1 |
 | sepsis_death_log_odds_age_child | -0.7 |
 | sepsis_death_log_odds_age_adult | 0 |
@@ -2503,10 +2494,10 @@ For organisms where rescue therapy following first-line failure is incomplete in
 | Parameter | Value |
 | --- | ---: |
 | targeted_therapy_narrow_spectrum_bonus | 5 |
-| targeted_therapy_broad_spectrum_penalty | 0.1 |
+| targeted_therapy_broad_spectrum_penalty | 0.45 |
 | targeted_therapy_ineffective_drug_penalty | 0.001 |
 | effective_potency_threshold_for_targeted_therapy | 0.1 |
-| empiric_therapy_broad_spectrum_bonus | 0.85 |
+| empiric_therapy_broad_spectrum_bonus | 1.15 |
 | empiric_therapy_ineffective_penalty | 0.001 |
 
 #### MDR-TB Era Multipliers
@@ -2539,7 +2530,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | cefepime | cephalosporins_3_4 | 24195 | 10 | 0.08 | 2 | 4 | 1e-9 | 1.5 | 0.3 |
 | ceftaroline | cephalosporins_3_4 | 29305 | 10 | 0.11 | 2 | 3 | 5e-10 | 1.5 | 0.3 |
 | ceftolozane_tazobactam | cephalosporins_3_4 | 30295 | 10 | 0.125 | 2 | 3 | 0 | 1.5 | 0.3 |
-| cefiderocol | unknown | 33510 | 10 | 0.1 | 2 | 3 | 0 | 1.5 | 0.3 |
+| cefiderocol | cephalosporins_3_4 | 33510 | 10 | 0.1 | 2 | 3 | 0 | 1.5 | 0.3 |
 | meropenem | carbapenems | 24195 | 10 | 0.04 | 2 | 5 | 6e-10 | 1.5 | 0.3 |
 | imipenem_c | carbapenems | 20080 | 10 | 0.04 | 2 | 3 | 1e-9 | 1.5 | 0.3 |
 | ertapenem | carbapenems | 25920 | 10 | 0.17 | 2 | 3 | 6e-10 | 1.5 | 0.3 |
@@ -2558,7 +2549,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | tetracycline | tetracyclines | 6575 | 10 | 0.33 | 2 | 3 | 1e-9 | 1.5 | 0.3 |
 | doxycycline | tetracyclines | 13505 | 10 | 0.75 | 2 | 3 | 1e-9 | 1.5 | 0.3 |
 | minocycline | tetracyclines | 14965 | 10 | 0.67 | 2 | 3 | 1.5e-9 | 1.5 | 0.3 |
-| tigecycline | unknown | 28040 | 10 | 1.75 | 2 | 3 | 0 | 1.5 | 0.3 |
+| tigecycline | tetracyclines | 28040 | 10 | 1.75 | 2 | 3 | 0 | 1.5 | 0.3 |
 | vancomycin | glycopeptides | 10215 | 10 | 0.25 | 2 | 2.5 | 6e-9 | 1.5 | 0.3 |
 | teicoplanin | lipoglycopeptides | 21170 | 10 | 3.5 | 2 | 3 | 0 | 1.5 | 0.3 |
 | dalbavancin | lipoglycopeptides | 30660 | 10 | 10 | 2 | 3 | 0 | 1.5 | 0.3 |
@@ -2590,54 +2581,54 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 
 ### B.3 Bacteria Properties
 
-Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species. Resistance-dilution and hospital-concentration settings are discussed separately in Section 3.4 because they are calibrated as part of the acquisition-reservoir logic rather than the core clinical trajectory table below.
+Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species.
 
 See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection dynamics](#42-infection-dynamics), [§4.3 Sepsis](#43-sepsis), [§4.4 Natural clearance](#44-natural-clearance), [§8.1 Carriage compartments](#81-carriage-compartments).
 
-| Bacteria | Acq log-odds | Init level | Delta level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| acinetobacter_baumannii | -18.7 | 0.01 | 0.55 | 5 | 0.1 | 8 | 0.0075 | 0.5 | 1 | -7.1 | 4e-4 |
-| citrobacter_spp. | -16.3 | 0.01 | 0.5 | 5 | 0.08 | 11.3 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 |
-| enterobacter_spp. | -16.8 | 0.01 | 0.5 | 5 | 0.07 | 11.5 | 0.0045 | 0.5 | 1 | -7.1 | 4e-4 |
-| enterococcus_faecalis | -17.1 | 0.01 | 0.48 | 5 | 0.008 | 11.5 | 0.0075 | 0.5 | 1 | -6.9 | 4e-4 |
-| enterococcus_faecium | -17.6 | 0.01 | 0.48 | 5 | 0.06 | 13 | 0.0075 | 0.5 | 1 | -6.4 | 4e-4 |
-| escherichia_coli | -11.6 | 0.01 | 0.5 | 5 | 0.005 | 6 | 0.025 | 0.5 | 1 | -8.9 | 4e-4 |
-| klebsiella_pneumoniae | -14.7 | 0.01 | 0.52 | 5 | 0.03 | 9.2 | 0.0075 | 0.5 | 1 | -6.9 | 4e-4 |
-| morganella_spp. | -17.2 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.2 | 4e-4 |
-| proteus_spp. | -16.1 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | 0.0045 | 0.5 | 1 | -7.2 | 4e-4 |
-| serratia_spp. | -17.3 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
-| p_stuartii | -17.5 | 0.01 | 0.5 | 5 | 0.09 | 8.7 | 0.0045 | 0.75 | 1 | -12 | 4e-4 |
-| pseudomonas_aeruginosa | -16 | 0.01 | 0.55 | 5 | 0.12 | 9 | 0.0075 | 0.8 | 1 | -5.9 | 4e-4 |
-| stenotrophomonas_maltophilia | -19 | 0.01 | 0.45 | 5 | 0.06 | 7 | 0.0045 | 0.9 | 2.5 | -7.4 | 4e-4 |
-| staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 7.5 | 0.015 | 0.5 | 1 | -7.4 | 4e-4 |
-| staphylococcus_epidermidis | -16 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | 0.0045 | 1 | 3 | -7.4 | 4e-4 |
-| streptococcus_pneumoniae | -12.25 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -9.9 | 4e-4 |
-| salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -7 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
-| salmonella_enterica_serovar_paratyphi_a | -16.8 | 0.01 | 0.45 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -8.4 | 4e-4 |
-| invasive_non-typhoidal_salmonella_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 |
-| shigella_spp. | -12.6 | 0.01 | 0.55 | 5 | 0.15 | -0.5 | 0.0045 | 0.5 | 1 | -11.4 | 4e-4 |
-| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 3 | 0.0045 | 0.5 | 1 | -23.4 | 4e-4 |
-| streptococcus_pyogenes | -14.4 | 0.01 | 0.7 | 5 | 0.08 | 8 | 0.015 | 0.5 | 1 | -5.9 | 4e-4 |
-| streptococcus_agalactiae | -15.9 | 0.01 | 0.52 | 5 | 0.06 | 11 | 0.015 | 0.5 | 1 | -6.4 | 4e-4 |
-| haemophilus_influenzae | -17.4 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | 0.015 | 0.5 | 1 | -8.6 | 4e-4 |
-| chlamydia_trachomatis | -12.8 | 0.01 | 0.25 | 5 | 0.2 | 4.5 | 0.007 | 0.8 | 1 | -18.4 | 4e-4 |
-| mycoplasma_genitalium | -12.1 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | 0.0045 | 0.9 | 5 | -12 | 4e-4 |
-| vibrio_cholerae | -18.65 | 0.01 | 0.7 | 5 | 0.15 | 1 | 0.025 | 0.5 | 1 | -8.4 | 4e-4 |
-| neisseria_meningitidis | -18.5 | 0.01 | 0.65 | 5 | 0.05 | 10.5 | 0.01 | 3 | 1 | -7.3 | 4e-4 |
-| listeria_monocytogenes | -19 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | 0.0045 | 0.5 | 1 | -7.4 | 4e-4 |
-| clostridioides_difficile | -15.15 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -10.4 | 4e-4 |
-| bacteroides_fragilis | -15.1 | 0.01 | 0.42 | 5 | 0.004 | 11 | 0.0045 | 1.2 | 2 | -12 | 4e-4 |
-| campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -19.4 | 4e-4 |
-| enterobacter_cloacae | -16.8 | 0.01 | 0.5 | 5 | 0.04 | 13 | 0.0045 | 0.5 | 1 | -7.2 | 4e-4 |
-| yersinia_enterocolitica | -16.6 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | 0.0045 | 0.5 | 1 | -8.9 | 4e-4 |
-| moraxella_catarrhalis | -14.6 | 0.01 | 0.55 | 5 | 0.05 | 11 | 0.0045 | 2 | 1 | -10.2 | 4e-4 |
-| treponema_pallidum | -12.7 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | 0.0045 | 0.6 | 1 | -10.4 | 4e-4 |
-| bordetella_pertussis | -12.85 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -10.4 | 4e-4 |
-| helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -250 | 4e-4 |
-| mdr_mycobacterium_tuberculosis | -16.9 | 0.01 | 0.15 | 5 | 0.0015 | -1 | 6e-4 | 2 | 1 | -38 | 4e-4 |
-| mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 0.5 | 0.015 | 0.5 | 1 | -12 | 4e-4 |
-| legionella_pneumophila | -15.5 | 0.01 | 0.55 | 5 | 0.01 | -2 | 0.0085 | 0.5 | 1 | -12 | 4e-4 |
-| burkholderia_cepacia_complex | -20 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | 0.0075 | 0.5 | 1 | -12 | 4e-4 |
+| Bacteria | Acq log-odds | Init level | Δ level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate | Comm dilution | Hosp prune % |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acinetobacter_baumannii | -17.7 | 0.01 | 0.55 | 5 | 0.1 | 8 | 0.0075 | 0.5 | 1 | -5.1 | 4e-4 | 0.03 | 75 |
+| citrobacter_spp. | -16.3 | 0.01 | 0.5 | 5 | 0.08 | 9.8 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 | 0.22 | 65 |
+| enterobacter_spp. | -16.8 | 0.01 | 0.5 | 5 | 0.07 | 10.6 | 0.0045 | 0.5 | 1 | -6 | 4e-4 | 0.15 | 75 |
+| enterococcus_faecalis | -17.1 | 0.01 | 0.48 | 5 | 0.008 | 11 | 0.0075 | 0.5 | 1 | -5.2 | 4e-4 | 0.4 | 55 |
+| enterococcus_faecium | -17.6 | 0.01 | 0.48 | 5 | 0.06 | 12.1 | 0.0075 | 0.5 | 1 | -4.2 | 4e-4 | 0.35 | 65 |
+| escherichia_coli | -11.6 | 0.01 | 0.5 | 5 | 0.005 | 6.5 | 0.025 | 0.5 | 1 | -10.1 | 4e-4 | 0.75 | 50 |
+| klebsiella_pneumoniae | -14.7 | 0.01 | 0.52 | 5 | 0.03 | 7.4 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 | 0.3 | 75 |
+| morganella_spp. | -17.2 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.1 | 4e-4 | 0.2 | 65 |
+| proteus_spp. | -16.1 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | 0.0045 | 0.5 | 1 | -6.1 | 4e-4 | 0.2 | 65 |
+| serratia_spp. | -17.3 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.3 | 4e-4 | 0.2 | 65 |
+| p_stuartii | -17.5 | 0.01 | 0.5 | 5 | 0.09 | 8.7 | 0.0045 | 0.75 | 1 | -12 | 4e-4 | 0.2 | 65 |
+| pseudomonas_aeruginosa | -16 | 0.01 | 0.55 | 5 | 0.12 | 7.7 | 0.0075 | 0.8 | 1 | -5 | 4e-4 | 0.03 | 75 |
+| stenotrophomonas_maltophilia | -19 | 0.01 | 0.45 | 5 | 0.06 | 7 | 0.0045 | 0.9 | 2.5 | -7.3 | 4e-4 | 0.03 | 75 |
+| staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 7.1 | 0.015 | 0.5 | 1 | -9.7 | 4e-4 | 0.65 | 65 |
+| staphylococcus_epidermidis | -16 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | 0.0045 | 1 | 3 | -7.3 | 4e-4 | 0.25 | 65 |
+| streptococcus_pneumoniae | -12.25 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -10.2 | 4e-4 | 0.7 | 50 |
+| salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -8 | 0.0045 | 0.5 | 1 | -8.4 | 4e-4 | 0.95 | 20 |
+| salmonella_enterica_serovar_paratyphi_a | -16.8 | 0.01 | 0.45 | 5 | 0.15 | -1 | 0.0045 | 0.5 | 1 | -8.3 | 4e-4 | 0.75 | 20 |
+| invasive_non-typhoidal_salmonella_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -8.5 | 4e-4 | 0.07 | 65 |
+| shigella_spp. | -12.6 | 0.01 | 0.55 | 5 | 0.15 | -0.8 | 0.0045 | 0.5 | 1 | -14.1 | 4e-4 | 0.72 | 25 |
+| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 3 | 0.0045 | 0.5 | 1 | -23.3 | 4e-4 | 1 | 50 |
+| streptococcus_pyogenes | -14.4 | 0.01 | 0.7 | 5 | 0.08 | 8 | 0.015 | 0.5 | 1 | -5.6 | 4e-4 | 0.75 | 50 |
+| streptococcus_agalactiae | -15.9 | 0.01 | 0.52 | 5 | 0.06 | 10.2 | 0.015 | 0.5 | 1 | -5.7 | 4e-4 | 0.6 | 50 |
+| haemophilus_influenzae | -17.4 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | 0.015 | 0.5 | 1 | -8.5 | 4e-4 | 0.65 | 50 |
+| chlamydia_trachomatis | -12.8 | 0.01 | 0.25 | 5 | 0.2 | 4.2 | 0.007 | 0.8 | 1 | -18.3 | 4e-4 | 1 | 50 |
+| mycoplasma_genitalium | -12.1 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | 0.0045 | 0.9 | 5 | -12 | 4e-4 | 1 | 50 |
+| vibrio_cholerae | -18.65 | 0.01 | 0.7 | 5 | 0.15 | 0.3 | 0.025 | 0.5 | 1 | -7 | 4e-4 | 0.03 | 50 |
+| neisseria_meningitidis | -18.5 | 0.01 | 0.65 | 5 | 0.05 | 10.9 | 0.01 | 3 | 1 | -7.2 | 4e-4 | 1 | 50 |
+| listeria_monocytogenes | -19 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | 0.0045 | 0.5 | 1 | -7.3 | 4e-4 | 0.07 | 50 |
+| clostridioides_difficile | -15.15 | 0.01 | 0.55 | 5 | 0.02 | 6 | 0.005 | 0.5 | 1 | -9.8 | 4e-4 | 0.18 | 55 |
+| bacteroides_fragilis | -15.1 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | 0.0045 | 1.2 | 2 | -12 | 4e-4 | 0.65 | 50 |
+| campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -20.2 | 4e-4 | 0.9 | 25 |
+| enterobacter_cloacae | -18 | 0.01 | 0.5 | 5 | 0.04 | 11.3 | 0.0045 | 0.5 | 1 | -5.2 | 4e-4 | 0.05 | 75 |
+| yersinia_enterocolitica | -16.6 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | 0.0045 | 0.5 | 1 | -8.8 | 4e-4 | 0.07 | 50 |
+| moraxella_catarrhalis | -14.6 | 0.01 | 0.55 | 5 | 0.05 | 10.4 | 0.0045 | 2 | 1 | -10.4 | 4e-4 | 0.6 | 50 |
+| treponema_pallidum | -12.7 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | 0.0045 | 0.6 | 1 | -10.3 | 4e-4 | 1 | 50 |
+| bordetella_pertussis | -12.85 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -500 | 4e-4 | 1 | 50 |
+| helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -500 | 4e-4 | 0.8 | 50 |
+| mdr_mycobacterium_tuberculosis | -16.5 | 0.01 | 0.15 | 5 | 0.0015 | -2 | 6e-4 | 2 | 1 | -38 | 4e-4 | 1 | 50 |
+| mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 0.1 | 0.015 | 0.5 | 1 | -12 | 4e-4 | 1 | 50 |
+| legionella_pneumophila | -15.5 | 0.01 | 0.55 | 5 | 0.01 | -3 | 0.0085 | 0.5 | 1 | -12 | 4e-4 | 0.03 | 50 |
+| burkholderia_cepacia_complex | -20 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | 0.0075 | 0.5 | 1 | -12 | 4e-4 | 0.03 | 75 |
 
 ### B.4 Drug–Bacteria Potency Matrix
 
@@ -2647,249 +2638,255 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 
 | Bacteria | Drug | Potency (no R) | Init multiplier |
 | --- | ---: | ---: | ---: |
-| acinetobacter_baumannii | sulfanilamide | 0.1 | 1 |
+| acinetobacter_baumannii | sulfanilamide | 0.1 | 0.02 |
 | acinetobacter_baumannii | penicillin_g | 0.05 | 0.01 |
 | acinetobacter_baumannii | ampicillin | 0.05 | 0.01 |
 | acinetobacter_baumannii | amoxicillin | 0.05 | 0.01 |
 | acinetobacter_baumannii | piperacillin | 0.6 | 1 |
 | acinetobacter_baumannii | ticarcillin | 0.5 | 1 |
-| acinetobacter_baumannii | cephalexin | 0.05 | 1 |
-| acinetobacter_baumannii | cefazolin | 0.05 | 1 |
-| acinetobacter_baumannii | cefuroxime | 0.1 | 1 |
-| acinetobacter_baumannii | ceftriaxone | 0.1 | 1 |
-| acinetobacter_baumannii | ceftazidime | 0.6 | 1 |
-| acinetobacter_baumannii | cefepime | 0.7 | 1 |
-| acinetobacter_baumannii | ceftaroline | 0.1 | 1 |
+| acinetobacter_baumannii | cephalexin | 0.05 | 0.3 |
+| acinetobacter_baumannii | cefazolin | 0.05 | 0.3 |
+| acinetobacter_baumannii | cefuroxime | 0.1 | 0.3 |
+| acinetobacter_baumannii | ceftriaxone | 0.1 | 0.2 |
+| acinetobacter_baumannii | ceftazidime | 0.6 | 2 |
+| acinetobacter_baumannii | cefepime | 0.7 | 2 |
+| acinetobacter_baumannii | ceftaroline | 0.1 | 0.002 |
 | acinetobacter_baumannii | ceftolozane_tazobactam | 0.1 | 1 |
-| acinetobacter_baumannii | cefiderocol | 0.1 | 1 |
-| acinetobacter_baumannii | meropenem | 0.85 | 0.005 |
-| acinetobacter_baumannii | imipenem_c | 0.8 | 0.005 |
-| acinetobacter_baumannii | ertapenem | 0.1 | 0.005 |
-| acinetobacter_baumannii | aztreonam | 0.1 | 1 |
-| acinetobacter_baumannii | gentamicin | 0.75 | 1 |
-| acinetobacter_baumannii | tobramycin | 0.7 | 1 |
-| acinetobacter_baumannii | amikacin | 0.8 | 1 |
+| acinetobacter_baumannii | cefiderocol | 0.55 | 1 |
+| acinetobacter_baumannii | meropenem | 0.85 | 60 |
+| acinetobacter_baumannii | imipenem_c | 0.8 | 40 |
+| acinetobacter_baumannii | ertapenem | 0.1 | 0.5 |
+| acinetobacter_baumannii | aztreonam | 0.1 | 0.003 |
+| acinetobacter_baumannii | gentamicin | 0.75 | 10 |
+| acinetobacter_baumannii | tobramycin | 0.7 | 10 |
+| acinetobacter_baumannii | amikacin | 0.8 | 15 |
 | acinetobacter_baumannii | ciprofloxacin | 0.7 | 1 |
 | acinetobacter_baumannii | levofloxacin | 0.7 | 1 |
 | acinetobacter_baumannii | moxifloxacin | 0.6 | 1 |
 | acinetobacter_baumannii | ofloxacin | 0.6 | 1 |
-| acinetobacter_baumannii | tetracycline | 0.6 | 1 |
-| acinetobacter_baumannii | doxycycline | 0.7 | 1 |
-| acinetobacter_baumannii | minocycline | 0.8 | 1 |
-| acinetobacter_baumannii | tigecycline | 0.1 | 1 |
-| acinetobacter_baumannii | dalbavancin | 0 | 0.005 |
-| acinetobacter_baumannii | linezolid | 0 | 0.005 |
-| acinetobacter_baumannii | tedizolid | 0 | 0.005 |
+| acinetobacter_baumannii | tetracycline | 0.1 | 0.25 |
+| acinetobacter_baumannii | doxycycline | 0.15 | 0.25 |
+| acinetobacter_baumannii | minocycline | 0.55 | 0.25 |
+| acinetobacter_baumannii | tigecycline | 0.55 | 1 |
+| acinetobacter_baumannii | dalbavancin | 0 | 0.5 |
+| acinetobacter_baumannii | linezolid | 0 | 0.5 |
+| acinetobacter_baumannii | tedizolid | 0 | 0.5 |
 | acinetobacter_baumannii | daptomycin | 0.1 | 1 |
-| acinetobacter_baumannii | quinu_dalfo | 0 | 0.005 |
-| acinetobacter_baumannii | trim_sulf | 0.6 | 1 |
-| acinetobacter_baumannii | chloramphenicol | 0.7 | 1 |
+| acinetobacter_baumannii | quinu_dalfo | 0 | 0.5 |
+| acinetobacter_baumannii | trim_sulf | 0.15 | 0.04 |
+| acinetobacter_baumannii | chloramphenicol | 0.15 | 1 |
 | acinetobacter_baumannii | nitrofurantoin | 0.1 | 1 |
-| acinetobacter_baumannii | fosfomycin | 0.1 | 1 |
+| acinetobacter_baumannii | fosfomycin | 0.4 | 1 |
 | acinetobacter_baumannii | fidaxomicin | 0.1 | 1 |
 | acinetobacter_baumannii | furazolidone | 0.1 | 1 |
-| acinetobacter_baumannii | rifampicin | 0.6 | 1 |
+| acinetobacter_baumannii | rifampicin | 0.6 | 4 |
 | acinetobacter_baumannii | amoxicillin_clavulanate | 0.05 | 1 |
-| acinetobacter_baumannii | piperacillin_tazobactam | 0.7 | 1 |
+| acinetobacter_baumannii | piperacillin_tazobactam | 0.7 | 11 |
 | acinetobacter_baumannii | ampicillin_sulbactam | 0.7 | 1 |
-| acinetobacter_baumannii | ticarcillin_clavulanate | 0.6 | 1 |
-| acinetobacter_baumannii | ceftazidime_avibactam | 0.7 | 0.005 |
-| acinetobacter_baumannii | meropenem_vaborbactam | 0.8 | 0.005 |
-| acinetobacter_baumannii | colistin | 0.9 | 0.005 |
+| acinetobacter_baumannii | ticarcillin_clavulanate | 0.6 | 3 |
+| acinetobacter_baumannii | ceftazidime_avibactam | 0.7 | 0.5 |
+| acinetobacter_baumannii | meropenem_vaborbactam | 0.8 | 0.5 |
+| acinetobacter_baumannii | colistin | 0.9 | 0.5 |
 | acinetobacter_baumannii | flucloxacillin | 0.01 | 1 |
-| acinetobacter_baumannii | aztreonam_avibactam | 0.1 | 1 |
-| acinetobacter_baumannii | cefixime | 0.1 | 1 |
-| citrobacter_spp. | sulfanilamide | 0.5 | 1 |
+| acinetobacter_baumannii | aztreonam_avibactam | 0.1 | 0.04 |
+| acinetobacter_baumannii | cefixime | 0.1 | 0.2 |
+| acinetobacter_baumannii | nalidixic_acid | 0 | 0 |
+| citrobacter_spp. | sulfanilamide | 0.5 | 0.02 |
 | citrobacter_spp. | penicillin_g | 0.1 | 1 |
 | citrobacter_spp. | ampicillin | 0.1 | 1 |
 | citrobacter_spp. | amoxicillin | 0.1 | 1 |
 | citrobacter_spp. | piperacillin | 0.8 | 1 |
 | citrobacter_spp. | ticarcillin | 0.75 | 1 |
-| citrobacter_spp. | cephalexin | 0.1 | 1 |
-| citrobacter_spp. | cefazolin | 0.1 | 1 |
-| citrobacter_spp. | cefuroxime | 0.8 | 1 |
-| citrobacter_spp. | ceftriaxone | 0.85 | 1 |
-| citrobacter_spp. | ceftazidime | 0.8 | 1 |
-| citrobacter_spp. | cefepime | 0.9 | 1 |
-| citrobacter_spp. | ceftaroline | 0.6 | 1 |
+| citrobacter_spp. | cephalexin | 0.1 | 0.3 |
+| citrobacter_spp. | cefazolin | 0.1 | 0.3 |
+| citrobacter_spp. | cefuroxime | 0.8 | 0.3 |
+| citrobacter_spp. | ceftriaxone | 0.85 | 0.2 |
+| citrobacter_spp. | ceftazidime | 0.8 | 0.2 |
+| citrobacter_spp. | cefepime | 0.9 | 0.35 |
+| citrobacter_spp. | ceftaroline | 0.1 | 0.002 |
 | citrobacter_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | citrobacter_spp. | cefiderocol | 0.8 | 1 |
-| citrobacter_spp. | meropenem | 0.95 | 0.005 |
-| citrobacter_spp. | imipenem_c | 0.95 | 0.005 |
-| citrobacter_spp. | ertapenem | 0.9 | 0.005 |
-| citrobacter_spp. | aztreonam | 0.85 | 1 |
+| citrobacter_spp. | meropenem | 0.95 | 40 |
+| citrobacter_spp. | imipenem_c | 0.95 | 0.5 |
+| citrobacter_spp. | ertapenem | 0.9 | 30 |
+| citrobacter_spp. | aztreonam | 0.85 | 0.003 |
 | citrobacter_spp. | erythromycin | 0.1 | 1 |
 | citrobacter_spp. | azithromycin | 0.1 | 1 |
 | citrobacter_spp. | clarithromycin | 0.1 | 1 |
 | citrobacter_spp. | clindamycin | 0.1 | 1 |
-| citrobacter_spp. | gentamicin | 0.85 | 1 |
+| citrobacter_spp. | gentamicin | 0.85 | 10 |
 | citrobacter_spp. | tobramycin | 0.8 | 1 |
 | citrobacter_spp. | amikacin | 0.9 | 1 |
 | citrobacter_spp. | ciprofloxacin | 0.9 | 1 |
 | citrobacter_spp. | levofloxacin | 0.85 | 1 |
 | citrobacter_spp. | moxifloxacin | 0.7 | 1 |
 | citrobacter_spp. | ofloxacin | 0.8 | 1 |
-| citrobacter_spp. | tetracycline | 0.8 | 1 |
-| citrobacter_spp. | doxycycline | 0.85 | 1 |
-| citrobacter_spp. | minocycline | 0.85 | 1 |
-| citrobacter_spp. | tigecycline | 0.1 | 1 |
+| citrobacter_spp. | tetracycline | 0.8 | 0.25 |
+| citrobacter_spp. | doxycycline | 0.85 | 0.25 |
+| citrobacter_spp. | minocycline | 0.85 | 0.25 |
+| citrobacter_spp. | tigecycline | 0.55 | 1 |
 | citrobacter_spp. | vancomycin | 0.1 | 1 |
 | citrobacter_spp. | teicoplanin | 0.1 | 1 |
-| citrobacter_spp. | dalbavancin | 0.1 | 0.005 |
-| citrobacter_spp. | linezolid | 0.1 | 0.005 |
-| citrobacter_spp. | tedizolid | 0.1 | 0.005 |
+| citrobacter_spp. | dalbavancin | 0.1 | 0.5 |
+| citrobacter_spp. | linezolid | 0.1 | 0.5 |
+| citrobacter_spp. | tedizolid | 0.1 | 0.5 |
 | citrobacter_spp. | daptomycin | 0.1 | 1 |
-| citrobacter_spp. | quinu_dalfo | 0.1 | 0.005 |
-| citrobacter_spp. | trim_sulf | 0.9 | 1 |
+| citrobacter_spp. | quinu_dalfo | 0.1 | 0.5 |
+| citrobacter_spp. | trim_sulf | 0.9 | 0.04 |
 | citrobacter_spp. | chloramphenicol | 0.85 | 1 |
 | citrobacter_spp. | nitrofurantoin | 0.8 | 1 |
-| citrobacter_spp. | fosfomycin | 0.1 | 1 |
+| citrobacter_spp. | fosfomycin | 0.4 | 1 |
 | citrobacter_spp. | retapamulin | 0.05 | 1 |
 | citrobacter_spp. | fusidic_a | 0.05 | 1 |
 | citrobacter_spp. | metronidazole | 0.05 | 1 |
 | citrobacter_spp. | fidaxomicin | 0.1 | 1 |
 | citrobacter_spp. | furazolidone | 0.1 | 1 |
 | citrobacter_spp. | rifampicin | 0.7 | 1 |
-| citrobacter_spp. | amoxicillin_clavulanate | 0.9 | 1 |
-| citrobacter_spp. | piperacillin_tazobactam | 0.9 | 1 |
+| citrobacter_spp. | amoxicillin_clavulanate | 0.9 | 6 |
+| citrobacter_spp. | piperacillin_tazobactam | 0.9 | 10 |
 | citrobacter_spp. | ampicillin_sulbactam | 0.85 | 1 |
 | citrobacter_spp. | ticarcillin_clavulanate | 0.8 | 1 |
-| citrobacter_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
-| citrobacter_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
-| citrobacter_spp. | colistin | 0.7 | 0.005 |
+| citrobacter_spp. | ceftazidime_avibactam | 0.9 | 0.5 |
+| citrobacter_spp. | meropenem_vaborbactam | 0.95 | 0.5 |
+| citrobacter_spp. | colistin | 0.7 | 0.5 |
 | citrobacter_spp. | flucloxacillin | 0.01 | 1 |
-| citrobacter_spp. | aztreonam_avibactam | 1 | 1 |
-| citrobacter_spp. | cefixime | 0.8 | 1 |
-| enterobacter_spp. | sulfanilamide | 0.5 | 1 |
+| citrobacter_spp. | aztreonam_avibactam | 1 | 0.003 |
+| citrobacter_spp. | cefixime | 0.8 | 0.2 |
+| citrobacter_spp. | nalidixic_acid | 0.55 | 0 |
+| enterobacter_spp. | sulfanilamide | 0.5 | 0.02 |
 | enterobacter_spp. | penicillin_g | 0.1 | 1 |
 | enterobacter_spp. | ampicillin | 0.1 | 1 |
 | enterobacter_spp. | amoxicillin | 0.1 | 1 |
 | enterobacter_spp. | piperacillin | 0.75 | 1 |
 | enterobacter_spp. | ticarcillin | 0.7 | 1 |
-| enterobacter_spp. | cephalexin | 0.1 | 1 |
-| enterobacter_spp. | cefazolin | 0.1 | 1 |
-| enterobacter_spp. | cefuroxime | 0.6 | 1 |
-| enterobacter_spp. | ceftriaxone | 0.5 | 1 |
-| enterobacter_spp. | ceftazidime | 0.8 | 1 |
-| enterobacter_spp. | cefepime | 0.85 | 1 |
-| enterobacter_spp. | ceftaroline | 0.4 | 1 |
+| enterobacter_spp. | cephalexin | 0.1 | 0.3 |
+| enterobacter_spp. | cefazolin | 0.1 | 0.3 |
+| enterobacter_spp. | cefuroxime | 0.6 | 0.3 |
+| enterobacter_spp. | ceftriaxone | 0.5 | 0.2 |
+| enterobacter_spp. | ceftazidime | 0.8 | 0.2 |
+| enterobacter_spp. | cefepime | 0.85 | 2.5 |
+| enterobacter_spp. | ceftaroline | 0.1 | 0.002 |
 | enterobacter_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | enterobacter_spp. | cefiderocol | 0.8 | 1 |
-| enterobacter_spp. | meropenem | 0.95 | 0.005 |
-| enterobacter_spp. | imipenem_c | 0.95 | 0.005 |
-| enterobacter_spp. | ertapenem | 0.9 | 0.005 |
-| enterobacter_spp. | aztreonam | 0.8 | 1 |
-| enterobacter_spp. | gentamicin | 0.85 | 1 |
+| enterobacter_spp. | meropenem | 0.95 | 50 |
+| enterobacter_spp. | imipenem_c | 0.95 | 30 |
+| enterobacter_spp. | ertapenem | 0.9 | 30 |
+| enterobacter_spp. | aztreonam | 0.8 | 0.003 |
+| enterobacter_spp. | gentamicin | 0.85 | 10 |
 | enterobacter_spp. | tobramycin | 0.8 | 1 |
-| enterobacter_spp. | amikacin | 0.9 | 1 |
+| enterobacter_spp. | amikacin | 0.9 | 8 |
 | enterobacter_spp. | ciprofloxacin | 0.9 | 1 |
 | enterobacter_spp. | levofloxacin | 0.85 | 1 |
 | enterobacter_spp. | moxifloxacin | 0.7 | 1 |
 | enterobacter_spp. | ofloxacin | 0.8 | 1 |
-| enterobacter_spp. | tetracycline | 0.8 | 1 |
-| enterobacter_spp. | doxycycline | 0.85 | 1 |
-| enterobacter_spp. | minocycline | 0.85 | 1 |
-| enterobacter_spp. | tigecycline | 0.1 | 1 |
-| enterobacter_spp. | dalbavancin | 0 | 0.005 |
-| enterobacter_spp. | linezolid | 0 | 0.005 |
-| enterobacter_spp. | tedizolid | 0 | 0.005 |
+| enterobacter_spp. | tetracycline | 0.8 | 0.25 |
+| enterobacter_spp. | doxycycline | 0.85 | 0.25 |
+| enterobacter_spp. | minocycline | 0.85 | 0.25 |
+| enterobacter_spp. | tigecycline | 0.55 | 1 |
+| enterobacter_spp. | dalbavancin | 0 | 0.5 |
+| enterobacter_spp. | linezolid | 0 | 0.5 |
+| enterobacter_spp. | tedizolid | 0 | 0.5 |
 | enterobacter_spp. | daptomycin | 0.1 | 1 |
-| enterobacter_spp. | quinu_dalfo | 0 | 0.005 |
-| enterobacter_spp. | trim_sulf | 0.85 | 1 |
+| enterobacter_spp. | quinu_dalfo | 0 | 0.5 |
+| enterobacter_spp. | trim_sulf | 0.85 | 0.04 |
 | enterobacter_spp. | chloramphenicol | 0.8 | 1 |
 | enterobacter_spp. | nitrofurantoin | 0.7 | 1 |
-| enterobacter_spp. | fosfomycin | 0.1 | 1 |
+| enterobacter_spp. | fosfomycin | 0.5 | 1 |
 | enterobacter_spp. | fidaxomicin | 0.1 | 1 |
 | enterobacter_spp. | furazolidone | 0.1 | 1 |
 | enterobacter_spp. | rifampicin | 0.6 | 1 |
-| enterobacter_spp. | amoxicillin_clavulanate | 0.7 | 1 |
-| enterobacter_spp. | piperacillin_tazobactam | 0.85 | 1 |
+| enterobacter_spp. | amoxicillin_clavulanate | 0.7 | 6 |
+| enterobacter_spp. | piperacillin_tazobactam | 0.85 | 10 |
 | enterobacter_spp. | ampicillin_sulbactam | 0.7 | 1 |
 | enterobacter_spp. | ticarcillin_clavulanate | 0.8 | 1 |
-| enterobacter_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
-| enterobacter_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
-| enterobacter_spp. | colistin | 0.7 | 0.005 |
+| enterobacter_spp. | ceftazidime_avibactam | 0.9 | 0.5 |
+| enterobacter_spp. | meropenem_vaborbactam | 0.95 | 0.5 |
+| enterobacter_spp. | colistin | 0.7 | 0.5 |
 | enterobacter_spp. | flucloxacillin | 0.01 | 1 |
-| enterobacter_spp. | aztreonam_avibactam | 1 | 1 |
-| enterobacter_spp. | cefixime | 0.8 | 1 |
-| enterococcus_faecalis | sulfanilamide | 0.1 | 1 |
+| enterobacter_spp. | aztreonam_avibactam | 1 | 0.003 |
+| enterobacter_spp. | cefixime | 0.8 | 0.2 |
+| enterobacter_spp. | nalidixic_acid | 0.5 | 0 |
+| enterococcus_faecalis | sulfanilamide | 0.1 | 0.02 |
 | enterococcus_faecalis | penicillin_g | 0.8 | 1 |
-| enterococcus_faecalis | ampicillin | 0.9 | 1 |
+| enterococcus_faecalis | ampicillin | 0.9 | 6 |
 | enterococcus_faecalis | amoxicillin | 0.9 | 1 |
 | enterococcus_faecalis | piperacillin | 0.75 | 1 |
 | enterococcus_faecalis | ticarcillin | 0.7 | 1 |
-| enterococcus_faecalis | cephalexin | 0.1 | 1 |
-| enterococcus_faecalis | cefazolin | 0.1 | 1 |
-| enterococcus_faecalis | cefuroxime | 0.1 | 1 |
-| enterococcus_faecalis | ceftriaxone | 0.1 | 1 |
-| enterococcus_faecalis | ceftazidime | 0.1 | 1 |
-| enterococcus_faecalis | cefepime | 0.1 | 1 |
-| enterococcus_faecalis | ceftaroline | 0.1 | 1 |
+| enterococcus_faecalis | cephalexin | 0.1 | 0.3 |
+| enterococcus_faecalis | cefazolin | 0.1 | 0.3 |
+| enterococcus_faecalis | cefuroxime | 0.1 | 0.3 |
+| enterococcus_faecalis | ceftriaxone | 0.1 | 0.2 |
+| enterococcus_faecalis | ceftazidime | 0.1 | 0.2 |
+| enterococcus_faecalis | cefepime | 0.1 | 0.35 |
+| enterococcus_faecalis | ceftaroline | 0.1 | 0.002 |
 | enterococcus_faecalis | ceftolozane_tazobactam | 0.05 | 1 |
 | enterococcus_faecalis | cefiderocol | 0.05 | 1 |
-| enterococcus_faecalis | meropenem | 0.7 | 0.005 |
-| enterococcus_faecalis | imipenem_c | 0.7 | 0.005 |
-| enterococcus_faecalis | ertapenem | 0.1 | 0.005 |
+| enterococcus_faecalis | meropenem | 0.3 | 0.5 |
+| enterococcus_faecalis | imipenem_c | 0.45 | 0.5 |
+| enterococcus_faecalis | ertapenem | 0.1 | 0.5 |
+| enterococcus_faecalis | aztreonam | 0 | 0.003 |
 | enterococcus_faecalis | erythromycin | 0.7 | 0.01 |
 | enterococcus_faecalis | azithromycin | 0.7 | 0.01 |
 | enterococcus_faecalis | clarithromycin | 0.7 | 1 |
 | enterococcus_faecalis | clindamycin | 0.7 | 1 |
-| enterococcus_faecalis | gentamicin | 0.1 | 1 |
+| enterococcus_faecalis | gentamicin | 0.1 | 20 |
 | enterococcus_faecalis | tobramycin | 0.1 | 1 |
 | enterococcus_faecalis | amikacin | 0.1 | 1 |
 | enterococcus_faecalis | ciprofloxacin | 0.7 | 1 |
 | enterococcus_faecalis | levofloxacin | 0.7 | 1 |
 | enterococcus_faecalis | moxifloxacin | 0.7 | 1 |
 | enterococcus_faecalis | ofloxacin | 0.7 | 1 |
-| enterococcus_faecalis | tetracycline | 0.8 | 1 |
-| enterococcus_faecalis | doxycycline | 0.8 | 1 |
-| enterococcus_faecalis | minocycline | 0.85 | 1 |
-| enterococcus_faecalis | tigecycline | 0.1 | 1 |
+| enterococcus_faecalis | tetracycline | 0.8 | 0.25 |
+| enterococcus_faecalis | doxycycline | 0.8 | 0.25 |
+| enterococcus_faecalis | minocycline | 0.85 | 0.25 |
+| enterococcus_faecalis | tigecycline | 0.65 | 1 |
 | enterococcus_faecalis | vancomycin | 0.95 | 4 |
-| enterococcus_faecalis | teicoplanin | 0.9 | 1 |
-| enterococcus_faecalis | dalbavancin | 0.9 | 0.005 |
-| enterococcus_faecalis | linezolid | 0.9 | 0.25 |
-| enterococcus_faecalis | tedizolid | 0.9 | 0.005 |
-| enterococcus_faecalis | daptomycin | 0.1 | 1 |
-| enterococcus_faecalis | quinu_dalfo | 0.1 | 0.005 |
-| enterococcus_faecalis | trim_sulf | 0.1 | 1 |
+| enterococcus_faecalis | teicoplanin | 0.9 | 5 |
+| enterococcus_faecalis | dalbavancin | 0.9 | 0.5 |
+| enterococcus_faecalis | linezolid | 0.9 | 2 |
+| enterococcus_faecalis | tedizolid | 0.9 | 0.5 |
+| enterococcus_faecalis | daptomycin | 0.8 | 3 |
+| enterococcus_faecalis | quinu_dalfo | 0.1 | 0.5 |
+| enterococcus_faecalis | trim_sulf | 0.1 | 0.04 |
 | enterococcus_faecalis | chloramphenicol | 0.8 | 1 |
-| enterococcus_faecalis | nitrofurantoin | 0.9 | 1 |
-| enterococcus_faecalis | fosfomycin | 0.1 | 1 |
+| enterococcus_faecalis | nitrofurantoin | 0.9 | 20 |
+| enterococcus_faecalis | fosfomycin | 0.6 | 15 |
 | enterococcus_faecalis | retapamulin | 0.1 | 1 |
 | enterococcus_faecalis | fusidic_a | 0.1 | 1 |
 | enterococcus_faecalis | metronidazole | 0.1 | 1 |
 | enterococcus_faecalis | fidaxomicin | 0.1 | 1 |
 | enterococcus_faecalis | furazolidone | 0.1 | 1 |
-| enterococcus_faecalis | rifampicin | 0.1 | 1 |
-| enterococcus_faecalis | amoxicillin_clavulanate | 0.9 | 1 |
+| enterococcus_faecalis | rifampicin | 0.2 | 1 |
+| enterococcus_faecalis | amoxicillin_clavulanate | 0.9 | 14 |
 | enterococcus_faecalis | piperacillin_tazobactam | 0.75 | 1 |
 | enterococcus_faecalis | ampicillin_sulbactam | 0.9 | 1 |
 | enterococcus_faecalis | ticarcillin_clavulanate | 0.7 | 1 |
-| enterococcus_faecalis | ceftazidime_avibactam | 0.1 | 0.005 |
-| enterococcus_faecalis | meropenem_vaborbactam | 0.75 | 0.005 |
-| enterococcus_faecalis | colistin | 0 | 0.005 |
+| enterococcus_faecalis | ceftazidime_avibactam | 0.1 | 0.5 |
+| enterococcus_faecalis | meropenem_vaborbactam | 0.75 | 0.5 |
+| enterococcus_faecalis | colistin | 0 | 0.5 |
 | enterococcus_faecalis | flucloxacillin | 0.05 | 1 |
-| enterococcus_faecalis | aztreonam_avibactam | 0.01 | 1 |
-| enterococcus_faecalis | cefixime | 0.05 | 1 |
-| enterococcus_faecium | sulfanilamide | 0.1 | 1 |
+| enterococcus_faecalis | aztreonam_avibactam | 0.01 | 0.003 |
+| enterococcus_faecalis | cefixime | 0.05 | 0.2 |
+| enterococcus_faecalis | nalidixic_acid | 0 | 0 |
+| enterococcus_faecium | sulfanilamide | 0.1 | 0.02 |
 | enterococcus_faecium | penicillin_g | 0.1 | 1 |
 | enterococcus_faecium | ampicillin | 0.3 | 1 |
 | enterococcus_faecium | amoxicillin | 0.3 | 1 |
 | enterococcus_faecium | piperacillin | 0.1 | 1 |
 | enterococcus_faecium | ticarcillin | 0.1 | 1 |
-| enterococcus_faecium | cephalexin | 0.1 | 1 |
-| enterococcus_faecium | cefazolin | 0.1 | 1 |
-| enterococcus_faecium | cefuroxime | 0.1 | 1 |
-| enterococcus_faecium | ceftriaxone | 0.1 | 1 |
-| enterococcus_faecium | ceftazidime | 0.1 | 1 |
-| enterococcus_faecium | cefepime | 0.1 | 1 |
-| enterococcus_faecium | ceftaroline | 0.1 | 1 |
+| enterococcus_faecium | cephalexin | 0.1 | 0.3 |
+| enterococcus_faecium | cefazolin | 0.1 | 0.3 |
+| enterococcus_faecium | cefuroxime | 0.1 | 0.3 |
+| enterococcus_faecium | ceftriaxone | 0.1 | 0.2 |
+| enterococcus_faecium | ceftazidime | 0.1 | 0.2 |
+| enterococcus_faecium | cefepime | 0.1 | 0.35 |
+| enterococcus_faecium | ceftaroline | 0.1 | 0.002 |
 | enterococcus_faecium | ceftolozane_tazobactam | 0.05 | 1 |
 | enterococcus_faecium | cefiderocol | 0.05 | 1 |
-| enterococcus_faecium | meropenem | 0.1 | 0.005 |
-| enterococcus_faecium | imipenem_c | 0.1 | 0.005 |
-| enterococcus_faecium | ertapenem | 0.1 | 0.005 |
+| enterococcus_faecium | meropenem | 0.1 | 0.5 |
+| enterococcus_faecium | imipenem_c | 0.1 | 0.5 |
+| enterococcus_faecium | ertapenem | 0.1 | 0.5 |
+| enterococcus_faecium | aztreonam | 0 | 0.003 |
 | enterococcus_faecium | erythromycin | 0.7 | 0.01 |
 | enterococcus_faecium | azithromycin | 0.7 | 0.01 |
 | enterococcus_faecium | clarithromycin | 0.7 | 1 |
@@ -2901,334 +2898,340 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecium | levofloxacin | 0.7 | 1 |
 | enterococcus_faecium | moxifloxacin | 0.7 | 1 |
 | enterococcus_faecium | ofloxacin | 0.7 | 1 |
-| enterococcus_faecium | tetracycline | 0.8 | 1 |
-| enterococcus_faecium | doxycycline | 0.8 | 1 |
-| enterococcus_faecium | minocycline | 0.85 | 1 |
-| enterococcus_faecium | tigecycline | 0.1 | 1 |
-| enterococcus_faecium | vancomycin | 0.9 | 3.5 |
-| enterococcus_faecium | teicoplanin | 0.85 | 1 |
-| enterococcus_faecium | dalbavancin | 0.85 | 0.005 |
-| enterococcus_faecium | linezolid | 0.9 | 0.3 |
-| enterococcus_faecium | tedizolid | 0.9 | 0.005 |
-| enterococcus_faecium | daptomycin | 0.1 | 1 |
-| enterococcus_faecium | quinu_dalfo | 0.7 | 0.005 |
-| enterococcus_faecium | trim_sulf | 0.6 | 1 |
+| enterococcus_faecium | tetracycline | 0.8 | 0.25 |
+| enterococcus_faecium | doxycycline | 0.8 | 0.25 |
+| enterococcus_faecium | minocycline | 0.85 | 0.25 |
+| enterococcus_faecium | tigecycline | 0.65 | 1 |
+| enterococcus_faecium | vancomycin | 0.9 | 5 |
+| enterococcus_faecium | teicoplanin | 0.85 | 5 |
+| enterococcus_faecium | dalbavancin | 0.85 | 0.5 |
+| enterococcus_faecium | linezolid | 0.9 | 3 |
+| enterococcus_faecium | tedizolid | 0.9 | 0.5 |
+| enterococcus_faecium | daptomycin | 0.8 | 4 |
+| enterococcus_faecium | quinu_dalfo | 0.7 | 0.5 |
+| enterococcus_faecium | trim_sulf | 0.6 | 0.04 |
 | enterococcus_faecium | chloramphenicol | 0.7 | 1 |
-| enterococcus_faecium | nitrofurantoin | 0.7 | 1 |
-| enterococcus_faecium | fosfomycin | 0.1 | 1 |
+| enterococcus_faecium | nitrofurantoin | 0.6 | 15 |
+| enterococcus_faecium | fosfomycin | 0.45 | 1 |
 | enterococcus_faecium | retapamulin | 0.1 | 1 |
 | enterococcus_faecium | fusidic_a | 0.1 | 1 |
 | enterococcus_faecium | metronidazole | 0.1 | 1 |
 | enterococcus_faecium | fidaxomicin | 0.1 | 1 |
 | enterococcus_faecium | furazolidone | 0.1 | 1 |
-| enterococcus_faecium | rifampicin | 0.1 | 1 |
+| enterococcus_faecium | rifampicin | 0.2 | 1 |
 | enterococcus_faecium | amoxicillin_clavulanate | 0.8 | 1 |
 | enterococcus_faecium | piperacillin_tazobactam | 0.1 | 1 |
 | enterococcus_faecium | ampicillin_sulbactam | 0.85 | 1 |
 | enterococcus_faecium | ticarcillin_clavulanate | 0.1 | 1 |
-| enterococcus_faecium | ceftazidime_avibactam | 0.1 | 0.005 |
-| enterococcus_faecium | meropenem_vaborbactam | 0.1 | 0.005 |
-| enterococcus_faecium | colistin | 0 | 0.005 |
+| enterococcus_faecium | ceftazidime_avibactam | 0.1 | 0.5 |
+| enterococcus_faecium | meropenem_vaborbactam | 0.1 | 0.5 |
+| enterococcus_faecium | colistin | 0 | 0.5 |
 | enterococcus_faecium | flucloxacillin | 0.05 | 1 |
-| enterococcus_faecium | aztreonam_avibactam | 0.01 | 1 |
-| enterococcus_faecium | cefixime | 0.05 | 1 |
-| escherichia_coli | sulfanilamide | 0.5 | 1 |
+| enterococcus_faecium | aztreonam_avibactam | 0.01 | 0.003 |
+| enterococcus_faecium | cefixime | 0.05 | 0.2 |
+| enterococcus_faecium | nalidixic_acid | 0 | 0 |
+| escherichia_coli | sulfanilamide | 0.5 | 0.02 |
 | escherichia_coli | penicillin_g | 0.1 | 1 |
 | escherichia_coli | ampicillin | 0.8 | 1 |
-| escherichia_coli | amoxicillin | 0.8 | 1 |
+| escherichia_coli | amoxicillin | 0.8 | 6 |
 | escherichia_coli | piperacillin | 0.85 | 1 |
 | escherichia_coli | ticarcillin | 0.8 | 1 |
-| escherichia_coli | cephalexin | 0.7 | 1 |
-| escherichia_coli | cefazolin | 0.75 | 1 |
-| escherichia_coli | cefuroxime | 0.8 | 1 |
-| escherichia_coli | ceftriaxone | 0.9 | 1 |
-| escherichia_coli | ceftazidime | 0.9 | 1 |
-| escherichia_coli | cefepime | 0.9 | 1 |
-| escherichia_coli | ceftaroline | 0.7 | 1 |
+| escherichia_coli | cephalexin | 0.7 | 0.3 |
+| escherichia_coli | cefazolin | 0.75 | 1.5 |
+| escherichia_coli | cefuroxime | 0.8 | 0.3 |
+| escherichia_coli | ceftriaxone | 0.9 | 1.5 |
+| escherichia_coli | ceftazidime | 0.9 | 0.2 |
+| escherichia_coli | cefepime | 0.9 | 2 |
+| escherichia_coli | ceftaroline | 0.65 | 0.002 |
 | escherichia_coli | ceftolozane_tazobactam | 0.8 | 1 |
 | escherichia_coli | cefiderocol | 0.8 | 1 |
-| escherichia_coli | meropenem | 0.95 | 0.05 |
-| escherichia_coli | imipenem_c | 0.95 | 0.005 |
-| escherichia_coli | ertapenem | 0.95 | 0.05 |
-| escherichia_coli | aztreonam | 0.9 | 1 |
-| escherichia_coli | gentamicin | 0.9 | 1 |
-| escherichia_coli | tobramycin | 0.85 | 1 |
-| escherichia_coli | amikacin | 0.9 | 1 |
-| escherichia_coli | ciprofloxacin | 0.95 | 1 |
-| escherichia_coli | levofloxacin | 0.9 | 1 |
+| escherichia_coli | meropenem | 0.95 | 80 |
+| escherichia_coli | imipenem_c | 0.95 | 40 |
+| escherichia_coli | ertapenem | 0.95 | 50 |
+| escherichia_coli | aztreonam | 0.9 | 0.003 |
+| escherichia_coli | gentamicin | 0.9 | 20 |
+| escherichia_coli | tobramycin | 0.85 | 8 |
+| escherichia_coli | amikacin | 0.9 | 12 |
+| escherichia_coli | ciprofloxacin | 0.95 | 5 |
+| escherichia_coli | levofloxacin | 0.9 | 2.5 |
 | escherichia_coli | moxifloxacin | 0.8 | 1 |
-| escherichia_coli | ofloxacin | 0.9 | 1 |
-| escherichia_coli | tetracycline | 0.8 | 1 |
-| escherichia_coli | doxycycline | 0.8 | 1 |
-| escherichia_coli | minocycline | 0.85 | 1 |
-| escherichia_coli | tigecycline | 0.1 | 1 |
-| escherichia_coli | dalbavancin | 0 | 0.005 |
-| escherichia_coli | linezolid | 0 | 0.005 |
-| escherichia_coli | tedizolid | 0 | 0.005 |
+| escherichia_coli | ofloxacin | 0.9 | 3 |
+| escherichia_coli | tetracycline | 0.8 | 0.25 |
+| escherichia_coli | doxycycline | 0.8 | 2.5 |
+| escherichia_coli | minocycline | 0.85 | 0.25 |
+| escherichia_coli | tigecycline | 0.6 | 1 |
+| escherichia_coli | dalbavancin | 0 | 0.5 |
+| escherichia_coli | linezolid | 0 | 0.5 |
+| escherichia_coli | tedizolid | 0 | 0.5 |
 | escherichia_coli | daptomycin | 0.1 | 1 |
-| escherichia_coli | quinu_dalfo | 0 | 0.005 |
-| escherichia_coli | trim_sulf | 0.9 | 1 |
+| escherichia_coli | quinu_dalfo | 0 | 0.5 |
+| escherichia_coli | trim_sulf | 0.9 | 0.06 |
 | escherichia_coli | chloramphenicol | 0.85 | 1 |
-| escherichia_coli | nitrofurantoin | 0.95 | 1 |
-| escherichia_coli | fosfomycin | 0.1 | 1 |
+| escherichia_coli | nitrofurantoin | 0.95 | 40 |
+| escherichia_coli | fosfomycin | 0.9 | 20 |
 | escherichia_coli | fidaxomicin | 0.1 | 1 |
 | escherichia_coli | furazolidone | 0.1 | 1 |
 | escherichia_coli | rifampicin | 0.7 | 1 |
-| escherichia_coli | amoxicillin_clavulanate | 0.9 | 1 |
-| escherichia_coli | piperacillin_tazobactam | 0.97 | 1 |
+| escherichia_coli | amoxicillin_clavulanate | 0.9 | 14 |
+| escherichia_coli | piperacillin_tazobactam | 0.97 | 12 |
 | escherichia_coli | ampicillin_sulbactam | 0.9 | 1 |
-| escherichia_coli | ticarcillin_clavulanate | 0.9 | 1 |
-| escherichia_coli | ceftazidime_avibactam | 0.95 | 0.005 |
-| escherichia_coli | meropenem_vaborbactam | 0.95 | 0.005 |
-| escherichia_coli | colistin | 0.7 | 0.005 |
+| escherichia_coli | ticarcillin_clavulanate | 0.9 | 3 |
+| escherichia_coli | ceftazidime_avibactam | 0.95 | 0.5 |
+| escherichia_coli | meropenem_vaborbactam | 0.95 | 0.5 |
+| escherichia_coli | colistin | 0.7 | 0.5 |
 | escherichia_coli | flucloxacillin | 0.01 | 1 |
-| escherichia_coli | aztreonam_avibactam | 1 | 1 |
-| escherichia_coli | cefixime | 0.8 | 1 |
-| klebsiella_pneumoniae | sulfanilamide | 0.5 | 1 |
+| escherichia_coli | aztreonam_avibactam | 1 | 0.003 |
+| escherichia_coli | cefixime | 0.8 | 0.2 |
+| escherichia_coli | nalidixic_acid | 0.65 | 0 |
+| klebsiella_pneumoniae | sulfanilamide | 0.5 | 0.02 |
 | klebsiella_pneumoniae | penicillin_g | 0.1 | 1 |
 | klebsiella_pneumoniae | ampicillin | 0.1 | 1 |
 | klebsiella_pneumoniae | amoxicillin | 0.1 | 1 |
 | klebsiella_pneumoniae | piperacillin | 0.8 | 1 |
 | klebsiella_pneumoniae | ticarcillin | 0.75 | 1 |
-| klebsiella_pneumoniae | cephalexin | 0.5 | 1 |
-| klebsiella_pneumoniae | cefazolin | 0.5 | 1 |
-| klebsiella_pneumoniae | cefuroxime | 0.7 | 1 |
-| klebsiella_pneumoniae | ceftriaxone | 0.9 | 1 |
-| klebsiella_pneumoniae | ceftazidime | 0.85 | 1 |
-| klebsiella_pneumoniae | cefepime | 0.92 | 1 |
-| klebsiella_pneumoniae | ceftaroline | 0.5 | 1 |
+| klebsiella_pneumoniae | cephalexin | 0.5 | 0.3 |
+| klebsiella_pneumoniae | cefazolin | 0.5 | 1.5 |
+| klebsiella_pneumoniae | cefuroxime | 0.7 | 0.3 |
+| klebsiella_pneumoniae | ceftriaxone | 0.9 | 1.5 |
+| klebsiella_pneumoniae | ceftazidime | 0.85 | 0.2 |
+| klebsiella_pneumoniae | cefepime | 0.92 | 2 |
+| klebsiella_pneumoniae | ceftaroline | 0.55 | 0.002 |
 | klebsiella_pneumoniae | ceftolozane_tazobactam | 0.8 | 1 |
 | klebsiella_pneumoniae | cefiderocol | 0.8 | 1 |
-| klebsiella_pneumoniae | meropenem | 0.94 | 0.05 |
-| klebsiella_pneumoniae | imipenem_c | 0.95 | 0.05 |
-| klebsiella_pneumoniae | ertapenem | 0.94 | 0.05 |
-| klebsiella_pneumoniae | aztreonam | 0.85 | 1 |
-| klebsiella_pneumoniae | gentamicin | 0.9 | 1 |
-| klebsiella_pneumoniae | tobramycin | 0.85 | 1 |
-| klebsiella_pneumoniae | amikacin | 0.9 | 1 |
-| klebsiella_pneumoniae | ciprofloxacin | 0.9 | 1 |
+| klebsiella_pneumoniae | meropenem | 0.94 | 80 |
+| klebsiella_pneumoniae | imipenem_c | 0.95 | 40 |
+| klebsiella_pneumoniae | ertapenem | 0.94 | 50 |
+| klebsiella_pneumoniae | aztreonam | 0.85 | 0.005 |
+| klebsiella_pneumoniae | gentamicin | 0.9 | 15 |
+| klebsiella_pneumoniae | tobramycin | 0.85 | 8 |
+| klebsiella_pneumoniae | amikacin | 0.9 | 12 |
+| klebsiella_pneumoniae | ciprofloxacin | 0.9 | 4 |
 | klebsiella_pneumoniae | levofloxacin | 0.85 | 1 |
 | klebsiella_pneumoniae | moxifloxacin | 0.7 | 1 |
 | klebsiella_pneumoniae | ofloxacin | 0.8 | 1 |
-| klebsiella_pneumoniae | tetracycline | 0.8 | 1 |
-| klebsiella_pneumoniae | doxycycline | 0.8 | 1 |
-| klebsiella_pneumoniae | minocycline | 0.85 | 1 |
-| klebsiella_pneumoniae | tigecycline | 0.1 | 1 |
-| klebsiella_pneumoniae | dalbavancin | 0 | 0.005 |
-| klebsiella_pneumoniae | linezolid | 0 | 0.005 |
-| klebsiella_pneumoniae | tedizolid | 0 | 0.005 |
+| klebsiella_pneumoniae | tetracycline | 0.8 | 0.25 |
+| klebsiella_pneumoniae | doxycycline | 0.8 | 0.25 |
+| klebsiella_pneumoniae | minocycline | 0.85 | 0.25 |
+| klebsiella_pneumoniae | tigecycline | 0.6 | 1 |
+| klebsiella_pneumoniae | dalbavancin | 0 | 0.5 |
+| klebsiella_pneumoniae | linezolid | 0 | 0.5 |
+| klebsiella_pneumoniae | tedizolid | 0 | 0.5 |
 | klebsiella_pneumoniae | daptomycin | 0.1 | 1 |
-| klebsiella_pneumoniae | quinu_dalfo | 0 | 0.005 |
-| klebsiella_pneumoniae | trim_sulf | 0.9 | 1 |
+| klebsiella_pneumoniae | quinu_dalfo | 0 | 0.5 |
+| klebsiella_pneumoniae | trim_sulf | 0.9 | 0.04 |
 | klebsiella_pneumoniae | chloramphenicol | 0.85 | 1 |
-| klebsiella_pneumoniae | nitrofurantoin | 0.8 | 1 |
-| klebsiella_pneumoniae | fosfomycin | 0.1 | 1 |
+| klebsiella_pneumoniae | nitrofurantoin | 0.05 | 25 |
+| klebsiella_pneumoniae | fosfomycin | 0.55 | 10 |
 | klebsiella_pneumoniae | fidaxomicin | 0.1 | 1 |
 | klebsiella_pneumoniae | furazolidone | 0.1 | 1 |
 | klebsiella_pneumoniae | rifampicin | 0.6 | 1 |
-| klebsiella_pneumoniae | amoxicillin_clavulanate | 0.85 | 1 |
-| klebsiella_pneumoniae | piperacillin_tazobactam | 0.92 | 1 |
-| klebsiella_pneumoniae | ampicillin_sulbactam | 0.75 | 1 |
-| klebsiella_pneumoniae | ticarcillin_clavulanate | 0.75 | 1 |
-| klebsiella_pneumoniae | ceftazidime_avibactam | 0.95 | 0.005 |
-| klebsiella_pneumoniae | meropenem_vaborbactam | 0.95 | 0.005 |
-| klebsiella_pneumoniae | colistin | 0.7 | 0.005 |
+| klebsiella_pneumoniae | amoxicillin_clavulanate | 0.85 | 14 |
+| klebsiella_pneumoniae | piperacillin_tazobactam | 0.92 | 12 |
+| klebsiella_pneumoniae | ampicillin_sulbactam | 0.75 | 4.5 |
+| klebsiella_pneumoniae | ticarcillin_clavulanate | 0.75 | 3 |
+| klebsiella_pneumoniae | ceftazidime_avibactam | 0.95 | 0.5 |
+| klebsiella_pneumoniae | meropenem_vaborbactam | 0.95 | 0.5 |
+| klebsiella_pneumoniae | colistin | 0.7 | 0.5 |
 | klebsiella_pneumoniae | flucloxacillin | 0.01 | 1 |
-| klebsiella_pneumoniae | aztreonam_avibactam | 1 | 1 |
-| klebsiella_pneumoniae | cefixime | 0.8 | 1 |
-| morganella_spp. | sulfanilamide | 0.5 | 1 |
+| klebsiella_pneumoniae | aztreonam_avibactam | 1 | 0.005 |
+| klebsiella_pneumoniae | cefixime | 0.8 | 0.2 |
+| klebsiella_pneumoniae | nalidixic_acid | 0.55 | 0 |
+| morganella_spp. | sulfanilamide | 0.5 | 0.02 |
 | morganella_spp. | penicillin_g | 0.1 | 1 |
 | morganella_spp. | ampicillin | 0.5 | 1 |
 | morganella_spp. | amoxicillin | 0.5 | 1 |
 | morganella_spp. | piperacillin | 0.75 | 1 |
 | morganella_spp. | ticarcillin | 0.7 | 1 |
-| morganella_spp. | cephalexin | 0.5 | 1 |
-| morganella_spp. | cefazolin | 0.5 | 1 |
-| morganella_spp. | cefuroxime | 0.6 | 1 |
-| morganella_spp. | ceftriaxone | 0.8 | 1 |
-| morganella_spp. | ceftazidime | 0.8 | 1 |
-| morganella_spp. | cefepime | 0.85 | 1 |
-| morganella_spp. | ceftaroline | 0.4 | 1 |
+| morganella_spp. | cephalexin | 0.5 | 0.3 |
+| morganella_spp. | cefazolin | 0.5 | 0.3 |
+| morganella_spp. | cefuroxime | 0.6 | 0.3 |
+| morganella_spp. | ceftriaxone | 0.8 | 0.2 |
+| morganella_spp. | ceftazidime | 0.8 | 0.2 |
+| morganella_spp. | cefepime | 0.85 | 0.35 |
+| morganella_spp. | ceftaroline | 0.1 | 0.002 |
 | morganella_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | morganella_spp. | cefiderocol | 0.8 | 1 |
-| morganella_spp. | meropenem | 0.95 | 0.005 |
-| morganella_spp. | imipenem_c | 0.95 | 0.005 |
-| morganella_spp. | ertapenem | 0.9 | 0.005 |
-| morganella_spp. | aztreonam | 0.8 | 1 |
+| morganella_spp. | meropenem | 0.95 | 40 |
+| morganella_spp. | imipenem_c | 0.95 | 0.5 |
+| morganella_spp. | ertapenem | 0.9 | 0.5 |
+| morganella_spp. | aztreonam | 0.8 | 0.003 |
 | morganella_spp. | erythromycin | 0.1 | 1 |
 | morganella_spp. | azithromycin | 0.1 | 1 |
 | morganella_spp. | clarithromycin | 0.1 | 1 |
 | morganella_spp. | clindamycin | 0.1 | 1 |
-| morganella_spp. | gentamicin | 0.85 | 1 |
+| morganella_spp. | gentamicin | 0.85 | 10 |
 | morganella_spp. | tobramycin | 0.8 | 1 |
 | morganella_spp. | amikacin | 0.9 | 1 |
 | morganella_spp. | ciprofloxacin | 0.9 | 1 |
 | morganella_spp. | levofloxacin | 0.85 | 1 |
 | morganella_spp. | moxifloxacin | 0.7 | 1 |
 | morganella_spp. | ofloxacin | 0.8 | 1 |
-| morganella_spp. | tetracycline | 0.8 | 1 |
-| morganella_spp. | doxycycline | 0.85 | 1 |
-| morganella_spp. | minocycline | 0.85 | 1 |
+| morganella_spp. | tetracycline | 0.1 | 0.25 |
+| morganella_spp. | doxycycline | 0.1 | 0.25 |
+| morganella_spp. | minocycline | 0.1 | 0.25 |
 | morganella_spp. | tigecycline | 0.1 | 1 |
 | morganella_spp. | vancomycin | 0.1 | 1 |
 | morganella_spp. | teicoplanin | 0.1 | 1 |
-| morganella_spp. | dalbavancin | 0.1 | 0.005 |
-| morganella_spp. | linezolid | 0.1 | 0.005 |
-| morganella_spp. | tedizolid | 0.1 | 0.005 |
+| morganella_spp. | dalbavancin | 0.1 | 0.5 |
+| morganella_spp. | linezolid | 0.1 | 0.5 |
+| morganella_spp. | tedizolid | 0.1 | 0.5 |
 | morganella_spp. | daptomycin | 0.1 | 1 |
-| morganella_spp. | quinu_dalfo | 0.1 | 0.005 |
-| morganella_spp. | trim_sulf | 0.8 | 1 |
+| morganella_spp. | quinu_dalfo | 0.1 | 0.5 |
+| morganella_spp. | trim_sulf | 0.8 | 0.04 |
 | morganella_spp. | chloramphenicol | 0.85 | 1 |
-| morganella_spp. | nitrofurantoin | 0.7 | 1 |
-| morganella_spp. | fosfomycin | 0.1 | 1 |
+| morganella_spp. | nitrofurantoin | 0.05 | 1 |
+| morganella_spp. | fosfomycin | 0.4 | 1 |
 | morganella_spp. | retapamulin | 0.05 | 1 |
 | morganella_spp. | fusidic_a | 0.05 | 1 |
 | morganella_spp. | metronidazole | 0.05 | 1 |
 | morganella_spp. | fidaxomicin | 0.1 | 1 |
 | morganella_spp. | furazolidone | 0.1 | 1 |
 | morganella_spp. | rifampicin | 0.6 | 1 |
-| morganella_spp. | amoxicillin_clavulanate | 0.7 | 1 |
-| morganella_spp. | piperacillin_tazobactam | 0.85 | 1 |
+| morganella_spp. | amoxicillin_clavulanate | 0.7 | 6 |
+| morganella_spp. | piperacillin_tazobactam | 0.85 | 10 |
 | morganella_spp. | ampicillin_sulbactam | 0.7 | 1 |
 | morganella_spp. | ticarcillin_clavulanate | 0.8 | 1 |
-| morganella_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
-| morganella_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
-| morganella_spp. | colistin | 0.7 | 0.005 |
+| morganella_spp. | ceftazidime_avibactam | 0.9 | 0.5 |
+| morganella_spp. | meropenem_vaborbactam | 0.95 | 0.5 |
+| morganella_spp. | colistin | 0.7 | 0.5 |
 | morganella_spp. | flucloxacillin | 0.01 | 1 |
-| morganella_spp. | aztreonam_avibactam | 1 | 1 |
-| morganella_spp. | cefixime | 0.8 | 1 |
-| proteus_spp. | sulfanilamide | 0.5 | 1 |
+| morganella_spp. | aztreonam_avibactam | 1 | 0.003 |
+| morganella_spp. | cefixime | 0.8 | 0.2 |
+| morganella_spp. | nalidixic_acid | 0.55 | 0 |
+| proteus_spp. | sulfanilamide | 0.5 | 0.02 |
 | proteus_spp. | penicillin_g | 0.1 | 1 |
 | proteus_spp. | ampicillin | 0.8 | 1 |
 | proteus_spp. | amoxicillin | 0.8 | 1 |
 | proteus_spp. | piperacillin | 0.85 | 1 |
 | proteus_spp. | ticarcillin | 0.8 | 1 |
-| proteus_spp. | cephalexin | 0.7 | 1 |
-| proteus_spp. | cefazolin | 0.75 | 1 |
-| proteus_spp. | cefuroxime | 0.8 | 1 |
-| proteus_spp. | ceftriaxone | 0.95 | 1 |
-| proteus_spp. | ceftazidime | 0.9 | 1 |
-| proteus_spp. | cefepime | 0.9 | 1 |
-| proteus_spp. | ceftaroline | 0.7 | 1 |
+| proteus_spp. | cephalexin | 0.7 | 0.3 |
+| proteus_spp. | cefazolin | 0.75 | 0.3 |
+| proteus_spp. | cefuroxime | 0.8 | 0.3 |
+| proteus_spp. | ceftriaxone | 0.95 | 0.2 |
+| proteus_spp. | ceftazidime | 0.9 | 0.2 |
+| proteus_spp. | cefepime | 0.9 | 0.35 |
+| proteus_spp. | ceftaroline | 0.1 | 0.002 |
 | proteus_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | proteus_spp. | cefiderocol | 0.8 | 1 |
-| proteus_spp. | meropenem | 0.95 | 0.005 |
-| proteus_spp. | imipenem_c | 0.95 | 0.005 |
-| proteus_spp. | ertapenem | 0.95 | 0.005 |
-| proteus_spp. | aztreonam | 0.9 | 1 |
-| proteus_spp. | gentamicin | 0.8 | 1 |
+| proteus_spp. | meropenem | 0.95 | 40 |
+| proteus_spp. | imipenem_c | 0.95 | 0.5 |
+| proteus_spp. | ertapenem | 0.95 | 30 |
+| proteus_spp. | aztreonam | 0.9 | 0.003 |
+| proteus_spp. | gentamicin | 0.8 | 10 |
 | proteus_spp. | tobramycin | 0.75 | 1 |
 | proteus_spp. | amikacin | 0.85 | 1 |
-| proteus_spp. | ciprofloxacin | 0.9 | 1 |
+| proteus_spp. | ciprofloxacin | 0.9 | 4 |
 | proteus_spp. | levofloxacin | 0.85 | 1 |
 | proteus_spp. | moxifloxacin | 0.7 | 1 |
 | proteus_spp. | ofloxacin | 0.8 | 1 |
-| proteus_spp. | tetracycline | 0.8 | 1 |
-| proteus_spp. | doxycycline | 0.8 | 1 |
-| proteus_spp. | minocycline | 0.85 | 1 |
+| proteus_spp. | tetracycline | 0.1 | 0.25 |
+| proteus_spp. | doxycycline | 0.1 | 0.25 |
+| proteus_spp. | minocycline | 0.85 | 0.25 |
 | proteus_spp. | tigecycline | 0.1 | 1 |
-| proteus_spp. | dalbavancin | 0 | 0.005 |
-| proteus_spp. | linezolid | 0 | 0.005 |
-| proteus_spp. | tedizolid | 0 | 0.005 |
+| proteus_spp. | dalbavancin | 0 | 0.5 |
+| proteus_spp. | linezolid | 0 | 0.5 |
+| proteus_spp. | tedizolid | 0 | 0.5 |
 | proteus_spp. | daptomycin | 0.1 | 1 |
-| proteus_spp. | quinu_dalfo | 0 | 0.005 |
-| proteus_spp. | trim_sulf | 0.9 | 1 |
+| proteus_spp. | quinu_dalfo | 0 | 0.5 |
+| proteus_spp. | trim_sulf | 0.9 | 0.04 |
 | proteus_spp. | chloramphenicol | 0.85 | 1 |
-| proteus_spp. | nitrofurantoin | 0.8 | 1 |
-| proteus_spp. | fosfomycin | 0.1 | 1 |
+| proteus_spp. | nitrofurantoin | 0.05 | 0.05 |
+| proteus_spp. | fosfomycin | 0.6 | 1 |
 | proteus_spp. | fidaxomicin | 0.1 | 1 |
 | proteus_spp. | furazolidone | 0.1 | 1 |
 | proteus_spp. | rifampicin | 0.7 | 1 |
-| proteus_spp. | amoxicillin_clavulanate | 0.9 | 1 |
-| proteus_spp. | piperacillin_tazobactam | 0.95 | 1 |
+| proteus_spp. | amoxicillin_clavulanate | 0.9 | 14 |
+| proteus_spp. | piperacillin_tazobactam | 0.95 | 10 |
 | proteus_spp. | ampicillin_sulbactam | 0.9 | 1 |
-| proteus_spp. | ticarcillin_clavulanate | 0.9 | 1 |
-| proteus_spp. | ceftazidime_avibactam | 0.95 | 0.005 |
-| proteus_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
-| proteus_spp. | colistin | 0.7 | 0.005 |
+| proteus_spp. | ticarcillin_clavulanate | 0.9 | 3 |
+| proteus_spp. | ceftazidime_avibactam | 0.95 | 0.5 |
+| proteus_spp. | meropenem_vaborbactam | 0.95 | 0.5 |
+| proteus_spp. | colistin | 0.7 | 0.5 |
 | proteus_spp. | flucloxacillin | 0.01 | 1 |
-| proteus_spp. | aztreonam_avibactam | 1 | 1 |
-| proteus_spp. | cefixime | 0.8 | 1 |
-| serratia_spp. | sulfanilamide | 0.5 | 1 |
+| proteus_spp. | aztreonam_avibactam | 1 | 0.003 |
+| proteus_spp. | cefixime | 0.8 | 0.2 |
+| proteus_spp. | nalidixic_acid | 0.6 | 0 |
+| serratia_spp. | sulfanilamide | 0.5 | 0.02 |
 | serratia_spp. | penicillin_g | 0.1 | 1 |
 | serratia_spp. | ampicillin | 0.1 | 1 |
 | serratia_spp. | amoxicillin | 0.1 | 1 |
 | serratia_spp. | piperacillin | 0.75 | 1 |
 | serratia_spp. | ticarcillin | 0.7 | 1 |
-| serratia_spp. | cephalexin | 0.1 | 1 |
-| serratia_spp. | cefazolin | 0.1 | 1 |
-| serratia_spp. | cefuroxime | 0.6 | 1 |
-| serratia_spp. | ceftriaxone | 0.8 | 1 |
-| serratia_spp. | ceftazidime | 0.85 | 1 |
-| serratia_spp. | cefepime | 0.85 | 1 |
-| serratia_spp. | ceftaroline | 0.5 | 1 |
+| serratia_spp. | cephalexin | 0.1 | 0.3 |
+| serratia_spp. | cefazolin | 0.1 | 0.3 |
+| serratia_spp. | cefuroxime | 0.6 | 0.3 |
+| serratia_spp. | ceftriaxone | 0.8 | 0.2 |
+| serratia_spp. | ceftazidime | 0.85 | 0.2 |
+| serratia_spp. | cefepime | 0.85 | 0.35 |
+| serratia_spp. | ceftaroline | 0.1 | 0.002 |
 | serratia_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | serratia_spp. | cefiderocol | 0.8 | 1 |
-| serratia_spp. | meropenem | 0.95 | 0.005 |
-| serratia_spp. | imipenem_c | 0.95 | 0.005 |
-| serratia_spp. | ertapenem | 0.9 | 0.005 |
-| serratia_spp. | aztreonam | 0.85 | 1 |
+| serratia_spp. | meropenem | 0.95 | 40 |
+| serratia_spp. | imipenem_c | 0.95 | 0.5 |
+| serratia_spp. | ertapenem | 0.9 | 30 |
+| serratia_spp. | aztreonam | 0.85 | 0.003 |
 | serratia_spp. | erythromycin | 0.1 | 1 |
 | serratia_spp. | azithromycin | 0.1 | 1 |
 | serratia_spp. | clarithromycin | 0.1 | 1 |
 | serratia_spp. | clindamycin | 0.1 | 1 |
-| serratia_spp. | gentamicin | 0.85 | 1 |
+| serratia_spp. | gentamicin | 0.85 | 10 |
 | serratia_spp. | tobramycin | 0.8 | 1 |
-| serratia_spp. | amikacin | 0.9 | 1 |
+| serratia_spp. | amikacin | 0.9 | 8 |
 | serratia_spp. | ciprofloxacin | 0.85 | 1 |
 | serratia_spp. | levofloxacin | 0.8 | 1 |
 | serratia_spp. | moxifloxacin | 0.7 | 1 |
 | serratia_spp. | ofloxacin | 0.75 | 1 |
-| serratia_spp. | tetracycline | 0.8 | 1 |
-| serratia_spp. | doxycycline | 0.8 | 1 |
-| serratia_spp. | minocycline | 0.85 | 1 |
+| serratia_spp. | tetracycline | 0.1 | 0.25 |
+| serratia_spp. | doxycycline | 0.1 | 0.25 |
+| serratia_spp. | minocycline | 0.85 | 0.25 |
 | serratia_spp. | tigecycline | 0.1 | 1 |
 | serratia_spp. | vancomycin | 0.1 | 1 |
 | serratia_spp. | teicoplanin | 0.1 | 1 |
-| serratia_spp. | dalbavancin | 0.1 | 0.005 |
-| serratia_spp. | linezolid | 0.1 | 0.005 |
-| serratia_spp. | tedizolid | 0.1 | 0.005 |
+| serratia_spp. | dalbavancin | 0.1 | 0.5 |
+| serratia_spp. | linezolid | 0.1 | 0.5 |
+| serratia_spp. | tedizolid | 0.1 | 0.5 |
 | serratia_spp. | daptomycin | 0.1 | 1 |
-| serratia_spp. | quinu_dalfo | 0.1 | 0.005 |
-| serratia_spp. | trim_sulf | 0.85 | 1 |
+| serratia_spp. | quinu_dalfo | 0.1 | 0.5 |
+| serratia_spp. | trim_sulf | 0.85 | 0.04 |
 | serratia_spp. | chloramphenicol | 0.8 | 1 |
-| serratia_spp. | nitrofurantoin | 0.7 | 1 |
-| serratia_spp. | fosfomycin | 0.1 | 1 |
+| serratia_spp. | nitrofurantoin | 0.05 | 1 |
+| serratia_spp. | fosfomycin | 0.4 | 1 |
 | serratia_spp. | retapamulin | 0.05 | 1 |
 | serratia_spp. | fusidic_a | 0.05 | 1 |
 | serratia_spp. | metronidazole | 0.05 | 1 |
 | serratia_spp. | fidaxomicin | 0.1 | 1 |
 | serratia_spp. | furazolidone | 0.1 | 1 |
 | serratia_spp. | rifampicin | 0.6 | 1 |
-| serratia_spp. | amoxicillin_clavulanate | 0.7 | 1 |
-| serratia_spp. | piperacillin_tazobactam | 0.85 | 1 |
+| serratia_spp. | amoxicillin_clavulanate | 0.7 | 6 |
+| serratia_spp. | piperacillin_tazobactam | 0.85 | 10 |
 | serratia_spp. | ampicillin_sulbactam | 0.7 | 1 |
 | serratia_spp. | ticarcillin_clavulanate | 0.75 | 1 |
-| serratia_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
-| serratia_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
-| serratia_spp. | colistin | 0.7 | 0.005 |
+| serratia_spp. | ceftazidime_avibactam | 0.9 | 0.5 |
+| serratia_spp. | meropenem_vaborbactam | 0.95 | 0.5 |
+| serratia_spp. | colistin | 0.7 | 0.5 |
 | serratia_spp. | flucloxacillin | 0.01 | 1 |
-| serratia_spp. | aztreonam_avibactam | 1 | 1 |
-| serratia_spp. | cefixime | 0.8 | 1 |
-| p_stuartii | sulfanilamide | 0.1 | 1 |
+| serratia_spp. | aztreonam_avibactam | 1 | 0.003 |
+| serratia_spp. | cefixime | 0.8 | 0.2 |
+| serratia_spp. | nalidixic_acid | 0.5 | 0 |
+| p_stuartii | sulfanilamide | 0.1 | 0.02 |
 | p_stuartii | penicillin_g | 0.05 | 1 |
 | p_stuartii | ampicillin | 0.05 | 1 |
 | p_stuartii | amoxicillin | 0.05 | 1 |
 | p_stuartii | piperacillin | 0.35 | 1 |
 | p_stuartii | ticarcillin | 0.3 | 1 |
-| p_stuartii | cephalexin | 0.1 | 1 |
-| p_stuartii | cefazolin | 0.1 | 1 |
-| p_stuartii | cefuroxime | 0.2 | 1 |
-| p_stuartii | ceftriaxone | 0.45 | 1 |
-| p_stuartii | ceftazidime | 0.75 | 1 |
-| p_stuartii | cefepime | 0.85 | 1 |
-| p_stuartii | ceftaroline | 0.2 | 1 |
+| p_stuartii | cephalexin | 0.1 | 0.3 |
+| p_stuartii | cefazolin | 0.1 | 0.3 |
+| p_stuartii | cefuroxime | 0.2 | 0.3 |
+| p_stuartii | ceftriaxone | 0.45 | 0.2 |
+| p_stuartii | ceftazidime | 0.75 | 0.2 |
+| p_stuartii | cefepime | 0.85 | 0.35 |
+| p_stuartii | ceftaroline | 0.1 | 0.002 |
 | p_stuartii | ceftolozane_tazobactam | 0.8 | 1 |
 | p_stuartii | cefiderocol | 0.8 | 1 |
-| p_stuartii | meropenem | 0.9 | 0.005 |
-| p_stuartii | imipenem_c | 0.9 | 0.005 |
-| p_stuartii | ertapenem | 0.85 | 0.005 |
-| p_stuartii | aztreonam | 0.65 | 1 |
+| p_stuartii | meropenem | 0.9 | 0.5 |
+| p_stuartii | imipenem_c | 0.9 | 0.5 |
+| p_stuartii | ertapenem | 0.85 | 0.5 |
+| p_stuartii | aztreonam | 0.65 | 0.003 |
 | p_stuartii | erythromycin | 0.05 | 1 |
 | p_stuartii | azithromycin | 0.05 | 1 |
 | p_stuartii | clarithromycin | 0.05 | 1 |
@@ -3240,21 +3243,21 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | p_stuartii | levofloxacin | 0.6 | 1 |
 | p_stuartii | moxifloxacin | 0.6 | 1 |
 | p_stuartii | ofloxacin | 0.55 | 1 |
-| p_stuartii | tetracycline | 0.2 | 1 |
-| p_stuartii | doxycycline | 0.3 | 1 |
-| p_stuartii | minocycline | 0.35 | 1 |
+| p_stuartii | tetracycline | 0.2 | 0.25 |
+| p_stuartii | doxycycline | 0.3 | 0.25 |
+| p_stuartii | minocycline | 0.35 | 0.25 |
 | p_stuartii | tigecycline | 0.1 | 1 |
 | p_stuartii | vancomycin | 0.05 | 1 |
 | p_stuartii | teicoplanin | 0.05 | 1 |
-| p_stuartii | dalbavancin | 0.05 | 0.005 |
-| p_stuartii | linezolid | 0.05 | 0.005 |
-| p_stuartii | tedizolid | 0.05 | 0.005 |
+| p_stuartii | dalbavancin | 0.05 | 0.5 |
+| p_stuartii | linezolid | 0.05 | 0.5 |
+| p_stuartii | tedizolid | 0.05 | 0.5 |
 | p_stuartii | daptomycin | 0.1 | 1 |
-| p_stuartii | quinu_dalfo | 0.05 | 0.005 |
-| p_stuartii | trim_sulf | 0.3 | 1 |
+| p_stuartii | quinu_dalfo | 0.05 | 0.5 |
+| p_stuartii | trim_sulf | 0.3 | 0.04 |
 | p_stuartii | chloramphenicol | 0.25 | 1 |
 | p_stuartii | nitrofurantoin | 0.05 | 1 |
-| p_stuartii | fosfomycin | 0.1 | 1 |
+| p_stuartii | fosfomycin | 0.4 | 1 |
 | p_stuartii | retapamulin | 0.05 | 1 |
 | p_stuartii | fusidic_a | 0.05 | 1 |
 | p_stuartii | metronidazole | 0.05 | 1 |
@@ -3265,346 +3268,352 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | p_stuartii | piperacillin_tazobactam | 0.75 | 1 |
 | p_stuartii | ampicillin_sulbactam | 0.2 | 1 |
 | p_stuartii | ticarcillin_clavulanate | 0.45 | 1 |
-| p_stuartii | ceftazidime_avibactam | 0.9 | 0.005 |
-| p_stuartii | meropenem_vaborbactam | 0.95 | 0.005 |
-| p_stuartii | colistin | 0.05 | 0.005 |
+| p_stuartii | ceftazidime_avibactam | 0.9 | 0.5 |
+| p_stuartii | meropenem_vaborbactam | 0.95 | 0.5 |
+| p_stuartii | colistin | 0.05 | 0.5 |
 | p_stuartii | flucloxacillin | 0.01 | 1 |
-| p_stuartii | aztreonam_avibactam | 1 | 1 |
-| p_stuartii | cefixime | 0.8 | 1 |
-| pseudomonas_aeruginosa | sulfanilamide | 0.1 | 1 |
+| p_stuartii | aztreonam_avibactam | 1 | 0.003 |
+| p_stuartii | cefixime | 0.8 | 0.2 |
+| p_stuartii | nalidixic_acid | 0.45 | 0 |
+| pseudomonas_aeruginosa | sulfanilamide | 0.1 | 0.02 |
 | pseudomonas_aeruginosa | penicillin_g | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | ampicillin | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | amoxicillin | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | piperacillin | 0.8 | 1 |
 | pseudomonas_aeruginosa | ticarcillin | 0.7 | 1 |
-| pseudomonas_aeruginosa | cephalexin | 0.05 | 1 |
-| pseudomonas_aeruginosa | cefazolin | 0.05 | 1 |
-| pseudomonas_aeruginosa | cefuroxime | 0.1 | 1 |
-| pseudomonas_aeruginosa | ceftriaxone | 0.1 | 1 |
-| pseudomonas_aeruginosa | ceftazidime | 0.85 | 4.5 |
-| pseudomonas_aeruginosa | cefepime | 0.9 | 4.5 |
-| pseudomonas_aeruginosa | ceftaroline | 0.1 | 1 |
-| pseudomonas_aeruginosa | ceftolozane_tazobactam | 0.1 | 1 |
-| pseudomonas_aeruginosa | cefiderocol | 0.1 | 1 |
-| pseudomonas_aeruginosa | meropenem | 0.9 | 0.05 |
-| pseudomonas_aeruginosa | imipenem_c | 0.85 | 0.05 |
-| pseudomonas_aeruginosa | ertapenem | 0.1 | 0.005 |
-| pseudomonas_aeruginosa | aztreonam | 0.8 | 1 |
-| pseudomonas_aeruginosa | gentamicin | 0.85 | 1 |
-| pseudomonas_aeruginosa | tobramycin | 0.9 | 1 |
-| pseudomonas_aeruginosa | amikacin | 0.9 | 1 |
-| pseudomonas_aeruginosa | ciprofloxacin | 0.9 | 1 |
+| pseudomonas_aeruginosa | cephalexin | 0.05 | 0.3 |
+| pseudomonas_aeruginosa | cefazolin | 0.05 | 0.3 |
+| pseudomonas_aeruginosa | cefuroxime | 0.1 | 0.3 |
+| pseudomonas_aeruginosa | ceftriaxone | 0.1 | 0.2 |
+| pseudomonas_aeruginosa | ceftazidime | 0.85 | 3 |
+| pseudomonas_aeruginosa | cefepime | 0.9 | 3 |
+| pseudomonas_aeruginosa | ceftaroline | 0.1 | 0.002 |
+| pseudomonas_aeruginosa | ceftolozane_tazobactam | 0.65 | 1 |
+| pseudomonas_aeruginosa | cefiderocol | 0.55 | 1 |
+| pseudomonas_aeruginosa | meropenem | 0.9 | 50 |
+| pseudomonas_aeruginosa | imipenem_c | 0.85 | 30 |
+| pseudomonas_aeruginosa | ertapenem | 0.1 | 0.5 |
+| pseudomonas_aeruginosa | aztreonam | 0.8 | 0.05 |
+| pseudomonas_aeruginosa | gentamicin | 0.85 | 12 |
+| pseudomonas_aeruginosa | tobramycin | 0.9 | 15 |
+| pseudomonas_aeruginosa | amikacin | 0.9 | 15 |
+| pseudomonas_aeruginosa | ciprofloxacin | 0.9 | 5 |
 | pseudomonas_aeruginosa | levofloxacin | 0.8 | 1 |
 | pseudomonas_aeruginosa | moxifloxacin | 0.5 | 1 |
 | pseudomonas_aeruginosa | ofloxacin | 0.7 | 1 |
-| pseudomonas_aeruginosa | tetracycline | 0.1 | 1 |
-| pseudomonas_aeruginosa | doxycycline | 0.1 | 1 |
-| pseudomonas_aeruginosa | minocycline | 0.1 | 1 |
+| pseudomonas_aeruginosa | tetracycline | 0.1 | 0.25 |
+| pseudomonas_aeruginosa | doxycycline | 0.1 | 0.25 |
+| pseudomonas_aeruginosa | minocycline | 0.1 | 0.25 |
 | pseudomonas_aeruginosa | tigecycline | 0.1 | 1 |
-| pseudomonas_aeruginosa | dalbavancin | 0 | 0.005 |
-| pseudomonas_aeruginosa | linezolid | 0 | 0.005 |
-| pseudomonas_aeruginosa | tedizolid | 0 | 0.005 |
+| pseudomonas_aeruginosa | dalbavancin | 0 | 0.5 |
+| pseudomonas_aeruginosa | linezolid | 0 | 0.5 |
+| pseudomonas_aeruginosa | tedizolid | 0 | 0.5 |
 | pseudomonas_aeruginosa | daptomycin | 0.1 | 1 |
-| pseudomonas_aeruginosa | quinu_dalfo | 0 | 0.005 |
-| pseudomonas_aeruginosa | trim_sulf | 0.1 | 1 |
+| pseudomonas_aeruginosa | quinu_dalfo | 0 | 0.5 |
+| pseudomonas_aeruginosa | trim_sulf | 0.1 | 0.04 |
 | pseudomonas_aeruginosa | chloramphenicol | 0.1 | 1 |
-| pseudomonas_aeruginosa | nitrofurantoin | 0.05 | 1 |
-| pseudomonas_aeruginosa | fosfomycin | 0.1 | 1 |
+| pseudomonas_aeruginosa | nitrofurantoin | 0.05 | 0.01 |
+| pseudomonas_aeruginosa | fosfomycin | 0.6 | 0.05 |
 | pseudomonas_aeruginosa | fidaxomicin | 0.1 | 1 |
 | pseudomonas_aeruginosa | furazolidone | 0.05 | 1 |
 | pseudomonas_aeruginosa | rifampicin | 0.1 | 1 |
 | pseudomonas_aeruginosa | amoxicillin_clavulanate | 0.05 | 1 |
-| pseudomonas_aeruginosa | piperacillin_tazobactam | 0.9 | 5 |
+| pseudomonas_aeruginosa | piperacillin_tazobactam | 0.9 | 12 |
 | pseudomonas_aeruginosa | ampicillin_sulbactam | 0.05 | 1 |
-| pseudomonas_aeruginosa | ticarcillin_clavulanate | 0.8 | 1 |
-| pseudomonas_aeruginosa | ceftazidime_avibactam | 0.95 | 0.005 |
-| pseudomonas_aeruginosa | meropenem_vaborbactam | 0.9 | 0.005 |
-| pseudomonas_aeruginosa | colistin | 0.85 | 0.05 |
+| pseudomonas_aeruginosa | ticarcillin_clavulanate | 0.8 | 3 |
+| pseudomonas_aeruginosa | ceftazidime_avibactam | 0.95 | 0.5 |
+| pseudomonas_aeruginosa | meropenem_vaborbactam | 0.9 | 0.5 |
+| pseudomonas_aeruginosa | colistin | 0.85 | 0.02 |
 | pseudomonas_aeruginosa | flucloxacillin | 0.01 | 1 |
-| pseudomonas_aeruginosa | aztreonam_avibactam | 0.9 | 1 |
-| pseudomonas_aeruginosa | cefixime | 0.1 | 1 |
-| stenotrophomonas_maltophilia | sulfanilamide | 0.6 | 1 |
-| stenotrophomonas_maltophilia | penicillin_g | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ampicillin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | amoxicillin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | piperacillin | 0.2 | 1 |
-| stenotrophomonas_maltophilia | ticarcillin | 0.25 | 1 |
-| stenotrophomonas_maltophilia | cephalexin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | cefazolin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | cefuroxime | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ceftriaxone | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ceftazidime | 0.35 | 0.1 |
-| stenotrophomonas_maltophilia | cefepime | 0.15 | 1 |
-| stenotrophomonas_maltophilia | ceftaroline | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ceftolozane_tazobactam | 0.1 | 1 |
+| pseudomonas_aeruginosa | aztreonam_avibactam | 0.9 | 0.04 |
+| pseudomonas_aeruginosa | cefixime | 0.1 | 0.2 |
+| pseudomonas_aeruginosa | nalidixic_acid | 0 | 0 |
+| stenotrophomonas_maltophilia | sulfanilamide | 0.6 | 0.02 |
+| stenotrophomonas_maltophilia | penicillin_g | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | ampicillin | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | amoxicillin | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | piperacillin | 0.02 | 1 |
+| stenotrophomonas_maltophilia | ticarcillin | 0.02 | 1 |
+| stenotrophomonas_maltophilia | cephalexin | 0.02 | 0.3 |
+| stenotrophomonas_maltophilia | cefazolin | 0.02 | 0.3 |
+| stenotrophomonas_maltophilia | cefuroxime | 0.02 | 0.3 |
+| stenotrophomonas_maltophilia | ceftriaxone | 0.05 | 0.2 |
+| stenotrophomonas_maltophilia | ceftazidime | 0.15 | 0.2 |
+| stenotrophomonas_maltophilia | cefepime | 0.05 | 0.35 |
+| stenotrophomonas_maltophilia | ceftaroline | 0.02 | 0.002 |
+| stenotrophomonas_maltophilia | ceftolozane_tazobactam | 0.05 | 1 |
 | stenotrophomonas_maltophilia | cefiderocol | 0.55 | 1 |
-| stenotrophomonas_maltophilia | meropenem | 0.05 | 0.01 |
+| stenotrophomonas_maltophilia | meropenem | 0.01 | 0.01 |
 | stenotrophomonas_maltophilia | imipenem_c | 0.05 | 0.01 |
-| stenotrophomonas_maltophilia | ertapenem | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | aztreonam | 0.1 | 1 |
-| stenotrophomonas_maltophilia | erythromycin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | azithromycin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | clarithromycin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | clindamycin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | gentamicin | 0.1 | 1 |
-| stenotrophomonas_maltophilia | tobramycin | 0.1 | 1 |
-| stenotrophomonas_maltophilia | amikacin | 0.1 | 1 |
-| stenotrophomonas_maltophilia | ciprofloxacin | 0.4 | 1 |
-| stenotrophomonas_maltophilia | levofloxacin | 0.75 | 3.5 |
+| stenotrophomonas_maltophilia | ertapenem | 0.01 | 1 |
+| stenotrophomonas_maltophilia | aztreonam | 0.05 | 0.003 |
+| stenotrophomonas_maltophilia | erythromycin | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | azithromycin | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | clarithromycin | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | clindamycin | 0.01 | 1 |
+| stenotrophomonas_maltophilia | gentamicin | 0.05 | 1 |
+| stenotrophomonas_maltophilia | tobramycin | 0.05 | 1 |
+| stenotrophomonas_maltophilia | amikacin | 0.05 | 1 |
+| stenotrophomonas_maltophilia | ciprofloxacin | 0.55 | 1 |
+| stenotrophomonas_maltophilia | levofloxacin | 0.6 | 3.5 |
 | stenotrophomonas_maltophilia | moxifloxacin | 0.8 | 1 |
 | stenotrophomonas_maltophilia | ofloxacin | 0.6 | 1 |
-| stenotrophomonas_maltophilia | tetracycline | 0.35 | 1 |
-| stenotrophomonas_maltophilia | doxycycline | 0.6 | 4.5 |
-| stenotrophomonas_maltophilia | minocycline | 0.85 | 6 |
+| stenotrophomonas_maltophilia | tetracycline | 0.35 | 0.25 |
+| stenotrophomonas_maltophilia | doxycycline | 0.85 | 4.5 |
+| stenotrophomonas_maltophilia | minocycline | 0.95 | 6 |
 | stenotrophomonas_maltophilia | tigecycline | 0.1 | 1 |
-| stenotrophomonas_maltophilia | vancomycin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | teicoplanin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | dalbavancin | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | linezolid | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | tedizolid | 0.05 | 0.005 |
+| stenotrophomonas_maltophilia | dalbavancin | 0.05 | 0.5 |
+| stenotrophomonas_maltophilia | linezolid | 0.05 | 0.5 |
+| stenotrophomonas_maltophilia | tedizolid | 0.05 | 0.5 |
 | stenotrophomonas_maltophilia | daptomycin | 0.1 | 1 |
-| stenotrophomonas_maltophilia | quinu_dalfo | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | trim_sulf | 0.95 | 7 |
+| stenotrophomonas_maltophilia | quinu_dalfo | 0.05 | 0.5 |
+| stenotrophomonas_maltophilia | trim_sulf | 1 | 5 |
 | stenotrophomonas_maltophilia | chloramphenicol | 0.4 | 1 |
-| stenotrophomonas_maltophilia | nitrofurantoin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | fosfomycin | 0.1 | 1 |
+| stenotrophomonas_maltophilia | fosfomycin | 0.2 | 1 |
 | stenotrophomonas_maltophilia | retapamulin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | fusidic_a | 0.05 | 1 |
 | stenotrophomonas_maltophilia | metronidazole | 0.05 | 1 |
 | stenotrophomonas_maltophilia | fidaxomicin | 0.1 | 1 |
 | stenotrophomonas_maltophilia | furazolidone | 0.05 | 1 |
 | stenotrophomonas_maltophilia | rifampicin | 0.2 | 1 |
-| stenotrophomonas_maltophilia | amoxicillin_clavulanate | 0.05 | 1 |
-| stenotrophomonas_maltophilia | piperacillin_tazobactam | 0.3 | 0.05 |
-| stenotrophomonas_maltophilia | ampicillin_sulbactam | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ticarcillin_clavulanate | 0.7 | 1 |
-| stenotrophomonas_maltophilia | ceftazidime_avibactam | 0.4 | 0.005 |
-| stenotrophomonas_maltophilia | meropenem_vaborbactam | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | colistin | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | flucloxacillin | 0.01 | 1 |
-| stenotrophomonas_maltophilia | aztreonam_avibactam | 0.75 | 1 |
-| stenotrophomonas_maltophilia | cefixime | 0.1 | 1 |
-| staphylococcus_aureus | sulfanilamide | 0.1 | 1 |
+| stenotrophomonas_maltophilia | amoxicillin_clavulanate | 0.02 | 0.05 |
+| stenotrophomonas_maltophilia | piperacillin_tazobactam | 0.05 | 0.05 |
+| stenotrophomonas_maltophilia | ampicillin_sulbactam | 0.02 | 1 |
+| stenotrophomonas_maltophilia | ticarcillin_clavulanate | 0.02 | 1 |
+| stenotrophomonas_maltophilia | ceftazidime_avibactam | 0.05 | 0.5 |
+| stenotrophomonas_maltophilia | meropenem_vaborbactam | 0.05 | 0.5 |
+| stenotrophomonas_maltophilia | colistin | 0 | 0.5 |
+| stenotrophomonas_maltophilia | flucloxacillin | 0.02 | 1 |
+| stenotrophomonas_maltophilia | aztreonam_avibactam | 0.05 | 0.003 |
+| stenotrophomonas_maltophilia | cefixime | 0.02 | 0.2 |
+| stenotrophomonas_maltophilia | nalidixic_acid | 0 | 0 |
+| staphylococcus_aureus | sulfanilamide | 0.1 | 0.02 |
 | staphylococcus_aureus | penicillin_g | 0.95 | 1 |
 | staphylococcus_aureus | ampicillin | 0.1 | 1 |
-| staphylococcus_aureus | amoxicillin | 0.1 | 1 |
+| staphylococcus_aureus | amoxicillin | 0.1 | 6 |
 | staphylococcus_aureus | piperacillin | 0.7 | 1 |
 | staphylococcus_aureus | ticarcillin | 0.6 | 1 |
-| staphylococcus_aureus | cephalexin | 0.8 | 1 |
-| staphylococcus_aureus | cefazolin | 0.85 | 1 |
-| staphylococcus_aureus | cefuroxime | 0.7 | 1 |
-| staphylococcus_aureus | ceftriaxone | 0.7 | 1 |
-| staphylococcus_aureus | ceftazidime | 0.1 | 1 |
-| staphylococcus_aureus | cefepime | 0.6 | 1 |
-| staphylococcus_aureus | ceftaroline | 0.95 | 1 |
+| staphylococcus_aureus | cephalexin | 0.8 | 5 |
+| staphylococcus_aureus | cefazolin | 0.85 | 5 |
+| staphylococcus_aureus | cefuroxime | 0.7 | 3 |
+| staphylococcus_aureus | ceftriaxone | 0.7 | 0.2 |
+| staphylococcus_aureus | ceftazidime | 0.1 | 0.2 |
+| staphylococcus_aureus | cefepime | 0.6 | 0.35 |
+| staphylococcus_aureus | ceftaroline | 0.95 | 0.005 |
 | staphylococcus_aureus | ceftolozane_tazobactam | 0.1 | 1 |
 | staphylococcus_aureus | cefiderocol | 0.05 | 1 |
-| staphylococcus_aureus | meropenem | 0.7 | 0.005 |
-| staphylococcus_aureus | imipenem_c | 0.7 | 0.005 |
-| staphylococcus_aureus | ertapenem | 0.7 | 0.005 |
+| staphylococcus_aureus | meropenem | 0.7 | 0.5 |
+| staphylococcus_aureus | imipenem_c | 0.7 | 0.5 |
+| staphylococcus_aureus | ertapenem | 0.7 | 0.5 |
+| staphylococcus_aureus | aztreonam | 0 | 0.003 |
 | staphylococcus_aureus | erythromycin | 0.8 | 1 |
 | staphylococcus_aureus | azithromycin | 0.8 | 1 |
 | staphylococcus_aureus | clarithromycin | 0.8 | 1 |
 | staphylococcus_aureus | clindamycin | 0.8 | 1 |
-| staphylococcus_aureus | gentamicin | 0.7 | 1 |
+| staphylococcus_aureus | gentamicin | 0.7 | 15 |
 | staphylococcus_aureus | tobramycin | 0.7 | 1 |
 | staphylococcus_aureus | amikacin | 0.7 | 1 |
-| staphylococcus_aureus | ciprofloxacin | 0.7 | 1 |
-| staphylococcus_aureus | levofloxacin | 0.7 | 1 |
-| staphylococcus_aureus | moxifloxacin | 0.8 | 1 |
-| staphylococcus_aureus | ofloxacin | 0.7 | 1 |
-| staphylococcus_aureus | tetracycline | 0.8 | 1 |
-| staphylococcus_aureus | doxycycline | 0.85 | 1 |
-| staphylococcus_aureus | minocycline | 0.85 | 1 |
-| staphylococcus_aureus | tigecycline | 0.1 | 1 |
+| staphylococcus_aureus | ciprofloxacin | 0.5 | 2 |
+| staphylococcus_aureus | levofloxacin | 0.5 | 1 |
+| staphylococcus_aureus | moxifloxacin | 0.5 | 1 |
+| staphylococcus_aureus | ofloxacin | 0.5 | 1 |
+| staphylococcus_aureus | tetracycline | 0.5 | 0.25 |
+| staphylococcus_aureus | doxycycline | 0.5 | 0.25 |
+| staphylococcus_aureus | minocycline | 0.5 | 0.25 |
+| staphylococcus_aureus | tigecycline | 0.65 | 1 |
 | staphylococcus_aureus | vancomycin | 0.95 | 5 |
 | staphylococcus_aureus | teicoplanin | 0.9 | 4 |
-| staphylococcus_aureus | dalbavancin | 0.9 | 0.005 |
-| staphylococcus_aureus | linezolid | 0.9 | 4 |
-| staphylococcus_aureus | tedizolid | 0.9 | 0.005 |
-| staphylococcus_aureus | daptomycin | 0.1 | 1 |
-| staphylococcus_aureus | quinu_dalfo | 0.85 | 0.005 |
-| staphylococcus_aureus | trim_sulf | 0.7 | 1 |
+| staphylococcus_aureus | dalbavancin | 0.9 | 0.5 |
+| staphylococcus_aureus | linezolid | 0.9 | 5 |
+| staphylococcus_aureus | tedizolid | 0.9 | 0.5 |
+| staphylococcus_aureus | daptomycin | 0.95 | 4 |
+| staphylococcus_aureus | quinu_dalfo | 0.85 | 0.5 |
+| staphylococcus_aureus | trim_sulf | 0.7 | 0.04 |
 | staphylococcus_aureus | chloramphenicol | 0.8 | 1 |
-| staphylococcus_aureus | nitrofurantoin | 0.1 | 1 |
-| staphylococcus_aureus | fosfomycin | 0.1 | 1 |
+| staphylococcus_aureus | nitrofurantoin | 0.1 | 8 |
+| staphylococcus_aureus | fosfomycin | 0.65 | 6 |
 | staphylococcus_aureus | retapamulin | 0.9 | 1 |
 | staphylococcus_aureus | fusidic_a | 0.85 | 1 |
 | staphylococcus_aureus | metronidazole | 0.1 | 1 |
 | staphylococcus_aureus | fidaxomicin | 0.1 | 1 |
 | staphylococcus_aureus | furazolidone | 0.1 | 1 |
-| staphylococcus_aureus | rifampicin | 0.8 | 1 |
-| staphylococcus_aureus | amoxicillin_clavulanate | 0.85 | 1 |
+| staphylococcus_aureus | rifampicin | 0.4 | 3.5 |
+| staphylococcus_aureus | amoxicillin_clavulanate | 0.85 | 14 |
 | staphylococcus_aureus | piperacillin_tazobactam | 0.7 | 1 |
 | staphylococcus_aureus | ampicillin_sulbactam | 0.8 | 1 |
 | staphylococcus_aureus | ticarcillin_clavulanate | 0.6 | 1 |
-| staphylococcus_aureus | ceftazidime_avibactam | 0.1 | 0.005 |
-| staphylococcus_aureus | meropenem_vaborbactam | 0.7 | 0.005 |
-| staphylococcus_aureus | colistin | 0 | 0.005 |
-| staphylococcus_aureus | flucloxacillin | 0.95 | 1 |
-| staphylococcus_aureus | aztreonam_avibactam | 0.01 | 1 |
-| staphylococcus_aureus | cefixime | 0.75 | 1 |
-| staphylococcus_epidermidis | sulfanilamide | 0.1 | 1 |
-| staphylococcus_epidermidis | penicillin_g | 0.15 | 1 |
-| staphylococcus_epidermidis | ampicillin | 0.15 | 1 |
-| staphylococcus_epidermidis | amoxicillin | 0.15 | 1 |
+| staphylococcus_aureus | ceftazidime_avibactam | 0.1 | 0.5 |
+| staphylococcus_aureus | meropenem_vaborbactam | 0.7 | 0.5 |
+| staphylococcus_aureus | colistin | 0 | 0.5 |
+| staphylococcus_aureus | flucloxacillin | 0.95 | 4 |
+| staphylococcus_aureus | aztreonam_avibactam | 0.01 | 0.003 |
+| staphylococcus_aureus | cefixime | 0.75 | 0.2 |
+| staphylococcus_aureus | nalidixic_acid | 0 | 0 |
+| staphylococcus_epidermidis | sulfanilamide | 0.1 | 0.02 |
+| staphylococcus_epidermidis | penicillin_g | 0.05 | 1 |
+| staphylococcus_epidermidis | ampicillin | 0.05 | 1 |
+| staphylococcus_epidermidis | amoxicillin | 0.05 | 6 |
 | staphylococcus_epidermidis | piperacillin | 0.2 | 1 |
 | staphylococcus_epidermidis | ticarcillin | 0.2 | 1 |
-| staphylococcus_epidermidis | cephalexin | 0.2 | 1 |
-| staphylococcus_epidermidis | cefazolin | 0.2 | 1 |
-| staphylococcus_epidermidis | cefuroxime | 0.2 | 1 |
-| staphylococcus_epidermidis | ceftriaxone | 0.25 | 1 |
-| staphylococcus_epidermidis | ceftazidime | 0.1 | 1 |
-| staphylococcus_epidermidis | cefepime | 0.15 | 1 |
-| staphylococcus_epidermidis | ceftaroline | 0.75 | 1 |
+| staphylococcus_epidermidis | cephalexin | 0.2 | 0.3 |
+| staphylococcus_epidermidis | cefazolin | 0.15 | 0.3 |
+| staphylococcus_epidermidis | cefuroxime | 0.2 | 0.3 |
+| staphylococcus_epidermidis | ceftriaxone | 0.1 | 0.2 |
+| staphylococcus_epidermidis | ceftazidime | 0.1 | 0.2 |
+| staphylococcus_epidermidis | cefepime | 0.15 | 0.35 |
+| staphylococcus_epidermidis | ceftaroline | 0.5 | 0.005 |
 | staphylococcus_epidermidis | ceftolozane_tazobactam | 0.1 | 1 |
 | staphylococcus_epidermidis | cefiderocol | 0.05 | 1 |
-| staphylococcus_epidermidis | meropenem | 0.4 | 0.005 |
-| staphylococcus_epidermidis | imipenem_c | 0.5 | 0.005 |
-| staphylococcus_epidermidis | ertapenem | 0.4 | 0.005 |
-| staphylococcus_epidermidis | aztreonam | 0.05 | 1 |
+| staphylococcus_epidermidis | meropenem | 0.25 | 0.5 |
+| staphylococcus_epidermidis | imipenem_c | 0.3 | 0.5 |
+| staphylococcus_epidermidis | ertapenem | 0.4 | 0.5 |
+| staphylococcus_epidermidis | aztreonam | 0.05 | 0.003 |
 | staphylococcus_epidermidis | erythromycin | 0.45 | 1 |
 | staphylococcus_epidermidis | azithromycin | 0.5 | 1 |
 | staphylococcus_epidermidis | clarithromycin | 0.5 | 1 |
 | staphylococcus_epidermidis | clindamycin | 0.6 | 1 |
-| staphylococcus_epidermidis | gentamicin | 0.6 | 1 |
+| staphylococcus_epidermidis | gentamicin | 0.2 | 1 |
 | staphylococcus_epidermidis | tobramycin | 0.65 | 1 |
 | staphylococcus_epidermidis | amikacin | 0.7 | 1 |
 | staphylococcus_epidermidis | ciprofloxacin | 0.5 | 1 |
 | staphylococcus_epidermidis | levofloxacin | 0.55 | 1 |
 | staphylococcus_epidermidis | moxifloxacin | 0.6 | 1 |
 | staphylococcus_epidermidis | ofloxacin | 0.5 | 1 |
-| staphylococcus_epidermidis | tetracycline | 0.5 | 1 |
-| staphylococcus_epidermidis | doxycycline | 0.75 | 1 |
-| staphylococcus_epidermidis | minocycline | 0.8 | 1 |
+| staphylococcus_epidermidis | tetracycline | 0.5 | 0.25 |
+| staphylococcus_epidermidis | doxycycline | 0.75 | 0.25 |
+| staphylococcus_epidermidis | minocycline | 0.8 | 0.25 |
 | staphylococcus_epidermidis | tigecycline | 0.1 | 1 |
-| staphylococcus_epidermidis | vancomycin | 0.95 | 6 |
-| staphylococcus_epidermidis | teicoplanin | 0.95 | 5 |
-| staphylococcus_epidermidis | dalbavancin | 0.95 | 0.005 |
+| staphylococcus_epidermidis | vancomycin | 1 | 4 |
+| staphylococcus_epidermidis | teicoplanin | 0.95 | 4 |
+| staphylococcus_epidermidis | dalbavancin | 0.95 | 0.5 |
 | staphylococcus_epidermidis | linezolid | 0.95 | 5 |
-| staphylococcus_epidermidis | tedizolid | 0.95 | 0.005 |
-| staphylococcus_epidermidis | daptomycin | 0.1 | 1 |
+| staphylococcus_epidermidis | tedizolid | 0.95 | 0.5 |
+| staphylococcus_epidermidis | daptomycin | 0.9 | 3 |
 | staphylococcus_epidermidis | quinu_dalfo | 0.9 | 4 |
-| staphylococcus_epidermidis | trim_sulf | 0.75 | 2.5 |
+| staphylococcus_epidermidis | trim_sulf | 0.75 | 1.2 |
 | staphylococcus_epidermidis | chloramphenicol | 0.6 | 1 |
-| staphylococcus_epidermidis | nitrofurantoin | 0.2 | 1 |
-| staphylococcus_epidermidis | fosfomycin | 0.1 | 1 |
+| staphylococcus_epidermidis | nitrofurantoin | 0.2 | 8 |
+| staphylococcus_epidermidis | fosfomycin | 0.55 | 6 |
 | staphylococcus_epidermidis | retapamulin | 0.8 | 1 |
 | staphylococcus_epidermidis | fusidic_a | 0.85 | 1 |
 | staphylococcus_epidermidis | metronidazole | 0.05 | 1 |
 | staphylococcus_epidermidis | fidaxomicin | 0.1 | 1 |
 | staphylococcus_epidermidis | furazolidone | 0.05 | 1 |
 | staphylococcus_epidermidis | rifampicin | 0.9 | 1 |
-| staphylococcus_epidermidis | amoxicillin_clavulanate | 0.2 | 1 |
+| staphylococcus_epidermidis | amoxicillin_clavulanate | 0.2 | 14 |
 | staphylococcus_epidermidis | piperacillin_tazobactam | 0.4 | 1 |
 | staphylococcus_epidermidis | ampicillin_sulbactam | 0.2 | 1 |
 | staphylococcus_epidermidis | ticarcillin_clavulanate | 0.25 | 1 |
-| staphylococcus_epidermidis | ceftazidime_avibactam | 0.1 | 0.005 |
-| staphylococcus_epidermidis | meropenem_vaborbactam | 0.4 | 0.005 |
-| staphylococcus_epidermidis | colistin | 0.05 | 0.005 |
-| staphylococcus_epidermidis | flucloxacillin | 0.85 | 1 |
-| staphylococcus_epidermidis | aztreonam_avibactam | 0.01 | 1 |
-| staphylococcus_epidermidis | cefixime | 0.75 | 1 |
-| streptococcus_pneumoniae | sulfanilamide | 0.1 | 1 |
-| streptococcus_pneumoniae | penicillin_g | 0.95 | 1 |
-| streptococcus_pneumoniae | ampicillin | 0.95 | 1 |
-| streptococcus_pneumoniae | amoxicillin | 0.95 | 1 |
+| staphylococcus_epidermidis | ceftazidime_avibactam | 0.1 | 0.5 |
+| staphylococcus_epidermidis | meropenem_vaborbactam | 0.4 | 0.5 |
+| staphylococcus_epidermidis | colistin | 0 | 0.5 |
+| staphylococcus_epidermidis | flucloxacillin | 0.85 | 3 |
+| staphylococcus_epidermidis | aztreonam_avibactam | 0.01 | 0.003 |
+| staphylococcus_epidermidis | cefixime | 0.75 | 0.2 |
+| staphylococcus_epidermidis | nalidixic_acid | 0 | 0 |
+| streptococcus_pneumoniae | sulfanilamide | 0.7 | 0.1 |
+| streptococcus_pneumoniae | penicillin_g | 0.95 | 6 |
+| streptococcus_pneumoniae | ampicillin | 0.95 | 6 |
+| streptococcus_pneumoniae | amoxicillin | 0.95 | 6 |
 | streptococcus_pneumoniae | piperacillin | 0.9 | 1 |
 | streptococcus_pneumoniae | ticarcillin | 0.9 | 1 |
-| streptococcus_pneumoniae | cephalexin | 0.85 | 1 |
-| streptococcus_pneumoniae | cefazolin | 0.9 | 1 |
-| streptococcus_pneumoniae | cefuroxime | 0.9 | 1 |
-| streptococcus_pneumoniae | ceftriaxone | 0.95 | 1 |
-| streptococcus_pneumoniae | ceftazidime | 0.7 | 1 |
-| streptococcus_pneumoniae | cefepime | 0.8 | 1 |
-| streptococcus_pneumoniae | ceftaroline | 0.95 | 1 |
+| streptococcus_pneumoniae | cephalexin | 0.85 | 0.3 |
+| streptococcus_pneumoniae | cefazolin | 0.9 | 0.3 |
+| streptococcus_pneumoniae | cefuroxime | 0.9 | 3 |
+| streptococcus_pneumoniae | ceftriaxone | 0.95 | 3 |
+| streptococcus_pneumoniae | ceftazidime | 0.25 | 0.2 |
+| streptococcus_pneumoniae | cefepime | 0.8 | 0.35 |
+| streptococcus_pneumoniae | ceftaroline | 0.95 | 0.015 |
 | streptococcus_pneumoniae | ceftolozane_tazobactam | 0.75 | 1 |
 | streptococcus_pneumoniae | cefiderocol | 0.1 | 1 |
-| streptococcus_pneumoniae | meropenem | 0.95 | 0.005 |
-| streptococcus_pneumoniae | imipenem_c | 0.95 | 0.005 |
-| streptococcus_pneumoniae | ertapenem | 0.95 | 0.005 |
-| streptococcus_pneumoniae | erythromycin | 0.8 | 1 |
-| streptococcus_pneumoniae | azithromycin | 0.85 | 1 |
-| streptococcus_pneumoniae | clarithromycin | 0.85 | 1 |
+| streptococcus_pneumoniae | meropenem | 0.95 | 0.5 |
+| streptococcus_pneumoniae | imipenem_c | 0.95 | 0.5 |
+| streptococcus_pneumoniae | ertapenem | 0.95 | 0.5 |
+| streptococcus_pneumoniae | aztreonam | 0 | 0.003 |
+| streptococcus_pneumoniae | erythromycin | 0.8 | 5 |
+| streptococcus_pneumoniae | azithromycin | 0.85 | 7 |
+| streptococcus_pneumoniae | clarithromycin | 0.85 | 7 |
 | streptococcus_pneumoniae | clindamycin | 0.8 | 1 |
 | streptococcus_pneumoniae | gentamicin | 0.1 | 1 |
 | streptococcus_pneumoniae | tobramycin | 0.1 | 1 |
 | streptococcus_pneumoniae | amikacin | 0.1 | 1 |
 | streptococcus_pneumoniae | ciprofloxacin | 0.9 | 1 |
-| streptococcus_pneumoniae | levofloxacin | 0.95 | 1 |
-| streptococcus_pneumoniae | moxifloxacin | 0.95 | 1 |
+| streptococcus_pneumoniae | levofloxacin | 0.95 | 5 |
+| streptococcus_pneumoniae | moxifloxacin | 0.95 | 5 |
 | streptococcus_pneumoniae | ofloxacin | 0.9 | 1 |
-| streptococcus_pneumoniae | tetracycline | 0.8 | 1 |
-| streptococcus_pneumoniae | doxycycline | 0.85 | 1 |
-| streptococcus_pneumoniae | minocycline | 0.85 | 1 |
-| streptococcus_pneumoniae | tigecycline | 0.1 | 1 |
-| streptococcus_pneumoniae | vancomycin | 0.95 | 1 |
+| streptococcus_pneumoniae | tetracycline | 0.8 | 0.25 |
+| streptococcus_pneumoniae | doxycycline | 0.85 | 0.25 |
+| streptococcus_pneumoniae | minocycline | 0.85 | 0.25 |
+| streptococcus_pneumoniae | tigecycline | 0.55 | 1 |
+| streptococcus_pneumoniae | vancomycin | 0.95 | 3 |
 | streptococcus_pneumoniae | teicoplanin | 0.9 | 1 |
-| streptococcus_pneumoniae | dalbavancin | 0.9 | 0.005 |
-| streptococcus_pneumoniae | linezolid | 0.9 | 0.005 |
-| streptococcus_pneumoniae | tedizolid | 0.9 | 0.005 |
-| streptococcus_pneumoniae | daptomycin | 0.1 | 1 |
-| streptococcus_pneumoniae | quinu_dalfo | 0.85 | 0.005 |
-| streptococcus_pneumoniae | trim_sulf | 0.7 | 1 |
+| streptococcus_pneumoniae | dalbavancin | 0.9 | 0.5 |
+| streptococcus_pneumoniae | linezolid | 0.9 | 0.5 |
+| streptococcus_pneumoniae | tedizolid | 0.9 | 0.5 |
+| streptococcus_pneumoniae | daptomycin | 0.3 | 1 |
+| streptococcus_pneumoniae | quinu_dalfo | 0.85 | 0.5 |
+| streptococcus_pneumoniae | trim_sulf | 0.7 | 3 |
 | streptococcus_pneumoniae | chloramphenicol | 0.8 | 1 |
 | streptococcus_pneumoniae | nitrofurantoin | 0.1 | 1 |
-| streptococcus_pneumoniae | fosfomycin | 0.1 | 1 |
+| streptococcus_pneumoniae | fosfomycin | 0.3 | 1 |
 | streptococcus_pneumoniae | retapamulin | 0.1 | 1 |
 | streptococcus_pneumoniae | fusidic_a | 0.1 | 1 |
 | streptococcus_pneumoniae | metronidazole | 0.1 | 1 |
 | streptococcus_pneumoniae | fidaxomicin | 0.1 | 1 |
 | streptococcus_pneumoniae | furazolidone | 0.1 | 1 |
 | streptococcus_pneumoniae | rifampicin | 0.8 | 1 |
-| streptococcus_pneumoniae | amoxicillin_clavulanate | 0.95 | 1 |
+| streptococcus_pneumoniae | amoxicillin_clavulanate | 0.95 | 14 |
 | streptococcus_pneumoniae | piperacillin_tazobactam | 0.9 | 1 |
 | streptococcus_pneumoniae | ampicillin_sulbactam | 0.95 | 1 |
 | streptococcus_pneumoniae | ticarcillin_clavulanate | 0.9 | 1 |
-| streptococcus_pneumoniae | ceftazidime_avibactam | 0.95 | 0.005 |
-| streptococcus_pneumoniae | meropenem_vaborbactam | 0.95 | 0.005 |
-| streptococcus_pneumoniae | colistin | 0 | 0.005 |
+| streptococcus_pneumoniae | ceftazidime_avibactam | 0.95 | 0.5 |
+| streptococcus_pneumoniae | meropenem_vaborbactam | 0.95 | 0.5 |
+| streptococcus_pneumoniae | colistin | 0 | 0.5 |
 | streptococcus_pneumoniae | flucloxacillin | 0.8 | 1 |
-| streptococcus_pneumoniae | aztreonam_avibactam | 0.01 | 1 |
-| streptococcus_pneumoniae | cefixime | 0.75 | 1 |
-| salmonella_enterica_serovar_typhi | sulfanilamide | 0.7 | 1 |
+| streptococcus_pneumoniae | aztreonam_avibactam | 0.01 | 0.003 |
+| streptococcus_pneumoniae | cefixime | 0.75 | 0.2 |
+| streptococcus_pneumoniae | nalidixic_acid | 0 | 0 |
+| salmonella_enterica_serovar_typhi | sulfanilamide | 0.7 | 0.02 |
 | salmonella_enterica_serovar_typhi | penicillin_g | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | ampicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | amoxicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | piperacillin | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | ticarcillin | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | cephalexin | 0.7 | 1 |
-| salmonella_enterica_serovar_typhi | cefazolin | 0.75 | 1 |
-| salmonella_enterica_serovar_typhi | cefuroxime | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | ceftriaxone | 0.95 | 1 |
-| salmonella_enterica_serovar_typhi | ceftazidime | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | cefepime | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | ceftaroline | 0.7 | 1 |
+| salmonella_enterica_serovar_typhi | cephalexin | 0.7 | 0.3 |
+| salmonella_enterica_serovar_typhi | cefazolin | 0.75 | 0.3 |
+| salmonella_enterica_serovar_typhi | cefuroxime | 0.8 | 0.3 |
+| salmonella_enterica_serovar_typhi | ceftriaxone | 0.95 | 4 |
+| salmonella_enterica_serovar_typhi | ceftazidime | 0.9 | 0.2 |
+| salmonella_enterica_serovar_typhi | cefepime | 0.9 | 0.35 |
+| salmonella_enterica_serovar_typhi | ceftaroline | 0.1 | 0.002 |
 | salmonella_enterica_serovar_typhi | ceftolozane_tazobactam | 0.75 | 1 |
 | salmonella_enterica_serovar_typhi | cefiderocol | 0.75 | 1 |
-| salmonella_enterica_serovar_typhi | meropenem | 0.95 | 0.005 |
-| salmonella_enterica_serovar_typhi | imipenem_c | 0.95 | 0.005 |
-| salmonella_enterica_serovar_typhi | ertapenem | 0.95 | 0.005 |
-| salmonella_enterica_serovar_typhi | aztreonam | 0.9 | 1 |
+| salmonella_enterica_serovar_typhi | meropenem | 0.95 | 0.5 |
+| salmonella_enterica_serovar_typhi | imipenem_c | 0.95 | 0.5 |
+| salmonella_enterica_serovar_typhi | ertapenem | 0.95 | 0.5 |
+| salmonella_enterica_serovar_typhi | aztreonam | 0.9 | 0.003 |
 | salmonella_enterica_serovar_typhi | erythromycin | 0.1 | 1 |
-| salmonella_enterica_serovar_typhi | azithromycin | 0.1 | 1 |
+| salmonella_enterica_serovar_typhi | azithromycin | 0.1 | 8 |
 | salmonella_enterica_serovar_typhi | clarithromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | gentamicin | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | tobramycin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | amikacin | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | ciprofloxacin | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | levofloxacin | 0.85 | 1 |
+| salmonella_enterica_serovar_typhi | ciprofloxacin | 0.8 | 4 |
+| salmonella_enterica_serovar_typhi | levofloxacin | 0.8 | 2 |
 | salmonella_enterica_serovar_typhi | moxifloxacin | 0.7 | 1 |
-| salmonella_enterica_serovar_typhi | ofloxacin | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | tetracycline | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | doxycycline | 0.85 | 1 |
-| salmonella_enterica_serovar_typhi | minocycline | 0.85 | 1 |
+| salmonella_enterica_serovar_typhi | ofloxacin | 0.8 | 2 |
+| salmonella_enterica_serovar_typhi | tetracycline | 0.8 | 0.25 |
+| salmonella_enterica_serovar_typhi | doxycycline | 0.85 | 0.25 |
+| salmonella_enterica_serovar_typhi | minocycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_typhi | tigecycline | 0.7 | 1 |
-| salmonella_enterica_serovar_typhi | dalbavancin | 0 | 0.005 |
-| salmonella_enterica_serovar_typhi | linezolid | 0 | 0.005 |
-| salmonella_enterica_serovar_typhi | tedizolid | 0 | 0.005 |
+| salmonella_enterica_serovar_typhi | dalbavancin | 0 | 0.5 |
+| salmonella_enterica_serovar_typhi | linezolid | 0 | 0.5 |
+| salmonella_enterica_serovar_typhi | tedizolid | 0 | 0.5 |
 | salmonella_enterica_serovar_typhi | daptomycin | 0.1 | 1 |
-| salmonella_enterica_serovar_typhi | quinu_dalfo | 0 | 0.005 |
-| salmonella_enterica_serovar_typhi | trim_sulf | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | chloramphenicol | 0.85 | 1 |
+| salmonella_enterica_serovar_typhi | quinu_dalfo | 0 | 0.5 |
+| salmonella_enterica_serovar_typhi | trim_sulf | 0.9 | 0.04 |
+| salmonella_enterica_serovar_typhi | chloramphenicol | 0.85 | 2 |
 | salmonella_enterica_serovar_typhi | nitrofurantoin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | fosfomycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | fidaxomicin | 0.1 | 1 |
@@ -3614,52 +3623,53 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_typhi | piperacillin_tazobactam | 0.95 | 1 |
 | salmonella_enterica_serovar_typhi | ampicillin_sulbactam | 0.9 | 1 |
 | salmonella_enterica_serovar_typhi | ticarcillin_clavulanate | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | ceftazidime_avibactam | 0.95 | 0.005 |
-| salmonella_enterica_serovar_typhi | meropenem_vaborbactam | 0.95 | 0.005 |
-| salmonella_enterica_serovar_typhi | colistin | 0.7 | 0.005 |
+| salmonella_enterica_serovar_typhi | ceftazidime_avibactam | 0.95 | 0.5 |
+| salmonella_enterica_serovar_typhi | meropenem_vaborbactam | 0.95 | 0.5 |
+| salmonella_enterica_serovar_typhi | colistin | 0.7 | 0.5 |
 | salmonella_enterica_serovar_typhi | flucloxacillin | 0.01 | 1 |
-| salmonella_enterica_serovar_typhi | aztreonam_avibactam | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | cefixime | 0.75 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | sulfanilamide | 0.7 | 1 |
+| salmonella_enterica_serovar_typhi | aztreonam_avibactam | 0.9 | 0.003 |
+| salmonella_enterica_serovar_typhi | cefixime | 0.75 | 3 |
+| salmonella_enterica_serovar_typhi | nalidixic_acid | 0.65 | 0 |
+| salmonella_enterica_serovar_paratyphi_a | sulfanilamide | 0.7 | 0.02 |
 | salmonella_enterica_serovar_paratyphi_a | penicillin_g | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ampicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | amoxicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | piperacillin | 0.85 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ticarcillin | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cephalexin | 0.7 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefazolin | 0.75 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefuroxime | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftriaxone | 0.95 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftazidime | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefepime | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftaroline | 0.7 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | cephalexin | 0.7 | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | cefazolin | 0.75 | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | cefuroxime | 0.8 | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | ceftriaxone | 0.95 | 4 |
+| salmonella_enterica_serovar_paratyphi_a | ceftazidime | 0.9 | 0.2 |
+| salmonella_enterica_serovar_paratyphi_a | cefepime | 0.9 | 0.35 |
+| salmonella_enterica_serovar_paratyphi_a | ceftaroline | 0.1 | 0.002 |
 | salmonella_enterica_serovar_paratyphi_a | ceftolozane_tazobactam | 0.75 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | cefiderocol | 0.75 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | meropenem | 0.95 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | imipenem_c | 0.95 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | ertapenem | 0.95 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | aztreonam | 0.9 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | meropenem | 0.95 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | imipenem_c | 0.95 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | ertapenem | 0.95 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | aztreonam | 0.9 | 0.003 |
 | salmonella_enterica_serovar_paratyphi_a | erythromycin | 0.1 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | azithromycin | 0.1 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | azithromycin | 0.1 | 8 |
 | salmonella_enterica_serovar_paratyphi_a | clarithromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | gentamicin | 0.85 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | tobramycin | 0.8 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | amikacin | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ciprofloxacin | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | levofloxacin | 0.85 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | ciprofloxacin | 0.9 | 2 |
+| salmonella_enterica_serovar_paratyphi_a | levofloxacin | 0.85 | 2 |
 | salmonella_enterica_serovar_paratyphi_a | moxifloxacin | 0.7 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ofloxacin | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | tetracycline | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | doxycycline | 0.85 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | minocycline | 0.85 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | ofloxacin | 0.8 | 2 |
+| salmonella_enterica_serovar_paratyphi_a | tetracycline | 0.8 | 0.25 |
+| salmonella_enterica_serovar_paratyphi_a | doxycycline | 0.85 | 0.25 |
+| salmonella_enterica_serovar_paratyphi_a | minocycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_paratyphi_a | tigecycline | 0.7 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | dalbavancin | 0 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | linezolid | 0 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | tedizolid | 0 | 0.005 |
+| salmonella_enterica_serovar_paratyphi_a | dalbavancin | 0 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | linezolid | 0 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | tedizolid | 0 | 0.5 |
 | salmonella_enterica_serovar_paratyphi_a | daptomycin | 0.1 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | quinu_dalfo | 0 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | trim_sulf | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | chloramphenicol | 0.85 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | quinu_dalfo | 0 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | trim_sulf | 0.9 | 0.04 |
+| salmonella_enterica_serovar_paratyphi_a | chloramphenicol | 0.85 | 2 |
 | salmonella_enterica_serovar_paratyphi_a | nitrofurantoin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | fosfomycin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | fidaxomicin | 0.1 | 1 |
@@ -3669,31 +3679,32 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_paratyphi_a | piperacillin_tazobactam | 0.95 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ampicillin_sulbactam | 0.9 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ticarcillin_clavulanate | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftazidime_avibactam | 0.95 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | meropenem_vaborbactam | 0.95 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | colistin | 0.7 | 0.005 |
+| salmonella_enterica_serovar_paratyphi_a | ceftazidime_avibactam | 0.95 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | meropenem_vaborbactam | 0.95 | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | colistin | 0.7 | 0.5 |
 | salmonella_enterica_serovar_paratyphi_a | flucloxacillin | 0.01 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | aztreonam_avibactam | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefixime | 0.75 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | sulfanilamide | 0.7 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | aztreonam_avibactam | 0.9 | 0.003 |
+| salmonella_enterica_serovar_paratyphi_a | cefixime | 0.75 | 0.2 |
+| salmonella_enterica_serovar_paratyphi_a | nalidixic_acid | 0.65 | 0 |
+| invasive_non-typhoidal_salmonella_spp. | sulfanilamide | 0.7 | 0.02 |
 | invasive_non-typhoidal_salmonella_spp. | penicillin_g | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ampicillin | 0.8 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | amoxicillin | 0.8 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | piperacillin | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ticarcillin | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cephalexin | 0.7 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefazolin | 0.75 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefuroxime | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftriaxone | 0.95 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftazidime | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefepime | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftaroline | 0.7 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | cephalexin | 0.7 | 0.3 |
+| invasive_non-typhoidal_salmonella_spp. | cefazolin | 0.75 | 0.3 |
+| invasive_non-typhoidal_salmonella_spp. | cefuroxime | 0.8 | 0.3 |
+| invasive_non-typhoidal_salmonella_spp. | ceftriaxone | 0.95 | 3 |
+| invasive_non-typhoidal_salmonella_spp. | ceftazidime | 0.9 | 0.2 |
+| invasive_non-typhoidal_salmonella_spp. | cefepime | 0.9 | 0.35 |
+| invasive_non-typhoidal_salmonella_spp. | ceftaroline | 0.1 | 0.002 |
 | invasive_non-typhoidal_salmonella_spp. | ceftolozane_tazobactam | 0.75 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | cefiderocol | 0.75 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | meropenem | 0.95 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | imipenem_c | 0.95 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | ertapenem | 0.95 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | aztreonam | 0.9 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | meropenem | 0.95 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | imipenem_c | 0.95 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | ertapenem | 0.95 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | aztreonam | 0.9 | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | erythromycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | azithromycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | clarithromycin | 0.1 | 1 |
@@ -3701,22 +3712,22 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | invasive_non-typhoidal_salmonella_spp. | gentamicin | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | tobramycin | 0.8 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | amikacin | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ciprofloxacin | 0.9 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | ciprofloxacin | 0.75 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | levofloxacin | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | moxifloxacin | 0.7 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ofloxacin | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | tetracycline | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | doxycycline | 0.85 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | minocycline | 0.85 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | tetracycline | 0.8 | 0.25 |
+| invasive_non-typhoidal_salmonella_spp. | doxycycline | 0.85 | 0.25 |
+| invasive_non-typhoidal_salmonella_spp. | minocycline | 0.85 | 0.25 |
 | invasive_non-typhoidal_salmonella_spp. | tigecycline | 0.7 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | vancomycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | teicoplanin | 0.1 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | dalbavancin | 0.1 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | linezolid | 0.1 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | tedizolid | 0.1 | 0.005 |
+| invasive_non-typhoidal_salmonella_spp. | dalbavancin | 0.1 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | linezolid | 0.1 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | tedizolid | 0.1 | 0.5 |
 | invasive_non-typhoidal_salmonella_spp. | daptomycin | 0.1 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | quinu_dalfo | 0.1 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | trim_sulf | 0.9 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | quinu_dalfo | 0.1 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | trim_sulf | 0.9 | 0.04 |
 | invasive_non-typhoidal_salmonella_spp. | chloramphenicol | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | nitrofurantoin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | fosfomycin | 0.1 | 1 |
@@ -3729,51 +3740,52 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | invasive_non-typhoidal_salmonella_spp. | piperacillin_tazobactam | 0.95 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ampicillin_sulbactam | 0.9 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ticarcillin_clavulanate | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftazidime_avibactam | 0.95 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | colistin | 0.7 | 0.005 |
+| invasive_non-typhoidal_salmonella_spp. | ceftazidime_avibactam | 0.95 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | meropenem_vaborbactam | 0.95 | 0.5 |
+| invasive_non-typhoidal_salmonella_spp. | colistin | 0.7 | 0.5 |
 | invasive_non-typhoidal_salmonella_spp. | flucloxacillin | 0.01 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | aztreonam_avibactam | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefixime | 0.75 | 1 |
-| shigella_spp. | sulfanilamide | 0.5 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | aztreonam_avibactam | 0.9 | 0.003 |
+| invasive_non-typhoidal_salmonella_spp. | cefixime | 0.75 | 0.2 |
+| invasive_non-typhoidal_salmonella_spp. | nalidixic_acid | 0.6 | 0 |
+| shigella_spp. | sulfanilamide | 0.5 | 0.02 |
 | shigella_spp. | penicillin_g | 0.1 | 1 |
 | shigella_spp. | ampicillin | 0.7 | 1 |
 | shigella_spp. | amoxicillin | 0.7 | 1 |
 | shigella_spp. | piperacillin | 0.75 | 1 |
 | shigella_spp. | ticarcillin | 0.7 | 1 |
-| shigella_spp. | cephalexin | 0.6 | 1 |
-| shigella_spp. | cefazolin | 0.65 | 1 |
-| shigella_spp. | cefuroxime | 0.7 | 1 |
-| shigella_spp. | ceftriaxone | 0.9 | 1 |
-| shigella_spp. | ceftazidime | 0.85 | 1 |
-| shigella_spp. | cefepime | 0.85 | 1 |
-| shigella_spp. | ceftaroline | 0.6 | 1 |
+| shigella_spp. | cephalexin | 0.6 | 0.3 |
+| shigella_spp. | cefazolin | 0.65 | 0.3 |
+| shigella_spp. | cefuroxime | 0.7 | 0.3 |
+| shigella_spp. | ceftriaxone | 0.9 | 0.2 |
+| shigella_spp. | ceftazidime | 0.85 | 0.2 |
+| shigella_spp. | cefepime | 0.85 | 0.35 |
+| shigella_spp. | ceftaroline | 0.1 | 0.002 |
 | shigella_spp. | ceftolozane_tazobactam | 0.75 | 1 |
 | shigella_spp. | cefiderocol | 0.75 | 1 |
-| shigella_spp. | meropenem | 0.9 | 0.005 |
-| shigella_spp. | imipenem_c | 0.9 | 0.005 |
-| shigella_spp. | ertapenem | 0.9 | 0.005 |
-| shigella_spp. | aztreonam | 0.8 | 1 |
+| shigella_spp. | meropenem | 0.9 | 0.5 |
+| shigella_spp. | imipenem_c | 0.9 | 0.5 |
+| shigella_spp. | ertapenem | 0.9 | 0.5 |
+| shigella_spp. | aztreonam | 0.8 | 0.003 |
 | shigella_spp. | erythromycin | 0.7 | 1 |
-| shigella_spp. | azithromycin | 0.85 | 1 |
+| shigella_spp. | azithromycin | 0.85 | 10 |
 | shigella_spp. | clarithromycin | 0.75 | 1 |
 | shigella_spp. | gentamicin | 0.8 | 1 |
 | shigella_spp. | tobramycin | 0.75 | 1 |
 | shigella_spp. | amikacin | 0.85 | 1 |
-| shigella_spp. | ciprofloxacin | 0.95 | 1 |
-| shigella_spp. | levofloxacin | 0.9 | 1 |
+| shigella_spp. | ciprofloxacin | 0.75 | 4 |
+| shigella_spp. | levofloxacin | 0.75 | 2 |
 | shigella_spp. | moxifloxacin | 0.8 | 1 |
-| shigella_spp. | ofloxacin | 0.9 | 1 |
-| shigella_spp. | tetracycline | 0.8 | 1 |
-| shigella_spp. | doxycycline | 0.85 | 1 |
-| shigella_spp. | minocycline | 0.85 | 1 |
+| shigella_spp. | ofloxacin | 0.9 | 3 |
+| shigella_spp. | tetracycline | 0.8 | 0.25 |
+| shigella_spp. | doxycycline | 0.85 | 0.25 |
+| shigella_spp. | minocycline | 0.85 | 0.25 |
 | shigella_spp. | tigecycline | 0.7 | 1 |
-| shigella_spp. | dalbavancin | 0 | 0.005 |
-| shigella_spp. | linezolid | 0 | 0.005 |
-| shigella_spp. | tedizolid | 0 | 0.005 |
+| shigella_spp. | dalbavancin | 0 | 0.5 |
+| shigella_spp. | linezolid | 0 | 0.5 |
+| shigella_spp. | tedizolid | 0 | 0.5 |
 | shigella_spp. | daptomycin | 0.1 | 1 |
-| shigella_spp. | quinu_dalfo | 0 | 0.005 |
-| shigella_spp. | trim_sulf | 0.9 | 1 |
+| shigella_spp. | quinu_dalfo | 0 | 0.5 |
+| shigella_spp. | trim_sulf | 0.9 | 0.04 |
 | shigella_spp. | chloramphenicol | 0.85 | 1 |
 | shigella_spp. | nitrofurantoin | 0.1 | 1 |
 | shigella_spp. | fosfomycin | 0.1 | 1 |
@@ -3784,51 +3796,52 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | shigella_spp. | piperacillin_tazobactam | 0.85 | 1 |
 | shigella_spp. | ampicillin_sulbactam | 0.8 | 1 |
 | shigella_spp. | ticarcillin_clavulanate | 0.85 | 1 |
-| shigella_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
-| shigella_spp. | meropenem_vaborbactam | 0.9 | 0.005 |
-| shigella_spp. | colistin | 0.7 | 0.005 |
+| shigella_spp. | ceftazidime_avibactam | 0.9 | 0.5 |
+| shigella_spp. | meropenem_vaborbactam | 0.9 | 0.5 |
+| shigella_spp. | colistin | 0.7 | 0.5 |
 | shigella_spp. | flucloxacillin | 0.01 | 1 |
-| shigella_spp. | aztreonam_avibactam | 0.9 | 1 |
-| shigella_spp. | cefixime | 0.75 | 1 |
-| neisseria_gonorrhoeae | sulfanilamide | 0.1 | 1 |
-| neisseria_gonorrhoeae | penicillin_g | 0.9 | 4 |
+| shigella_spp. | aztreonam_avibactam | 0.9 | 0.003 |
+| shigella_spp. | cefixime | 0.75 | 0.2 |
+| shigella_spp. | nalidixic_acid | 0.7 | 0 |
+| neisseria_gonorrhoeae | sulfanilamide | 0.7 | 0.02 |
+| neisseria_gonorrhoeae | penicillin_g | 0.9 | 2 |
 | neisseria_gonorrhoeae | ampicillin | 0.85 | 1 |
 | neisseria_gonorrhoeae | amoxicillin | 0.85 | 2.5 |
 | neisseria_gonorrhoeae | piperacillin | 0.8 | 1 |
 | neisseria_gonorrhoeae | ticarcillin | 0.8 | 1 |
-| neisseria_gonorrhoeae | cephalexin | 0.7 | 1 |
-| neisseria_gonorrhoeae | cefazolin | 0.75 | 1 |
-| neisseria_gonorrhoeae | cefuroxime | 0.85 | 1 |
-| neisseria_gonorrhoeae | ceftriaxone | 0.95 | 12 |
-| neisseria_gonorrhoeae | ceftazidime | 0.9 | 1 |
-| neisseria_gonorrhoeae | cefepime | 0.9 | 1 |
-| neisseria_gonorrhoeae | ceftaroline | 0.8 | 1 |
+| neisseria_gonorrhoeae | cephalexin | 0.7 | 0.3 |
+| neisseria_gonorrhoeae | cefazolin | 0.75 | 0.3 |
+| neisseria_gonorrhoeae | cefuroxime | 0.85 | 0.3 |
+| neisseria_gonorrhoeae | ceftriaxone | 0.95 | 6 |
+| neisseria_gonorrhoeae | ceftazidime | 0.9 | 0.2 |
+| neisseria_gonorrhoeae | cefepime | 0.9 | 0.35 |
+| neisseria_gonorrhoeae | ceftaroline | 0.1 | 0.002 |
 | neisseria_gonorrhoeae | ceftolozane_tazobactam | 0.8 | 1 |
 | neisseria_gonorrhoeae | cefiderocol | 0.8 | 1 |
-| neisseria_gonorrhoeae | meropenem | 0.9 | 0.005 |
-| neisseria_gonorrhoeae | imipenem_c | 0.9 | 0.005 |
-| neisseria_gonorrhoeae | ertapenem | 0.9 | 0.005 |
-| neisseria_gonorrhoeae | aztreonam | 0.9 | 1 |
+| neisseria_gonorrhoeae | meropenem | 0.9 | 0.5 |
+| neisseria_gonorrhoeae | imipenem_c | 0.9 | 0.5 |
+| neisseria_gonorrhoeae | ertapenem | 0.9 | 0.5 |
+| neisseria_gonorrhoeae | aztreonam | 0.9 | 0.003 |
 | neisseria_gonorrhoeae | erythromycin | 0.7 | 1 |
-| neisseria_gonorrhoeae | azithromycin | 0.7 | 5 |
+| neisseria_gonorrhoeae | azithromycin | 0.7 | 12 |
 | neisseria_gonorrhoeae | clarithromycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | gentamicin | 0.7 | 2 |
 | neisseria_gonorrhoeae | tobramycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | amikacin | 0.7 | 1 |
-| neisseria_gonorrhoeae | ciprofloxacin | 0.9 | 5 |
+| neisseria_gonorrhoeae | ciprofloxacin | 0.9 | 3 |
 | neisseria_gonorrhoeae | levofloxacin | 0.85 | 1 |
 | neisseria_gonorrhoeae | moxifloxacin | 0.8 | 1 |
-| neisseria_gonorrhoeae | ofloxacin | 0.85 | 1 |
-| neisseria_gonorrhoeae | tetracycline | 0.8 | 1 |
-| neisseria_gonorrhoeae | doxycycline | 0.9 | 4 |
-| neisseria_gonorrhoeae | minocycline | 0.85 | 1 |
+| neisseria_gonorrhoeae | ofloxacin | 0.85 | 2 |
+| neisseria_gonorrhoeae | tetracycline | 0.8 | 0.25 |
+| neisseria_gonorrhoeae | doxycycline | 0.9 | 0.25 |
+| neisseria_gonorrhoeae | minocycline | 0.85 | 0.25 |
 | neisseria_gonorrhoeae | tigecycline | 0.1 | 1 |
-| neisseria_gonorrhoeae | dalbavancin | 0 | 0.005 |
-| neisseria_gonorrhoeae | linezolid | 0 | 0.005 |
-| neisseria_gonorrhoeae | tedizolid | 0 | 0.005 |
+| neisseria_gonorrhoeae | dalbavancin | 0 | 0.5 |
+| neisseria_gonorrhoeae | linezolid | 0 | 0.5 |
+| neisseria_gonorrhoeae | tedizolid | 0 | 0.5 |
 | neisseria_gonorrhoeae | daptomycin | 0.1 | 1 |
-| neisseria_gonorrhoeae | quinu_dalfo | 0 | 0.005 |
-| neisseria_gonorrhoeae | trim_sulf | 0.7 | 1 |
+| neisseria_gonorrhoeae | quinu_dalfo | 0 | 0.5 |
+| neisseria_gonorrhoeae | trim_sulf | 0.75 | 0.04 |
 | neisseria_gonorrhoeae | chloramphenicol | 0.8 | 1 |
 | neisseria_gonorrhoeae | nitrofurantoin | 0.1 | 1 |
 | neisseria_gonorrhoeae | fosfomycin | 0.1 | 1 |
@@ -3839,33 +3852,35 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | piperacillin_tazobactam | 0.85 | 1 |
 | neisseria_gonorrhoeae | ampicillin_sulbactam | 0.8 | 1 |
 | neisseria_gonorrhoeae | ticarcillin_clavulanate | 0.8 | 1 |
-| neisseria_gonorrhoeae | ceftazidime_avibactam | 0.9 | 0.005 |
-| neisseria_gonorrhoeae | meropenem_vaborbactam | 0.9 | 0.005 |
-| neisseria_gonorrhoeae | colistin | 0.05 | 0.005 |
+| neisseria_gonorrhoeae | ceftazidime_avibactam | 0.9 | 0.5 |
+| neisseria_gonorrhoeae | meropenem_vaborbactam | 0.9 | 0.5 |
+| neisseria_gonorrhoeae | colistin | 0.05 | 0.5 |
 | neisseria_gonorrhoeae | flucloxacillin | 0.01 | 1 |
-| neisseria_gonorrhoeae | aztreonam_avibactam | 0.8 | 1 |
-| neisseria_gonorrhoeae | cefixime | 0.55 | 6 |
-| streptococcus_pyogenes | sulfanilamide | 0.1 | 1 |
-| streptococcus_pyogenes | penicillin_g | 1 | 1 |
-| streptococcus_pyogenes | ampicillin | 0.95 | 1 |
-| streptococcus_pyogenes | amoxicillin | 0.95 | 1 |
+| neisseria_gonorrhoeae | aztreonam_avibactam | 0.8 | 0.003 |
+| neisseria_gonorrhoeae | cefixime | 0.55 | 5 |
+| neisseria_gonorrhoeae | nalidixic_acid | 0.5 | 0 |
+| streptococcus_pyogenes | sulfanilamide | 0.1 | 0.02 |
+| streptococcus_pyogenes | penicillin_g | 0.95 | 6 |
+| streptococcus_pyogenes | ampicillin | 0.95 | 6 |
+| streptococcus_pyogenes | amoxicillin | 0.95 | 6 |
 | streptococcus_pyogenes | piperacillin | 0.9 | 1 |
 | streptococcus_pyogenes | ticarcillin | 0.9 | 1 |
-| streptococcus_pyogenes | cephalexin | 0.9 | 1 |
-| streptococcus_pyogenes | cefazolin | 0.9 | 1 |
-| streptococcus_pyogenes | cefuroxime | 0.95 | 1 |
-| streptococcus_pyogenes | ceftriaxone | 0.95 | 1 |
-| streptococcus_pyogenes | ceftazidime | 0.7 | 1 |
-| streptococcus_pyogenes | cefepime | 0.8 | 1 |
-| streptococcus_pyogenes | ceftaroline | 0.95 | 1 |
+| streptococcus_pyogenes | cephalexin | 0.9 | 4 |
+| streptococcus_pyogenes | cefazolin | 0.9 | 0.3 |
+| streptococcus_pyogenes | cefuroxime | 0.95 | 0.3 |
+| streptococcus_pyogenes | ceftriaxone | 0.95 | 0.2 |
+| streptococcus_pyogenes | ceftazidime | 0.25 | 0.2 |
+| streptococcus_pyogenes | cefepime | 0.8 | 0.35 |
+| streptococcus_pyogenes | ceftaroline | 0.95 | 0.002 |
 | streptococcus_pyogenes | ceftolozane_tazobactam | 0.75 | 1 |
 | streptococcus_pyogenes | cefiderocol | 0.1 | 1 |
-| streptococcus_pyogenes | meropenem | 0.95 | 0.005 |
-| streptococcus_pyogenes | imipenem_c | 0.95 | 0.005 |
-| streptococcus_pyogenes | ertapenem | 0.95 | 0.005 |
+| streptococcus_pyogenes | meropenem | 0.95 | 0.5 |
+| streptococcus_pyogenes | imipenem_c | 0.95 | 0.5 |
+| streptococcus_pyogenes | ertapenem | 0.95 | 0.5 |
+| streptococcus_pyogenes | aztreonam | 0 | 0.003 |
 | streptococcus_pyogenes | erythromycin | 0.9 | 1 |
-| streptococcus_pyogenes | azithromycin | 0.9 | 1 |
-| streptococcus_pyogenes | clarithromycin | 0.9 | 1 |
+| streptococcus_pyogenes | azithromycin | 0.9 | 5 |
+| streptococcus_pyogenes | clarithromycin | 0.9 | 4.5 |
 | streptococcus_pyogenes | clindamycin | 0.85 | 1 |
 | streptococcus_pyogenes | gentamicin | 0.1 | 1 |
 | streptococcus_pyogenes | tobramycin | 0.1 | 1 |
@@ -3874,55 +3889,57 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pyogenes | levofloxacin | 0.9 | 1 |
 | streptococcus_pyogenes | moxifloxacin | 0.9 | 1 |
 | streptococcus_pyogenes | ofloxacin | 0.85 | 1 |
-| streptococcus_pyogenes | tetracycline | 0.8 | 1 |
-| streptococcus_pyogenes | doxycycline | 0.85 | 1 |
-| streptococcus_pyogenes | minocycline | 0.85 | 1 |
-| streptococcus_pyogenes | tigecycline | 0.1 | 1 |
-| streptococcus_pyogenes | vancomycin | 0.95 | 1 |
+| streptococcus_pyogenes | tetracycline | 0.8 | 0.25 |
+| streptococcus_pyogenes | doxycycline | 0.85 | 0.25 |
+| streptococcus_pyogenes | minocycline | 0.85 | 0.25 |
+| streptococcus_pyogenes | tigecycline | 0.5 | 1 |
+| streptococcus_pyogenes | vancomycin | 0.95 | 2 |
 | streptococcus_pyogenes | teicoplanin | 0.9 | 1 |
-| streptococcus_pyogenes | dalbavancin | 0.9 | 0.005 |
-| streptococcus_pyogenes | linezolid | 0.9 | 0.005 |
-| streptococcus_pyogenes | tedizolid | 0.9 | 0.005 |
-| streptococcus_pyogenes | daptomycin | 0.1 | 1 |
-| streptococcus_pyogenes | quinu_dalfo | 0.85 | 0.005 |
-| streptococcus_pyogenes | trim_sulf | 0.7 | 1 |
+| streptococcus_pyogenes | dalbavancin | 0.9 | 0.5 |
+| streptococcus_pyogenes | linezolid | 0.9 | 0.5 |
+| streptococcus_pyogenes | tedizolid | 0.9 | 0.5 |
+| streptococcus_pyogenes | daptomycin | 0.85 | 1 |
+| streptococcus_pyogenes | quinu_dalfo | 0.85 | 0.5 |
+| streptococcus_pyogenes | trim_sulf | 0.7 | 0.04 |
 | streptococcus_pyogenes | chloramphenicol | 0.8 | 1 |
 | streptococcus_pyogenes | nitrofurantoin | 0.1 | 1 |
-| streptococcus_pyogenes | fosfomycin | 0.1 | 1 |
+| streptococcus_pyogenes | fosfomycin | 0.3 | 1 |
 | streptococcus_pyogenes | retapamulin | 0.1 | 1 |
 | streptococcus_pyogenes | fusidic_a | 0.1 | 1 |
 | streptococcus_pyogenes | metronidazole | 0.1 | 1 |
 | streptococcus_pyogenes | fidaxomicin | 0.1 | 1 |
 | streptococcus_pyogenes | furazolidone | 0.1 | 1 |
 | streptococcus_pyogenes | rifampicin | 0.8 | 1 |
-| streptococcus_pyogenes | amoxicillin_clavulanate | 0.95 | 1 |
+| streptococcus_pyogenes | amoxicillin_clavulanate | 0.95 | 14 |
 | streptococcus_pyogenes | piperacillin_tazobactam | 0.9 | 1 |
 | streptococcus_pyogenes | ampicillin_sulbactam | 0.95 | 1 |
 | streptococcus_pyogenes | ticarcillin_clavulanate | 0.9 | 1 |
-| streptococcus_pyogenes | ceftazidime_avibactam | 0.95 | 0.005 |
-| streptococcus_pyogenes | meropenem_vaborbactam | 0.95 | 0.005 |
-| streptococcus_pyogenes | colistin | 0 | 0.005 |
+| streptococcus_pyogenes | ceftazidime_avibactam | 0.95 | 0.5 |
+| streptococcus_pyogenes | meropenem_vaborbactam | 0.95 | 0.5 |
+| streptococcus_pyogenes | colistin | 0 | 0.5 |
 | streptococcus_pyogenes | flucloxacillin | 0.8 | 1 |
-| streptococcus_pyogenes | aztreonam_avibactam | 0.01 | 1 |
-| streptococcus_pyogenes | cefixime | 0.75 | 1 |
-| streptococcus_agalactiae | sulfanilamide | 0.1 | 1 |
-| streptococcus_agalactiae | penicillin_g | 0.95 | 1 |
-| streptococcus_agalactiae | ampicillin | 0.95 | 1 |
-| streptococcus_agalactiae | amoxicillin | 0.95 | 1 |
+| streptococcus_pyogenes | aztreonam_avibactam | 0.01 | 0.003 |
+| streptococcus_pyogenes | cefixime | 0.75 | 0.2 |
+| streptococcus_pyogenes | nalidixic_acid | 0 | 0 |
+| streptococcus_agalactiae | sulfanilamide | 0.1 | 0.02 |
+| streptococcus_agalactiae | penicillin_g | 0.95 | 6 |
+| streptococcus_agalactiae | ampicillin | 0.95 | 6 |
+| streptococcus_agalactiae | amoxicillin | 0.95 | 6 |
 | streptococcus_agalactiae | piperacillin | 0.9 | 1 |
 | streptococcus_agalactiae | ticarcillin | 0.9 | 1 |
-| streptococcus_agalactiae | cephalexin | 0.9 | 1 |
-| streptococcus_agalactiae | cefazolin | 0.9 | 1 |
-| streptococcus_agalactiae | cefuroxime | 0.95 | 1 |
-| streptococcus_agalactiae | ceftriaxone | 0.95 | 1 |
-| streptococcus_agalactiae | ceftazidime | 0.7 | 1 |
-| streptococcus_agalactiae | cefepime | 0.8 | 1 |
-| streptococcus_agalactiae | ceftaroline | 0.95 | 1 |
+| streptococcus_agalactiae | cephalexin | 0.9 | 4 |
+| streptococcus_agalactiae | cefazolin | 0.9 | 0.3 |
+| streptococcus_agalactiae | cefuroxime | 0.95 | 0.3 |
+| streptococcus_agalactiae | ceftriaxone | 0.95 | 0.2 |
+| streptococcus_agalactiae | ceftazidime | 0.25 | 0.2 |
+| streptococcus_agalactiae | cefepime | 0.8 | 0.35 |
+| streptococcus_agalactiae | ceftaroline | 0.95 | 0.002 |
 | streptococcus_agalactiae | ceftolozane_tazobactam | 0.75 | 1 |
 | streptococcus_agalactiae | cefiderocol | 0.1 | 1 |
-| streptococcus_agalactiae | meropenem | 0.95 | 0.005 |
-| streptococcus_agalactiae | imipenem_c | 0.95 | 0.005 |
-| streptococcus_agalactiae | ertapenem | 0.95 | 0.005 |
+| streptococcus_agalactiae | meropenem | 0.95 | 0.5 |
+| streptococcus_agalactiae | imipenem_c | 0.95 | 0.5 |
+| streptococcus_agalactiae | ertapenem | 0.95 | 0.5 |
+| streptococcus_agalactiae | aztreonam | 0 | 0.003 |
 | streptococcus_agalactiae | erythromycin | 0.8 | 1 |
 | streptococcus_agalactiae | azithromycin | 0.85 | 1 |
 | streptococcus_agalactiae | clarithromycin | 0.85 | 1 |
@@ -3934,134 +3951,131 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_agalactiae | levofloxacin | 0.9 | 1 |
 | streptococcus_agalactiae | moxifloxacin | 0.9 | 1 |
 | streptococcus_agalactiae | ofloxacin | 0.85 | 1 |
-| streptococcus_agalactiae | tetracycline | 0.8 | 1 |
-| streptococcus_agalactiae | doxycycline | 0.85 | 1 |
-| streptococcus_agalactiae | minocycline | 0.85 | 1 |
-| streptococcus_agalactiae | tigecycline | 0.1 | 1 |
-| streptococcus_agalactiae | vancomycin | 0.95 | 1 |
+| streptococcus_agalactiae | tetracycline | 0.8 | 0.25 |
+| streptococcus_agalactiae | doxycycline | 0.85 | 0.25 |
+| streptococcus_agalactiae | minocycline | 0.85 | 0.25 |
+| streptococcus_agalactiae | tigecycline | 0.5 | 1 |
+| streptococcus_agalactiae | vancomycin | 0.95 | 2 |
 | streptococcus_agalactiae | teicoplanin | 0.9 | 1 |
-| streptococcus_agalactiae | dalbavancin | 0.9 | 0.005 |
-| streptococcus_agalactiae | linezolid | 0.9 | 0.005 |
-| streptococcus_agalactiae | tedizolid | 0.9 | 0.005 |
-| streptococcus_agalactiae | daptomycin | 0.1 | 1 |
-| streptococcus_agalactiae | quinu_dalfo | 0.85 | 0.005 |
-| streptococcus_agalactiae | trim_sulf | 0.7 | 1 |
+| streptococcus_agalactiae | dalbavancin | 0.9 | 0.5 |
+| streptococcus_agalactiae | linezolid | 0.9 | 0.5 |
+| streptococcus_agalactiae | tedizolid | 0.9 | 0.5 |
+| streptococcus_agalactiae | daptomycin | 0.85 | 1 |
+| streptococcus_agalactiae | quinu_dalfo | 0.85 | 0.5 |
+| streptococcus_agalactiae | trim_sulf | 0.7 | 0.04 |
 | streptococcus_agalactiae | chloramphenicol | 0.8 | 1 |
 | streptococcus_agalactiae | nitrofurantoin | 0.1 | 1 |
-| streptococcus_agalactiae | fosfomycin | 0.1 | 1 |
+| streptococcus_agalactiae | fosfomycin | 0.3 | 1 |
 | streptococcus_agalactiae | retapamulin | 0.1 | 1 |
 | streptococcus_agalactiae | fusidic_a | 0.1 | 1 |
 | streptococcus_agalactiae | metronidazole | 0.1 | 1 |
 | streptococcus_agalactiae | fidaxomicin | 0.1 | 1 |
 | streptococcus_agalactiae | furazolidone | 0.1 | 1 |
 | streptococcus_agalactiae | rifampicin | 0.8 | 1 |
-| streptococcus_agalactiae | amoxicillin_clavulanate | 0.95 | 1 |
+| streptococcus_agalactiae | amoxicillin_clavulanate | 0.95 | 14 |
 | streptococcus_agalactiae | piperacillin_tazobactam | 0.9 | 1 |
 | streptococcus_agalactiae | ampicillin_sulbactam | 0.95 | 1 |
 | streptococcus_agalactiae | ticarcillin_clavulanate | 0.9 | 1 |
-| streptococcus_agalactiae | ceftazidime_avibactam | 0.95 | 0.005 |
-| streptococcus_agalactiae | meropenem_vaborbactam | 0.95 | 0.005 |
-| streptococcus_agalactiae | colistin | 0 | 0.005 |
+| streptococcus_agalactiae | ceftazidime_avibactam | 0.95 | 0.5 |
+| streptococcus_agalactiae | meropenem_vaborbactam | 0.95 | 0.5 |
+| streptococcus_agalactiae | colistin | 0 | 0.5 |
 | streptococcus_agalactiae | flucloxacillin | 0.8 | 1 |
-| streptococcus_agalactiae | aztreonam_avibactam | 0.01 | 1 |
-| streptococcus_agalactiae | cefixime | 0.75 | 1 |
-| haemophilus_influenzae | sulfanilamide | 0.1 | 1 |
-| haemophilus_influenzae | penicillin_g | 0.7 | 1 |
-| haemophilus_influenzae | ampicillin | 0.8 | 1 |
-| haemophilus_influenzae | amoxicillin | 0.9 | 1 |
+| streptococcus_agalactiae | aztreonam_avibactam | 0.01 | 0.003 |
+| streptococcus_agalactiae | cefixime | 0.75 | 0.2 |
+| streptococcus_agalactiae | nalidixic_acid | 0 | 0 |
+| haemophilus_influenzae | sulfanilamide | 0.1 | 0.02 |
+| haemophilus_influenzae | penicillin_g | 0.4 | 1 |
+| haemophilus_influenzae | ampicillin | 0.8 | 6 |
+| haemophilus_influenzae | amoxicillin | 0.9 | 6 |
 | haemophilus_influenzae | piperacillin | 0.85 | 1 |
 | haemophilus_influenzae | ticarcillin | 0.8 | 1 |
-| haemophilus_influenzae | cephalexin | 0.7 | 1 |
-| haemophilus_influenzae | cefazolin | 0.75 | 1 |
-| haemophilus_influenzae | cefuroxime | 0.85 | 1 |
-| haemophilus_influenzae | ceftriaxone | 0.95 | 1 |
-| haemophilus_influenzae | ceftazidime | 0.9 | 1 |
-| haemophilus_influenzae | cefepime | 0.9 | 1 |
-| haemophilus_influenzae | ceftaroline | 0.8 | 1 |
+| haemophilus_influenzae | cephalexin | 0.7 | 0.3 |
+| haemophilus_influenzae | cefazolin | 0.75 | 0.3 |
+| haemophilus_influenzae | cefuroxime | 0.85 | 3 |
+| haemophilus_influenzae | ceftriaxone | 0.95 | 3 |
+| haemophilus_influenzae | ceftazidime | 0.9 | 0.2 |
+| haemophilus_influenzae | cefepime | 0.9 | 0.35 |
+| haemophilus_influenzae | ceftaroline | 0.3 | 0.002 |
 | haemophilus_influenzae | ceftolozane_tazobactam | 0.8 | 1 |
 | haemophilus_influenzae | cefiderocol | 0.8 | 1 |
-| haemophilus_influenzae | meropenem | 0.95 | 0.005 |
-| haemophilus_influenzae | imipenem_c | 0.95 | 0.005 |
-| haemophilus_influenzae | ertapenem | 0.95 | 0.005 |
-| haemophilus_influenzae | aztreonam | 0.9 | 1 |
-| haemophilus_influenzae | erythromycin | 0.7 | 4 |
-| haemophilus_influenzae | azithromycin | 0.9 | 4 |
-| haemophilus_influenzae | clarithromycin | 0.85 | 4 |
+| haemophilus_influenzae | meropenem | 0.95 | 0.5 |
+| haemophilus_influenzae | imipenem_c | 0.95 | 0.5 |
+| haemophilus_influenzae | ertapenem | 0.95 | 0.5 |
+| haemophilus_influenzae | aztreonam | 0.9 | 0.003 |
+| haemophilus_influenzae | erythromycin | 0.7 | 6 |
+| haemophilus_influenzae | azithromycin | 0.9 | 7 |
+| haemophilus_influenzae | clarithromycin | 0.85 | 7 |
 | haemophilus_influenzae | gentamicin | 0.7 | 1 |
 | haemophilus_influenzae | tobramycin | 0.7 | 1 |
 | haemophilus_influenzae | amikacin | 0.7 | 1 |
 | haemophilus_influenzae | ciprofloxacin | 0.9 | 1 |
-| haemophilus_influenzae | levofloxacin | 0.85 | 1 |
-| haemophilus_influenzae | moxifloxacin | 0.8 | 1 |
+| haemophilus_influenzae | levofloxacin | 0.85 | 4 |
+| haemophilus_influenzae | moxifloxacin | 0.8 | 4 |
 | haemophilus_influenzae | ofloxacin | 0.85 | 1 |
-| haemophilus_influenzae | tetracycline | 0.85 | 1 |
-| haemophilus_influenzae | doxycycline | 0.85 | 1 |
-| haemophilus_influenzae | minocycline | 0.85 | 1 |
-| haemophilus_influenzae | tigecycline | 0.1 | 1 |
-| haemophilus_influenzae | dalbavancin | 0 | 0.005 |
-| haemophilus_influenzae | linezolid | 0 | 0.005 |
-| haemophilus_influenzae | tedizolid | 0 | 0.005 |
+| haemophilus_influenzae | tetracycline | 0.85 | 0.25 |
+| haemophilus_influenzae | doxycycline | 0.85 | 0.25 |
+| haemophilus_influenzae | minocycline | 0.85 | 0.25 |
+| haemophilus_influenzae | tigecycline | 0.5 | 1 |
+| haemophilus_influenzae | dalbavancin | 0 | 0.5 |
+| haemophilus_influenzae | linezolid | 0 | 0.5 |
+| haemophilus_influenzae | tedizolid | 0 | 0.5 |
 | haemophilus_influenzae | daptomycin | 0.1 | 1 |
-| haemophilus_influenzae | quinu_dalfo | 0 | 0.005 |
-| haemophilus_influenzae | trim_sulf | 0.85 | 1 |
+| haemophilus_influenzae | quinu_dalfo | 0 | 0.5 |
+| haemophilus_influenzae | trim_sulf | 0.85 | 0.04 |
 | haemophilus_influenzae | chloramphenicol | 0.8 | 1 |
 | haemophilus_influenzae | nitrofurantoin | 0.1 | 1 |
 | haemophilus_influenzae | fosfomycin | 0.1 | 1 |
 | haemophilus_influenzae | fidaxomicin | 0.1 | 1 |
 | haemophilus_influenzae | furazolidone | 0.1 | 1 |
 | haemophilus_influenzae | rifampicin | 0.7 | 1 |
-| haemophilus_influenzae | amoxicillin_clavulanate | 0.9 | 1 |
-| haemophilus_influenzae | piperacillin_tazobactam | 0.85 | 1 |
-| haemophilus_influenzae | ampicillin_sulbactam | 0.9 | 1 |
+| haemophilus_influenzae | amoxicillin_clavulanate | 0.9 | 16 |
+| haemophilus_influenzae | piperacillin_tazobactam | 0.85 | 10 |
+| haemophilus_influenzae | ampicillin_sulbactam | 0.9 | 2.5 |
 | haemophilus_influenzae | ticarcillin_clavulanate | 0.8 | 1 |
-| haemophilus_influenzae | ceftazidime_avibactam | 0.95 | 0.005 |
-| haemophilus_influenzae | meropenem_vaborbactam | 0.95 | 0.005 |
-| haemophilus_influenzae | colistin | 0.05 | 0.005 |
+| haemophilus_influenzae | ceftazidime_avibactam | 0.95 | 0.5 |
+| haemophilus_influenzae | meropenem_vaborbactam | 0.95 | 0.5 |
+| haemophilus_influenzae | colistin | 0.05 | 0.5 |
 | haemophilus_influenzae | flucloxacillin | 0.01 | 1 |
-| haemophilus_influenzae | aztreonam_avibactam | 0.8 | 1 |
-| haemophilus_influenzae | cefixime | 0.8 | 1 |
-| chlamydia_trachomatis | sulfanilamide | 0.1 | 1 |
-| chlamydia_trachomatis | penicillin_g | 0.1 | 1 |
-| chlamydia_trachomatis | ampicillin | 0.1 | 1 |
-| chlamydia_trachomatis | amoxicillin | 0.1 | 1 |
-| chlamydia_trachomatis | piperacillin | 0.1 | 1 |
-| chlamydia_trachomatis | ticarcillin | 0.1 | 1 |
-| chlamydia_trachomatis | cephalexin | 0.1 | 1 |
-| chlamydia_trachomatis | cefazolin | 0.1 | 1 |
-| chlamydia_trachomatis | cefuroxime | 0.1 | 1 |
-| chlamydia_trachomatis | ceftriaxone | 0.1 | 1 |
-| chlamydia_trachomatis | ceftazidime | 0.1 | 1 |
-| chlamydia_trachomatis | cefepime | 0.1 | 1 |
-| chlamydia_trachomatis | ceftaroline | 0.1 | 1 |
+| haemophilus_influenzae | aztreonam_avibactam | 0.8 | 0.003 |
+| haemophilus_influenzae | cefixime | 0.8 | 0.2 |
+| haemophilus_influenzae | nalidixic_acid | 0.3 | 0 |
+| chlamydia_trachomatis | sulfanilamide | 0.1 | 0.02 |
+| chlamydia_trachomatis | cephalexin | 0 | 0.3 |
+| chlamydia_trachomatis | cefazolin | 0 | 0.3 |
+| chlamydia_trachomatis | cefuroxime | 0 | 0.3 |
+| chlamydia_trachomatis | ceftriaxone | 0 | 0.2 |
+| chlamydia_trachomatis | ceftazidime | 0 | 0.2 |
+| chlamydia_trachomatis | cefepime | 0 | 0.35 |
+| chlamydia_trachomatis | ceftaroline | 0 | 0.002 |
 | chlamydia_trachomatis | ceftolozane_tazobactam | 0.01 | 1 |
 | chlamydia_trachomatis | cefiderocol | 0.01 | 1 |
-| chlamydia_trachomatis | meropenem | 0.1 | 0.005 |
-| chlamydia_trachomatis | imipenem_c | 0.1 | 0.005 |
-| chlamydia_trachomatis | ertapenem | 0.1 | 0.005 |
-| chlamydia_trachomatis | aztreonam | 0.1 | 1 |
+| chlamydia_trachomatis | meropenem | 0 | 0.5 |
+| chlamydia_trachomatis | imipenem_c | 0 | 0.5 |
+| chlamydia_trachomatis | ertapenem | 0 | 0.5 |
+| chlamydia_trachomatis | aztreonam | 0 | 0.003 |
 | chlamydia_trachomatis | erythromycin | 0.8 | 1 |
-| chlamydia_trachomatis | azithromycin | 0.95 | 4 |
+| chlamydia_trachomatis | azithromycin | 0.95 | 5 |
 | chlamydia_trachomatis | clarithromycin | 0.9 | 1 |
-| chlamydia_trachomatis | clindamycin | 0.7 | 1 |
+| chlamydia_trachomatis | clindamycin | 0.25 | 1 |
 | chlamydia_trachomatis | gentamicin | 0.1 | 1 |
 | chlamydia_trachomatis | tobramycin | 0.1 | 1 |
 | chlamydia_trachomatis | amikacin | 0.1 | 1 |
-| chlamydia_trachomatis | ciprofloxacin | 0.8 | 1 |
-| chlamydia_trachomatis | levofloxacin | 0.85 | 1 |
+| chlamydia_trachomatis | ciprofloxacin | 0.65 | 1 |
+| chlamydia_trachomatis | levofloxacin | 0.7 | 1 |
 | chlamydia_trachomatis | moxifloxacin | 0.85 | 1 |
-| chlamydia_trachomatis | ofloxacin | 0.8 | 1 |
-| chlamydia_trachomatis | tetracycline | 0.95 | 4.5 |
-| chlamydia_trachomatis | doxycycline | 0.95 | 5 |
-| chlamydia_trachomatis | minocycline | 0.9 | 1 |
+| chlamydia_trachomatis | ofloxacin | 0.8 | 3 |
+| chlamydia_trachomatis | tetracycline | 0.95 | 2 |
+| chlamydia_trachomatis | doxycycline | 0.95 | 1.5 |
+| chlamydia_trachomatis | minocycline | 0.9 | 0.25 |
 | chlamydia_trachomatis | tigecycline | 0.85 | 1 |
 | chlamydia_trachomatis | vancomycin | 0.1 | 1 |
 | chlamydia_trachomatis | teicoplanin | 0.1 | 1 |
-| chlamydia_trachomatis | dalbavancin | 0.1 | 0.005 |
-| chlamydia_trachomatis | linezolid | 0.1 | 0.005 |
-| chlamydia_trachomatis | tedizolid | 0.1 | 0.005 |
+| chlamydia_trachomatis | dalbavancin | 0.1 | 0.5 |
+| chlamydia_trachomatis | linezolid | 0.1 | 0.5 |
+| chlamydia_trachomatis | tedizolid | 0.1 | 0.5 |
 | chlamydia_trachomatis | daptomycin | 0.1 | 1 |
-| chlamydia_trachomatis | quinu_dalfo | 0.1 | 0.005 |
-| chlamydia_trachomatis | trim_sulf | 0.1 | 1 |
+| chlamydia_trachomatis | quinu_dalfo | 0.1 | 0.5 |
+| chlamydia_trachomatis | trim_sulf | 0.1 | 0.04 |
 | chlamydia_trachomatis | chloramphenicol | 0.8 | 1 |
 | chlamydia_trachomatis | nitrofurantoin | 0.1 | 1 |
 | chlamydia_trachomatis | fosfomycin | 0.1 | 1 |
@@ -4071,58 +4085,50 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | chlamydia_trachomatis | fidaxomicin | 0.1 | 1 |
 | chlamydia_trachomatis | furazolidone | 0.1 | 1 |
 | chlamydia_trachomatis | rifampicin | 0.1 | 1 |
-| chlamydia_trachomatis | amoxicillin_clavulanate | 0.1 | 1 |
-| chlamydia_trachomatis | piperacillin_tazobactam | 0.1 | 1 |
-| chlamydia_trachomatis | ampicillin_sulbactam | 0.1 | 1 |
-| chlamydia_trachomatis | ticarcillin_clavulanate | 0.1 | 1 |
-| chlamydia_trachomatis | ceftazidime_avibactam | 0.1 | 0.005 |
-| chlamydia_trachomatis | meropenem_vaborbactam | 0.1 | 0.005 |
-| chlamydia_trachomatis | colistin | 0.1 | 0.005 |
+| chlamydia_trachomatis | ceftazidime_avibactam | 0 | 0.5 |
+| chlamydia_trachomatis | meropenem_vaborbactam | 0 | 0.5 |
+| chlamydia_trachomatis | colistin | 0.1 | 0.5 |
 | chlamydia_trachomatis | flucloxacillin | 0.01 | 1 |
-| chlamydia_trachomatis | aztreonam_avibactam | 0.01 | 1 |
-| chlamydia_trachomatis | cefixime | 0.01 | 1 |
-| mycoplasma_genitalium | sulfanilamide | 0.05 | 1 |
-| mycoplasma_genitalium | penicillin_g | 0.05 | 1 |
-| mycoplasma_genitalium | ampicillin | 0.05 | 1 |
-| mycoplasma_genitalium | amoxicillin | 0.05 | 1 |
-| mycoplasma_genitalium | piperacillin | 0.05 | 1 |
-| mycoplasma_genitalium | ticarcillin | 0.05 | 1 |
-| mycoplasma_genitalium | cephalexin | 0.05 | 1 |
-| mycoplasma_genitalium | cefazolin | 0.05 | 1 |
-| mycoplasma_genitalium | cefuroxime | 0.05 | 1 |
-| mycoplasma_genitalium | ceftriaxone | 0.05 | 1 |
-| mycoplasma_genitalium | ceftazidime | 0.05 | 1 |
-| mycoplasma_genitalium | cefepime | 0.05 | 1 |
-| mycoplasma_genitalium | ceftaroline | 0.05 | 1 |
+| chlamydia_trachomatis | aztreonam_avibactam | 0.01 | 0.003 |
+| chlamydia_trachomatis | cefixime | 0.01 | 0.2 |
+| chlamydia_trachomatis | nalidixic_acid | 0 | 0 |
+| mycoplasma_genitalium | sulfanilamide | 0.05 | 0.02 |
+| mycoplasma_genitalium | cephalexin | 0 | 0.3 |
+| mycoplasma_genitalium | cefazolin | 0 | 0.3 |
+| mycoplasma_genitalium | cefuroxime | 0 | 0.3 |
+| mycoplasma_genitalium | ceftriaxone | 0 | 0.2 |
+| mycoplasma_genitalium | ceftazidime | 0 | 0.2 |
+| mycoplasma_genitalium | cefepime | 0 | 0.35 |
+| mycoplasma_genitalium | ceftaroline | 0 | 0.002 |
 | mycoplasma_genitalium | ceftolozane_tazobactam | 0.01 | 1 |
 | mycoplasma_genitalium | cefiderocol | 0.01 | 1 |
-| mycoplasma_genitalium | meropenem | 0.05 | 0.005 |
-| mycoplasma_genitalium | imipenem_c | 0.05 | 0.005 |
-| mycoplasma_genitalium | ertapenem | 0.05 | 0.005 |
-| mycoplasma_genitalium | aztreonam | 0.05 | 1 |
+| mycoplasma_genitalium | meropenem | 0 | 0.5 |
+| mycoplasma_genitalium | imipenem_c | 0 | 0.5 |
+| mycoplasma_genitalium | ertapenem | 0 | 0.5 |
+| mycoplasma_genitalium | aztreonam | 0 | 0.003 |
 | mycoplasma_genitalium | erythromycin | 0.8 | 1 |
-| mycoplasma_genitalium | azithromycin | 0.9 | 8 |
+| mycoplasma_genitalium | azithromycin | 0.9 | 3 |
 | mycoplasma_genitalium | clarithromycin | 0.9 | 1 |
 | mycoplasma_genitalium | clindamycin | 0.2 | 1 |
 | mycoplasma_genitalium | gentamicin | 0.05 | 1 |
 | mycoplasma_genitalium | tobramycin | 0.05 | 1 |
 | mycoplasma_genitalium | amikacin | 0.05 | 1 |
-| mycoplasma_genitalium | ciprofloxacin | 0.3 | 1 |
-| mycoplasma_genitalium | levofloxacin | 0.5 | 2.5 |
-| mycoplasma_genitalium | moxifloxacin | 0.85 | 4 |
+| mycoplasma_genitalium | ciprofloxacin | 0.55 | 1 |
+| mycoplasma_genitalium | levofloxacin | 0.35 | 2.5 |
+| mycoplasma_genitalium | moxifloxacin | 0.85 | 10 |
 | mycoplasma_genitalium | ofloxacin | 0.45 | 1 |
-| mycoplasma_genitalium | tetracycline | 0.4 | 1 |
+| mycoplasma_genitalium | tetracycline | 0.4 | 0.25 |
 | mycoplasma_genitalium | doxycycline | 0.6 | 1.5 |
-| mycoplasma_genitalium | minocycline | 0.7 | 1 |
+| mycoplasma_genitalium | minocycline | 0.7 | 0.25 |
 | mycoplasma_genitalium | tigecycline | 0.85 | 1 |
 | mycoplasma_genitalium | vancomycin | 0.05 | 1 |
 | mycoplasma_genitalium | teicoplanin | 0.05 | 1 |
-| mycoplasma_genitalium | dalbavancin | 0.05 | 0.005 |
-| mycoplasma_genitalium | linezolid | 0.05 | 0.005 |
-| mycoplasma_genitalium | tedizolid | 0.05 | 0.005 |
+| mycoplasma_genitalium | dalbavancin | 0.05 | 0.5 |
+| mycoplasma_genitalium | linezolid | 0.05 | 0.5 |
+| mycoplasma_genitalium | tedizolid | 0.05 | 0.5 |
 | mycoplasma_genitalium | daptomycin | 0.1 | 1 |
-| mycoplasma_genitalium | quinu_dalfo | 0.05 | 0.005 |
-| mycoplasma_genitalium | trim_sulf | 0.05 | 1 |
+| mycoplasma_genitalium | quinu_dalfo | 0.05 | 0.5 |
+| mycoplasma_genitalium | trim_sulf | 0.05 | 0.04 |
 | mycoplasma_genitalium | chloramphenicol | 0.2 | 1 |
 | mycoplasma_genitalium | nitrofurantoin | 0.05 | 1 |
 | mycoplasma_genitalium | fosfomycin | 0.1 | 1 |
@@ -4132,35 +4138,32 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_genitalium | fidaxomicin | 0.1 | 1 |
 | mycoplasma_genitalium | furazolidone | 0.05 | 1 |
 | mycoplasma_genitalium | rifampicin | 0.1 | 1 |
-| mycoplasma_genitalium | amoxicillin_clavulanate | 0.05 | 1 |
-| mycoplasma_genitalium | piperacillin_tazobactam | 0.05 | 1 |
-| mycoplasma_genitalium | ampicillin_sulbactam | 0.05 | 1 |
-| mycoplasma_genitalium | ticarcillin_clavulanate | 0.05 | 1 |
-| mycoplasma_genitalium | ceftazidime_avibactam | 0.05 | 0.005 |
-| mycoplasma_genitalium | meropenem_vaborbactam | 0.05 | 0.005 |
-| mycoplasma_genitalium | colistin | 0.05 | 0.005 |
+| mycoplasma_genitalium | ceftazidime_avibactam | 0 | 0.5 |
+| mycoplasma_genitalium | meropenem_vaborbactam | 0 | 0.5 |
+| mycoplasma_genitalium | colistin | 0.05 | 0.5 |
 | mycoplasma_genitalium | flucloxacillin | 0.01 | 1 |
-| mycoplasma_genitalium | aztreonam_avibactam | 0.01 | 1 |
-| mycoplasma_genitalium | cefixime | 0.01 | 1 |
-| vibrio_cholerae | sulfanilamide | 0.5 | 1 |
-| vibrio_cholerae | penicillin_g | 0.7 | 1 |
+| mycoplasma_genitalium | aztreonam_avibactam | 0.01 | 0.003 |
+| mycoplasma_genitalium | cefixime | 0.01 | 0.2 |
+| mycoplasma_genitalium | nalidixic_acid | 0 | 0 |
+| vibrio_cholerae | sulfanilamide | 0.5 | 0.02 |
+| vibrio_cholerae | penicillin_g | 0.3 | 1 |
 | vibrio_cholerae | ampicillin | 0.8 | 1 |
 | vibrio_cholerae | amoxicillin | 0.8 | 1 |
 | vibrio_cholerae | piperacillin | 0.85 | 1 |
 | vibrio_cholerae | ticarcillin | 0.8 | 1 |
-| vibrio_cholerae | cephalexin | 0.7 | 1 |
-| vibrio_cholerae | cefazolin | 0.75 | 1 |
-| vibrio_cholerae | cefuroxime | 0.8 | 1 |
-| vibrio_cholerae | ceftriaxone | 0.9 | 1 |
-| vibrio_cholerae | ceftazidime | 0.85 | 1 |
-| vibrio_cholerae | cefepime | 0.85 | 1 |
-| vibrio_cholerae | ceftaroline | 0.7 | 1 |
+| vibrio_cholerae | cephalexin | 0.7 | 0.3 |
+| vibrio_cholerae | cefazolin | 0.75 | 0.3 |
+| vibrio_cholerae | cefuroxime | 0.8 | 0.3 |
+| vibrio_cholerae | ceftriaxone | 0.9 | 0.2 |
+| vibrio_cholerae | ceftazidime | 0.85 | 0.2 |
+| vibrio_cholerae | cefepime | 0.85 | 0.35 |
+| vibrio_cholerae | ceftaroline | 0.1 | 0.002 |
 | vibrio_cholerae | ceftolozane_tazobactam | 0.75 | 1 |
 | vibrio_cholerae | cefiderocol | 0.75 | 1 |
-| vibrio_cholerae | meropenem | 0.9 | 0.005 |
-| vibrio_cholerae | imipenem_c | 0.9 | 0.005 |
-| vibrio_cholerae | ertapenem | 0.9 | 0.005 |
-| vibrio_cholerae | aztreonam | 0.8 | 1 |
+| vibrio_cholerae | meropenem | 0.9 | 0.5 |
+| vibrio_cholerae | imipenem_c | 0.9 | 0.5 |
+| vibrio_cholerae | ertapenem | 0.9 | 0.5 |
+| vibrio_cholerae | aztreonam | 0.8 | 0.003 |
 | vibrio_cholerae | erythromycin | 0.7 | 1 |
 | vibrio_cholerae | azithromycin | 0.8 | 1 |
 | vibrio_cholerae | clarithromycin | 0.75 | 1 |
@@ -4172,18 +4175,18 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | vibrio_cholerae | levofloxacin | 0.85 | 1 |
 | vibrio_cholerae | moxifloxacin | 0.75 | 1 |
 | vibrio_cholerae | ofloxacin | 0.85 | 1 |
-| vibrio_cholerae | tetracycline | 0.95 | 1 |
-| vibrio_cholerae | doxycycline | 0.95 | 1 |
-| vibrio_cholerae | minocycline | 0.9 | 1 |
+| vibrio_cholerae | tetracycline | 0.95 | 0.25 |
+| vibrio_cholerae | doxycycline | 0.95 | 0.25 |
+| vibrio_cholerae | minocycline | 0.9 | 0.25 |
 | vibrio_cholerae | tigecycline | 0.7 | 1 |
 | vibrio_cholerae | vancomycin | 0.1 | 1 |
 | vibrio_cholerae | teicoplanin | 0.1 | 1 |
-| vibrio_cholerae | dalbavancin | 0.1 | 0.005 |
-| vibrio_cholerae | linezolid | 0.1 | 0.005 |
-| vibrio_cholerae | tedizolid | 0.1 | 0.005 |
+| vibrio_cholerae | dalbavancin | 0.1 | 0.5 |
+| vibrio_cholerae | linezolid | 0.1 | 0.5 |
+| vibrio_cholerae | tedizolid | 0.1 | 0.5 |
 | vibrio_cholerae | daptomycin | 0.1 | 1 |
-| vibrio_cholerae | quinu_dalfo | 0.1 | 0.005 |
-| vibrio_cholerae | trim_sulf | 0.8 | 1 |
+| vibrio_cholerae | quinu_dalfo | 0.1 | 0.5 |
+| vibrio_cholerae | trim_sulf | 0.8 | 0.04 |
 | vibrio_cholerae | chloramphenicol | 0.8 | 1 |
 | vibrio_cholerae | nitrofurantoin | 0.1 | 1 |
 | vibrio_cholerae | fosfomycin | 0.1 | 1 |
@@ -4197,31 +4200,32 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | vibrio_cholerae | piperacillin_tazobactam | 0.9 | 1 |
 | vibrio_cholerae | ampicillin_sulbactam | 0.85 | 1 |
 | vibrio_cholerae | ticarcillin_clavulanate | 0.85 | 1 |
-| vibrio_cholerae | ceftazidime_avibactam | 0.9 | 0.005 |
-| vibrio_cholerae | meropenem_vaborbactam | 0.9 | 0.005 |
-| vibrio_cholerae | colistin | 0.7 | 0.005 |
+| vibrio_cholerae | ceftazidime_avibactam | 0.9 | 0.5 |
+| vibrio_cholerae | meropenem_vaborbactam | 0.9 | 0.5 |
+| vibrio_cholerae | colistin | 0.7 | 0.5 |
 | vibrio_cholerae | flucloxacillin | 0.01 | 1 |
-| vibrio_cholerae | aztreonam_avibactam | 0.9 | 1 |
-| vibrio_cholerae | cefixime | 0.75 | 1 |
-| neisseria_meningitidis | sulfanilamide | 0.1 | 1 |
-| neisseria_meningitidis | penicillin_g | 0.95 | 25 |
-| neisseria_meningitidis | ampicillin | 0.9 | 22 |
+| vibrio_cholerae | aztreonam_avibactam | 0.9 | 0.003 |
+| vibrio_cholerae | cefixime | 0.75 | 0.2 |
+| vibrio_cholerae | nalidixic_acid | 0.55 | 0 |
+| neisseria_meningitidis | sulfanilamide | 0.1 | 0.02 |
+| neisseria_meningitidis | penicillin_g | 0.95 | 6 |
+| neisseria_meningitidis | ampicillin | 0.9 | 6 |
 | neisseria_meningitidis | amoxicillin | 0.9 | 1 |
 | neisseria_meningitidis | piperacillin | 0.85 | 1 |
 | neisseria_meningitidis | ticarcillin | 0.8 | 1 |
-| neisseria_meningitidis | cephalexin | 0.8 | 1 |
-| neisseria_meningitidis | cefazolin | 0.85 | 1 |
-| neisseria_meningitidis | cefuroxime | 0.9 | 1 |
-| neisseria_meningitidis | ceftriaxone | 0.95 | 30 |
-| neisseria_meningitidis | ceftazidime | 0.9 | 1 |
-| neisseria_meningitidis | cefepime | 0.9 | 1 |
-| neisseria_meningitidis | ceftaroline | 0.8 | 1 |
+| neisseria_meningitidis | cephalexin | 0.8 | 0.3 |
+| neisseria_meningitidis | cefazolin | 0.85 | 0.3 |
+| neisseria_meningitidis | cefuroxime | 0.9 | 0.3 |
+| neisseria_meningitidis | ceftriaxone | 0.95 | 5 |
+| neisseria_meningitidis | ceftazidime | 0.9 | 0.2 |
+| neisseria_meningitidis | cefepime | 0.9 | 0.35 |
+| neisseria_meningitidis | ceftaroline | 0.1 | 0.002 |
 | neisseria_meningitidis | ceftolozane_tazobactam | 0.8 | 1 |
 | neisseria_meningitidis | cefiderocol | 0.8 | 1 |
-| neisseria_meningitidis | meropenem | 0.95 | 0.005 |
-| neisseria_meningitidis | imipenem_c | 0.95 | 0.005 |
-| neisseria_meningitidis | ertapenem | 0.95 | 0.005 |
-| neisseria_meningitidis | aztreonam | 0.9 | 1 |
+| neisseria_meningitidis | meropenem | 0.95 | 0.5 |
+| neisseria_meningitidis | imipenem_c | 0.95 | 0.5 |
+| neisseria_meningitidis | ertapenem | 0.95 | 0.5 |
+| neisseria_meningitidis | aztreonam | 0.9 | 0.003 |
 | neisseria_meningitidis | erythromycin | 0.7 | 1 |
 | neisseria_meningitidis | azithromycin | 0.8 | 1 |
 | neisseria_meningitidis | clarithromycin | 0.75 | 1 |
@@ -4233,18 +4237,18 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_meningitidis | levofloxacin | 0.85 | 1 |
 | neisseria_meningitidis | moxifloxacin | 0.8 | 1 |
 | neisseria_meningitidis | ofloxacin | 0.85 | 1 |
-| neisseria_meningitidis | tetracycline | 0.8 | 1 |
-| neisseria_meningitidis | doxycycline | 0.8 | 1 |
-| neisseria_meningitidis | minocycline | 0.85 | 1 |
+| neisseria_meningitidis | tetracycline | 0.8 | 0.25 |
+| neisseria_meningitidis | doxycycline | 0.8 | 0.25 |
+| neisseria_meningitidis | minocycline | 0.85 | 0.25 |
 | neisseria_meningitidis | tigecycline | 0.1 | 1 |
 | neisseria_meningitidis | vancomycin | 0.1 | 1 |
 | neisseria_meningitidis | teicoplanin | 0.1 | 1 |
-| neisseria_meningitidis | dalbavancin | 0.1 | 0.005 |
-| neisseria_meningitidis | linezolid | 0.1 | 0.005 |
-| neisseria_meningitidis | tedizolid | 0.1 | 0.005 |
+| neisseria_meningitidis | dalbavancin | 0.1 | 0.5 |
+| neisseria_meningitidis | linezolid | 0.1 | 0.5 |
+| neisseria_meningitidis | tedizolid | 0.1 | 0.5 |
 | neisseria_meningitidis | daptomycin | 0.1 | 1 |
-| neisseria_meningitidis | quinu_dalfo | 0.1 | 0.005 |
-| neisseria_meningitidis | trim_sulf | 0.7 | 1 |
+| neisseria_meningitidis | quinu_dalfo | 0.1 | 0.5 |
+| neisseria_meningitidis | trim_sulf | 0.7 | 0.04 |
 | neisseria_meningitidis | chloramphenicol | 0.85 | 18 |
 | neisseria_meningitidis | nitrofurantoin | 0.1 | 1 |
 | neisseria_meningitidis | fosfomycin | 0.1 | 1 |
@@ -4258,31 +4262,32 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_meningitidis | piperacillin_tazobactam | 0.85 | 1 |
 | neisseria_meningitidis | ampicillin_sulbactam | 0.9 | 1 |
 | neisseria_meningitidis | ticarcillin_clavulanate | 0.85 | 1 |
-| neisseria_meningitidis | ceftazidime_avibactam | 0.95 | 0.005 |
-| neisseria_meningitidis | meropenem_vaborbactam | 0.95 | 0.005 |
-| neisseria_meningitidis | colistin | 0.05 | 0.005 |
+| neisseria_meningitidis | ceftazidime_avibactam | 0.95 | 0.5 |
+| neisseria_meningitidis | meropenem_vaborbactam | 0.95 | 0.5 |
+| neisseria_meningitidis | colistin | 0.05 | 0.5 |
 | neisseria_meningitidis | flucloxacillin | 0.01 | 1 |
-| neisseria_meningitidis | aztreonam_avibactam | 0.8 | 1 |
-| neisseria_meningitidis | cefixime | 0.8 | 1 |
-| listeria_monocytogenes | sulfanilamide | 0.1 | 1 |
+| neisseria_meningitidis | aztreonam_avibactam | 0.8 | 0.003 |
+| neisseria_meningitidis | cefixime | 0.8 | 0.2 |
+| neisseria_meningitidis | nalidixic_acid | 0 | 0 |
+| listeria_monocytogenes | sulfanilamide | 0.1 | 0.02 |
 | listeria_monocytogenes | penicillin_g | 0.7 | 1 |
-| listeria_monocytogenes | ampicillin | 0.95 | 1 |
+| listeria_monocytogenes | ampicillin | 0.95 | 6 |
 | listeria_monocytogenes | amoxicillin | 0.95 | 1 |
 | listeria_monocytogenes | piperacillin | 0.7 | 1 |
 | listeria_monocytogenes | ticarcillin | 0.6 | 1 |
-| listeria_monocytogenes | cephalexin | 0.1 | 1 |
-| listeria_monocytogenes | cefazolin | 0.1 | 1 |
-| listeria_monocytogenes | cefuroxime | 0.1 | 1 |
-| listeria_monocytogenes | ceftriaxone | 0.1 | 1 |
-| listeria_monocytogenes | ceftazidime | 0.1 | 1 |
-| listeria_monocytogenes | cefepime | 0.1 | 1 |
-| listeria_monocytogenes | ceftaroline | 0.1 | 1 |
+| listeria_monocytogenes | cephalexin | 0.1 | 0.3 |
+| listeria_monocytogenes | cefazolin | 0.1 | 0.3 |
+| listeria_monocytogenes | cefuroxime | 0.1 | 0.3 |
+| listeria_monocytogenes | ceftriaxone | 0.1 | 0.2 |
+| listeria_monocytogenes | ceftazidime | 0.1 | 0.2 |
+| listeria_monocytogenes | cefepime | 0.1 | 0.35 |
+| listeria_monocytogenes | ceftaroline | 0.1 | 0.002 |
 | listeria_monocytogenes | ceftolozane_tazobactam | 0.05 | 1 |
 | listeria_monocytogenes | cefiderocol | 0.05 | 1 |
-| listeria_monocytogenes | meropenem | 0.7 | 0.005 |
-| listeria_monocytogenes | imipenem_c | 0.7 | 0.005 |
-| listeria_monocytogenes | ertapenem | 0.7 | 0.005 |
-| listeria_monocytogenes | aztreonam | 0.1 | 1 |
+| listeria_monocytogenes | meropenem | 0.7 | 0.5 |
+| listeria_monocytogenes | imipenem_c | 0.7 | 0.5 |
+| listeria_monocytogenes | ertapenem | 0.7 | 0.5 |
+| listeria_monocytogenes | aztreonam | 0.1 | 0.003 |
 | listeria_monocytogenes | erythromycin | 0.8 | 1 |
 | listeria_monocytogenes | azithromycin | 0.85 | 1 |
 | listeria_monocytogenes | clarithromycin | 0.8 | 1 |
@@ -4294,18 +4299,18 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | listeria_monocytogenes | levofloxacin | 0.85 | 1 |
 | listeria_monocytogenes | moxifloxacin | 0.8 | 1 |
 | listeria_monocytogenes | ofloxacin | 0.8 | 1 |
-| listeria_monocytogenes | tetracycline | 0.8 | 1 |
-| listeria_monocytogenes | doxycycline | 0.85 | 1 |
-| listeria_monocytogenes | minocycline | 0.85 | 1 |
+| listeria_monocytogenes | tetracycline | 0.8 | 0.25 |
+| listeria_monocytogenes | doxycycline | 0.85 | 0.25 |
+| listeria_monocytogenes | minocycline | 0.85 | 0.25 |
 | listeria_monocytogenes | tigecycline | 0.1 | 1 |
 | listeria_monocytogenes | vancomycin | 0.1 | 1 |
 | listeria_monocytogenes | teicoplanin | 0.1 | 1 |
-| listeria_monocytogenes | dalbavancin | 0.1 | 0.005 |
-| listeria_monocytogenes | linezolid | 0.1 | 0.005 |
-| listeria_monocytogenes | tedizolid | 0.1 | 0.005 |
+| listeria_monocytogenes | dalbavancin | 0.1 | 0.5 |
+| listeria_monocytogenes | linezolid | 0.1 | 0.5 |
+| listeria_monocytogenes | tedizolid | 0.1 | 0.5 |
 | listeria_monocytogenes | daptomycin | 0.1 | 1 |
-| listeria_monocytogenes | quinu_dalfo | 0.1 | 0.005 |
-| listeria_monocytogenes | trim_sulf | 0.9 | 1 |
+| listeria_monocytogenes | quinu_dalfo | 0.1 | 0.5 |
+| listeria_monocytogenes | trim_sulf | 0.9 | 1.5 |
 | listeria_monocytogenes | chloramphenicol | 0.85 | 1 |
 | listeria_monocytogenes | nitrofurantoin | 0.1 | 1 |
 | listeria_monocytogenes | fosfomycin | 0.1 | 1 |
@@ -4315,38 +4320,39 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | listeria_monocytogenes | fidaxomicin | 0.1 | 1 |
 | listeria_monocytogenes | furazolidone | 0.1 | 1 |
 | listeria_monocytogenes | rifampicin | 0.8 | 1 |
-| listeria_monocytogenes | amoxicillin_clavulanate | 0.7 | 1 |
+| listeria_monocytogenes | amoxicillin_clavulanate | 0.7 | 6 |
 | listeria_monocytogenes | piperacillin_tazobactam | 0.95 | 1 |
 | listeria_monocytogenes | ampicillin_sulbactam | 0.6 | 1 |
 | listeria_monocytogenes | ticarcillin_clavulanate | 0.1 | 1 |
-| listeria_monocytogenes | ceftazidime_avibactam | 0.7 | 0.005 |
-| listeria_monocytogenes | meropenem_vaborbactam | 0.05 | 0.005 |
-| listeria_monocytogenes | colistin | 0.1 | 0.005 |
+| listeria_monocytogenes | ceftazidime_avibactam | 0.7 | 0.5 |
+| listeria_monocytogenes | meropenem_vaborbactam | 0.05 | 0.5 |
+| listeria_monocytogenes | colistin | 0.1 | 0.5 |
 | listeria_monocytogenes | flucloxacillin | 0.05 | 1 |
-| listeria_monocytogenes | aztreonam_avibactam | 0.01 | 1 |
-| listeria_monocytogenes | cefixime | 0.05 | 1 |
-| clostridioides_difficile | sulfanilamide | 0.1 | 1 |
+| listeria_monocytogenes | aztreonam_avibactam | 0.01 | 0.003 |
+| listeria_monocytogenes | cefixime | 0.05 | 0.2 |
+| listeria_monocytogenes | nalidixic_acid | 0 | 0 |
+| clostridioides_difficile | sulfanilamide | 0.1 | 0.02 |
 | clostridioides_difficile | penicillin_g | 0.1 | 1 |
 | clostridioides_difficile | ampicillin | 0.1 | 1 |
 | clostridioides_difficile | amoxicillin | 0.1 | 1 |
 | clostridioides_difficile | piperacillin | 0.1 | 1 |
 | clostridioides_difficile | ticarcillin | 0.1 | 1 |
-| clostridioides_difficile | cephalexin | 0.1 | 1 |
-| clostridioides_difficile | cefazolin | 0.1 | 1 |
-| clostridioides_difficile | cefuroxime | 0.1 | 1 |
-| clostridioides_difficile | ceftriaxone | 0.1 | 1 |
-| clostridioides_difficile | ceftazidime | 0.1 | 1 |
-| clostridioides_difficile | cefepime | 0.1 | 1 |
-| clostridioides_difficile | ceftaroline | 0.1 | 1 |
+| clostridioides_difficile | cephalexin | 0.1 | 0.3 |
+| clostridioides_difficile | cefazolin | 0.1 | 0.3 |
+| clostridioides_difficile | cefuroxime | 0.1 | 0.3 |
+| clostridioides_difficile | ceftriaxone | 0.1 | 0.2 |
+| clostridioides_difficile | ceftazidime | 0.1 | 0.2 |
+| clostridioides_difficile | cefepime | 0.1 | 0.35 |
+| clostridioides_difficile | ceftaroline | 0.1 | 0.002 |
 | clostridioides_difficile | ceftolozane_tazobactam | 0.05 | 1 |
 | clostridioides_difficile | cefiderocol | 0.05 | 1 |
-| clostridioides_difficile | meropenem | 0.1 | 0.005 |
-| clostridioides_difficile | imipenem_c | 0.1 | 0.005 |
-| clostridioides_difficile | ertapenem | 0.1 | 0.005 |
-| clostridioides_difficile | aztreonam | 0.1 | 1 |
-| clostridioides_difficile | erythromycin | 0.7 | 1 |
-| clostridioides_difficile | azithromycin | 0.75 | 1 |
-| clostridioides_difficile | clarithromycin | 0.7 | 1 |
+| clostridioides_difficile | meropenem | 0.1 | 0.5 |
+| clostridioides_difficile | imipenem_c | 0.1 | 0.5 |
+| clostridioides_difficile | ertapenem | 0.1 | 0.5 |
+| clostridioides_difficile | aztreonam | 0.1 | 0.003 |
+| clostridioides_difficile | erythromycin | 0.1 | 1 |
+| clostridioides_difficile | azithromycin | 0.1 | 1 |
+| clostridioides_difficile | clarithromycin | 0.1 | 1 |
 | clostridioides_difficile | clindamycin | 0.1 | 1 |
 | clostridioides_difficile | gentamicin | 0.1 | 1 |
 | clostridioides_difficile | tobramycin | 0.1 | 1 |
@@ -4355,140 +4361,133 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | clostridioides_difficile | levofloxacin | 0.1 | 1 |
 | clostridioides_difficile | moxifloxacin | 0.1 | 1 |
 | clostridioides_difficile | ofloxacin | 0.1 | 1 |
-| clostridioides_difficile | tetracycline | 0.7 | 1 |
-| clostridioides_difficile | doxycycline | 0.7 | 1 |
-| clostridioides_difficile | minocycline | 0.7 | 1 |
+| clostridioides_difficile | tetracycline | 0.2 | 0.25 |
+| clostridioides_difficile | doxycycline | 0.2 | 0.25 |
+| clostridioides_difficile | minocycline | 0.2 | 0.25 |
 | clostridioides_difficile | tigecycline | 0.1 | 1 |
-| clostridioides_difficile | vancomycin | 0.95 | 5 |
-| clostridioides_difficile | teicoplanin | 0.9 | 1 |
-| clostridioides_difficile | dalbavancin | 0.9 | 0.005 |
-| clostridioides_difficile | linezolid | 0.85 | 0.005 |
-| clostridioides_difficile | tedizolid | 0.85 | 0.005 |
+| clostridioides_difficile | vancomycin | 0.95 | 10 |
+| clostridioides_difficile | teicoplanin | 0.2 | 1 |
+| clostridioides_difficile | dalbavancin | 0.2 | 0.5 |
+| clostridioides_difficile | linezolid | 0.2 | 0.5 |
+| clostridioides_difficile | tedizolid | 0.2 | 0.5 |
 | clostridioides_difficile | daptomycin | 0.1 | 1 |
-| clostridioides_difficile | quinu_dalfo | 0.1 | 0.005 |
-| clostridioides_difficile | trim_sulf | 0.1 | 1 |
+| clostridioides_difficile | quinu_dalfo | 0.1 | 0.5 |
+| clostridioides_difficile | trim_sulf | 0.1 | 0.04 |
 | clostridioides_difficile | chloramphenicol | 0.1 | 1 |
 | clostridioides_difficile | nitrofurantoin | 0.1 | 1 |
 | clostridioides_difficile | fosfomycin | 0.1 | 1 |
 | clostridioides_difficile | retapamulin | 0.1 | 1 |
 | clostridioides_difficile | fusidic_a | 0.1 | 1 |
-| clostridioides_difficile | metronidazole | 0.9 | 6 |
-| clostridioides_difficile | fidaxomicin | 0.1 | 1 |
+| clostridioides_difficile | metronidazole | 0.9 | 5 |
+| clostridioides_difficile | fidaxomicin | 1 | 1.05 |
 | clostridioides_difficile | furazolidone | 0.1 | 1 |
 | clostridioides_difficile | rifampicin | 0.1 | 1 |
 | clostridioides_difficile | amoxicillin_clavulanate | 0.1 | 1 |
 | clostridioides_difficile | piperacillin_tazobactam | 0.1 | 1 |
 | clostridioides_difficile | ampicillin_sulbactam | 0.1 | 1 |
 | clostridioides_difficile | ticarcillin_clavulanate | 0.1 | 1 |
-| clostridioides_difficile | ceftazidime_avibactam | 0.1 | 0.005 |
-| clostridioides_difficile | meropenem_vaborbactam | 0.1 | 0.005 |
-| clostridioides_difficile | colistin | 0.05 | 0.005 |
+| clostridioides_difficile | ceftazidime_avibactam | 0.1 | 0.5 |
+| clostridioides_difficile | meropenem_vaborbactam | 0.1 | 0.5 |
+| clostridioides_difficile | colistin | 0.05 | 0.5 |
 | clostridioides_difficile | flucloxacillin | 0.01 | 1 |
-| clostridioides_difficile | aztreonam_avibactam | 0.01 | 1 |
-| clostridioides_difficile | cefixime | 0.05 | 1 |
-| bacteroides_fragilis | sulfanilamide | 0.05 | 1 |
+| clostridioides_difficile | aztreonam_avibactam | 0.01 | 0.003 |
+| clostridioides_difficile | cefixime | 0.05 | 0.2 |
+| clostridioides_difficile | nalidixic_acid | 0 | 0 |
+| bacteroides_fragilis | sulfanilamide | 0.05 | 0.02 |
 | bacteroides_fragilis | penicillin_g | 0.1 | 1 |
 | bacteroides_fragilis | ampicillin | 0.2 | 1 |
-| bacteroides_fragilis | amoxicillin | 0.25 | 1 |
-| bacteroides_fragilis | piperacillin | 0.5 | 1 |
-| bacteroides_fragilis | ticarcillin | 0.4 | 1 |
-| bacteroides_fragilis | cephalexin | 0.05 | 1 |
-| bacteroides_fragilis | cefazolin | 0.05 | 1 |
-| bacteroides_fragilis | cefuroxime | 0.2 | 1 |
-| bacteroides_fragilis | ceftriaxone | 0.2 | 1 |
-| bacteroides_fragilis | ceftazidime | 0.25 | 1 |
-| bacteroides_fragilis | cefepime | 0.25 | 1 |
-| bacteroides_fragilis | ceftaroline | 0.2 | 1 |
+| bacteroides_fragilis | cephalexin | 0.05 | 0.3 |
+| bacteroides_fragilis | cefazolin | 0.05 | 0.3 |
+| bacteroides_fragilis | cefuroxime | 0.2 | 0.3 |
+| bacteroides_fragilis | ceftriaxone | 0.2 | 0.2 |
+| bacteroides_fragilis | ceftazidime | 0.25 | 0.2 |
+| bacteroides_fragilis | cefepime | 0.25 | 0.35 |
+| bacteroides_fragilis | ceftaroline | 0.2 | 0.002 |
 | bacteroides_fragilis | ceftolozane_tazobactam | 0.45 | 1 |
 | bacteroides_fragilis | cefiderocol | 0.05 | 1 |
-| bacteroides_fragilis | meropenem | 0.95 | 0.005 |
-| bacteroides_fragilis | imipenem_c | 0.95 | 0.005 |
-| bacteroides_fragilis | ertapenem | 0.95 | 0.005 |
-| bacteroides_fragilis | aztreonam | 0.05 | 1 |
-| bacteroides_fragilis | erythromycin | 0.05 | 1 |
-| bacteroides_fragilis | azithromycin | 0.05 | 1 |
-| bacteroides_fragilis | clarithromycin | 0.05 | 1 |
+| bacteroides_fragilis | meropenem | 0.85 | 0.5 |
+| bacteroides_fragilis | imipenem_c | 0.85 | 0.5 |
+| bacteroides_fragilis | ertapenem | 0.8 | 0.5 |
+| bacteroides_fragilis | aztreonam | 0 | 0.003 |
 | bacteroides_fragilis | clindamycin | 0.6 | 1 |
 | bacteroides_fragilis | gentamicin | 0.05 | 1 |
-| bacteroides_fragilis | tobramycin | 0.05 | 1 |
-| bacteroides_fragilis | amikacin | 0.05 | 1 |
 | bacteroides_fragilis | ciprofloxacin | 0.25 | 1 |
 | bacteroides_fragilis | levofloxacin | 0.35 | 1 |
 | bacteroides_fragilis | moxifloxacin | 0.5 | 1 |
 | bacteroides_fragilis | ofloxacin | 0.25 | 1 |
-| bacteroides_fragilis | tetracycline | 0.3 | 1 |
-| bacteroides_fragilis | doxycycline | 0.5 | 1 |
-| bacteroides_fragilis | minocycline | 0.5 | 1 |
-| bacteroides_fragilis | tigecycline | 0.1 | 1 |
+| bacteroides_fragilis | tetracycline | 0.3 | 0.25 |
+| bacteroides_fragilis | doxycycline | 0.5 | 0.25 |
+| bacteroides_fragilis | minocycline | 0.5 | 0.25 |
+| bacteroides_fragilis | tigecycline | 0.65 | 1 |
 | bacteroides_fragilis | vancomycin | 0.05 | 1 |
 | bacteroides_fragilis | teicoplanin | 0.05 | 1 |
-| bacteroides_fragilis | dalbavancin | 0.05 | 0.005 |
-| bacteroides_fragilis | linezolid | 0.05 | 0.005 |
-| bacteroides_fragilis | tedizolid | 0.05 | 0.005 |
-| bacteroides_fragilis | daptomycin | 0.1 | 1 |
-| bacteroides_fragilis | quinu_dalfo | 0.05 | 0.005 |
-| bacteroides_fragilis | trim_sulf | 0.3 | 1 |
+| bacteroides_fragilis | dalbavancin | 0.05 | 0.5 |
+| bacteroides_fragilis | linezolid | 0.05 | 0.5 |
+| bacteroides_fragilis | tedizolid | 0.05 | 0.5 |
+| bacteroides_fragilis | quinu_dalfo | 0.05 | 0.5 |
+| bacteroides_fragilis | trim_sulf | 0.3 | 0.04 |
 | bacteroides_fragilis | chloramphenicol | 0.7 | 1 |
 | bacteroides_fragilis | nitrofurantoin | 0.05 | 1 |
 | bacteroides_fragilis | fosfomycin | 0.1 | 1 |
 | bacteroides_fragilis | retapamulin | 0.05 | 1 |
 | bacteroides_fragilis | fusidic_a | 0.05 | 1 |
-| bacteroides_fragilis | metronidazole | 0.95 | 1 |
+| bacteroides_fragilis | metronidazole | 0.95 | 15 |
 | bacteroides_fragilis | fidaxomicin | 0.1 | 1 |
 | bacteroides_fragilis | furazolidone | 0.05 | 1 |
 | bacteroides_fragilis | rifampicin | 0.2 | 1 |
-| bacteroides_fragilis | amoxicillin_clavulanate | 0.75 | 1 |
-| bacteroides_fragilis | piperacillin_tazobactam | 0.85 | 1 |
+| bacteroides_fragilis | amoxicillin_clavulanate | 0.75 | 6 |
+| bacteroides_fragilis | piperacillin_tazobactam | 0.85 | 10 |
 | bacteroides_fragilis | ampicillin_sulbactam | 0.75 | 1 |
 | bacteroides_fragilis | ticarcillin_clavulanate | 0.8 | 1 |
-| bacteroides_fragilis | ceftazidime_avibactam | 0.5 | 0.005 |
-| bacteroides_fragilis | meropenem_vaborbactam | 0.95 | 0.005 |
-| bacteroides_fragilis | colistin | 0.05 | 0.005 |
+| bacteroides_fragilis | ceftazidime_avibactam | 0.5 | 0.5 |
+| bacteroides_fragilis | meropenem_vaborbactam | 0.95 | 0.5 |
+| bacteroides_fragilis | colistin | 0.05 | 0.5 |
 | bacteroides_fragilis | flucloxacillin | 0.01 | 1 |
-| bacteroides_fragilis | aztreonam_avibactam | 0.01 | 1 |
-| bacteroides_fragilis | cefixime | 0.45 | 1 |
-| campylobacter_jejuni | sulfanilamide | 0.1 | 1 |
+| bacteroides_fragilis | aztreonam_avibactam | 0.01 | 0.003 |
+| bacteroides_fragilis | cefixime | 0.45 | 0.2 |
+| bacteroides_fragilis | nalidixic_acid | 0 | 0 |
+| campylobacter_jejuni | sulfanilamide | 0.1 | 0.02 |
 | campylobacter_jejuni | penicillin_g | 0.1 | 1 |
 | campylobacter_jejuni | ampicillin | 0.1 | 1 |
 | campylobacter_jejuni | amoxicillin | 0.1 | 1 |
 | campylobacter_jejuni | piperacillin | 0.1 | 1 |
 | campylobacter_jejuni | ticarcillin | 0.1 | 1 |
-| campylobacter_jejuni | cephalexin | 0.1 | 1 |
-| campylobacter_jejuni | cefazolin | 0.1 | 1 |
-| campylobacter_jejuni | cefuroxime | 0.1 | 1 |
-| campylobacter_jejuni | ceftriaxone | 0.1 | 1 |
-| campylobacter_jejuni | ceftazidime | 0.1 | 1 |
-| campylobacter_jejuni | cefepime | 0.1 | 1 |
-| campylobacter_jejuni | ceftaroline | 0.1 | 1 |
+| campylobacter_jejuni | cephalexin | 0.1 | 0.3 |
+| campylobacter_jejuni | cefazolin | 0.1 | 0.3 |
+| campylobacter_jejuni | cefuroxime | 0.1 | 0.3 |
+| campylobacter_jejuni | ceftriaxone | 0.1 | 0.2 |
+| campylobacter_jejuni | ceftazidime | 0.1 | 0.2 |
+| campylobacter_jejuni | cefepime | 0.1 | 0.35 |
+| campylobacter_jejuni | ceftaroline | 0.1 | 0.002 |
 | campylobacter_jejuni | ceftolozane_tazobactam | 0.1 | 1 |
 | campylobacter_jejuni | cefiderocol | 0.1 | 1 |
-| campylobacter_jejuni | meropenem | 0.1 | 0.005 |
-| campylobacter_jejuni | imipenem_c | 0.1 | 0.005 |
-| campylobacter_jejuni | ertapenem | 0.1 | 0.005 |
-| campylobacter_jejuni | aztreonam | 0.1 | 1 |
+| campylobacter_jejuni | meropenem | 0.1 | 0.5 |
+| campylobacter_jejuni | imipenem_c | 0.1 | 0.5 |
+| campylobacter_jejuni | ertapenem | 0.1 | 0.5 |
+| campylobacter_jejuni | aztreonam | 0.1 | 0.003 |
 | campylobacter_jejuni | erythromycin | 0.85 | 5 |
-| campylobacter_jejuni | azithromycin | 0.9 | 4.5 |
+| campylobacter_jejuni | azithromycin | 0.9 | 3 |
 | campylobacter_jejuni | clarithromycin | 0.85 | 1 |
 | campylobacter_jejuni | clindamycin | 0.7 | 1 |
 | campylobacter_jejuni | gentamicin | 0.7 | 1 |
 | campylobacter_jejuni | tobramycin | 0.7 | 1 |
 | campylobacter_jejuni | amikacin | 0.7 | 1 |
-| campylobacter_jejuni | ciprofloxacin | 0.8 | 1 |
-| campylobacter_jejuni | levofloxacin | 0.75 | 1 |
+| campylobacter_jejuni | ciprofloxacin | 0.8 | 4 |
+| campylobacter_jejuni | levofloxacin | 0.8 | 1 |
 | campylobacter_jejuni | moxifloxacin | 0.7 | 1 |
 | campylobacter_jejuni | ofloxacin | 0.75 | 1 |
-| campylobacter_jejuni | tetracycline | 0.75 | 1 |
-| campylobacter_jejuni | doxycycline | 0.8 | 1 |
-| campylobacter_jejuni | minocycline | 0.8 | 1 |
+| campylobacter_jejuni | tetracycline | 0.75 | 0.25 |
+| campylobacter_jejuni | doxycycline | 0.8 | 0.25 |
+| campylobacter_jejuni | minocycline | 0.8 | 0.25 |
 | campylobacter_jejuni | tigecycline | 0.7 | 1 |
 | campylobacter_jejuni | vancomycin | 0.1 | 1 |
 | campylobacter_jejuni | teicoplanin | 0.1 | 1 |
-| campylobacter_jejuni | dalbavancin | 0.1 | 0.005 |
-| campylobacter_jejuni | linezolid | 0.1 | 0.005 |
-| campylobacter_jejuni | tedizolid | 0.1 | 0.005 |
+| campylobacter_jejuni | dalbavancin | 0.1 | 0.5 |
+| campylobacter_jejuni | linezolid | 0.1 | 0.5 |
+| campylobacter_jejuni | tedizolid | 0.1 | 0.5 |
 | campylobacter_jejuni | daptomycin | 0.1 | 1 |
-| campylobacter_jejuni | quinu_dalfo | 0.1 | 0.005 |
-| campylobacter_jejuni | trim_sulf | 0.1 | 1 |
+| campylobacter_jejuni | quinu_dalfo | 0.1 | 0.5 |
+| campylobacter_jejuni | trim_sulf | 0.1 | 0.04 |
 | campylobacter_jejuni | chloramphenicol | 0.7 | 1 |
 | campylobacter_jejuni | nitrofurantoin | 0.1 | 1 |
 | campylobacter_jejuni | fosfomycin | 0.1 | 1 |
@@ -4502,92 +4501,94 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | campylobacter_jejuni | piperacillin_tazobactam | 0.1 | 1 |
 | campylobacter_jejuni | ampicillin_sulbactam | 0.1 | 1 |
 | campylobacter_jejuni | ticarcillin_clavulanate | 0.1 | 1 |
-| campylobacter_jejuni | ceftazidime_avibactam | 0.1 | 0.005 |
-| campylobacter_jejuni | meropenem_vaborbactam | 0.1 | 0.005 |
-| campylobacter_jejuni | colistin | 0.05 | 0.005 |
+| campylobacter_jejuni | ceftazidime_avibactam | 0.1 | 0.5 |
+| campylobacter_jejuni | meropenem_vaborbactam | 0.1 | 0.5 |
+| campylobacter_jejuni | colistin | 0.05 | 0.5 |
 | campylobacter_jejuni | flucloxacillin | 0.01 | 1 |
-| campylobacter_jejuni | aztreonam_avibactam | 0.9 | 1 |
-| campylobacter_jejuni | cefixime | 0.75 | 1 |
-| enterobacter_cloacae | sulfanilamide | 0.5 | 1 |
+| campylobacter_jejuni | aztreonam_avibactam | 0.9 | 0.003 |
+| campylobacter_jejuni | cefixime | 0.75 | 0.2 |
+| campylobacter_jejuni | nalidixic_acid | 0.6 | 0 |
+| enterobacter_cloacae | sulfanilamide | 0.5 | 0.02 |
 | enterobacter_cloacae | penicillin_g | 0.1 | 1 |
 | enterobacter_cloacae | ampicillin | 0.5 | 1 |
 | enterobacter_cloacae | amoxicillin | 0.5 | 1 |
 | enterobacter_cloacae | piperacillin | 0.75 | 1 |
 | enterobacter_cloacae | ticarcillin | 0.7 | 1 |
-| enterobacter_cloacae | cephalexin | 0.5 | 1 |
-| enterobacter_cloacae | cefazolin | 0.5 | 1 |
-| enterobacter_cloacae | cefuroxime | 0.6 | 1 |
-| enterobacter_cloacae | ceftriaxone | 0.4 | 1 |
-| enterobacter_cloacae | ceftazidime | 0.8 | 1 |
-| enterobacter_cloacae | cefepime | 0.85 | 1 |
-| enterobacter_cloacae | ceftaroline | 0.4 | 1 |
+| enterobacter_cloacae | cephalexin | 0.5 | 0.3 |
+| enterobacter_cloacae | cefazolin | 0.5 | 0.3 |
+| enterobacter_cloacae | cefuroxime | 0.6 | 0.3 |
+| enterobacter_cloacae | ceftriaxone | 0.4 | 0.2 |
+| enterobacter_cloacae | ceftazidime | 0.8 | 0.2 |
+| enterobacter_cloacae | cefepime | 0.85 | 2.5 |
+| enterobacter_cloacae | ceftaroline | 0.1 | 0.002 |
 | enterobacter_cloacae | ceftolozane_tazobactam | 0.8 | 1 |
 | enterobacter_cloacae | cefiderocol | 0.8 | 1 |
-| enterobacter_cloacae | meropenem | 0.95 | 0.005 |
-| enterobacter_cloacae | imipenem_c | 0.95 | 0.005 |
-| enterobacter_cloacae | ertapenem | 0.9 | 0.005 |
-| enterobacter_cloacae | aztreonam | 0.8 | 1 |
+| enterobacter_cloacae | meropenem | 0.95 | 50 |
+| enterobacter_cloacae | imipenem_c | 0.95 | 30 |
+| enterobacter_cloacae | ertapenem | 0.9 | 30 |
+| enterobacter_cloacae | aztreonam | 0.8 | 0.003 |
 | enterobacter_cloacae | erythromycin | 0.1 | 1 |
 | enterobacter_cloacae | azithromycin | 0.1 | 1 |
 | enterobacter_cloacae | clarithromycin | 0.1 | 1 |
 | enterobacter_cloacae | clindamycin | 0.1 | 1 |
-| enterobacter_cloacae | gentamicin | 0.85 | 1 |
+| enterobacter_cloacae | gentamicin | 0.85 | 10 |
 | enterobacter_cloacae | tobramycin | 0.8 | 1 |
 | enterobacter_cloacae | amikacin | 0.9 | 1 |
 | enterobacter_cloacae | ciprofloxacin | 0.9 | 1 |
 | enterobacter_cloacae | levofloxacin | 0.85 | 1 |
 | enterobacter_cloacae | moxifloxacin | 0.7 | 1 |
 | enterobacter_cloacae | ofloxacin | 0.8 | 1 |
-| enterobacter_cloacae | tetracycline | 0.8 | 1 |
-| enterobacter_cloacae | doxycycline | 0.85 | 1 |
-| enterobacter_cloacae | minocycline | 0.85 | 1 |
-| enterobacter_cloacae | tigecycline | 0.1 | 1 |
+| enterobacter_cloacae | tetracycline | 0.8 | 0.25 |
+| enterobacter_cloacae | doxycycline | 0.85 | 0.25 |
+| enterobacter_cloacae | minocycline | 0.85 | 0.25 |
+| enterobacter_cloacae | tigecycline | 0.55 | 1 |
 | enterobacter_cloacae | vancomycin | 0.1 | 1 |
 | enterobacter_cloacae | teicoplanin | 0.1 | 1 |
-| enterobacter_cloacae | dalbavancin | 0.1 | 0.005 |
-| enterobacter_cloacae | linezolid | 0.1 | 0.005 |
-| enterobacter_cloacae | tedizolid | 0.1 | 0.005 |
+| enterobacter_cloacae | dalbavancin | 0.1 | 0.5 |
+| enterobacter_cloacae | linezolid | 0.1 | 0.5 |
+| enterobacter_cloacae | tedizolid | 0.1 | 0.5 |
 | enterobacter_cloacae | daptomycin | 0.1 | 1 |
-| enterobacter_cloacae | quinu_dalfo | 0.1 | 0.005 |
-| enterobacter_cloacae | trim_sulf | 0.85 | 1 |
+| enterobacter_cloacae | quinu_dalfo | 0.1 | 0.5 |
+| enterobacter_cloacae | trim_sulf | 0.85 | 0.04 |
 | enterobacter_cloacae | chloramphenicol | 0.8 | 1 |
 | enterobacter_cloacae | nitrofurantoin | 0.7 | 1 |
-| enterobacter_cloacae | fosfomycin | 0.1 | 1 |
+| enterobacter_cloacae | fosfomycin | 0.5 | 1 |
 | enterobacter_cloacae | retapamulin | 0.05 | 1 |
 | enterobacter_cloacae | fusidic_a | 0.05 | 1 |
 | enterobacter_cloacae | metronidazole | 0.05 | 1 |
 | enterobacter_cloacae | fidaxomicin | 0.1 | 1 |
 | enterobacter_cloacae | furazolidone | 0.1 | 1 |
 | enterobacter_cloacae | rifampicin | 0.6 | 1 |
-| enterobacter_cloacae | amoxicillin_clavulanate | 0.7 | 1 |
-| enterobacter_cloacae | piperacillin_tazobactam | 0.85 | 1 |
+| enterobacter_cloacae | amoxicillin_clavulanate | 0.7 | 6 |
+| enterobacter_cloacae | piperacillin_tazobactam | 0.85 | 10 |
 | enterobacter_cloacae | ampicillin_sulbactam | 0.7 | 1 |
 | enterobacter_cloacae | ticarcillin_clavulanate | 0.8 | 1 |
-| enterobacter_cloacae | ceftazidime_avibactam | 0.9 | 0.005 |
-| enterobacter_cloacae | meropenem_vaborbactam | 0.95 | 0.005 |
-| enterobacter_cloacae | colistin | 0.7 | 0.005 |
+| enterobacter_cloacae | ceftazidime_avibactam | 0.9 | 0.5 |
+| enterobacter_cloacae | meropenem_vaborbactam | 0.95 | 0.5 |
+| enterobacter_cloacae | colistin | 0.7 | 0.5 |
 | enterobacter_cloacae | flucloxacillin | 0.01 | 1 |
-| enterobacter_cloacae | aztreonam_avibactam | 1 | 1 |
-| enterobacter_cloacae | cefixime | 0.8 | 1 |
-| yersinia_enterocolitica | sulfanilamide | 0.5 | 1 |
-| yersinia_enterocolitica | penicillin_g | 0.1 | 1 |
-| yersinia_enterocolitica | ampicillin | 0.7 | 1 |
+| enterobacter_cloacae | aztreonam_avibactam | 1 | 0.003 |
+| enterobacter_cloacae | cefixime | 0.8 | 0.2 |
+| enterobacter_cloacae | nalidixic_acid | 0.5 | 0 |
+| yersinia_enterocolitica | sulfanilamide | 0.5 | 0.02 |
+| yersinia_enterocolitica | penicillin_g | 0.02 | 1 |
+| yersinia_enterocolitica | ampicillin | 0.02 | 1 |
 | yersinia_enterocolitica | amoxicillin | 0.7 | 1 |
 | yersinia_enterocolitica | piperacillin | 0.75 | 1 |
 | yersinia_enterocolitica | ticarcillin | 0.7 | 1 |
-| yersinia_enterocolitica | cephalexin | 0.6 | 1 |
-| yersinia_enterocolitica | cefazolin | 0.65 | 1 |
-| yersinia_enterocolitica | cefuroxime | 0.7 | 1 |
-| yersinia_enterocolitica | ceftriaxone | 0.9 | 1 |
-| yersinia_enterocolitica | ceftazidime | 0.85 | 1 |
-| yersinia_enterocolitica | cefepime | 0.85 | 1 |
-| yersinia_enterocolitica | ceftaroline | 0.6 | 1 |
+| yersinia_enterocolitica | cephalexin | 0.6 | 0.3 |
+| yersinia_enterocolitica | cefazolin | 0.65 | 0.3 |
+| yersinia_enterocolitica | cefuroxime | 0.7 | 0.3 |
+| yersinia_enterocolitica | ceftriaxone | 0.9 | 0.2 |
+| yersinia_enterocolitica | ceftazidime | 0.85 | 0.2 |
+| yersinia_enterocolitica | cefepime | 0.85 | 0.35 |
+| yersinia_enterocolitica | ceftaroline | 0.1 | 0.002 |
 | yersinia_enterocolitica | ceftolozane_tazobactam | 0.75 | 1 |
 | yersinia_enterocolitica | cefiderocol | 0.75 | 1 |
-| yersinia_enterocolitica | meropenem | 0.95 | 0.005 |
-| yersinia_enterocolitica | imipenem_c | 0.95 | 0.005 |
-| yersinia_enterocolitica | ertapenem | 0.95 | 0.005 |
-| yersinia_enterocolitica | aztreonam | 0.85 | 1 |
+| yersinia_enterocolitica | meropenem | 0.95 | 0.5 |
+| yersinia_enterocolitica | imipenem_c | 0.95 | 0.5 |
+| yersinia_enterocolitica | ertapenem | 0.95 | 0.5 |
+| yersinia_enterocolitica | aztreonam | 0.85 | 0.003 |
 | yersinia_enterocolitica | erythromycin | 0.1 | 1 |
 | yersinia_enterocolitica | azithromycin | 0.1 | 1 |
 | yersinia_enterocolitica | clarithromycin | 0.1 | 1 |
@@ -4595,22 +4596,22 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | yersinia_enterocolitica | gentamicin | 0.85 | 1 |
 | yersinia_enterocolitica | tobramycin | 0.8 | 1 |
 | yersinia_enterocolitica | amikacin | 0.9 | 1 |
-| yersinia_enterocolitica | ciprofloxacin | 0.9 | 1 |
+| yersinia_enterocolitica | ciprofloxacin | 0.7 | 1 |
 | yersinia_enterocolitica | levofloxacin | 0.85 | 1 |
 | yersinia_enterocolitica | moxifloxacin | 0.7 | 1 |
 | yersinia_enterocolitica | ofloxacin | 0.8 | 1 |
-| yersinia_enterocolitica | tetracycline | 0.8 | 1 |
-| yersinia_enterocolitica | doxycycline | 0.85 | 1 |
-| yersinia_enterocolitica | minocycline | 0.85 | 1 |
+| yersinia_enterocolitica | tetracycline | 0.8 | 0.25 |
+| yersinia_enterocolitica | doxycycline | 0.75 | 2 |
+| yersinia_enterocolitica | minocycline | 0.85 | 0.25 |
 | yersinia_enterocolitica | tigecycline | 0.7 | 1 |
 | yersinia_enterocolitica | vancomycin | 0.1 | 1 |
 | yersinia_enterocolitica | teicoplanin | 0.1 | 1 |
-| yersinia_enterocolitica | dalbavancin | 0.1 | 0.005 |
-| yersinia_enterocolitica | linezolid | 0.1 | 0.005 |
-| yersinia_enterocolitica | tedizolid | 0.1 | 0.005 |
+| yersinia_enterocolitica | dalbavancin | 0.1 | 0.5 |
+| yersinia_enterocolitica | linezolid | 0.1 | 0.5 |
+| yersinia_enterocolitica | tedizolid | 0.1 | 0.5 |
 | yersinia_enterocolitica | daptomycin | 0.1 | 1 |
-| yersinia_enterocolitica | quinu_dalfo | 0.1 | 0.005 |
-| yersinia_enterocolitica | trim_sulf | 0.95 | 1 |
+| yersinia_enterocolitica | quinu_dalfo | 0.1 | 0.5 |
+| yersinia_enterocolitica | trim_sulf | 0.65 | 0.04 |
 | yersinia_enterocolitica | chloramphenicol | 0.85 | 1 |
 | yersinia_enterocolitica | nitrofurantoin | 0.1 | 1 |
 | yersinia_enterocolitica | fosfomycin | 0.1 | 1 |
@@ -4624,54 +4625,55 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | yersinia_enterocolitica | piperacillin_tazobactam | 0.85 | 1 |
 | yersinia_enterocolitica | ampicillin_sulbactam | 0.8 | 1 |
 | yersinia_enterocolitica | ticarcillin_clavulanate | 0.8 | 1 |
-| yersinia_enterocolitica | ceftazidime_avibactam | 0.95 | 0.005 |
-| yersinia_enterocolitica | meropenem_vaborbactam | 0.95 | 0.005 |
-| yersinia_enterocolitica | colistin | 0.7 | 0.005 |
+| yersinia_enterocolitica | ceftazidime_avibactam | 0.95 | 0.5 |
+| yersinia_enterocolitica | meropenem_vaborbactam | 0.95 | 0.5 |
+| yersinia_enterocolitica | colistin | 0.7 | 0.5 |
 | yersinia_enterocolitica | flucloxacillin | 0.01 | 1 |
-| yersinia_enterocolitica | aztreonam_avibactam | 0.9 | 1 |
-| yersinia_enterocolitica | cefixime | 0.75 | 1 |
-| moraxella_catarrhalis | sulfanilamide | 0.1 | 1 |
+| yersinia_enterocolitica | aztreonam_avibactam | 0.9 | 0.003 |
+| yersinia_enterocolitica | cefixime | 0.75 | 0.2 |
+| yersinia_enterocolitica | nalidixic_acid | 0.6 | 0 |
+| moraxella_catarrhalis | sulfanilamide | 0.1 | 0.02 |
 | moraxella_catarrhalis | penicillin_g | 0.9 | 1 |
 | moraxella_catarrhalis | ampicillin | 0.9 | 1 |
-| moraxella_catarrhalis | amoxicillin | 0.9 | 1 |
+| moraxella_catarrhalis | amoxicillin | 0.9 | 6 |
 | moraxella_catarrhalis | piperacillin | 0.8 | 1 |
 | moraxella_catarrhalis | ticarcillin | 0.8 | 1 |
-| moraxella_catarrhalis | cephalexin | 0.8 | 1 |
-| moraxella_catarrhalis | cefazolin | 0.85 | 1 |
-| moraxella_catarrhalis | cefuroxime | 0.9 | 1 |
-| moraxella_catarrhalis | ceftriaxone | 0.95 | 1 |
-| moraxella_catarrhalis | ceftazidime | 0.9 | 1 |
-| moraxella_catarrhalis | cefepime | 0.9 | 1 |
-| moraxella_catarrhalis | ceftaroline | 0.8 | 1 |
+| moraxella_catarrhalis | cephalexin | 0.8 | 0.3 |
+| moraxella_catarrhalis | cefazolin | 0.85 | 0.3 |
+| moraxella_catarrhalis | cefuroxime | 0.9 | 0.3 |
+| moraxella_catarrhalis | ceftriaxone | 0.95 | 0.2 |
+| moraxella_catarrhalis | ceftazidime | 0.9 | 0.2 |
+| moraxella_catarrhalis | cefepime | 0.9 | 0.35 |
+| moraxella_catarrhalis | ceftaroline | 0.1 | 0.002 |
 | moraxella_catarrhalis | ceftolozane_tazobactam | 0.8 | 1 |
 | moraxella_catarrhalis | cefiderocol | 0.8 | 1 |
-| moraxella_catarrhalis | meropenem | 0.95 | 0.005 |
-| moraxella_catarrhalis | imipenem_c | 0.95 | 0.005 |
-| moraxella_catarrhalis | ertapenem | 0.95 | 0.005 |
-| moraxella_catarrhalis | aztreonam | 0.9 | 1 |
+| moraxella_catarrhalis | meropenem | 0.95 | 0.5 |
+| moraxella_catarrhalis | imipenem_c | 0.95 | 0.5 |
+| moraxella_catarrhalis | ertapenem | 0.95 | 0.5 |
+| moraxella_catarrhalis | aztreonam | 0.9 | 0.003 |
 | moraxella_catarrhalis | erythromycin | 0.8 | 1 |
-| moraxella_catarrhalis | azithromycin | 0.85 | 1 |
-| moraxella_catarrhalis | clarithromycin | 0.8 | 1 |
+| moraxella_catarrhalis | azithromycin | 0.85 | 5 |
+| moraxella_catarrhalis | clarithromycin | 0.8 | 5 |
 | moraxella_catarrhalis | clindamycin | 0.1 | 1 |
 | moraxella_catarrhalis | gentamicin | 0.1 | 1 |
 | moraxella_catarrhalis | tobramycin | 0.1 | 1 |
 | moraxella_catarrhalis | amikacin | 0.1 | 1 |
 | moraxella_catarrhalis | ciprofloxacin | 0.9 | 1 |
-| moraxella_catarrhalis | levofloxacin | 0.85 | 1 |
+| moraxella_catarrhalis | levofloxacin | 0.85 | 4 |
 | moraxella_catarrhalis | moxifloxacin | 0.8 | 1 |
 | moraxella_catarrhalis | ofloxacin | 0.85 | 1 |
-| moraxella_catarrhalis | tetracycline | 0.8 | 1 |
-| moraxella_catarrhalis | doxycycline | 0.8 | 1 |
-| moraxella_catarrhalis | minocycline | 0.85 | 1 |
-| moraxella_catarrhalis | tigecycline | 0.1 | 1 |
+| moraxella_catarrhalis | tetracycline | 0.8 | 0.25 |
+| moraxella_catarrhalis | doxycycline | 0.8 | 0.25 |
+| moraxella_catarrhalis | minocycline | 0.85 | 0.25 |
+| moraxella_catarrhalis | tigecycline | 0.5 | 1 |
 | moraxella_catarrhalis | vancomycin | 0.1 | 1 |
 | moraxella_catarrhalis | teicoplanin | 0.1 | 1 |
-| moraxella_catarrhalis | dalbavancin | 0.1 | 0.005 |
-| moraxella_catarrhalis | linezolid | 0.1 | 0.005 |
-| moraxella_catarrhalis | tedizolid | 0.1 | 0.005 |
+| moraxella_catarrhalis | dalbavancin | 0.1 | 0.5 |
+| moraxella_catarrhalis | linezolid | 0.1 | 0.5 |
+| moraxella_catarrhalis | tedizolid | 0.1 | 0.5 |
 | moraxella_catarrhalis | daptomycin | 0.1 | 1 |
-| moraxella_catarrhalis | quinu_dalfo | 0.1 | 0.005 |
-| moraxella_catarrhalis | trim_sulf | 0.95 | 1 |
+| moraxella_catarrhalis | quinu_dalfo | 0.1 | 0.5 |
+| moraxella_catarrhalis | trim_sulf | 0.95 | 0.04 |
 | moraxella_catarrhalis | chloramphenicol | 0.85 | 1 |
 | moraxella_catarrhalis | nitrofurantoin | 0.1 | 1 |
 | moraxella_catarrhalis | fosfomycin | 0.1 | 1 |
@@ -4681,58 +4683,59 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | moraxella_catarrhalis | fidaxomicin | 0.1 | 1 |
 | moraxella_catarrhalis | furazolidone | 0.1 | 1 |
 | moraxella_catarrhalis | rifampicin | 0.7 | 1 |
-| moraxella_catarrhalis | amoxicillin_clavulanate | 0.95 | 1 |
+| moraxella_catarrhalis | amoxicillin_clavulanate | 0.95 | 16 |
 | moraxella_catarrhalis | piperacillin_tazobactam | 0.85 | 1 |
 | moraxella_catarrhalis | ampicillin_sulbactam | 0.95 | 1 |
 | moraxella_catarrhalis | ticarcillin_clavulanate | 0.85 | 1 |
-| moraxella_catarrhalis | ceftazidime_avibactam | 0.95 | 0.005 |
-| moraxella_catarrhalis | meropenem_vaborbactam | 0.95 | 0.005 |
-| moraxella_catarrhalis | colistin | 0.05 | 0.005 |
+| moraxella_catarrhalis | ceftazidime_avibactam | 0.95 | 0.5 |
+| moraxella_catarrhalis | meropenem_vaborbactam | 0.95 | 0.5 |
+| moraxella_catarrhalis | colistin | 0.05 | 0.5 |
 | moraxella_catarrhalis | flucloxacillin | 0.01 | 1 |
-| moraxella_catarrhalis | aztreonam_avibactam | 0.8 | 1 |
-| moraxella_catarrhalis | cefixime | 0.8 | 1 |
-| treponema_pallidum | sulfanilamide | 0.1 | 1 |
-| treponema_pallidum | penicillin_g | 1 | 1 |
+| moraxella_catarrhalis | aztreonam_avibactam | 0.8 | 0.003 |
+| moraxella_catarrhalis | cefixime | 0.8 | 0.2 |
+| moraxella_catarrhalis | nalidixic_acid | 0 | 0 |
+| treponema_pallidum | sulfanilamide | 0.1 | 0.02 |
+| treponema_pallidum | penicillin_g | 1 | 6 |
 | treponema_pallidum | ampicillin | 0.95 | 1 |
 | treponema_pallidum | amoxicillin | 0.95 | 1 |
 | treponema_pallidum | piperacillin | 0.9 | 1 |
 | treponema_pallidum | ticarcillin | 0.9 | 1 |
-| treponema_pallidum | cephalexin | 0.9 | 1 |
-| treponema_pallidum | cefazolin | 0.9 | 1 |
-| treponema_pallidum | cefuroxime | 0.95 | 1 |
-| treponema_pallidum | ceftriaxone | 0.95 | 1 |
-| treponema_pallidum | ceftazidime | 0.9 | 1 |
-| treponema_pallidum | cefepime | 0.9 | 1 |
-| treponema_pallidum | ceftaroline | 0.9 | 1 |
+| treponema_pallidum | cephalexin | 0.9 | 0.3 |
+| treponema_pallidum | cefazolin | 0.9 | 0.3 |
+| treponema_pallidum | cefuroxime | 0.95 | 0.3 |
+| treponema_pallidum | ceftriaxone | 0.95 | 0.2 |
+| treponema_pallidum | ceftazidime | 0.9 | 0.2 |
+| treponema_pallidum | cefepime | 0.9 | 0.35 |
+| treponema_pallidum | ceftaroline | 0.9 | 0.002 |
 | treponema_pallidum | ceftolozane_tazobactam | 0.1 | 1 |
 | treponema_pallidum | cefiderocol | 0.1 | 1 |
-| treponema_pallidum | meropenem | 0.95 | 0.005 |
-| treponema_pallidum | imipenem_c | 0.95 | 0.005 |
-| treponema_pallidum | ertapenem | 0.95 | 0.005 |
-| treponema_pallidum | aztreonam | 0.9 | 1 |
-| treponema_pallidum | erythromycin | 0.8 | 1 |
-| treponema_pallidum | azithromycin | 0.85 | 1 |
-| treponema_pallidum | clarithromycin | 0.8 | 1 |
+| treponema_pallidum | meropenem | 0.95 | 0.5 |
+| treponema_pallidum | imipenem_c | 0.95 | 0.5 |
+| treponema_pallidum | ertapenem | 0.95 | 0.5 |
+| treponema_pallidum | aztreonam | 0.9 | 0.003 |
+| treponema_pallidum | erythromycin | 0.8 | 0.75 |
+| treponema_pallidum | azithromycin | 0.85 | 0.5 |
+| treponema_pallidum | clarithromycin | 0.8 | 0.25 |
 | treponema_pallidum | clindamycin | 0.1 | 1 |
 | treponema_pallidum | gentamicin | 0.1 | 1 |
 | treponema_pallidum | tobramycin | 0.1 | 1 |
 | treponema_pallidum | amikacin | 0.1 | 1 |
-| treponema_pallidum | ciprofloxacin | 0.7 | 1 |
+| treponema_pallidum | ciprofloxacin | 0.35 | 1 |
 | treponema_pallidum | levofloxacin | 0.75 | 1 |
 | treponema_pallidum | moxifloxacin | 0.75 | 1 |
 | treponema_pallidum | ofloxacin | 0.7 | 1 |
-| treponema_pallidum | tetracycline | 0.8 | 1 |
-| treponema_pallidum | doxycycline | 0.8 | 1 |
-| treponema_pallidum | minocycline | 0.85 | 1 |
+| treponema_pallidum | tetracycline | 0.8 | 0.25 |
+| treponema_pallidum | doxycycline | 0.8 | 2 |
+| treponema_pallidum | minocycline | 0.85 | 0.25 |
 | treponema_pallidum | tigecycline | 0.1 | 1 |
 | treponema_pallidum | vancomycin | 0.1 | 1 |
 | treponema_pallidum | teicoplanin | 0.1 | 1 |
-| treponema_pallidum | dalbavancin | 0.1 | 0.005 |
-| treponema_pallidum | linezolid | 0.1 | 0.005 |
-| treponema_pallidum | tedizolid | 0.1 | 0.005 |
+| treponema_pallidum | dalbavancin | 0.1 | 0.5 |
+| treponema_pallidum | linezolid | 0.1 | 0.5 |
+| treponema_pallidum | tedizolid | 0.1 | 0.5 |
 | treponema_pallidum | daptomycin | 0.1 | 1 |
-| treponema_pallidum | quinu_dalfo | 0.1 | 0.005 |
-| treponema_pallidum | trim_sulf | 0.1 | 1 |
+| treponema_pallidum | quinu_dalfo | 0.1 | 0.5 |
+| treponema_pallidum | trim_sulf | 0.1 | 0.04 |
 | treponema_pallidum | chloramphenicol | 0.8 | 1 |
 | treponema_pallidum | nitrofurantoin | 0.1 | 1 |
 | treponema_pallidum | fosfomycin | 0.1 | 1 |
@@ -4746,34 +4749,35 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | treponema_pallidum | piperacillin_tazobactam | 0.9 | 1 |
 | treponema_pallidum | ampicillin_sulbactam | 0.95 | 1 |
 | treponema_pallidum | ticarcillin_clavulanate | 0.9 | 1 |
-| treponema_pallidum | ceftazidime_avibactam | 0.95 | 0.005 |
-| treponema_pallidum | meropenem_vaborbactam | 0.95 | 0.005 |
-| treponema_pallidum | colistin | 0.05 | 0.005 |
+| treponema_pallidum | ceftazidime_avibactam | 0.95 | 0.5 |
+| treponema_pallidum | meropenem_vaborbactam | 0.95 | 0.5 |
+| treponema_pallidum | colistin | 0.05 | 0.5 |
 | treponema_pallidum | flucloxacillin | 0.01 | 1 |
-| treponema_pallidum | aztreonam_avibactam | 0.9 | 1 |
-| treponema_pallidum | cefixime | 0.1 | 1 |
-| bordetella_pertussis | sulfanilamide | 0.1 | 1 |
+| treponema_pallidum | aztreonam_avibactam | 0.9 | 0.003 |
+| treponema_pallidum | cefixime | 0.1 | 0.2 |
+| treponema_pallidum | nalidixic_acid | 0 | 0 |
+| bordetella_pertussis | sulfanilamide | 0.1 | 0.02 |
 | bordetella_pertussis | penicillin_g | 0.1 | 1 |
 | bordetella_pertussis | ampicillin | 0.1 | 1 |
 | bordetella_pertussis | amoxicillin | 0.1 | 1 |
 | bordetella_pertussis | piperacillin | 0.1 | 1 |
 | bordetella_pertussis | ticarcillin | 0.1 | 1 |
-| bordetella_pertussis | cephalexin | 0.1 | 1 |
-| bordetella_pertussis | cefazolin | 0.1 | 1 |
-| bordetella_pertussis | cefuroxime | 0.1 | 1 |
-| bordetella_pertussis | ceftriaxone | 0.1 | 1 |
-| bordetella_pertussis | ceftazidime | 0.1 | 1 |
-| bordetella_pertussis | cefepime | 0.1 | 1 |
-| bordetella_pertussis | ceftaroline | 0.1 | 1 |
+| bordetella_pertussis | cephalexin | 0.1 | 0.3 |
+| bordetella_pertussis | cefazolin | 0.1 | 0.3 |
+| bordetella_pertussis | cefuroxime | 0.1 | 0.3 |
+| bordetella_pertussis | ceftriaxone | 0.1 | 0.2 |
+| bordetella_pertussis | ceftazidime | 0.1 | 0.2 |
+| bordetella_pertussis | cefepime | 0.1 | 0.35 |
+| bordetella_pertussis | ceftaroline | 0.1 | 0.002 |
 | bordetella_pertussis | ceftolozane_tazobactam | 0.8 | 1 |
 | bordetella_pertussis | cefiderocol | 0.8 | 1 |
-| bordetella_pertussis | meropenem | 0.1 | 0.005 |
-| bordetella_pertussis | imipenem_c | 0.1 | 0.005 |
-| bordetella_pertussis | ertapenem | 0.1 | 0.005 |
-| bordetella_pertussis | aztreonam | 0.1 | 1 |
-| bordetella_pertussis | erythromycin | 0.9 | 1 |
-| bordetella_pertussis | azithromycin | 0.95 | 1 |
-| bordetella_pertussis | clarithromycin | 0.9 | 1 |
+| bordetella_pertussis | meropenem | 0.1 | 0.5 |
+| bordetella_pertussis | imipenem_c | 0.1 | 0.5 |
+| bordetella_pertussis | ertapenem | 0.1 | 0.5 |
+| bordetella_pertussis | aztreonam | 0.1 | 0.003 |
+| bordetella_pertussis | erythromycin | 0.9 | 7 |
+| bordetella_pertussis | azithromycin | 0.95 | 8 |
+| bordetella_pertussis | clarithromycin | 0.9 | 7 |
 | bordetella_pertussis | clindamycin | 0.1 | 1 |
 | bordetella_pertussis | gentamicin | 0.7 | 1 |
 | bordetella_pertussis | tobramycin | 0.7 | 1 |
@@ -4782,18 +4786,18 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bordetella_pertussis | levofloxacin | 0.75 | 1 |
 | bordetella_pertussis | moxifloxacin | 0.75 | 1 |
 | bordetella_pertussis | ofloxacin | 0.7 | 1 |
-| bordetella_pertussis | tetracycline | 0.7 | 1 |
-| bordetella_pertussis | doxycycline | 0.75 | 1 |
-| bordetella_pertussis | minocycline | 0.75 | 1 |
+| bordetella_pertussis | tetracycline | 0.7 | 0.25 |
+| bordetella_pertussis | doxycycline | 0.75 | 1.5 |
+| bordetella_pertussis | minocycline | 0.75 | 0.25 |
 | bordetella_pertussis | tigecycline | 0.1 | 1 |
 | bordetella_pertussis | vancomycin | 0.1 | 1 |
 | bordetella_pertussis | teicoplanin | 0.1 | 1 |
-| bordetella_pertussis | dalbavancin | 0.1 | 0.005 |
-| bordetella_pertussis | linezolid | 0.1 | 0.005 |
-| bordetella_pertussis | tedizolid | 0.1 | 0.005 |
+| bordetella_pertussis | dalbavancin | 0.1 | 0.5 |
+| bordetella_pertussis | linezolid | 0.1 | 0.5 |
+| bordetella_pertussis | tedizolid | 0.1 | 0.5 |
 | bordetella_pertussis | daptomycin | 0.1 | 1 |
-| bordetella_pertussis | quinu_dalfo | 0.1 | 0.005 |
-| bordetella_pertussis | trim_sulf | 0.7 | 1 |
+| bordetella_pertussis | quinu_dalfo | 0.1 | 0.5 |
+| bordetella_pertussis | trim_sulf | 0.7 | 0.03 |
 | bordetella_pertussis | chloramphenicol | 0.8 | 1 |
 | bordetella_pertussis | nitrofurantoin | 0.1 | 1 |
 | bordetella_pertussis | fosfomycin | 0.1 | 1 |
@@ -4807,34 +4811,35 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bordetella_pertussis | piperacillin_tazobactam | 0.1 | 1 |
 | bordetella_pertussis | ampicillin_sulbactam | 0.1 | 1 |
 | bordetella_pertussis | ticarcillin_clavulanate | 0.1 | 1 |
-| bordetella_pertussis | ceftazidime_avibactam | 0.1 | 0.005 |
-| bordetella_pertussis | meropenem_vaborbactam | 0.1 | 0.005 |
-| bordetella_pertussis | colistin | 0.05 | 0.005 |
+| bordetella_pertussis | ceftazidime_avibactam | 0.1 | 0.5 |
+| bordetella_pertussis | meropenem_vaborbactam | 0.1 | 0.5 |
+| bordetella_pertussis | colistin | 0.05 | 0.5 |
 | bordetella_pertussis | flucloxacillin | 0.01 | 1 |
-| bordetella_pertussis | aztreonam_avibactam | 0.8 | 1 |
-| bordetella_pertussis | cefixime | 0.8 | 1 |
-| helicobacter_pylori | sulfanilamide | 0.1 | 1 |
-| helicobacter_pylori | penicillin_g | 0.1 | 1 |
+| bordetella_pertussis | aztreonam_avibactam | 0.8 | 0.003 |
+| bordetella_pertussis | cefixime | 0.8 | 0.2 |
+| bordetella_pertussis | nalidixic_acid | 0 | 0 |
+| helicobacter_pylori | sulfanilamide | 0.1 | 0.02 |
+| helicobacter_pylori | penicillin_g | 0.05 | 1 |
 | helicobacter_pylori | ampicillin | 0.7 | 1 |
 | helicobacter_pylori | amoxicillin | 0.85 | 12 |
 | helicobacter_pylori | piperacillin | 0.1 | 1 |
 | helicobacter_pylori | ticarcillin | 0.1 | 1 |
-| helicobacter_pylori | cephalexin | 0.1 | 1 |
-| helicobacter_pylori | cefazolin | 0.1 | 1 |
-| helicobacter_pylori | cefuroxime | 0.1 | 1 |
-| helicobacter_pylori | ceftriaxone | 0.1 | 1 |
-| helicobacter_pylori | ceftazidime | 0.1 | 1 |
-| helicobacter_pylori | cefepime | 0.1 | 1 |
-| helicobacter_pylori | ceftaroline | 0.1 | 1 |
+| helicobacter_pylori | cephalexin | 0.05 | 0.3 |
+| helicobacter_pylori | cefazolin | 0.1 | 0.3 |
+| helicobacter_pylori | cefuroxime | 0.1 | 0.3 |
+| helicobacter_pylori | ceftriaxone | 0.1 | 0.2 |
+| helicobacter_pylori | ceftazidime | 0.1 | 0.2 |
+| helicobacter_pylori | cefepime | 0.1 | 0.35 |
+| helicobacter_pylori | ceftaroline | 0.1 | 0.002 |
 | helicobacter_pylori | ceftolozane_tazobactam | 0.05 | 1 |
 | helicobacter_pylori | cefiderocol | 0.05 | 1 |
-| helicobacter_pylori | meropenem | 0.1 | 0.005 |
-| helicobacter_pylori | imipenem_c | 0.1 | 0.005 |
-| helicobacter_pylori | ertapenem | 0.1 | 0.005 |
-| helicobacter_pylori | aztreonam | 0.1 | 1 |
+| helicobacter_pylori | meropenem | 0.1 | 0.5 |
+| helicobacter_pylori | imipenem_c | 0.1 | 0.5 |
+| helicobacter_pylori | ertapenem | 0.1 | 0.5 |
+| helicobacter_pylori | aztreonam | 0.1 | 0.003 |
 | helicobacter_pylori | erythromycin | 0.8 | 1 |
 | helicobacter_pylori | azithromycin | 0.85 | 1 |
-| helicobacter_pylori | clarithromycin | 0.8 | 15 |
+| helicobacter_pylori | clarithromycin | 0.8 | 3 |
 | helicobacter_pylori | clindamycin | 0.1 | 1 |
 | helicobacter_pylori | gentamicin | 0.1 | 1 |
 | helicobacter_pylori | tobramycin | 0.1 | 1 |
@@ -4843,80 +4848,76 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | helicobacter_pylori | levofloxacin | 0.7 | 5 |
 | helicobacter_pylori | moxifloxacin | 0.75 | 1 |
 | helicobacter_pylori | ofloxacin | 0.7 | 1 |
-| helicobacter_pylori | tetracycline | 0.8 | 6 |
-| helicobacter_pylori | doxycycline | 0.8 | 1 |
-| helicobacter_pylori | minocycline | 0.85 | 1 |
+| helicobacter_pylori | tetracycline | 0.8 | 2 |
+| helicobacter_pylori | doxycycline | 0.8 | 0.25 |
+| helicobacter_pylori | minocycline | 0.85 | 0.25 |
 | helicobacter_pylori | tigecycline | 0.1 | 1 |
 | helicobacter_pylori | vancomycin | 0.1 | 1 |
 | helicobacter_pylori | teicoplanin | 0.1 | 1 |
-| helicobacter_pylori | dalbavancin | 0.1 | 0.005 |
-| helicobacter_pylori | linezolid | 0.1 | 0.005 |
-| helicobacter_pylori | tedizolid | 0.1 | 0.005 |
+| helicobacter_pylori | dalbavancin | 0.1 | 0.5 |
+| helicobacter_pylori | linezolid | 0.1 | 0.5 |
+| helicobacter_pylori | tedizolid | 0.1 | 0.5 |
 | helicobacter_pylori | daptomycin | 0.1 | 1 |
-| helicobacter_pylori | quinu_dalfo | 0.1 | 0.005 |
-| helicobacter_pylori | trim_sulf | 0.1 | 1 |
+| helicobacter_pylori | quinu_dalfo | 0.1 | 0.5 |
+| helicobacter_pylori | trim_sulf | 0.1 | 0.04 |
 | helicobacter_pylori | chloramphenicol | 0.7 | 1 |
 | helicobacter_pylori | nitrofurantoin | 0.1 | 1 |
 | helicobacter_pylori | fosfomycin | 0.1 | 1 |
 | helicobacter_pylori | retapamulin | 0.05 | 1 |
 | helicobacter_pylori | fusidic_a | 0.05 | 1 |
-| helicobacter_pylori | metronidazole | 0.8 | 8 |
+| helicobacter_pylori | metronidazole | 0.8 | 10 |
 | helicobacter_pylori | fidaxomicin | 0.1 | 1 |
-| helicobacter_pylori | furazolidone | 0.1 | 1 |
+| helicobacter_pylori | furazolidone | 0.1 | 6 |
 | helicobacter_pylori | rifampicin | 0.1 | 1 |
 | helicobacter_pylori | amoxicillin_clavulanate | 0.85 | 1 |
 | helicobacter_pylori | piperacillin_tazobactam | 0.1 | 1 |
 | helicobacter_pylori | ampicillin_sulbactam | 0.7 | 1 |
 | helicobacter_pylori | ticarcillin_clavulanate | 0.1 | 1 |
-| helicobacter_pylori | ceftazidime_avibactam | 0.1 | 0.005 |
-| helicobacter_pylori | meropenem_vaborbactam | 0.1 | 0.005 |
-| helicobacter_pylori | colistin | 0.05 | 0.005 |
+| helicobacter_pylori | ceftazidime_avibactam | 0.1 | 0.5 |
+| helicobacter_pylori | meropenem_vaborbactam | 0.1 | 0.5 |
+| helicobacter_pylori | colistin | 0.05 | 0.5 |
 | helicobacter_pylori | flucloxacillin | 0.01 | 1 |
-| helicobacter_pylori | aztreonam_avibactam | 0.01 | 1 |
-| helicobacter_pylori | cefixime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | sulfanilamide | 0.1 | 1 |
+| helicobacter_pylori | aztreonam_avibactam | 0.01 | 0.003 |
+| helicobacter_pylori | cefixime | 0.05 | 0.2 |
+| helicobacter_pylori | nalidixic_acid | 0 | 0 |
+| mdr_mycobacterium_tuberculosis | sulfanilamide | 0.1 | 0.02 |
 | mdr_mycobacterium_tuberculosis | penicillin_g | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ampicillin | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | amoxicillin | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | piperacillin | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ticarcillin | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cephalexin | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cefazolin | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cefuroxime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftriaxone | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftazidime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cefepime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftaroline | 0.05 | 1 |
+| mdr_mycobacterium_tuberculosis | cephalexin | 0.05 | 0.3 |
+| mdr_mycobacterium_tuberculosis | cefazolin | 0.05 | 0.3 |
+| mdr_mycobacterium_tuberculosis | cefuroxime | 0.05 | 0.3 |
+| mdr_mycobacterium_tuberculosis | ceftriaxone | 0.05 | 0.2 |
+| mdr_mycobacterium_tuberculosis | ceftazidime | 0.05 | 0.2 |
+| mdr_mycobacterium_tuberculosis | cefepime | 0.05 | 0.35 |
+| mdr_mycobacterium_tuberculosis | ceftaroline | 0.05 | 0.002 |
 | mdr_mycobacterium_tuberculosis | ceftolozane_tazobactam | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | cefiderocol | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | meropenem | 0.2 | 0.005 |
-| mdr_mycobacterium_tuberculosis | imipenem_c | 0.2 | 0.005 |
-| mdr_mycobacterium_tuberculosis | ertapenem | 0.2 | 0.005 |
-| mdr_mycobacterium_tuberculosis | aztreonam | 0.2 | 1 |
-| mdr_mycobacterium_tuberculosis | erythromycin | 0.2 | 1 |
-| mdr_mycobacterium_tuberculosis | azithromycin | 0.25 | 1 |
-| mdr_mycobacterium_tuberculosis | clarithromycin | 0.2 | 1 |
-| mdr_mycobacterium_tuberculosis | clindamycin | 0.2 | 1 |
-| mdr_mycobacterium_tuberculosis | gentamicin | 0.25 | 1 |
-| mdr_mycobacterium_tuberculosis | tobramycin | 0.25 | 1 |
+| mdr_mycobacterium_tuberculosis | meropenem | 0.05 | 0.5 |
+| mdr_mycobacterium_tuberculosis | imipenem_c | 0.2 | 0.5 |
+| mdr_mycobacterium_tuberculosis | ertapenem | 0.2 | 0.5 |
+| mdr_mycobacterium_tuberculosis | aztreonam | 0.2 | 0.003 |
+| mdr_mycobacterium_tuberculosis | gentamicin | 0.15 | 1 |
+| mdr_mycobacterium_tuberculosis | tobramycin | 0.15 | 1 |
 | mdr_mycobacterium_tuberculosis | amikacin | 0.3 | 1 |
-| mdr_mycobacterium_tuberculosis | ciprofloxacin | 0.4 | 1 |
-| mdr_mycobacterium_tuberculosis | levofloxacin | 0.45 | 1 |
-| mdr_mycobacterium_tuberculosis | moxifloxacin | 0.45 | 1 |
-| mdr_mycobacterium_tuberculosis | ofloxacin | 0.4 | 1 |
-| mdr_mycobacterium_tuberculosis | tetracycline | 0.3 | 1 |
-| mdr_mycobacterium_tuberculosis | doxycycline | 0.35 | 1 |
-| mdr_mycobacterium_tuberculosis | minocycline | 0.35 | 1 |
+| mdr_mycobacterium_tuberculosis | ciprofloxacin | 0.3 | 1 |
+| mdr_mycobacterium_tuberculosis | levofloxacin | 0.4 | 1 |
+| mdr_mycobacterium_tuberculosis | moxifloxacin | 0.5 | 1 |
+| mdr_mycobacterium_tuberculosis | ofloxacin | 0.35 | 1 |
+| mdr_mycobacterium_tuberculosis | tetracycline | 0 | 0.25 |
+| mdr_mycobacterium_tuberculosis | doxycycline | 0 | 0.25 |
+| mdr_mycobacterium_tuberculosis | minocycline | 0 | 0.25 |
 | mdr_mycobacterium_tuberculosis | tigecycline | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | vancomycin | 0.1 | 1 |
+| mdr_mycobacterium_tuberculosis | vancomycin | 0.08 | 1 |
 | mdr_mycobacterium_tuberculosis | teicoplanin | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | dalbavancin | 0.1 | 0.005 |
-| mdr_mycobacterium_tuberculosis | linezolid | 0.1 | 0.005 |
-| mdr_mycobacterium_tuberculosis | tedizolid | 0.1 | 0.005 |
+| mdr_mycobacterium_tuberculosis | dalbavancin | 0.1 | 0.5 |
+| mdr_mycobacterium_tuberculosis | linezolid | 0.3 | 0.5 |
+| mdr_mycobacterium_tuberculosis | tedizolid | 0.1 | 0.5 |
 | mdr_mycobacterium_tuberculosis | daptomycin | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | quinu_dalfo | 0.1 | 0.005 |
-| mdr_mycobacterium_tuberculosis | trim_sulf | 0.2 | 1 |
-| mdr_mycobacterium_tuberculosis | chloramphenicol | 0.2 | 1 |
+| mdr_mycobacterium_tuberculosis | quinu_dalfo | 0.1 | 0.5 |
+| mdr_mycobacterium_tuberculosis | trim_sulf | 0 | 0.04 |
 | mdr_mycobacterium_tuberculosis | nitrofurantoin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | fosfomycin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | retapamulin | 0.1 | 1 |
@@ -4924,59 +4925,58 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | metronidazole | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | fidaxomicin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | furazolidone | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | rifampicin | 0.05 | 1 |
+| mdr_mycobacterium_tuberculosis | rifampicin | 0.6 | 1 |
 | mdr_mycobacterium_tuberculosis | amoxicillin_clavulanate | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | piperacillin_tazobactam | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ampicillin_sulbactam | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ticarcillin_clavulanate | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftazidime_avibactam | 0.05 | 0.005 |
-| mdr_mycobacterium_tuberculosis | meropenem_vaborbactam | 0.2 | 0.005 |
-| mdr_mycobacterium_tuberculosis | colistin | 0.2 | 0.005 |
+| mdr_mycobacterium_tuberculosis | ceftazidime_avibactam | 0.05 | 0.5 |
+| mdr_mycobacterium_tuberculosis | meropenem_vaborbactam | 0.2 | 0.5 |
+| mdr_mycobacterium_tuberculosis | colistin | 0.05 | 0.5 |
 | mdr_mycobacterium_tuberculosis | flucloxacillin | 0.01 | 1 |
-| mdr_mycobacterium_tuberculosis | aztreonam_avibactam | 0.9 | 1 |
-| mdr_mycobacterium_tuberculosis | cefixime | 0.1 | 1 |
-| mycoplasma_pneumoniae | sulfanilamide | 0.05 | 1 |
-| mycoplasma_pneumoniae | penicillin_g | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | ampicillin | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | amoxicillin | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | piperacillin | 0.05 | 1 |
-| mycoplasma_pneumoniae | ticarcillin | 0.05 | 1 |
-| mycoplasma_pneumoniae | cephalexin | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | cefazolin | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | cefuroxime | 0.05 | 1 |
-| mycoplasma_pneumoniae | ceftriaxone | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | ceftazidime | 0.05 | 1 |
-| mycoplasma_pneumoniae | cefepime | 0.05 | 1 |
-| mycoplasma_pneumoniae | ceftaroline | 0.05 | 1 |
+| mdr_mycobacterium_tuberculosis | aztreonam_avibactam | 0.05 | 0.003 |
+| mdr_mycobacterium_tuberculosis | cefixime | 0.1 | 0.2 |
+| mdr_mycobacterium_tuberculosis | nalidixic_acid | 0 | 0 |
+| mycoplasma_pneumoniae | sulfanilamide | 0.05 | 0.02 |
+| mycoplasma_pneumoniae | penicillin_g | 0 | 0.001 |
+| mycoplasma_pneumoniae | ampicillin | 0 | 0.001 |
+| mycoplasma_pneumoniae | amoxicillin | 0 | 0.001 |
+| mycoplasma_pneumoniae | cephalexin | 0 | 0.3 |
+| mycoplasma_pneumoniae | cefazolin | 0 | 0.3 |
+| mycoplasma_pneumoniae | cefuroxime | 0 | 0.3 |
+| mycoplasma_pneumoniae | ceftriaxone | 0 | 0.2 |
+| mycoplasma_pneumoniae | ceftazidime | 0 | 0.2 |
+| mycoplasma_pneumoniae | cefepime | 0 | 0.35 |
+| mycoplasma_pneumoniae | ceftaroline | 0 | 0.002 |
 | mycoplasma_pneumoniae | ceftolozane_tazobactam | 0.01 | 1 |
 | mycoplasma_pneumoniae | cefiderocol | 0.01 | 1 |
-| mycoplasma_pneumoniae | meropenem | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | imipenem_c | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | ertapenem | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | aztreonam | 0.05 | 1 |
+| mycoplasma_pneumoniae | meropenem | 0 | 0.001 |
+| mycoplasma_pneumoniae | imipenem_c | 0 | 0.5 |
+| mycoplasma_pneumoniae | ertapenem | 0 | 0.001 |
+| mycoplasma_pneumoniae | aztreonam | 0 | 0.003 |
 | mycoplasma_pneumoniae | erythromycin | 0.8 | 1 |
-| mycoplasma_pneumoniae | azithromycin | 0.85 | 1 |
-| mycoplasma_pneumoniae | clarithromycin | 0.8 | 1 |
+| mycoplasma_pneumoniae | azithromycin | 0.85 | 8 |
+| mycoplasma_pneumoniae | clarithromycin | 0.8 | 7 |
 | mycoplasma_pneumoniae | clindamycin | 0.05 | 1 |
 | mycoplasma_pneumoniae | gentamicin | 0.05 | 1 |
 | mycoplasma_pneumoniae | tobramycin | 0.05 | 1 |
 | mycoplasma_pneumoniae | amikacin | 0.05 | 1 |
 | mycoplasma_pneumoniae | ciprofloxacin | 0.7 | 1 |
-| mycoplasma_pneumoniae | levofloxacin | 0.75 | 1 |
-| mycoplasma_pneumoniae | moxifloxacin | 0.8 | 1 |
+| mycoplasma_pneumoniae | levofloxacin | 0.75 | 4 |
+| mycoplasma_pneumoniae | moxifloxacin | 0.8 | 4 |
 | mycoplasma_pneumoniae | ofloxacin | 0.6 | 1 |
-| mycoplasma_pneumoniae | tetracycline | 0.7 | 1 |
-| mycoplasma_pneumoniae | doxycycline | 0.75 | 1 |
-| mycoplasma_pneumoniae | minocycline | 0.8 | 1 |
+| mycoplasma_pneumoniae | tetracycline | 0.7 | 0.25 |
+| mycoplasma_pneumoniae | doxycycline | 0.75 | 1.5 |
+| mycoplasma_pneumoniae | minocycline | 0.8 | 0.25 |
 | mycoplasma_pneumoniae | tigecycline | 0.85 | 1 |
 | mycoplasma_pneumoniae | vancomycin | 0.05 | 1 |
 | mycoplasma_pneumoniae | teicoplanin | 0.05 | 1 |
-| mycoplasma_pneumoniae | dalbavancin | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | linezolid | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | tedizolid | 0.05 | 0.005 |
+| mycoplasma_pneumoniae | dalbavancin | 0.05 | 0.5 |
+| mycoplasma_pneumoniae | linezolid | 0.05 | 0.5 |
+| mycoplasma_pneumoniae | tedizolid | 0.05 | 0.5 |
 | mycoplasma_pneumoniae | daptomycin | 0.1 | 1 |
-| mycoplasma_pneumoniae | quinu_dalfo | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | trim_sulf | 0.05 | 1 |
+| mycoplasma_pneumoniae | quinu_dalfo | 0.05 | 0.5 |
+| mycoplasma_pneumoniae | trim_sulf | 0.05 | 0.04 |
 | mycoplasma_pneumoniae | chloramphenicol | 0.05 | 1 |
 | mycoplasma_pneumoniae | nitrofurantoin | 0.05 | 1 |
 | mycoplasma_pneumoniae | fosfomycin | 0.1 | 1 |
@@ -4986,35 +4986,32 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_pneumoniae | fidaxomicin | 0.1 | 1 |
 | mycoplasma_pneumoniae | furazolidone | 0.05 | 1 |
 | mycoplasma_pneumoniae | rifampicin | 0.05 | 1 |
-| mycoplasma_pneumoniae | amoxicillin_clavulanate | 0.05 | 1 |
-| mycoplasma_pneumoniae | piperacillin_tazobactam | 0.05 | 1 |
-| mycoplasma_pneumoniae | ampicillin_sulbactam | 0.05 | 1 |
-| mycoplasma_pneumoniae | ticarcillin_clavulanate | 0.05 | 1 |
-| mycoplasma_pneumoniae | ceftazidime_avibactam | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | meropenem_vaborbactam | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | colistin | 0.05 | 0.005 |
+| mycoplasma_pneumoniae | ceftazidime_avibactam | 0 | 0.5 |
+| mycoplasma_pneumoniae | meropenem_vaborbactam | 0 | 0.5 |
+| mycoplasma_pneumoniae | colistin | 0.05 | 0.5 |
 | mycoplasma_pneumoniae | flucloxacillin | 0.01 | 1 |
-| mycoplasma_pneumoniae | aztreonam_avibactam | 0.01 | 1 |
-| mycoplasma_pneumoniae | cefixime | 0.01 | 1 |
-| legionella_pneumophila | sulfanilamide | 0.05 | 1 |
+| mycoplasma_pneumoniae | aztreonam_avibactam | 0.01 | 0.003 |
+| mycoplasma_pneumoniae | cefixime | 0.01 | 0.2 |
+| mycoplasma_pneumoniae | nalidixic_acid | 0 | 0 |
+| legionella_pneumophila | sulfanilamide | 0.05 | 0.02 |
 | legionella_pneumophila | penicillin_g | 0.05 | 0.001 |
 | legionella_pneumophila | ampicillin | 0.05 | 0.001 |
 | legionella_pneumophila | amoxicillin | 0.05 | 0.001 |
 | legionella_pneumophila | piperacillin | 0.05 | 1 |
 | legionella_pneumophila | ticarcillin | 0.05 | 1 |
-| legionella_pneumophila | cephalexin | 0.05 | 0.001 |
-| legionella_pneumophila | cefazolin | 0.05 | 0.001 |
-| legionella_pneumophila | cefuroxime | 0.05 | 1 |
-| legionella_pneumophila | ceftriaxone | 0.05 | 0.001 |
-| legionella_pneumophila | ceftazidime | 0.05 | 1 |
-| legionella_pneumophila | cefepime | 0.05 | 1 |
-| legionella_pneumophila | ceftaroline | 0.05 | 1 |
+| legionella_pneumophila | cephalexin | 0.05 | 0.3 |
+| legionella_pneumophila | cefazolin | 0.05 | 0.3 |
+| legionella_pneumophila | cefuroxime | 0.05 | 0.3 |
+| legionella_pneumophila | ceftriaxone | 0.05 | 0.2 |
+| legionella_pneumophila | ceftazidime | 0.05 | 0.2 |
+| legionella_pneumophila | cefepime | 0.05 | 0.35 |
+| legionella_pneumophila | ceftaroline | 0.05 | 0.002 |
 | legionella_pneumophila | ceftolozane_tazobactam | 0.05 | 1 |
 | legionella_pneumophila | cefiderocol | 0.05 | 1 |
 | legionella_pneumophila | meropenem | 0.05 | 0.001 |
-| legionella_pneumophila | imipenem_c | 0.05 | 0.005 |
+| legionella_pneumophila | imipenem_c | 0.05 | 0.5 |
 | legionella_pneumophila | ertapenem | 0.05 | 0.001 |
-| legionella_pneumophila | aztreonam | 0.8 | 1 |
+| legionella_pneumophila | aztreonam | 0.05 | 0.003 |
 | legionella_pneumophila | erythromycin | 0.8 | 1 |
 | legionella_pneumophila | azithromycin | 0.9 | 1 |
 | legionella_pneumophila | clarithromycin | 0.8 | 1 |
@@ -5023,21 +5020,21 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | tobramycin | 0.05 | 1 |
 | legionella_pneumophila | amikacin | 0.05 | 1 |
 | legionella_pneumophila | ciprofloxacin | 0.9 | 1 |
-| legionella_pneumophila | levofloxacin | 0.95 | 1 |
+| legionella_pneumophila | levofloxacin | 0.95 | 6 |
 | legionella_pneumophila | moxifloxacin | 0.9 | 1 |
 | legionella_pneumophila | ofloxacin | 0.7 | 1 |
-| legionella_pneumophila | tetracycline | 0.8 | 1 |
-| legionella_pneumophila | doxycycline | 0.85 | 1 |
-| legionella_pneumophila | minocycline | 0.9 | 1 |
+| legionella_pneumophila | tetracycline | 0.8 | 0.25 |
+| legionella_pneumophila | doxycycline | 0.85 | 2 |
+| legionella_pneumophila | minocycline | 0.9 | 0.25 |
 | legionella_pneumophila | tigecycline | 0.1 | 1 |
 | legionella_pneumophila | vancomycin | 0.05 | 1 |
 | legionella_pneumophila | teicoplanin | 0.05 | 1 |
-| legionella_pneumophila | dalbavancin | 0.05 | 0.005 |
-| legionella_pneumophila | linezolid | 0.05 | 0.005 |
-| legionella_pneumophila | tedizolid | 0.05 | 0.005 |
+| legionella_pneumophila | dalbavancin | 0.05 | 0.5 |
+| legionella_pneumophila | linezolid | 0.05 | 0.5 |
+| legionella_pneumophila | tedizolid | 0.05 | 0.5 |
 | legionella_pneumophila | daptomycin | 0.1 | 1 |
-| legionella_pneumophila | quinu_dalfo | 0.05 | 0.005 |
-| legionella_pneumophila | trim_sulf | 0.05 | 1 |
+| legionella_pneumophila | quinu_dalfo | 0.05 | 0.5 |
+| legionella_pneumophila | trim_sulf | 0.05 | 0.04 |
 | legionella_pneumophila | chloramphenicol | 0.05 | 1 |
 | legionella_pneumophila | nitrofurantoin | 0.05 | 1 |
 | legionella_pneumophila | fosfomycin | 0.1 | 1 |
@@ -5046,56 +5043,57 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | metronidazole | 0.05 | 1 |
 | legionella_pneumophila | fidaxomicin | 0.1 | 1 |
 | legionella_pneumophila | furazolidone | 0.05 | 1 |
-| legionella_pneumophila | rifampicin | 0.05 | 1 |
+| legionella_pneumophila | rifampicin | 0.55 | 1 |
 | legionella_pneumophila | amoxicillin_clavulanate | 0.05 | 1 |
 | legionella_pneumophila | piperacillin_tazobactam | 0.05 | 1 |
 | legionella_pneumophila | ampicillin_sulbactam | 0.05 | 1 |
 | legionella_pneumophila | ticarcillin_clavulanate | 0.05 | 1 |
-| legionella_pneumophila | ceftazidime_avibactam | 0.05 | 0.005 |
-| legionella_pneumophila | meropenem_vaborbactam | 0.05 | 0.005 |
-| legionella_pneumophila | colistin | 0.05 | 0.005 |
+| legionella_pneumophila | ceftazidime_avibactam | 0.05 | 0.5 |
+| legionella_pneumophila | meropenem_vaborbactam | 0.05 | 0.5 |
+| legionella_pneumophila | colistin | 0.05 | 0.5 |
 | legionella_pneumophila | flucloxacillin | 0.01 | 1 |
-| legionella_pneumophila | aztreonam_avibactam | 0.01 | 1 |
-| legionella_pneumophila | cefixime | 0.8 | 1 |
-| burkholderia_cepacia_complex | sulfanilamide | 0.1 | 1 |
+| legionella_pneumophila | aztreonam_avibactam | 0.01 | 0.003 |
+| legionella_pneumophila | cefixime | 0.8 | 0.2 |
+| legionella_pneumophila | nalidixic_acid | 0 | 0 |
+| burkholderia_cepacia_complex | sulfanilamide | 0.1 | 0.02 |
 | burkholderia_cepacia_complex | penicillin_g | 0.05 | 1 |
 | burkholderia_cepacia_complex | ampicillin | 0.05 | 1 |
 | burkholderia_cepacia_complex | amoxicillin | 0.05 | 1 |
 | burkholderia_cepacia_complex | piperacillin | 0.6 | 1 |
 | burkholderia_cepacia_complex | ticarcillin | 0.5 | 1 |
-| burkholderia_cepacia_complex | cephalexin | 0.05 | 1 |
-| burkholderia_cepacia_complex | cefazolin | 0.05 | 1 |
-| burkholderia_cepacia_complex | cefuroxime | 0.1 | 1 |
-| burkholderia_cepacia_complex | ceftriaxone | 0.1 | 1 |
-| burkholderia_cepacia_complex | ceftazidime | 0.7 | 1 |
-| burkholderia_cepacia_complex | cefepime | 0.75 | 1 |
-| burkholderia_cepacia_complex | ceftaroline | 0.1 | 1 |
+| burkholderia_cepacia_complex | cephalexin | 0.05 | 0.3 |
+| burkholderia_cepacia_complex | cefazolin | 0.05 | 0.3 |
+| burkholderia_cepacia_complex | cefuroxime | 0.1 | 0.3 |
+| burkholderia_cepacia_complex | ceftriaxone | 0.1 | 0.2 |
+| burkholderia_cepacia_complex | ceftazidime | 0.7 | 0.2 |
+| burkholderia_cepacia_complex | cefepime | 0.75 | 0.35 |
+| burkholderia_cepacia_complex | ceftaroline | 0.1 | 0.002 |
 | burkholderia_cepacia_complex | ceftolozane_tazobactam | 0.1 | 1 |
 | burkholderia_cepacia_complex | cefiderocol | 0.55 | 1 |
-| burkholderia_cepacia_complex | meropenem | 0.8 | 0.005 |
-| burkholderia_cepacia_complex | imipenem_c | 0.8 | 0.005 |
-| burkholderia_cepacia_complex | ertapenem | 0.1 | 0.005 |
-| burkholderia_cepacia_complex | aztreonam | 0.1 | 1 |
-| burkholderia_cepacia_complex | gentamicin | 0.7 | 1 |
-| burkholderia_cepacia_complex | tobramycin | 0.65 | 1 |
-| burkholderia_cepacia_complex | amikacin | 0.75 | 1 |
+| burkholderia_cepacia_complex | meropenem | 0.8 | 0.5 |
+| burkholderia_cepacia_complex | imipenem_c | 0.8 | 0.5 |
+| burkholderia_cepacia_complex | ertapenem | 0.1 | 0.5 |
+| burkholderia_cepacia_complex | aztreonam | 0.1 | 0.003 |
+| burkholderia_cepacia_complex | gentamicin | 0.05 | 1 |
+| burkholderia_cepacia_complex | tobramycin | 0.05 | 1 |
+| burkholderia_cepacia_complex | amikacin | 0.1 | 1 |
 | burkholderia_cepacia_complex | ciprofloxacin | 0.6 | 1 |
 | burkholderia_cepacia_complex | levofloxacin | 0.65 | 1 |
 | burkholderia_cepacia_complex | moxifloxacin | 0.6 | 1 |
 | burkholderia_cepacia_complex | ofloxacin | 0.6 | 1 |
-| burkholderia_cepacia_complex | tetracycline | 0.6 | 1 |
-| burkholderia_cepacia_complex | doxycycline | 0.65 | 1 |
-| burkholderia_cepacia_complex | minocycline | 0.7 | 1 |
+| burkholderia_cepacia_complex | tetracycline | 0.6 | 0.25 |
+| burkholderia_cepacia_complex | doxycycline | 0.65 | 0.25 |
+| burkholderia_cepacia_complex | minocycline | 0.7 | 0.25 |
 | burkholderia_cepacia_complex | tigecycline | 0.1 | 1 |
-| burkholderia_cepacia_complex | dalbavancin | 0 | 0.005 |
-| burkholderia_cepacia_complex | linezolid | 0 | 0.005 |
-| burkholderia_cepacia_complex | tedizolid | 0 | 0.005 |
+| burkholderia_cepacia_complex | dalbavancin | 0 | 0.5 |
+| burkholderia_cepacia_complex | linezolid | 0 | 0.5 |
+| burkholderia_cepacia_complex | tedizolid | 0 | 0.5 |
 | burkholderia_cepacia_complex | daptomycin | 0.1 | 1 |
-| burkholderia_cepacia_complex | quinu_dalfo | 0 | 0.005 |
-| burkholderia_cepacia_complex | trim_sulf | 0.6 | 1 |
+| burkholderia_cepacia_complex | quinu_dalfo | 0 | 0.5 |
+| burkholderia_cepacia_complex | trim_sulf | 0.6 | 0.04 |
 | burkholderia_cepacia_complex | chloramphenicol | 0.7 | 1 |
 | burkholderia_cepacia_complex | nitrofurantoin | 0.1 | 1 |
-| burkholderia_cepacia_complex | fosfomycin | 0.1 | 1 |
+| burkholderia_cepacia_complex | fosfomycin | 0.2 | 1 |
 | burkholderia_cepacia_complex | fidaxomicin | 0.1 | 1 |
 | burkholderia_cepacia_complex | furazolidone | 0.1 | 1 |
 | burkholderia_cepacia_complex | rifampicin | 0.5 | 1 |
@@ -5103,20 +5101,21 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | piperacillin_tazobactam | 0.65 | 1 |
 | burkholderia_cepacia_complex | ampicillin_sulbactam | 0.65 | 1 |
 | burkholderia_cepacia_complex | ticarcillin_clavulanate | 0.6 | 1 |
-| burkholderia_cepacia_complex | ceftazidime_avibactam | 0.65 | 0.005 |
-| burkholderia_cepacia_complex | meropenem_vaborbactam | 0.75 | 0.005 |
-| burkholderia_cepacia_complex | colistin | 0.8 | 0.005 |
+| burkholderia_cepacia_complex | ceftazidime_avibactam | 0.65 | 0.5 |
+| burkholderia_cepacia_complex | meropenem_vaborbactam | 0.75 | 0.5 |
+| burkholderia_cepacia_complex | colistin | 0.05 | 0.5 |
 | burkholderia_cepacia_complex | flucloxacillin | 0.01 | 1 |
-| burkholderia_cepacia_complex | aztreonam_avibactam | 0.6 | 1 |
-| burkholderia_cepacia_complex | cefixime | 0.1 | 1 |
+| burkholderia_cepacia_complex | aztreonam_avibactam | 0.6 | 0.003 |
+| burkholderia_cepacia_complex | cefixime | 0.1 | 0.2 |
+| burkholderia_cepacia_complex | nalidixic_acid | 0 | 0 |
 
 ### B.5 Regional Parameters
 
-Region-level parameters that apply across bacteria, plus the per-region per-bacteria acquisition log-odds adjustments.
+Region-level scalars (applicable to all bacteria) and the per-region per-bacteria acquisition log-odds adjustments.
 
 See: [§2.5 Travel](#25-travel), [§3.1 Community acquisition](#31-community-acquisition).
 
-#### Region-Level Parameters
+#### Region Scalars
 
 | Region | Travel mult | Cessation mult | Mortality log-odds | Sepsis log-odds | Sepsis mort mult | Testing mult | Abx init log-odds | Hosp log-odds |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -5555,37 +5554,216 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 
 #### Syndrome Empiric Drug Scores
 
-The full empiric syndrome-score templates are source-of-truth in `src/config.rs` under `empiric_syndrome_templates`. They are intentionally not duplicated here in full, because these weights are calibration inputs and stale copied tables are misleading. The current UTI template is included as a compact reference for the commonly inspected urinary-treatment outputs.
-
-Empiric syndrome scores may also have era-specific overrides using keys of the form `syndrome_<id>_empiric_drug_<drug>_score_before_<YYYY>`. The parser applies the earliest cutoff year that is still greater than the simulated calendar year; otherwise it uses the base score in the static syndrome template. These overrides are currently used for syndrome 8 (genital/STI) to represent historical empiric treatment of genital discharge, PID, and suspected gonorrhoea before organism confirmation or AST. The current configured examples include sulfanilamide before 1945/1965, penicillin and aminopenicillins before 1987, tetracycline and doxycycline before 1987, TMP-SMX before 1990, ciprofloxacin and ofloxacin before 2007, ceftriaxone and cefixime before 2007, and azithromycin before 2020. Drug introduction and regional availability gates still apply.
-
-| Syndrome | Drug | Current empiric score |
-| --- | --- | ---: |
-| uti | meropenem | 90.0 |
-| uti | imipenem_c | 90.0 |
-| uti | ertapenem | 90.0 |
-| uti | meropenem_vaborbactam | 60.0 |
-| uti | amoxicillin_clavulanate | 30.0 |
-| uti | piperacillin_tazobactam | 30.0 |
-| uti | ceftazidime_avibactam | 30.0 |
-| uti | nitrofurantoin | 13.0 |
-| uti | fosfomycin | 10.0 |
-| uti | cephalexin | 8.0 |
-| uti | cefazolin | 7.0 |
-| uti | cefuroxime | 7.0 |
-| uti | cefixime | 7.0 |
-| uti | ciprofloxacin | 6.0 |
-| uti | levofloxacin | 6.0 |
-| uti | cefepime | 4.0 |
-| uti | ceftazidime | 4.0 |
-| uti | ceftriaxone | 3.0 |
-| uti | amoxicillin | 2.0 |
-| uti | ampicillin | 1.0 |
-| uti | trim_sulf | 1.0 |
-| uti | aztreonam_avibactam | 1.0 |
-| uti | colistin | 0.2 |
-| uti | vancomycin | 0.1 |
+| Syndrome | Drug | Empiric score |
+| --- | ---: | ---: |
+| uti | ampicillin | 0.7 |
+| uti | amoxicillin | 1.4 |
+| uti | cephalexin | 4 |
+| uti | cefazolin | 3.8 |
+| uti | cefuroxime | 4.6 |
+| uti | ceftriaxone | 2.2 |
+| uti | ceftazidime | 3.5 |
+| uti | cefepime | 4 |
+| uti | meropenem | 25 |
+| uti | imipenem_c | 25 |
+| uti | ertapenem | 25 |
+| uti | gentamicin | 6 |
+| uti | tobramycin | 5 |
+| uti | amikacin | 6 |
+| uti | ciprofloxacin | 0.9 |
+| uti | levofloxacin | 0.8 |
+| uti | vancomycin | 0.3 |
 | uti | linezolid | 0.1 |
+| uti | trim_sulf | 0.6 |
+| uti | nitrofurantoin | 140 |
+| uti | fosfomycin | 110 |
+| uti | amoxicillin_clavulanate | 8.8 |
+| uti | piperacillin_tazobactam | 6 |
+| uti | ceftazidime_avibactam | 12 |
+| uti | meropenem_vaborbactam | 18 |
+| uti | colistin | 0.4 |
+| uti | aztreonam_avibactam | 1 |
+| uti | cefixime | 6.2 |
+| skin_soft_tissue | penicillin_g | 3.4 |
+| skin_soft_tissue | ampicillin | 2.8 |
+| skin_soft_tissue | amoxicillin | 3.4 |
+| skin_soft_tissue | cephalexin | 5 |
+| skin_soft_tissue | cefazolin | 6.7 |
+| skin_soft_tissue | ceftaroline | 20 |
+| skin_soft_tissue | clindamycin | 3.5 |
+| skin_soft_tissue | ciprofloxacin | 1.4 |
+| skin_soft_tissue | doxycycline | 2 |
+| skin_soft_tissue | minocycline | 1.5 |
+| skin_soft_tissue | vancomycin | 90 |
+| skin_soft_tissue | dalbavancin | 75 |
+| skin_soft_tissue | linezolid | 90 |
+| skin_soft_tissue | tedizolid | 75 |
+| skin_soft_tissue | daptomycin | 80 |
+| skin_soft_tissue | quinu_dalfo | 8 |
+| skin_soft_tissue | trim_sulf | 0.5 |
+| skin_soft_tissue | rifampicin | 0.5 |
+| skin_soft_tissue | amoxicillin_clavulanate | 4.2 |
+| skin_soft_tissue | piperacillin_tazobactam | 4.5 |
+| skin_soft_tissue | flucloxacillin | 14 |
+| respiratory | penicillin_g | 4.5 |
+| respiratory | ampicillin | 2.3 |
+| respiratory | amoxicillin | 4.5 |
+| respiratory | cephalexin | 1.2 |
+| respiratory | cefuroxime | 3 |
+| respiratory | ceftriaxone | 6.2 |
+| respiratory | cefepime | 12 |
+| respiratory | meropenem | 32 |
+| respiratory | imipenem_c | 32 |
+| respiratory | erythromycin | 0.8 |
+| respiratory | azithromycin | 0.9 |
+| respiratory | clarithromycin | 0.99 |
+| respiratory | levofloxacin | 1.1 |
+| respiratory | moxifloxacin | 1.1 |
+| respiratory | ofloxacin | 1.1 |
+| respiratory | doxycycline | 3 |
+| respiratory | minocycline | 1.5 |
+| respiratory | vancomycin | 8 |
+| respiratory | linezolid | 7 |
+| respiratory | amoxicillin_clavulanate | 10 |
+| respiratory | piperacillin_tazobactam | 9 |
+| respiratory | cefixime | 5.7 |
+| bloodstream | penicillin_g | 4.5 |
+| bloodstream | ampicillin | 4.5 |
+| bloodstream | amoxicillin | 4.5 |
+| bloodstream | cephalexin | 2 |
+| bloodstream | cefazolin | 5.9 |
+| bloodstream | ceftriaxone | 7 |
+| bloodstream | ceftazidime | 11 |
+| bloodstream | cefepime | 40 |
+| bloodstream | ceftaroline | 25 |
+| bloodstream | ceftolozane_tazobactam | 28 |
+| bloodstream | meropenem | 1600 |
+| bloodstream | imipenem_c | 1200 |
+| bloodstream | aztreonam | 30 |
+| bloodstream | gentamicin | 90 |
+| bloodstream | tobramycin | 80 |
+| bloodstream | amikacin | 90 |
+| bloodstream | ciprofloxacin | 1.8 |
+| bloodstream | levofloxacin | 1.8 |
+| bloodstream | vancomycin | 150 |
+| bloodstream | dalbavancin | 110 |
+| bloodstream | linezolid | 140 |
+| bloodstream | tedizolid | 110 |
+| bloodstream | daptomycin | 140 |
+| bloodstream | quinu_dalfo | 8.5 |
+| bloodstream | rifampicin | 0.5 |
+| bloodstream | amoxicillin_clavulanate | 3.5 |
+| bloodstream | piperacillin_tazobactam | 23 |
+| bloodstream | ampicillin_sulbactam | 8 |
+| bloodstream | ceftazidime_avibactam | 22 |
+| bloodstream | meropenem_vaborbactam | 600 |
+| bloodstream | colistin | 0.3 |
+| bloodstream | flucloxacillin | 9 |
+| bloodstream | aztreonam_avibactam | 2 |
+| intra_abdominal | ampicillin | 5.6 |
+| intra_abdominal | amoxicillin | 5.6 |
+| intra_abdominal | ceftriaxone | 6.2 |
+| intra_abdominal | ceftazidime | 7.9 |
+| intra_abdominal | cefepime | 22 |
+| intra_abdominal | ceftolozane_tazobactam | 23 |
+| intra_abdominal | meropenem | 1300 |
+| intra_abdominal | imipenem_c | 970 |
+| intra_abdominal | ertapenem | 800 |
+| intra_abdominal | aztreonam | 25 |
+| intra_abdominal | gentamicin | 70 |
+| intra_abdominal | amikacin | 70 |
+| intra_abdominal | ciprofloxacin | 1.4 |
+| intra_abdominal | levofloxacin | 1.4 |
+| intra_abdominal | trim_sulf | 0.1 |
+| intra_abdominal | metronidazole | 8 |
+| intra_abdominal | amoxicillin_clavulanate | 9 |
+| intra_abdominal | piperacillin_tazobactam | 22 |
+| intra_abdominal | ampicillin_sulbactam | 10 |
+| intra_abdominal | ceftazidime_avibactam | 17 |
+| intra_abdominal | meropenem_vaborbactam | 500 |
+| intra_abdominal | colistin | 0.5 |
+| intra_abdominal | aztreonam_avibactam | 2 |
+| cns_meningitis | penicillin_g | 12 |
+| cns_meningitis | ampicillin | 11 |
+| cns_meningitis | ceftriaxone | 11 |
+| cns_meningitis | ceftazidime | 11 |
+| cns_meningitis | cefepime | 18 |
+| cns_meningitis | meropenem | 270 |
+| cns_meningitis | imipenem_c | 210 |
+| cns_meningitis | vancomycin | 90 |
+| cns_meningitis | linezolid | 80 |
+| cns_meningitis | chloramphenicol | 2 |
+| cns_meningitis | rifampicin | 1 |
+| cns_meningitis | piperacillin_tazobactam | 1 |
+| cns_meningitis | cefixime | 0.88 |
+| gastrointestinal | penicillin_g | 2.3 |
+| gastrointestinal | ampicillin | 2.3 |
+| gastrointestinal | amoxicillin | 2.3 |
+| gastrointestinal | cephalexin | 3 |
+| gastrointestinal | cefuroxime | 3 |
+| gastrointestinal | azithromycin | 0.7 |
+| gastrointestinal | ciprofloxacin | 0.8 |
+| gastrointestinal | levofloxacin | 0.83 |
+| gastrointestinal | doxycycline | 1.2 |
+| gastrointestinal | minocycline | 1 |
+| gastrointestinal | trim_sulf | 0.2 |
+| gastrointestinal | metronidazole | 2 |
+| gastrointestinal | furazolidone | 0.23 |
+| gastrointestinal | rifampicin | 0.5 |
+| gastrointestinal | amoxicillin_clavulanate | 2.2 |
+| gastrointestinal | ampicillin_sulbactam | 1.8 |
+| gastrointestinal | cefixime | 3.5 |
+| genital_sti | penicillin_g | 4.5 |
+| genital_sti | ampicillin | 3.4 |
+| genital_sti | amoxicillin | 2.3 |
+| genital_sti | cephalexin | 4 |
+| genital_sti | cefuroxime | 6 |
+| genital_sti | ceftriaxone | 11 |
+| genital_sti | azithromycin | 1 |
+| genital_sti | clindamycin | 4 |
+| genital_sti | ciprofloxacin | 0.5 |
+| genital_sti | levofloxacin | 0.7 |
+| genital_sti | doxycycline | 4.5 |
+| genital_sti | trim_sulf | 0.1 |
+| genital_sti | metronidazole | 4 |
+| genital_sti | rifampicin | 0.5 |
+| genital_sti | amoxicillin_clavulanate | 3 |
+| genital_sti | ampicillin_sulbactam | 2.5 |
+| genital_sti | cefixime | 9.2 |
+| bone_joint | penicillin_g | 6.8 |
+| bone_joint | ampicillin | 9 |
+| bone_joint | cephalexin | 3.5 |
+| bone_joint | cefazolin | 7.6 |
+| bone_joint | ceftriaxone | 9.7 |
+| bone_joint | ceftaroline | 25 |
+| bone_joint | meropenem | 690 |
+| bone_joint | clindamycin | 3 |
+| bone_joint | ciprofloxacin | 2.3 |
+| bone_joint | levofloxacin | 2.3 |
+| bone_joint | vancomycin | 150 |
+| bone_joint | dalbavancin | 110 |
+| bone_joint | linezolid | 140 |
+| bone_joint | tedizolid | 110 |
+| bone_joint | daptomycin | 140 |
+| bone_joint | trim_sulf | 0.5 |
+| bone_joint | rifampicin | 6 |
+| bone_joint | piperacillin_tazobactam | 6 |
+| bone_joint | flucloxacillin | 14 |
+| other | ceftriaxone | 3.5 |
+| other | cefepime | 40 |
+| other | ceftaroline | 25 |
+| other | ceftolozane_tazobactam | 30 |
+| other | meropenem | 1500 |
+| other | imipenem_c | 1100 |
+| other | aztreonam | 30 |
+| other | azithromycin | 0.5 |
+| other | ciprofloxacin | 2.3 |
+| other | vancomycin | 150 |
+| other | linezolid | 140 |
+| other | daptomycin | 140 |
+| other | piperacillin_tazobactam | 12 |
+| other | aztreonam_avibactam | 2 |
+
 #### Syndrome Drug Penetration
 
 | Syndrome | Drug | Penetration factor |
@@ -5634,7 +5812,7 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | uti | ampicillin_sulbactam | 0.8 |
 | uti | ticarcillin_clavulanate | 0.8 |
 | uti | ceftazidime_avibactam | 0.8 |
-| uti | meropenem_vaborbactam | 0.8 |
+| uti | meropenem_vaborbactam | 0.85 |
 | uti | colistin | 0.7 |
 | uti | flucloxacillin | 0.8 |
 | uti | aztreonam_avibactam | 0.8 |
@@ -5695,6 +5873,7 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | skin_soft_tissue | flucloxacillin | 0.85 |
 | skin_soft_tissue | aztreonam_avibactam | 0.75 |
 | skin_soft_tissue | cefixime | 0.75 |
+| skin_soft_tissue | nalidixic_acid | 0.9 |
 | respiratory | penicillin_g | 0.65 |
 | respiratory | ampicillin | 0.65 |
 | respiratory | amoxicillin | 0.65 |
@@ -5746,11 +5925,12 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | respiratory | ampicillin_sulbactam | 0.65 |
 | respiratory | ticarcillin_clavulanate | 0.65 |
 | respiratory | ceftazidime_avibactam | 0.65 |
-| respiratory | meropenem_vaborbactam | 0.65 |
+| respiratory | meropenem_vaborbactam | 0.75 |
 | respiratory | colistin | 0.3 |
 | respiratory | flucloxacillin | 0.65 |
 | respiratory | aztreonam_avibactam | 0.6 |
 | respiratory | cefixime | 0.6 |
+| respiratory | nalidixic_acid | 0.2 |
 | intra_abdominal | penicillin_g | 0.6 |
 | intra_abdominal | ampicillin | 0.6 |
 | intra_abdominal | amoxicillin | 0.6 |
@@ -5802,11 +5982,12 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | intra_abdominal | ampicillin_sulbactam | 0.65 |
 | intra_abdominal | ticarcillin_clavulanate | 0.65 |
 | intra_abdominal | ceftazidime_avibactam | 0.65 |
-| intra_abdominal | meropenem_vaborbactam | 0.65 |
+| intra_abdominal | meropenem_vaborbactam | 0.75 |
 | intra_abdominal | colistin | 0.35 |
 | intra_abdominal | flucloxacillin | 0.6 |
 | intra_abdominal | aztreonam_avibactam | 0.55 |
 | intra_abdominal | cefixime | 0.55 |
+| intra_abdominal | nalidixic_acid | 0.75 |
 | cns_meningitis | penicillin_g | 0.15 |
 | cns_meningitis | ampicillin | 0.15 |
 | cns_meningitis | amoxicillin | 0.15 |
@@ -5858,11 +6039,12 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | cns_meningitis | ampicillin_sulbactam | 0.15 |
 | cns_meningitis | ticarcillin_clavulanate | 0.15 |
 | cns_meningitis | ceftazidime_avibactam | 0.15 |
-| cns_meningitis | meropenem_vaborbactam | 0.15 |
+| cns_meningitis | meropenem_vaborbactam | 0.35 |
 | cns_meningitis | colistin | 0.05 |
 | cns_meningitis | flucloxacillin | 0.15 |
 | cns_meningitis | aztreonam_avibactam | 0.1 |
 | cns_meningitis | cefixime | 0.1 |
+| cns_meningitis | nalidixic_acid | 0.05 |
 | gastrointestinal | penicillin_g | 0.55 |
 | gastrointestinal | ampicillin | 0.55 |
 | gastrointestinal | amoxicillin | 0.55 |
@@ -5914,11 +6096,12 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | gastrointestinal | ampicillin_sulbactam | 0.55 |
 | gastrointestinal | ticarcillin_clavulanate | 0.55 |
 | gastrointestinal | ceftazidime_avibactam | 0.55 |
-| gastrointestinal | meropenem_vaborbactam | 0.55 |
+| gastrointestinal | meropenem_vaborbactam | 0.65 |
 | gastrointestinal | colistin | 0.4 |
 | gastrointestinal | flucloxacillin | 0.55 |
 | gastrointestinal | aztreonam_avibactam | 0.5 |
 | gastrointestinal | cefixime | 0.55 |
+| gastrointestinal | nalidixic_acid | 0.85 |
 | genital_sti | penicillin_g | 0.55 |
 | genital_sti | ampicillin | 0.55 |
 | genital_sti | amoxicillin | 0.55 |
@@ -5970,11 +6153,12 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | genital_sti | ampicillin_sulbactam | 0.55 |
 | genital_sti | ticarcillin_clavulanate | 0.55 |
 | genital_sti | ceftazidime_avibactam | 0.55 |
-| genital_sti | meropenem_vaborbactam | 0.55 |
+| genital_sti | meropenem_vaborbactam | 0.6 |
 | genital_sti | colistin | 0.3 |
 | genital_sti | flucloxacillin | 0.55 |
 | genital_sti | aztreonam_avibactam | 0.45 |
 | genital_sti | cefixime | 0.5 |
+| genital_sti | nalidixic_acid | 0.5 |
 | bone_joint | penicillin_g | 0.4 |
 | bone_joint | ampicillin | 0.4 |
 | bone_joint | amoxicillin | 0.4 |
@@ -6026,11 +6210,12 @@ Empiric syndrome scores may also have era-specific overrides using keys of the f
 | bone_joint | ampicillin_sulbactam | 0.4 |
 | bone_joint | ticarcillin_clavulanate | 0.4 |
 | bone_joint | ceftazidime_avibactam | 0.4 |
-| bone_joint | meropenem_vaborbactam | 0.4 |
+| bone_joint | meropenem_vaborbactam | 0.5 |
 | bone_joint | colistin | 0.2 |
 | bone_joint | flucloxacillin | 0.4 |
 | bone_joint | aztreonam_avibactam | 0.35 |
 | bone_joint | cefixime | 0.4 |
+| bone_joint | nalidixic_acid | 0.15 |
 | other | gentamicin | 0.7 |
 | other | tobramycin | 0.7 |
 | other | amikacin | 0.7 |
@@ -6079,22 +6264,11 @@ See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortal
 
 #### Vaccination
 
-Vaccination parameters are split into three parts:
-
-- a vaccine-specific historical availability year,
-- a target birth-cohort coverage reached over a configurable rollout period,
-- and a bacterium-specific acquisition-effect term `log_odds_vaccinated` (default `-2.0`).
-
-`vaccination_status` is stored per bacterium rather than per vaccine brand, and once acquired it is permanent within the current model. The active runtime mapping is pneumococcal → *S. pneumoniae*, meningococcal → *N. meningitidis*, Hib → *H. influenzae*, and pertussis → *B. pertussis*. Vaccination is assigned once at birth / first day alive, not as a repeated daily age-band hazard.
-
-Under the default parameter map below, vaccination is active. Coverage ramps linearly from 0 at the availability year to the target birth-cohort coverage over `rollout_years`.
-
 | Vaccine | Availability year | Target birth-cohort coverage | Rollout years |
 | --- | ---: | ---: | ---: |
 | pneumococcal | 2000 | 0.75 | 20 |
 | meningococcal | 1981 | 0.55 | 20 |
 | hib | 1985 | 0.85 | 15 |
-| pertussis | 1948 | 0.82 | 20 |
 
 ### B.10 Resistance Mechanisms
 
@@ -6114,6 +6288,7 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | enzyme_oxa_48 | 5e-4 |
 | enzyme_ampc_cmy | 1e-4 |
 | enzyme_ampc_dha | 6e-4 |
+| mutation_ampc_derepression | 2e-4 |
 | target_site_pbp2a_meca | 9e-4 |
 | target_site_van_a | 0.002 |
 | target_site_van_b | 0.002 |
@@ -6129,27 +6304,27 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | porin_loss_ompk35_36 | 5e-4 |
 | porin_loss_oprd | 5e-4 |
 | modification_mcr_1 | 0.0015 |
+| mutation_polymyxin_regulatory | 0.0015 |
 | global_efflux_pump | 5e-4 |
 | mutation_folate_pathway | 1e-4 |
 | mutation_nitroreductase | 3e-4 |
-| enzyme_fos_a | 5e-4 |
+| enzyme_fos | 5e-4 |
 | mutation_mpr_f | 0.001 |
+| mutation_liafsr_cls | 0.0015 |
 | mutation_rpo_b | 0.002 |
 | protection_fus_b | 5e-4 |
 | protection_tet_m | 5e-4 |
-| mutation_16s_rrna_tetracycline | 5e-4 |
 | enzyme_aac_aph | 1e-4 |
 | enzyme_bla_z | 1e-4 |
 | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-4 |
+| enzyme_mph_a | 1e-4 |
 | enzyme_oxa_acinetobacter | 1e-4 |
 | mutation_23s_rrna | 1e-4 |
-| mutation_ampc_derepression | 2e-4 |
-| mutation_polymyxin_regulatory | 0.0015 |
-| mutation_liafsr_cls | 0.0015 |
 | mutation_23s_rrna_oxazolidinone | 0.001 |
 | efflux_tet_abc | 1e-4 |
 | mutation_pbp_mosaic | 0.001 |
 | efflux_mtr_cde | 0.001 |
+| mutation_16s_rrna_tetracycline | 5e-4 |
 | mutation_siderophore_uptake | 0.001 |
 
 #### Mechanism Enhancement Multipliers by Drug Class
@@ -6318,12 +6493,10 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_ndm_vim | c4g | 0.9 |
 | enzyme_ndm_vim | anti_mrsa_ceph | 0.9 |
 | enzyme_ndm_vim | siderophore_ceph | 0.9 |
-| enzyme_ndm_vim | cft_avi | 0.5 |
-| enzyme_ndm_vim | mer_vab | 0.5 |
-| enzyme_ndm_vim | azt_avi | 0.5 |
+| enzyme_ndm_vim | cft_avi | 0.95 |
+| enzyme_ndm_vim | mer_vab | 0.95 |
 | enzyme_ndm_vim | carb_group1 | 0.95 |
 | enzyme_ndm_vim | carb_group2 | 0.95 |
-| enzyme_ndm_vim | mono | 0.1 |
 | enzyme_ndm_vim | fq | 0.95 |
 | enzyme_ndm_vim | ag_group1 | 0.95 |
 | enzyme_ndm_vim | ag_group2 | 0.95 |
@@ -6358,8 +6531,7 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_oxa_48 | anti_mrsa_ceph | 0.1 |
 | enzyme_oxa_48 | siderophore_ceph | 0.1 |
 | enzyme_oxa_48 | cft_avi | 0.15 |
-| enzyme_oxa_48 | mer_vab | 0.15 |
-| enzyme_oxa_48 | azt_avi | 0.15 |
+| enzyme_oxa_48 | mer_vab | 0.7 |
 | enzyme_oxa_48 | carb_group1 | 0.7 |
 | enzyme_oxa_48 | carb_group2 | 0.7 |
 | enzyme_oxa_48 | fq | 0.6 |
@@ -6398,7 +6570,7 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_ampc_cmy | cft_avi | 0.1 |
 | enzyme_ampc_cmy | mer_vab | 0.1 |
 | enzyme_ampc_cmy | azt_avi | 0.1 |
-| enzyme_ampc_cmy | mono | 0.1 |
+| enzyme_ampc_cmy | mono | 0.8 |
 | enzyme_ampc_cmy | fq | 0.7 |
 | enzyme_ampc_cmy | ag_group1 | 0.7 |
 | enzyme_ampc_cmy | ag_group2 | 0.7 |
@@ -6435,7 +6607,7 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_ampc_dha | cft_avi | 0.1 |
 | enzyme_ampc_dha | mer_vab | 0.1 |
 | enzyme_ampc_dha | azt_avi | 0.1 |
-| enzyme_ampc_dha | mono | 0.1 |
+| enzyme_ampc_dha | mono | 0.75 |
 | enzyme_ampc_dha | fq | 0.7 |
 | enzyme_ampc_dha | ag_group1 | 0.7 |
 | enzyme_ampc_dha | ag_group2 | 0.7 |
@@ -6459,6 +6631,43 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_ampc_dha | steroid_antibacterials | 0.7 |
 | enzyme_ampc_dha | pleuromutilins | 0.7 |
 | enzyme_ampc_dha | other | 0.7 |
+| mutation_ampc_derepression | pen | 0.7 |
+| mutation_ampc_derepression | bli | 0.6 |
+| mutation_ampc_derepression | bli_anti_pseudomonal | 0.6 |
+| mutation_ampc_derepression | bli_sulbactam | 0.6 |
+| mutation_ampc_derepression | c1_2g | 0.8 |
+| mutation_ampc_derepression | c3g | 0.8 |
+| mutation_ampc_derepression | c3g_bli | 0.8 |
+| mutation_ampc_derepression | c4g | 0.2 |
+| mutation_ampc_derepression | anti_mrsa_ceph | 0.2 |
+| mutation_ampc_derepression | siderophore_ceph | 0.2 |
+| mutation_ampc_derepression | cft_avi | 0.1 |
+| mutation_ampc_derepression | mer_vab | 0.1 |
+| mutation_ampc_derepression | azt_avi | 0.1 |
+| mutation_ampc_derepression | mono | 0.8 |
+| mutation_ampc_derepression | fq | 0.75 |
+| mutation_ampc_derepression | ag_group1 | 0.75 |
+| mutation_ampc_derepression | ag_group2 | 0.75 |
+| mutation_ampc_derepression | mls | 0.75 |
+| mutation_ampc_derepression | lincosamides | 0.75 |
+| mutation_ampc_derepression | glyc | 0.75 |
+| mutation_ampc_derepression | lipoglycopeptides | 0.75 |
+| mutation_ampc_derepression | tet | 0.75 |
+| mutation_ampc_derepression | glycylcyclines | 0.75 |
+| mutation_ampc_derepression | poly | 0.75 |
+| mutation_ampc_derepression | oxa | 0.75 |
+| mutation_ampc_derepression | chl | 0.75 |
+| mutation_ampc_derepression | sulf | 0.75 |
+| mutation_ampc_derepression | lipopeptides | 0.75 |
+| mutation_ampc_derepression | streptogramins | 0.75 |
+| mutation_ampc_derepression | nitrofurans | 0.75 |
+| mutation_ampc_derepression | phosphonic_acids | 0.75 |
+| mutation_ampc_derepression | nitroimidazoles | 0.75 |
+| mutation_ampc_derepression | rifamycins | 0.75 |
+| mutation_ampc_derepression | macrocycles | 0.75 |
+| mutation_ampc_derepression | steroid_antibacterials | 0.75 |
+| mutation_ampc_derepression | pleuromutilins | 0.75 |
+| mutation_ampc_derepression | other | 0.75 |
 | target_site_pbp2a_meca | pen | 0.99 |
 | target_site_pbp2a_meca | bli | 0.99 |
 | target_site_pbp2a_meca | bli_anti_pseudomonal | 0.99 |
@@ -6648,7 +6857,6 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | target_site_erm_b | chl | 0.9 |
 | target_site_erm_b | sulf | 0.9 |
 | target_site_erm_b | lipopeptides | 0.9 |
-| target_site_erm_b | streptogramins | 0.9 |
 | target_site_erm_b | nitrofurans | 0.9 |
 | target_site_erm_b | phosphonic_acids | 0.9 |
 | target_site_erm_b | nitroimidazoles | 0.9 |
@@ -6856,6 +7064,45 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | modification_mcr_1 | steroid_antibacterials | 0.85 |
 | modification_mcr_1 | pleuromutilins | 0.85 |
 | modification_mcr_1 | other | 0.85 |
+| mutation_polymyxin_regulatory | pen | 0.9 |
+| mutation_polymyxin_regulatory | bli | 0.9 |
+| mutation_polymyxin_regulatory | bli_anti_pseudomonal | 0.9 |
+| mutation_polymyxin_regulatory | bli_sulbactam | 0.9 |
+| mutation_polymyxin_regulatory | c1_2g | 0.9 |
+| mutation_polymyxin_regulatory | c3g | 0.9 |
+| mutation_polymyxin_regulatory | c3g_bli | 0.9 |
+| mutation_polymyxin_regulatory | c4g | 0.9 |
+| mutation_polymyxin_regulatory | anti_mrsa_ceph | 0.9 |
+| mutation_polymyxin_regulatory | siderophore_ceph | 0.9 |
+| mutation_polymyxin_regulatory | cft_avi | 0.9 |
+| mutation_polymyxin_regulatory | mer_vab | 0.9 |
+| mutation_polymyxin_regulatory | azt_avi | 0.9 |
+| mutation_polymyxin_regulatory | carb_group1 | 0.9 |
+| mutation_polymyxin_regulatory | carb_group2 | 0.9 |
+| mutation_polymyxin_regulatory | mono | 0.9 |
+| mutation_polymyxin_regulatory | fq | 0.9 |
+| mutation_polymyxin_regulatory | ag_group1 | 0.9 |
+| mutation_polymyxin_regulatory | ag_group2 | 0.9 |
+| mutation_polymyxin_regulatory | mls | 0.9 |
+| mutation_polymyxin_regulatory | lincosamides | 0.9 |
+| mutation_polymyxin_regulatory | glyc | 0.9 |
+| mutation_polymyxin_regulatory | lipoglycopeptides | 0.9 |
+| mutation_polymyxin_regulatory | tet | 0.9 |
+| mutation_polymyxin_regulatory | glycylcyclines | 0.9 |
+| mutation_polymyxin_regulatory | poly | 0.9 |
+| mutation_polymyxin_regulatory | oxa | 0.9 |
+| mutation_polymyxin_regulatory | chl | 0.9 |
+| mutation_polymyxin_regulatory | sulf | 0.9 |
+| mutation_polymyxin_regulatory | lipopeptides | 0.9 |
+| mutation_polymyxin_regulatory | streptogramins | 0.9 |
+| mutation_polymyxin_regulatory | nitrofurans | 0.9 |
+| mutation_polymyxin_regulatory | phosphonic_acids | 0.9 |
+| mutation_polymyxin_regulatory | nitroimidazoles | 0.9 |
+| mutation_polymyxin_regulatory | rifamycins | 0.9 |
+| mutation_polymyxin_regulatory | macrocycles | 0.9 |
+| mutation_polymyxin_regulatory | steroid_antibacterials | 0.9 |
+| mutation_polymyxin_regulatory | pleuromutilins | 0.9 |
+| mutation_polymyxin_regulatory | other | 0.9 |
 | global_efflux_pump | c1_2g | 0.2 |
 | global_efflux_pump | cft_avi | 0.2 |
 | global_efflux_pump | mer_vab | 0.2 |
@@ -6962,45 +7209,45 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | mutation_nitroreductase | steroid_antibacterials | 0.7 |
 | mutation_nitroreductase | pleuromutilins | 0.7 |
 | mutation_nitroreductase | other | 0.7 |
-| enzyme_fos_a | pen | 0.8 |
-| enzyme_fos_a | bli | 0.8 |
-| enzyme_fos_a | bli_anti_pseudomonal | 0.8 |
-| enzyme_fos_a | bli_sulbactam | 0.8 |
-| enzyme_fos_a | c1_2g | 0.8 |
-| enzyme_fos_a | c3g | 0.8 |
-| enzyme_fos_a | c3g_bli | 0.8 |
-| enzyme_fos_a | c4g | 0.8 |
-| enzyme_fos_a | anti_mrsa_ceph | 0.8 |
-| enzyme_fos_a | siderophore_ceph | 0.8 |
-| enzyme_fos_a | cft_avi | 0.8 |
-| enzyme_fos_a | mer_vab | 0.8 |
-| enzyme_fos_a | azt_avi | 0.8 |
-| enzyme_fos_a | carb_group1 | 0.8 |
-| enzyme_fos_a | carb_group2 | 0.8 |
-| enzyme_fos_a | mono | 0.8 |
-| enzyme_fos_a | fq | 0.8 |
-| enzyme_fos_a | ag_group1 | 0.8 |
-| enzyme_fos_a | ag_group2 | 0.8 |
-| enzyme_fos_a | mls | 0.8 |
-| enzyme_fos_a | lincosamides | 0.8 |
-| enzyme_fos_a | glyc | 0.8 |
-| enzyme_fos_a | lipoglycopeptides | 0.8 |
-| enzyme_fos_a | tet | 0.8 |
-| enzyme_fos_a | glycylcyclines | 0.8 |
-| enzyme_fos_a | poly | 0.8 |
-| enzyme_fos_a | oxa | 0.8 |
-| enzyme_fos_a | chl | 0.8 |
-| enzyme_fos_a | sulf | 0.8 |
-| enzyme_fos_a | lipopeptides | 0.8 |
-| enzyme_fos_a | streptogramins | 0.8 |
-| enzyme_fos_a | nitrofurans | 0.8 |
-| enzyme_fos_a | phosphonic_acids | 0.8 |
-| enzyme_fos_a | nitroimidazoles | 0.8 |
-| enzyme_fos_a | rifamycins | 0.8 |
-| enzyme_fos_a | macrocycles | 0.8 |
-| enzyme_fos_a | steroid_antibacterials | 0.8 |
-| enzyme_fos_a | pleuromutilins | 0.8 |
-| enzyme_fos_a | other | 0.8 |
+| enzyme_fos | pen | 0.8 |
+| enzyme_fos | bli | 0.8 |
+| enzyme_fos | bli_anti_pseudomonal | 0.8 |
+| enzyme_fos | bli_sulbactam | 0.8 |
+| enzyme_fos | c1_2g | 0.8 |
+| enzyme_fos | c3g | 0.8 |
+| enzyme_fos | c3g_bli | 0.8 |
+| enzyme_fos | c4g | 0.8 |
+| enzyme_fos | anti_mrsa_ceph | 0.8 |
+| enzyme_fos | siderophore_ceph | 0.8 |
+| enzyme_fos | cft_avi | 0.8 |
+| enzyme_fos | mer_vab | 0.8 |
+| enzyme_fos | azt_avi | 0.8 |
+| enzyme_fos | carb_group1 | 0.8 |
+| enzyme_fos | carb_group2 | 0.8 |
+| enzyme_fos | mono | 0.8 |
+| enzyme_fos | fq | 0.8 |
+| enzyme_fos | ag_group1 | 0.8 |
+| enzyme_fos | ag_group2 | 0.8 |
+| enzyme_fos | mls | 0.8 |
+| enzyme_fos | lincosamides | 0.8 |
+| enzyme_fos | glyc | 0.8 |
+| enzyme_fos | lipoglycopeptides | 0.8 |
+| enzyme_fos | tet | 0.8 |
+| enzyme_fos | glycylcyclines | 0.8 |
+| enzyme_fos | poly | 0.8 |
+| enzyme_fos | oxa | 0.8 |
+| enzyme_fos | chl | 0.8 |
+| enzyme_fos | sulf | 0.8 |
+| enzyme_fos | lipopeptides | 0.8 |
+| enzyme_fos | streptogramins | 0.8 |
+| enzyme_fos | nitrofurans | 0.8 |
+| enzyme_fos | phosphonic_acids | 0.8 |
+| enzyme_fos | nitroimidazoles | 0.8 |
+| enzyme_fos | rifamycins | 0.8 |
+| enzyme_fos | macrocycles | 0.8 |
+| enzyme_fos | steroid_antibacterials | 0.8 |
+| enzyme_fos | pleuromutilins | 0.8 |
+| enzyme_fos | other | 0.8 |
 | mutation_mpr_f | pen | 0.6 |
 | mutation_mpr_f | bli | 0.6 |
 | mutation_mpr_f | bli_anti_pseudomonal | 0.6 |
@@ -7040,6 +7287,45 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | mutation_mpr_f | steroid_antibacterials | 0.6 |
 | mutation_mpr_f | pleuromutilins | 0.6 |
 | mutation_mpr_f | other | 0.6 |
+| mutation_liafsr_cls | pen | 0.75 |
+| mutation_liafsr_cls | bli | 0.75 |
+| mutation_liafsr_cls | bli_anti_pseudomonal | 0.75 |
+| mutation_liafsr_cls | bli_sulbactam | 0.75 |
+| mutation_liafsr_cls | c1_2g | 0.75 |
+| mutation_liafsr_cls | c3g | 0.75 |
+| mutation_liafsr_cls | c3g_bli | 0.75 |
+| mutation_liafsr_cls | c4g | 0.75 |
+| mutation_liafsr_cls | anti_mrsa_ceph | 0.75 |
+| mutation_liafsr_cls | siderophore_ceph | 0.75 |
+| mutation_liafsr_cls | cft_avi | 0.75 |
+| mutation_liafsr_cls | mer_vab | 0.75 |
+| mutation_liafsr_cls | azt_avi | 0.75 |
+| mutation_liafsr_cls | carb_group1 | 0.75 |
+| mutation_liafsr_cls | carb_group2 | 0.75 |
+| mutation_liafsr_cls | mono | 0.75 |
+| mutation_liafsr_cls | fq | 0.75 |
+| mutation_liafsr_cls | ag_group1 | 0.75 |
+| mutation_liafsr_cls | ag_group2 | 0.75 |
+| mutation_liafsr_cls | mls | 0.75 |
+| mutation_liafsr_cls | lincosamides | 0.75 |
+| mutation_liafsr_cls | glyc | 0.75 |
+| mutation_liafsr_cls | lipoglycopeptides | 0.75 |
+| mutation_liafsr_cls | tet | 0.75 |
+| mutation_liafsr_cls | glycylcyclines | 0.75 |
+| mutation_liafsr_cls | poly | 0.75 |
+| mutation_liafsr_cls | oxa | 0.75 |
+| mutation_liafsr_cls | chl | 0.75 |
+| mutation_liafsr_cls | sulf | 0.75 |
+| mutation_liafsr_cls | lipopeptides | 0.75 |
+| mutation_liafsr_cls | streptogramins | 0.75 |
+| mutation_liafsr_cls | nitrofurans | 0.75 |
+| mutation_liafsr_cls | phosphonic_acids | 0.75 |
+| mutation_liafsr_cls | nitroimidazoles | 0.75 |
+| mutation_liafsr_cls | rifamycins | 0.75 |
+| mutation_liafsr_cls | macrocycles | 0.75 |
+| mutation_liafsr_cls | steroid_antibacterials | 0.75 |
+| mutation_liafsr_cls | pleuromutilins | 0.75 |
+| mutation_liafsr_cls | other | 0.75 |
 | mutation_rpo_b | pen | 0.95 |
 | mutation_rpo_b | bli | 0.95 |
 | mutation_rpo_b | bli_anti_pseudomonal | 0.95 |
@@ -7198,6 +7484,45 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | enzyme_aac_aph | other | 0.85 |
 | enzyme_bla_z | pen | 0.9 |
 | enzyme_narrow_spectrum_gram_negative_penicillinase | pen | 0.9 |
+| enzyme_mph_a | pen | 0.85 |
+| enzyme_mph_a | bli | 0.85 |
+| enzyme_mph_a | bli_anti_pseudomonal | 0.85 |
+| enzyme_mph_a | bli_sulbactam | 0.85 |
+| enzyme_mph_a | c1_2g | 0.85 |
+| enzyme_mph_a | c3g | 0.85 |
+| enzyme_mph_a | c3g_bli | 0.85 |
+| enzyme_mph_a | c4g | 0.85 |
+| enzyme_mph_a | anti_mrsa_ceph | 0.85 |
+| enzyme_mph_a | siderophore_ceph | 0.85 |
+| enzyme_mph_a | cft_avi | 0.85 |
+| enzyme_mph_a | mer_vab | 0.85 |
+| enzyme_mph_a | azt_avi | 0.85 |
+| enzyme_mph_a | carb_group1 | 0.85 |
+| enzyme_mph_a | carb_group2 | 0.85 |
+| enzyme_mph_a | mono | 0.85 |
+| enzyme_mph_a | fq | 0.85 |
+| enzyme_mph_a | ag_group1 | 0.85 |
+| enzyme_mph_a | ag_group2 | 0.85 |
+| enzyme_mph_a | mls | 0.85 |
+| enzyme_mph_a | lincosamides | 0.85 |
+| enzyme_mph_a | glyc | 0.85 |
+| enzyme_mph_a | lipoglycopeptides | 0.85 |
+| enzyme_mph_a | tet | 0.85 |
+| enzyme_mph_a | glycylcyclines | 0.85 |
+| enzyme_mph_a | poly | 0.85 |
+| enzyme_mph_a | oxa | 0.85 |
+| enzyme_mph_a | chl | 0.85 |
+| enzyme_mph_a | sulf | 0.85 |
+| enzyme_mph_a | lipopeptides | 0.85 |
+| enzyme_mph_a | streptogramins | 0.85 |
+| enzyme_mph_a | nitrofurans | 0.85 |
+| enzyme_mph_a | phosphonic_acids | 0.85 |
+| enzyme_mph_a | nitroimidazoles | 0.85 |
+| enzyme_mph_a | rifamycins | 0.85 |
+| enzyme_mph_a | macrocycles | 0.85 |
+| enzyme_mph_a | steroid_antibacterials | 0.85 |
+| enzyme_mph_a | pleuromutilins | 0.85 |
+| enzyme_mph_a | other | 0.85 |
 | enzyme_oxa_acinetobacter | pen | 0.8 |
 | enzyme_oxa_acinetobacter | bli | 0.8 |
 | enzyme_oxa_acinetobacter | bli_anti_pseudomonal | 0.8 |
@@ -7276,6 +7601,45 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | mutation_23s_rrna | steroid_antibacterials | 0.8 |
 | mutation_23s_rrna | pleuromutilins | 0.8 |
 | mutation_23s_rrna | other | 0.8 |
+| mutation_23s_rrna_oxazolidinone | pen | 0.85 |
+| mutation_23s_rrna_oxazolidinone | bli | 0.85 |
+| mutation_23s_rrna_oxazolidinone | bli_anti_pseudomonal | 0.85 |
+| mutation_23s_rrna_oxazolidinone | bli_sulbactam | 0.85 |
+| mutation_23s_rrna_oxazolidinone | c1_2g | 0.85 |
+| mutation_23s_rrna_oxazolidinone | c3g | 0.85 |
+| mutation_23s_rrna_oxazolidinone | c3g_bli | 0.85 |
+| mutation_23s_rrna_oxazolidinone | c4g | 0.85 |
+| mutation_23s_rrna_oxazolidinone | anti_mrsa_ceph | 0.85 |
+| mutation_23s_rrna_oxazolidinone | siderophore_ceph | 0.85 |
+| mutation_23s_rrna_oxazolidinone | cft_avi | 0.85 |
+| mutation_23s_rrna_oxazolidinone | mer_vab | 0.85 |
+| mutation_23s_rrna_oxazolidinone | azt_avi | 0.85 |
+| mutation_23s_rrna_oxazolidinone | carb_group1 | 0.85 |
+| mutation_23s_rrna_oxazolidinone | carb_group2 | 0.85 |
+| mutation_23s_rrna_oxazolidinone | mono | 0.85 |
+| mutation_23s_rrna_oxazolidinone | fq | 0.85 |
+| mutation_23s_rrna_oxazolidinone | ag_group1 | 0.85 |
+| mutation_23s_rrna_oxazolidinone | ag_group2 | 0.85 |
+| mutation_23s_rrna_oxazolidinone | mls | 0.85 |
+| mutation_23s_rrna_oxazolidinone | lincosamides | 0.85 |
+| mutation_23s_rrna_oxazolidinone | glyc | 0.85 |
+| mutation_23s_rrna_oxazolidinone | lipoglycopeptides | 0.85 |
+| mutation_23s_rrna_oxazolidinone | tet | 0.85 |
+| mutation_23s_rrna_oxazolidinone | glycylcyclines | 0.85 |
+| mutation_23s_rrna_oxazolidinone | poly | 0.85 |
+| mutation_23s_rrna_oxazolidinone | oxa | 0.85 |
+| mutation_23s_rrna_oxazolidinone | chl | 0.85 |
+| mutation_23s_rrna_oxazolidinone | sulf | 0.85 |
+| mutation_23s_rrna_oxazolidinone | lipopeptides | 0.85 |
+| mutation_23s_rrna_oxazolidinone | streptogramins | 0.85 |
+| mutation_23s_rrna_oxazolidinone | nitrofurans | 0.85 |
+| mutation_23s_rrna_oxazolidinone | phosphonic_acids | 0.85 |
+| mutation_23s_rrna_oxazolidinone | nitroimidazoles | 0.85 |
+| mutation_23s_rrna_oxazolidinone | rifamycins | 0.85 |
+| mutation_23s_rrna_oxazolidinone | macrocycles | 0.85 |
+| mutation_23s_rrna_oxazolidinone | steroid_antibacterials | 0.85 |
+| mutation_23s_rrna_oxazolidinone | pleuromutilins | 0.85 |
+| mutation_23s_rrna_oxazolidinone | other | 0.85 |
 | efflux_tet_abc | pen | 0.7 |
 | efflux_tet_abc | bli | 0.7 |
 | efflux_tet_abc | bli_anti_pseudomonal | 0.7 |
@@ -7359,756 +7723,774 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 
 | Bacteria | Mechanism | Emergence rate/day |
 | --- | ---: | ---: |
-| acinetobacter_baumannii | enzyme_esbl_ctx_m | 0.006 |
-| acinetobacter_baumannii | enzyme_esbl_tem | 0.006 |
-| acinetobacter_baumannii | enzyme_esbl_shv | 0.006 |
-| acinetobacter_baumannii | enzyme_kpc | 0.006 |
-| acinetobacter_baumannii | enzyme_ndm_vim | 0.006 |
-| acinetobacter_baumannii | enzyme_oxa_48 | 0.006 |
-| acinetobacter_baumannii | enzyme_ampc_cmy | 0.006 |
-| acinetobacter_baumannii | enzyme_ampc_dha | 0.006 |
-| acinetobacter_baumannii | mutation_gyra_primary | 0.09 |
-| acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.09 |
-| acinetobacter_baumannii | protection_qnr | 0.09 |
-| acinetobacter_baumannii | enzyme_16s_rrmt | 10 |
-| acinetobacter_baumannii | enzyme_cat | 0.01 |
+| acinetobacter_baumannii | enzyme_esbl_ctx_m | 3e-4 |
+| acinetobacter_baumannii | enzyme_esbl_tem | 3e-4 |
+| acinetobacter_baumannii | enzyme_esbl_shv | 3e-4 |
+| acinetobacter_baumannii | enzyme_kpc | 3e-4 |
+| acinetobacter_baumannii | enzyme_ndm_vim | 3e-4 |
+| acinetobacter_baumannii | enzyme_oxa_48 | 3e-4 |
+| acinetobacter_baumannii | enzyme_ampc_cmy | 3e-4 |
+| acinetobacter_baumannii | enzyme_ampc_dha | 3e-4 |
+| acinetobacter_baumannii | mutation_ampc_derepression | 3e-4 |
+| acinetobacter_baumannii | mutation_gyra_primary | 0.005 |
+| acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.003 |
+| acinetobacter_baumannii | protection_qnr | 0.003 |
+| acinetobacter_baumannii | enzyme_16s_rrmt | 0.001 |
+| acinetobacter_baumannii | enzyme_cat | 1e-6 |
 | acinetobacter_baumannii | modification_mcr_1 | 0.01 |
-| acinetobacter_baumannii | global_efflux_pump | 0.025 |
-| acinetobacter_baumannii | mutation_folate_pathway | 0.05 |
-| acinetobacter_baumannii | enzyme_fos_a | 0.0035 |
-| acinetobacter_baumannii | mutation_rpo_b | 0.045 |
-| acinetobacter_baumannii | protection_tet_m | 0.05 |
-| acinetobacter_baumannii | enzyme_aac_aph | 10 |
-| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 0.006 |
-| acinetobacter_baumannii | efflux_tet_abc | 0.0025 |
-| acinetobacter_baumannii | mutation_pbp_mosaic | 0.006 |
-| citrobacter_spp. | enzyme_esbl_ctx_m | 0.001 |
-| citrobacter_spp. | enzyme_esbl_tem | 0.001 |
-| citrobacter_spp. | enzyme_esbl_shv | 0.001 |
-| citrobacter_spp. | enzyme_kpc | 0.001 |
-| citrobacter_spp. | enzyme_ndm_vim | 0.001 |
-| citrobacter_spp. | enzyme_oxa_48 | 0.001 |
-| citrobacter_spp. | enzyme_ampc_cmy | 0.001 |
-| citrobacter_spp. | enzyme_ampc_dha | 0.001 |
-| citrobacter_spp. | mutation_gyra_primary | 0.04 |
-| citrobacter_spp. | mutation_gyra_parc_secondary | 3e-4 |
-| citrobacter_spp. | protection_qnr | 0.04 |
-| citrobacter_spp. | enzyme_16s_rrmt | 0.5 |
-| citrobacter_spp. | enzyme_cat | 0.03 |
-| citrobacter_spp. | efflux_acrab_tolc | 0.015 |
-| citrobacter_spp. | efflux_mexxy_oprm | 0.0015 |
-| citrobacter_spp. | modification_mcr_1 | 0.05 |
-| citrobacter_spp. | global_efflux_pump | 0.003 |
-| citrobacter_spp. | mutation_folate_pathway | 0.003 |
-| citrobacter_spp. | mutation_nitroreductase | 0.015 |
-| citrobacter_spp. | enzyme_fos_a | 0.005 |
-| citrobacter_spp. | mutation_rpo_b | 0.02 |
-| citrobacter_spp. | protection_tet_m | 0.004 |
-| citrobacter_spp. | enzyme_aac_aph | 0.5 |
-| citrobacter_spp. | efflux_tet_abc | 0.004 |
-| citrobacter_spp. | mutation_pbp_mosaic | 0.0015 |
-| enterobacter_spp. | enzyme_esbl_ctx_m | 0.001 |
-| enterobacter_spp. | enzyme_esbl_tem | 0.001 |
-| enterobacter_spp. | enzyme_esbl_shv | 0.001 |
-| enterobacter_spp. | enzyme_kpc | 3e-4 |
-| enterobacter_spp. | enzyme_ndm_vim | 3e-4 |
-| enterobacter_spp. | enzyme_oxa_48 | 3e-4 |
-| enterobacter_spp. | enzyme_ampc_cmy | 0.001 |
-| enterobacter_spp. | enzyme_ampc_dha | 0.001 |
-| enterobacter_spp. | mutation_gyra_primary | 5e-4 |
-| enterobacter_spp. | mutation_gyra_parc_secondary | 5e-4 |
-| enterobacter_spp. | protection_qnr | 5e-4 |
-| enterobacter_spp. | enzyme_16s_rrmt | 0.3 |
-| enterobacter_spp. | enzyme_cat | 0.004 |
-| enterobacter_spp. | efflux_acrab_tolc | 5e-4 |
-| enterobacter_spp. | modification_mcr_1 | 0.03 |
-| enterobacter_spp. | global_efflux_pump | 5e-4 |
-| enterobacter_spp. | mutation_folate_pathway | 0.001 |
-| enterobacter_spp. | mutation_nitroreductase | 0.005 |
-| enterobacter_spp. | enzyme_fos_a | 0.02 |
-| enterobacter_spp. | mutation_rpo_b | 0.03 |
-| enterobacter_spp. | protection_tet_m | 0.01 |
-| enterobacter_spp. | enzyme_aac_aph | 0.3 |
-| enterobacter_spp. | efflux_tet_abc | 0.01 |
-| enterobacter_spp. | mutation_pbp_mosaic | 0.001 |
-| enterococcus_faecalis | target_site_pbp2a_meca | 2e-5 |
-| enterococcus_faecalis | target_site_van_a | 0.02 |
-| enterococcus_faecalis | target_site_van_b | 0.02 |
-| enterococcus_faecalis | mutation_gyra_primary | 0.002 |
-| enterococcus_faecalis | mutation_gyra_parc_secondary | 3e-4 |
-| enterococcus_faecalis | target_site_erm_b | 0.002 |
-| enterococcus_faecalis | target_site_cfr | 0.003 |
-| enterococcus_faecalis | enzyme_cat | 2e-4 |
-| enterococcus_faecalis | global_efflux_pump | 3e-4 |
-| enterococcus_faecalis | mutation_folate_pathway | 0.02 |
-| enterococcus_faecalis | mutation_nitroreductase | 0.02 |
-| enterococcus_faecalis | mutation_mpr_f | 0.005 |
-| enterococcus_faecalis | mutation_rpo_b | 0.005 |
-| enterococcus_faecalis | protection_fus_b | 5e-4 |
-| enterococcus_faecalis | protection_tet_m | 0.002 |
-| enterococcus_faecalis | enzyme_aac_aph | 2e-5 |
-| enterococcus_faecalis | mutation_23s_rrna | 3e-4 |
-| enterococcus_faecalis | mutation_pbp_mosaic | 1.5e-5 |
-| enterococcus_faecium | target_site_van_a | 0.008 |
-| enterococcus_faecium | target_site_van_b | 0.008 |
-| enterococcus_faecium | mutation_gyra_primary | 5e-4 |
-| enterococcus_faecium | mutation_gyra_parc_secondary | 0.002 |
-| enterococcus_faecium | enzyme_16s_rrmt | 0.003 |
-| enterococcus_faecium | target_site_erm_b | 0.008 |
-| enterococcus_faecium | target_site_cfr | 0.008 |
-| enterococcus_faecium | enzyme_cat | 0.0015 |
-| enterococcus_faecium | global_efflux_pump | 0.005 |
-| enterococcus_faecium | mutation_folate_pathway | 0.004 |
-| enterococcus_faecium | mutation_nitroreductase | 0.3 |
-| enterococcus_faecium | enzyme_fos_a | 0.3 |
-| enterococcus_faecium | mutation_mpr_f | 0.012 |
-| enterococcus_faecium | mutation_rpo_b | 0.12 |
-| enterococcus_faecium | protection_fus_b | 0.012 |
-| enterococcus_faecium | protection_tet_m | 0.004 |
-| enterococcus_faecium | enzyme_aac_aph | 0.025 |
-| enterococcus_faecium | mutation_23s_rrna | 0.0012 |
-| enterococcus_faecium | mutation_pbp_mosaic | 0.012 |
-| enterococcus_faecium | efflux_mtr_cde | 0.0012 |
-| escherichia_coli | enzyme_esbl_ctx_m | 1e-6 |
-| escherichia_coli | enzyme_esbl_tem | 1e-6 |
-| escherichia_coli | enzyme_esbl_shv | 1e-6 |
-| escherichia_coli | enzyme_kpc | 1e-6 |
-| escherichia_coli | enzyme_ndm_vim | 1e-6 |
-| escherichia_coli | enzyme_oxa_48 | 1e-6 |
-| escherichia_coli | enzyme_ampc_cmy | 1e-6 |
-| escherichia_coli | enzyme_ampc_dha | 1e-6 |
-| escherichia_coli | mutation_gyra_primary | 0.003 |
-| escherichia_coli | mutation_gyra_parc_secondary | 3e-4 |
-| escherichia_coli | protection_qnr | 0.003 |
-| escherichia_coli | enzyme_16s_rrmt | 1e-6 |
-| escherichia_coli | enzyme_cat | 1e-6 |
-| escherichia_coli | efflux_acrab_tolc | 1e-4 |
-| escherichia_coli | modification_mcr_1 | 1e-5 |
-| escherichia_coli | global_efflux_pump | 1e-4 |
-| escherichia_coli | mutation_folate_pathway | 1e-4 |
-| escherichia_coli | mutation_nitroreductase | 1e-6 |
-| escherichia_coli | enzyme_fos_a | 1e-6 |
-| escherichia_coli | mutation_rpo_b | 1e-5 |
-| escherichia_coli | protection_tet_m | 1e-6 |
-| escherichia_coli | enzyme_aac_aph | 0.001 |
-| escherichia_coli | efflux_tet_abc | 1e-6 |
+| acinetobacter_baumannii | mutation_polymyxin_regulatory | 0.01 |
+| acinetobacter_baumannii | global_efflux_pump | 0.003 |
+| acinetobacter_baumannii | mutation_folate_pathway | 0.5 |
+| acinetobacter_baumannii | enzyme_fos | 3e-4 |
+| acinetobacter_baumannii | mutation_rpo_b | 30 |
+| acinetobacter_baumannii | protection_tet_m | 5e-6 |
+| acinetobacter_baumannii | enzyme_aac_aph | 0.001 |
+| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 3e-4 |
+| acinetobacter_baumannii | efflux_tet_abc | 5e-6 |
+| acinetobacter_baumannii | mutation_pbp_mosaic | 3e-4 |
+| acinetobacter_baumannii | mutation_siderophore_uptake | 2e-4 |
+| citrobacter_spp. | enzyme_esbl_ctx_m | 2e-4 |
+| citrobacter_spp. | enzyme_esbl_tem | 2e-4 |
+| citrobacter_spp. | enzyme_esbl_shv | 2e-4 |
+| citrobacter_spp. | enzyme_kpc | 9e-7 |
+| citrobacter_spp. | enzyme_ndm_vim | 9e-7 |
+| citrobacter_spp. | enzyme_oxa_48 | 9e-7 |
+| citrobacter_spp. | mutation_ampc_derepression | 2e-4 |
+| citrobacter_spp. | mutation_gyra_primary | 0.01 |
+| citrobacter_spp. | mutation_gyra_parc_secondary | 0.01 |
+| citrobacter_spp. | protection_qnr | 0.01 |
+| citrobacter_spp. | enzyme_16s_rrmt | 3e-4 |
+| citrobacter_spp. | enzyme_cat | 0.09 |
+| citrobacter_spp. | efflux_acrab_tolc | 0.006 |
+| citrobacter_spp. | modification_mcr_1 | 0.04 |
+| citrobacter_spp. | global_efflux_pump | 0.006 |
+| citrobacter_spp. | mutation_folate_pathway | 0.002 |
+| citrobacter_spp. | mutation_nitroreductase | 0.01 |
+| citrobacter_spp. | enzyme_fos | 0.2 |
+| citrobacter_spp. | mutation_rpo_b | 5e-5 |
+| citrobacter_spp. | protection_tet_m | 0.01 |
+| citrobacter_spp. | enzyme_aac_aph | 3e-4 |
+| citrobacter_spp. | efflux_tet_abc | 0.01 |
+| citrobacter_spp. | mutation_pbp_mosaic | 2e-4 |
+| citrobacter_spp. | mutation_siderophore_uptake | 1e-4 |
+| enterobacter_spp. | enzyme_esbl_ctx_m | 5e-5 |
+| enterobacter_spp. | enzyme_esbl_tem | 5e-5 |
+| enterobacter_spp. | enzyme_esbl_shv | 5e-5 |
+| enterobacter_spp. | enzyme_kpc | 2e-6 |
+| enterobacter_spp. | enzyme_ndm_vim | 2e-6 |
+| enterobacter_spp. | enzyme_oxa_48 | 2e-6 |
+| enterobacter_spp. | mutation_ampc_derepression | 4e-6 |
+| enterobacter_spp. | mutation_gyra_primary | 0.001 |
+| enterobacter_spp. | mutation_gyra_parc_secondary | 0.001 |
+| enterobacter_spp. | protection_qnr | 0.001 |
+| enterobacter_spp. | enzyme_16s_rrmt | 0.002 |
+| enterobacter_spp. | enzyme_cat | 0.002 |
+| enterobacter_spp. | efflux_acrab_tolc | 9e-4 |
+| enterobacter_spp. | modification_mcr_1 | 0.002 |
+| enterobacter_spp. | mutation_polymyxin_regulatory | 0.002 |
+| enterobacter_spp. | global_efflux_pump | 9e-4 |
+| enterobacter_spp. | mutation_folate_pathway | 0.02 |
+| enterobacter_spp. | mutation_nitroreductase | 0.01 |
+| enterobacter_spp. | enzyme_fos | 0.3 |
+| enterobacter_spp. | mutation_rpo_b | 1e-6 |
+| enterobacter_spp. | protection_tet_m | 2e-5 |
+| enterobacter_spp. | enzyme_aac_aph | 0.002 |
+| enterobacter_spp. | efflux_tet_abc | 2e-5 |
+| enterobacter_spp. | mutation_pbp_mosaic | 3e-5 |
+| enterobacter_spp. | mutation_siderophore_uptake | 1e-4 |
+| enterococcus_faecalis | target_site_pbp2a_meca | 1e-5 |
+| enterococcus_faecalis | target_site_van_a | 4e-4 |
+| enterococcus_faecalis | target_site_van_b | 2e-4 |
+| enterococcus_faecalis | mutation_gyra_primary | 0.15 |
+| enterococcus_faecalis | mutation_gyra_parc_secondary | 0.15 |
+| enterococcus_faecalis | target_site_erm_b | 0.025 |
+| enterococcus_faecalis | target_site_cfr | 0.0018 |
+| enterococcus_faecalis | enzyme_cat | 0.09 |
+| enterococcus_faecalis | global_efflux_pump | 0.03 |
+| enterococcus_faecalis | mutation_folate_pathway | 0.01 |
+| enterococcus_faecalis | mutation_nitroreductase | 0.006 |
+| enterococcus_faecalis | mutation_liafsr_cls | 0.006 |
+| enterococcus_faecalis | mutation_rpo_b | 0.001 |
+| enterococcus_faecalis | protection_fus_b | 1e-4 |
+| enterococcus_faecalis | protection_tet_m | 0.004 |
+| enterococcus_faecalis | enzyme_aac_aph | 5e-6 |
+| enterococcus_faecalis | mutation_23s_rrna | 0.025 |
+| enterococcus_faecalis | mutation_23s_rrna_oxazolidinone | 6e-5 |
+| enterococcus_faecalis | mutation_pbp_mosaic | 4e-5 |
+| enterococcus_faecium | target_site_pbp2a_meca | 3e-4 |
+| enterococcus_faecium | target_site_van_a | 0.005 |
+| enterococcus_faecium | target_site_van_b | 0.0045 |
+| enterococcus_faecium | mutation_gyra_primary | 0.15 |
+| enterococcus_faecium | mutation_gyra_parc_secondary | 0.15 |
+| enterococcus_faecium | target_site_erm_b | 0.05 |
+| enterococcus_faecium | target_site_cfr | 0.025 |
+| enterococcus_faecium | enzyme_cat | 0.05 |
+| enterococcus_faecium | global_efflux_pump | 0.15 |
+| enterococcus_faecium | mutation_folate_pathway | 0.005 |
+| enterococcus_faecium | mutation_nitroreductase | 0.15 |
+| enterococcus_faecium | enzyme_fos | 5 |
+| enterococcus_faecium | mutation_liafsr_cls | 0.02 |
+| enterococcus_faecium | mutation_rpo_b | 0.01 |
+| enterococcus_faecium | protection_fus_b | 0.005 |
+| enterococcus_faecium | protection_tet_m | 0.025 |
+| enterococcus_faecium | enzyme_aac_aph | 0.005 |
+| enterococcus_faecium | mutation_23s_rrna | 0.05 |
+| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 1e-4 |
+| enterococcus_faecium | mutation_pbp_mosaic | 0.001 |
+| enterococcus_faecium | efflux_mtr_cde | 0.001 |
+| escherichia_coli | enzyme_esbl_ctx_m | 0.007 |
+| escherichia_coli | enzyme_esbl_tem | 0.007 |
+| escherichia_coli | enzyme_esbl_shv | 0.007 |
+| escherichia_coli | enzyme_kpc | 2e-7 |
+| escherichia_coli | enzyme_ndm_vim | 2e-7 |
+| escherichia_coli | enzyme_oxa_48 | 2e-7 |
+| escherichia_coli | enzyme_ampc_cmy | 3e-6 |
+| escherichia_coli | enzyme_ampc_dha | 3e-6 |
+| escherichia_coli | mutation_ampc_derepression | 3e-6 |
+| escherichia_coli | mutation_gyra_primary | 1 |
+| escherichia_coli | mutation_gyra_parc_secondary | 1 |
+| escherichia_coli | protection_qnr | 1 |
+| escherichia_coli | enzyme_16s_rrmt | 0.05 |
+| escherichia_coli | enzyme_cat | 3e-6 |
+| escherichia_coli | efflux_acrab_tolc | 0.3 |
+| escherichia_coli | modification_mcr_1 | 1e-4 |
+| escherichia_coli | global_efflux_pump | 0.3 |
+| escherichia_coli | mutation_folate_pathway | 3 |
+| escherichia_coli | mutation_nitroreductase | 0.3 |
+| escherichia_coli | enzyme_fos | 2 |
+| escherichia_coli | mutation_rpo_b | 30 |
+| escherichia_coli | protection_tet_m | 0.3 |
+| escherichia_coli | enzyme_aac_aph | 0.1 |
 | escherichia_coli | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-6 |
+| escherichia_coli | mutation_23s_rrna | 0.01 |
+| escherichia_coli | efflux_tet_abc | 0.3 |
+| escherichia_coli | mutation_pbp_mosaic | 3e-6 |
+| escherichia_coli | mutation_siderophore_uptake | 1e-4 |
 | klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-5 |
 | klebsiella_pneumoniae | enzyme_esbl_tem | 1e-5 |
 | klebsiella_pneumoniae | enzyme_esbl_shv | 1e-5 |
-| klebsiella_pneumoniae | enzyme_kpc | 1e-5 |
-| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-5 |
-| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-5 |
+| klebsiella_pneumoniae | enzyme_kpc | 3e-6 |
+| klebsiella_pneumoniae | enzyme_ndm_vim | 3e-6 |
+| klebsiella_pneumoniae | enzyme_oxa_48 | 3e-6 |
 | klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-5 |
 | klebsiella_pneumoniae | enzyme_ampc_dha | 1e-5 |
-| klebsiella_pneumoniae | mutation_gyra_primary | 0.001 |
-| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.001 |
-| klebsiella_pneumoniae | protection_qnr | 0.001 |
-| klebsiella_pneumoniae | enzyme_16s_rrmt | 0.015 |
-| klebsiella_pneumoniae | enzyme_cat | 0.002 |
-| klebsiella_pneumoniae | efflux_acrab_tolc | 0.001 |
-| klebsiella_pneumoniae | porin_loss_ompk35_36 | 1e-5 |
-| klebsiella_pneumoniae | modification_mcr_1 | 0.01 |
-| klebsiella_pneumoniae | global_efflux_pump | 0.001 |
+| klebsiella_pneumoniae | mutation_gyra_primary | 0.2 |
+| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.2 |
+| klebsiella_pneumoniae | protection_qnr | 0.2 |
+| klebsiella_pneumoniae | enzyme_16s_rrmt | 5e-4 |
+| klebsiella_pneumoniae | enzyme_cat | 3e-6 |
+| klebsiella_pneumoniae | efflux_acrab_tolc | 0.1 |
+| klebsiella_pneumoniae | porin_loss_ompk35_36 | 3e-6 |
+| klebsiella_pneumoniae | modification_mcr_1 | 1 |
+| klebsiella_pneumoniae | mutation_polymyxin_regulatory | 1 |
+| klebsiella_pneumoniae | global_efflux_pump | 0.1 |
 | klebsiella_pneumoniae | mutation_folate_pathway | 0.001 |
-| klebsiella_pneumoniae | mutation_nitroreductase | 0.002 |
-| klebsiella_pneumoniae | enzyme_fos_a | 0.003 |
-| klebsiella_pneumoniae | mutation_rpo_b | 2e-4 |
-| klebsiella_pneumoniae | protection_tet_m | 2e-4 |
-| klebsiella_pneumoniae | enzyme_aac_aph | 0.04 |
-| klebsiella_pneumoniae | efflux_tet_abc | 3e-4 |
-| morganella_spp. | enzyme_esbl_ctx_m | 2e-4 |
-| morganella_spp. | enzyme_esbl_tem | 2e-4 |
-| morganella_spp. | enzyme_esbl_shv | 2e-4 |
-| morganella_spp. | enzyme_kpc | 5e-5 |
-| morganella_spp. | enzyme_ndm_vim | 5e-5 |
-| morganella_spp. | enzyme_oxa_48 | 5e-5 |
-| morganella_spp. | enzyme_ampc_cmy | 1e-4 |
-| morganella_spp. | enzyme_ampc_dha | 1e-4 |
-| morganella_spp. | mutation_gyra_primary | 0.03 |
-| morganella_spp. | mutation_gyra_parc_secondary | 0.03 |
-| morganella_spp. | protection_qnr | 0.03 |
-| morganella_spp. | enzyme_16s_rrmt | 1 |
-| morganella_spp. | enzyme_cat | 0.1 |
-| morganella_spp. | efflux_acrab_tolc | 0.003 |
-| morganella_spp. | efflux_mexxy_oprm | 2e-4 |
-| morganella_spp. | modification_mcr_1 | 0.02 |
-| morganella_spp. | global_efflux_pump | 0.003 |
-| morganella_spp. | mutation_folate_pathway | 0.004 |
-| morganella_spp. | mutation_nitroreductase | 0.03 |
-| morganella_spp. | enzyme_fos_a | 0.003 |
-| morganella_spp. | mutation_rpo_b | 0.01 |
-| morganella_spp. | protection_tet_m | 0.003 |
-| morganella_spp. | enzyme_aac_aph | 1 |
-| morganella_spp. | efflux_tet_abc | 0.003 |
-| morganella_spp. | mutation_pbp_mosaic | 2e-5 |
-| proteus_spp. | enzyme_esbl_ctx_m | 2e-5 |
-| proteus_spp. | enzyme_esbl_tem | 2e-5 |
-| proteus_spp. | enzyme_esbl_shv | 2e-5 |
-| proteus_spp. | enzyme_kpc | 1.5e-5 |
-| proteus_spp. | enzyme_ndm_vim | 1.5e-5 |
-| proteus_spp. | enzyme_oxa_48 | 1.5e-5 |
-| proteus_spp. | enzyme_ampc_cmy | 2e-5 |
-| proteus_spp. | enzyme_ampc_dha | 2e-5 |
-| proteus_spp. | mutation_gyra_primary | 0.04 |
-| proteus_spp. | mutation_gyra_parc_secondary | 0.01 |
-| proteus_spp. | protection_qnr | 0.01 |
-| proteus_spp. | enzyme_16s_rrmt | 0.02 |
-| proteus_spp. | enzyme_cat | 3.5e-4 |
-| proteus_spp. | efflux_acrab_tolc | 0.005 |
-| proteus_spp. | modification_mcr_1 | 5e-4 |
-| proteus_spp. | global_efflux_pump | 0.05 |
-| proteus_spp. | mutation_folate_pathway | 0.002 |
-| proteus_spp. | mutation_nitroreductase | 1.5e-5 |
-| proteus_spp. | enzyme_fos_a | 0.0015 |
-| proteus_spp. | mutation_rpo_b | 1e-4 |
-| proteus_spp. | protection_tet_m | 0.0035 |
-| proteus_spp. | enzyme_aac_aph | 0.02 |
-| proteus_spp. | efflux_tet_abc | 1e-6 |
-| proteus_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 3e-14 |
-| serratia_spp. | enzyme_esbl_ctx_m | 0.0018 |
-| serratia_spp. | enzyme_esbl_tem | 0.0018 |
-| serratia_spp. | enzyme_esbl_shv | 0.0018 |
-| serratia_spp. | enzyme_kpc | 4e-4 |
-| serratia_spp. | enzyme_ndm_vim | 4e-4 |
-| serratia_spp. | enzyme_oxa_48 | 4e-4 |
-| serratia_spp. | enzyme_ampc_cmy | 0.0018 |
-| serratia_spp. | enzyme_ampc_dha | 0.0018 |
-| serratia_spp. | mutation_gyra_primary | 0.02 |
-| serratia_spp. | mutation_gyra_parc_secondary | 0.01 |
-| serratia_spp. | protection_qnr | 0.01 |
-| serratia_spp. | enzyme_16s_rrmt | 0.9 |
-| serratia_spp. | enzyme_cat | 5e-5 |
-| serratia_spp. | efflux_acrab_tolc | 0.008 |
-| serratia_spp. | modification_mcr_1 | 0.03 |
-| serratia_spp. | global_efflux_pump | 0.0015 |
-| serratia_spp. | mutation_folate_pathway | 0.001 |
-| serratia_spp. | mutation_nitroreductase | 0.002 |
-| serratia_spp. | enzyme_fos_a | 2e-4 |
-| serratia_spp. | mutation_rpo_b | 0.03 |
-| serratia_spp. | protection_tet_m | 0.0015 |
-| serratia_spp. | enzyme_aac_aph | 1 |
-| serratia_spp. | efflux_tet_abc | 2e-4 |
-| p_stuartii | enzyme_esbl_ctx_m | 1.9e-4 |
-| p_stuartii | enzyme_esbl_tem | 1.9e-4 |
-| p_stuartii | enzyme_esbl_shv | 3.7e-5 |
-| p_stuartii | enzyme_kpc | 1.9e-5 |
-| p_stuartii | enzyme_ndm_vim | 1.9e-5 |
-| p_stuartii | enzyme_oxa_48 | 1.9e-5 |
-| p_stuartii | enzyme_ampc_cmy | 3.8e-4 |
-| p_stuartii | enzyme_ampc_dha | 1.9e-4 |
-| p_stuartii | mutation_gyra_primary | 3.8e-4 |
-| p_stuartii | mutation_gyra_parc_secondary | 1.9e-4 |
-| p_stuartii | protection_qnr | 1.9e-4 |
-| p_stuartii | enzyme_16s_rrmt | 3.8e-6 |
-| p_stuartii | enzyme_cat | 1.9e-4 |
-| p_stuartii | efflux_acrab_tolc | 1.9e-4 |
-| p_stuartii | modification_mcr_1 | 1.9e-5 |
-| p_stuartii | global_efflux_pump | 3.7e-5 |
-| p_stuartii | mutation_folate_pathway | 3.8e-4 |
-| p_stuartii | mutation_nitroreductase | 3.7e-5 |
-| p_stuartii | enzyme_fos_a | 3.7e-5 |
-| p_stuartii | mutation_rpo_b | 3.8e-6 |
-| p_stuartii | protection_tet_m | 3.8e-4 |
-| p_stuartii | enzyme_aac_aph | 5e-11 |
-| p_stuartii | efflux_tet_abc | 5e-11 |
-| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_tem | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_shv | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_kpc | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_ndm_vim | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_oxa_48 | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_cmy | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_dha | 3e-5 |
-| pseudomonas_aeruginosa | mutation_gyra_primary | 0.001 |
-| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.001 |
-| pseudomonas_aeruginosa | protection_qnr | 0.001 |
-| pseudomonas_aeruginosa | enzyme_16s_rrmt | 4e-4 |
-| pseudomonas_aeruginosa | target_site_erm_b | 3e-5 |
-| pseudomonas_aeruginosa | target_site_cfr | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_cat | 4e-4 |
-| pseudomonas_aeruginosa | efflux_mexxy_oprm | 5e-4 |
+| klebsiella_pneumoniae | mutation_nitroreductase | 1 |
+| klebsiella_pneumoniae | enzyme_fos | 10 |
+| klebsiella_pneumoniae | mutation_rpo_b | 30 |
+| klebsiella_pneumoniae | protection_tet_m | 0.03 |
+| klebsiella_pneumoniae | enzyme_aac_aph | 5e-4 |
+| klebsiella_pneumoniae | efflux_tet_abc | 0.03 |
+| klebsiella_pneumoniae | mutation_siderophore_uptake | 1e-4 |
+| morganella_spp. | enzyme_esbl_ctx_m | 0.001 |
+| morganella_spp. | enzyme_esbl_tem | 0.001 |
+| morganella_spp. | enzyme_esbl_shv | 0.001 |
+| morganella_spp. | enzyme_kpc | 1e-4 |
+| morganella_spp. | enzyme_ndm_vim | 1e-4 |
+| morganella_spp. | enzyme_oxa_48 | 3e-4 |
+| morganella_spp. | mutation_ampc_derepression | 1e-4 |
+| morganella_spp. | mutation_gyra_primary | 0.04 |
+| morganella_spp. | mutation_gyra_parc_secondary | 0.04 |
+| morganella_spp. | protection_qnr | 0.04 |
+| morganella_spp. | enzyme_16s_rrmt | 0.006 |
+| morganella_spp. | enzyme_cat | 0.3 |
+| morganella_spp. | efflux_acrab_tolc | 0.04 |
+| morganella_spp. | modification_mcr_1 | 0.09 |
+| morganella_spp. | mutation_polymyxin_regulatory | 0.09 |
+| morganella_spp. | global_efflux_pump | 0.04 |
+| morganella_spp. | mutation_folate_pathway | 0.01 |
+| morganella_spp. | mutation_nitroreductase | 0.3 |
+| morganella_spp. | enzyme_fos | 0.2 |
+| morganella_spp. | mutation_rpo_b | 0.05 |
+| morganella_spp. | protection_tet_m | 0.01 |
+| morganella_spp. | enzyme_aac_aph | 0.006 |
+| morganella_spp. | efflux_tet_abc | 0.01 |
+| morganella_spp. | mutation_pbp_mosaic | 1e-4 |
+| morganella_spp. | mutation_siderophore_uptake | 1e-4 |
+| proteus_spp. | enzyme_esbl_ctx_m | 9e-14 |
+| proteus_spp. | enzyme_esbl_tem | 9e-14 |
+| proteus_spp. | enzyme_esbl_shv | 9e-14 |
+| proteus_spp. | enzyme_kpc | 9e-14 |
+| proteus_spp. | enzyme_ndm_vim | 9e-14 |
+| proteus_spp. | enzyme_oxa_48 | 9e-14 |
+| proteus_spp. | enzyme_ampc_cmy | 9e-14 |
+| proteus_spp. | enzyme_ampc_dha | 9e-14 |
+| proteus_spp. | mutation_gyra_primary | 0.03 |
+| proteus_spp. | mutation_gyra_parc_secondary | 0.03 |
+| proteus_spp. | protection_qnr | 0.03 |
+| proteus_spp. | enzyme_16s_rrmt | 0.006 |
+| proteus_spp. | enzyme_cat | 0.006 |
+| proteus_spp. | efflux_acrab_tolc | 0.03 |
+| proteus_spp. | modification_mcr_1 | 0.01 |
+| proteus_spp. | global_efflux_pump | 0.03 |
+| proteus_spp. | mutation_folate_pathway | 9e-4 |
+| proteus_spp. | mutation_nitroreductase | 0.1 |
+| proteus_spp. | enzyme_fos | 0.06 |
+| proteus_spp. | mutation_rpo_b | 3e-5 |
+| proteus_spp. | protection_tet_m | 0.06 |
+| proteus_spp. | enzyme_aac_aph | 0.006 |
+| proteus_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 9e-14 |
+| proteus_spp. | efflux_tet_abc | 0.03 |
+| proteus_spp. | mutation_siderophore_uptake | 1e-4 |
+| serratia_spp. | enzyme_esbl_ctx_m | 3e-4 |
+| serratia_spp. | enzyme_esbl_tem | 3e-4 |
+| serratia_spp. | enzyme_esbl_shv | 3e-4 |
+| serratia_spp. | enzyme_kpc | 2e-5 |
+| serratia_spp. | enzyme_ndm_vim | 2e-5 |
+| serratia_spp. | enzyme_oxa_48 | 2e-5 |
+| serratia_spp. | mutation_ampc_derepression | 3e-4 |
+| serratia_spp. | mutation_gyra_primary | 0.03 |
+| serratia_spp. | mutation_gyra_parc_secondary | 0.03 |
+| serratia_spp. | protection_qnr | 0.03 |
+| serratia_spp. | enzyme_16s_rrmt | 0.005 |
+| serratia_spp. | enzyme_cat | 0.03 |
+| serratia_spp. | efflux_acrab_tolc | 0.03 |
+| serratia_spp. | modification_mcr_1 | 0.01 |
+| serratia_spp. | global_efflux_pump | 0.03 |
+| serratia_spp. | mutation_folate_pathway | 0.03 |
+| serratia_spp. | mutation_nitroreductase | 0.01 |
+| serratia_spp. | enzyme_fos | 0.06 |
+| serratia_spp. | mutation_rpo_b | 1e-4 |
+| serratia_spp. | protection_tet_m | 0.01 |
+| serratia_spp. | enzyme_aac_aph | 0.005 |
+| serratia_spp. | efflux_tet_abc | 0.005 |
+| serratia_spp. | mutation_pbp_mosaic | 2e-4 |
+| serratia_spp. | mutation_siderophore_uptake | 1e-4 |
+| p_stuartii | enzyme_esbl_ctx_m | 0.002 |
+| p_stuartii | enzyme_esbl_tem | 0.002 |
+| p_stuartii | enzyme_esbl_shv | 0.002 |
+| p_stuartii | enzyme_kpc | 3e-4 |
+| p_stuartii | enzyme_ndm_vim | 3e-4 |
+| p_stuartii | enzyme_oxa_48 | 3e-4 |
+| p_stuartii | mutation_ampc_derepression | 0.002 |
+| p_stuartii | mutation_gyra_primary | 0.001 |
+| p_stuartii | mutation_gyra_parc_secondary | 0.001 |
+| p_stuartii | protection_qnr | 0.001 |
+| p_stuartii | enzyme_16s_rrmt | 0.01 |
+| p_stuartii | enzyme_cat | 9e-5 |
+| p_stuartii | efflux_acrab_tolc | 6e-4 |
+| p_stuartii | modification_mcr_1 | 2e-6 |
+| p_stuartii | mutation_polymyxin_regulatory | 3e-4 |
+| p_stuartii | global_efflux_pump | 6e-4 |
+| p_stuartii | mutation_folate_pathway | 0.5 |
+| p_stuartii | mutation_nitroreductase | 0.001 |
+| p_stuartii | enzyme_fos | 0.02 |
+| p_stuartii | mutation_rpo_b | 30 |
+| p_stuartii | protection_tet_m | 2e-6 |
+| p_stuartii | enzyme_aac_aph | 0.01 |
+| p_stuartii | efflux_tet_abc | 6e-6 |
+| p_stuartii | mutation_siderophore_uptake | 1e-4 |
+| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 5e-5 |
+| pseudomonas_aeruginosa | enzyme_esbl_tem | 5e-5 |
+| pseudomonas_aeruginosa | enzyme_esbl_shv | 5e-5 |
+| pseudomonas_aeruginosa | enzyme_kpc | 1e-4 |
+| pseudomonas_aeruginosa | enzyme_ndm_vim | 1e-4 |
+| pseudomonas_aeruginosa | enzyme_oxa_48 | 1e-4 |
+| pseudomonas_aeruginosa | enzyme_ampc_cmy | 5e-5 |
+| pseudomonas_aeruginosa | enzyme_ampc_dha | 5e-5 |
+| pseudomonas_aeruginosa | mutation_ampc_derepression | 5e-5 |
+| pseudomonas_aeruginosa | mutation_gyra_primary | 0.03 |
+| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.03 |
+| pseudomonas_aeruginosa | protection_qnr | 0.03 |
+| pseudomonas_aeruginosa | enzyme_16s_rrmt | 3e-7 |
+| pseudomonas_aeruginosa | enzyme_cat | 1e-4 |
+| pseudomonas_aeruginosa | efflux_mexxy_oprm | 0.01 |
 | pseudomonas_aeruginosa | porin_loss_oprd | 3e-4 |
-| pseudomonas_aeruginosa | modification_mcr_1 | 0.003 |
-| pseudomonas_aeruginosa | global_efflux_pump | 3e-4 |
-| pseudomonas_aeruginosa | mutation_folate_pathway | 0.003 |
-| pseudomonas_aeruginosa | mutation_nitroreductase | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_fos_a | 0.01 |
+| pseudomonas_aeruginosa | modification_mcr_1 | 1e-4 |
+| pseudomonas_aeruginosa | mutation_polymyxin_regulatory | 1e-4 |
+| pseudomonas_aeruginosa | global_efflux_pump | 0.02 |
+| pseudomonas_aeruginosa | mutation_folate_pathway | 0.005 |
+| pseudomonas_aeruginosa | mutation_nitroreductase | 5e-5 |
+| pseudomonas_aeruginosa | enzyme_fos | 0.005 |
 | pseudomonas_aeruginosa | mutation_rpo_b | 0.001 |
-| pseudomonas_aeruginosa | protection_tet_m | 0.004 |
-| pseudomonas_aeruginosa | enzyme_aac_aph | 0.001 |
-| pseudomonas_aeruginosa | efflux_tet_abc | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_esbl_tem | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_esbl_shv | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_kpc | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_ndm_vim | 0.1 |
-| stenotrophomonas_maltophilia | enzyme_oxa_48 | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_ampc_cmy | 0.05 |
-| stenotrophomonas_maltophilia | enzyme_ampc_dha | 2e-4 |
-| stenotrophomonas_maltophilia | mutation_gyra_primary | 5e-8 |
-| stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 5e-8 |
-| stenotrophomonas_maltophilia | protection_qnr | 2e-5 |
-| stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.01 |
-| stenotrophomonas_maltophilia | target_site_erm_b | 0.1 |
-| stenotrophomonas_maltophilia | enzyme_cat | 5e-7 |
-| stenotrophomonas_maltophilia | modification_mcr_1 | 0.05 |
-| stenotrophomonas_maltophilia | global_efflux_pump | 1e-7 |
-| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.005 |
-| stenotrophomonas_maltophilia | mutation_nitroreductase | 10 |
-| stenotrophomonas_maltophilia | enzyme_fos_a | 0.03 |
+| pseudomonas_aeruginosa | protection_tet_m | 0.002 |
+| pseudomonas_aeruginosa | enzyme_aac_aph | 3e-7 |
+| pseudomonas_aeruginosa | efflux_tet_abc | 3e-5 |
+| pseudomonas_aeruginosa | mutation_pbp_mosaic | 5e-5 |
+| pseudomonas_aeruginosa | mutation_siderophore_uptake | 2e-4 |
+| stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 0.5 |
+| stenotrophomonas_maltophilia | enzyme_esbl_tem | 0.5 |
+| stenotrophomonas_maltophilia | enzyme_esbl_shv | 0.5 |
+| stenotrophomonas_maltophilia | enzyme_kpc | 2 |
+| stenotrophomonas_maltophilia | enzyme_ndm_vim | 2 |
+| stenotrophomonas_maltophilia | enzyme_oxa_48 | 2 |
+| stenotrophomonas_maltophilia | enzyme_ampc_cmy | 2 |
+| stenotrophomonas_maltophilia | enzyme_ampc_dha | 2 |
+| stenotrophomonas_maltophilia | mutation_gyra_primary | 0.1 |
+| stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 0.1 |
+| stenotrophomonas_maltophilia | protection_qnr | 0.1 |
+| stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.1 |
+| stenotrophomonas_maltophilia | enzyme_cat | 1 |
+| stenotrophomonas_maltophilia | modification_mcr_1 | 0.1 |
+| stenotrophomonas_maltophilia | global_efflux_pump | 0.02 |
+| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.001 |
+| stenotrophomonas_maltophilia | mutation_nitroreductase | 0.1 |
+| stenotrophomonas_maltophilia | enzyme_fos | 30 |
 | stenotrophomonas_maltophilia | mutation_rpo_b | 2e-4 |
-| stenotrophomonas_maltophilia | protection_tet_m | 5e-7 |
-| stenotrophomonas_maltophilia | enzyme_aac_aph | 0.05 |
-| stenotrophomonas_maltophilia | efflux_tet_abc | 2e-9 |
-| staphylococcus_aureus | target_site_pbp2a_meca | 1e-7 |
-| staphylococcus_aureus | target_site_van_a | 1e-8 |
-| staphylococcus_aureus | target_site_van_b | 5e-11 |
-| staphylococcus_aureus | mutation_gyra_primary | 1.5e-5 |
-| staphylococcus_aureus | mutation_gyra_parc_secondary | 1.5e-5 |
-| staphylococcus_aureus | enzyme_16s_rrmt | 1e-5 |
-| staphylococcus_aureus | target_site_erm_b | 4e-6 |
-| staphylococcus_aureus | target_site_cfr | 4e-8 |
-| staphylococcus_aureus | enzyme_cat | 1e-8 |
-| staphylococcus_aureus | global_efflux_pump | 4e-6 |
-| staphylococcus_aureus | mutation_folate_pathway | 1e-5 |
-| staphylococcus_aureus | mutation_nitroreductase | 1e-5 |
-| staphylococcus_aureus | enzyme_fos_a | 1e-5 |
-| staphylococcus_aureus | mutation_mpr_f | 1e-5 |
-| staphylococcus_aureus | mutation_rpo_b | 1e-5 |
-| staphylococcus_aureus | protection_fus_b | 1e-5 |
-| staphylococcus_aureus | protection_tet_m | 4e-6 |
-| staphylococcus_aureus | enzyme_aac_aph | 1e-5 |
-| staphylococcus_aureus | enzyme_bla_z | 1e-4 |
-| staphylococcus_epidermidis | target_site_pbp2a_meca | 1e-6 |
-| staphylococcus_epidermidis | target_site_van_a | 1e-8 |
-| staphylococcus_epidermidis | target_site_van_b | 1e-8 |
-| staphylococcus_epidermidis | mutation_gyra_primary | 1e-5 |
-| staphylococcus_epidermidis | mutation_gyra_parc_secondary | 1e-6 |
-| staphylococcus_epidermidis | target_site_erm_b | 1e-5 |
-| staphylococcus_epidermidis | target_site_cfr | 1e-7 |
-| staphylococcus_epidermidis | enzyme_cat | 1e-6 |
-| staphylococcus_epidermidis | global_efflux_pump | 1e-6 |
-| staphylococcus_epidermidis | mutation_folate_pathway | 1e-5 |
-| staphylococcus_epidermidis | mutation_mpr_f | 1e-6 |
-| staphylococcus_epidermidis | mutation_rpo_b | 0.001 |
-| staphylococcus_epidermidis | protection_fus_b | 3e-6 |
-| staphylococcus_epidermidis | protection_tet_m | 3e-5 |
-| staphylococcus_epidermidis | enzyme_aac_aph | 1e-9 |
-| staphylococcus_epidermidis | enzyme_bla_z | 3e-5 |
-| streptococcus_pneumoniae | target_site_pbp2a_meca | 3e-8 |
-| streptococcus_pneumoniae | mutation_gyra_primary | 3e-5 |
-| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 3e-5 |
-| streptococcus_pneumoniae | target_site_erm_b | 1e-6 |
-| streptococcus_pneumoniae | enzyme_cat | 3e-4 |
-| streptococcus_pneumoniae | global_efflux_pump | 1e-5 |
-| streptococcus_pneumoniae | mutation_folate_pathway | 0.003 |
-| streptococcus_pneumoniae | mutation_rpo_b | 0.001 |
-| streptococcus_pneumoniae | protection_tet_m | 0.001 |
-| streptococcus_pneumoniae | mutation_23s_rrna | 5e-7 |
-| streptococcus_pneumoniae | mutation_pbp_mosaic | 3e-8 |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 0.005 |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 0.15 |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 0.0015 |
-| salmonella_enterica_serovar_typhi | enzyme_kpc | 3e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_ndm_vim | 3e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 3e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 5e-4 |
-| salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 5e-4 |
-| salmonella_enterica_serovar_typhi | mutation_gyra_primary | 0.8 |
-| salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 0.05 |
-| salmonella_enterica_serovar_typhi | protection_qnr | 0.03 |
-| salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 1e-4 |
-| salmonella_enterica_serovar_typhi | enzyme_cat | 0.015 |
-| salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 0.05 |
-| salmonella_enterica_serovar_typhi | modification_mcr_1 | 0.0015 |
-| salmonella_enterica_serovar_typhi | global_efflux_pump | 0.005 |
-| salmonella_enterica_serovar_typhi | mutation_folate_pathway | 0.15 |
-| salmonella_enterica_serovar_typhi | mutation_nitroreductase | 0.0015 |
-| salmonella_enterica_serovar_typhi | enzyme_fos_a | 0.0015 |
-| salmonella_enterica_serovar_typhi | mutation_rpo_b | 1.5e-4 |
-| salmonella_enterica_serovar_typhi | protection_tet_m | 0.015 |
-| salmonella_enterica_serovar_typhi | enzyme_aac_aph | 1e-4 |
-| salmonella_enterica_serovar_typhi | efflux_tet_abc | 2e-6 |
-| salmonella_enterica_serovar_typhi | efflux_mtr_cde | 0.01 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 0.002 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 0.002 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 0.002 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 5e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 7e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 5e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 0.0015 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 0.0015 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 0.05 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.04 |
-| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.15 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 0.02 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.03 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_mexxy_oprm | 8e-4 |
-| salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 0.003 |
-| salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.0045 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.03 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 1.5e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_fos_a | 1.5e-4 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 0.01 |
-| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.02 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.15 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.007 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 0.001 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_mtr_cde | 5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 2.2e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 2.2e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 2.2e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 0.8 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 0.015 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 0.03 |
-| invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 0.003 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 0.003 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_fos_a | 0.001 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 0.02 |
-| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.004 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.8 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.08 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 2.5e-6 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-11 |
-| shigella_spp. | enzyme_esbl_ctx_m | 0.001 |
-| shigella_spp. | enzyme_esbl_tem | 0.001 |
-| shigella_spp. | enzyme_esbl_shv | 0.001 |
-| shigella_spp. | enzyme_kpc | 0.001 |
-| shigella_spp. | enzyme_ndm_vim | 0.001 |
-| shigella_spp. | enzyme_oxa_48 | 0.001 |
-| shigella_spp. | enzyme_ampc_cmy | 0.001 |
-| shigella_spp. | enzyme_ampc_dha | 0.001 |
-| shigella_spp. | mutation_gyra_primary | 5e-4 |
-| shigella_spp. | mutation_gyra_parc_secondary | 5e-4 |
-| shigella_spp. | protection_qnr | 5e-4 |
-| shigella_spp. | enzyme_16s_rrmt | 0.9 |
-| shigella_spp. | target_site_erm_b | 0.8 |
-| shigella_spp. | enzyme_cat | 2.5e-4 |
-| shigella_spp. | efflux_acrab_tolc | 5e-4 |
-| shigella_spp. | modification_mcr_1 | 3e-4 |
-| shigella_spp. | global_efflux_pump | 0.9 |
-| shigella_spp. | mutation_folate_pathway | 0.003 |
-| shigella_spp. | mutation_rpo_b | 0.04 |
-| shigella_spp. | protection_tet_m | 0.03 |
-| shigella_spp. | enzyme_aac_aph | 0.9 |
-| shigella_spp. | mutation_23s_rrna | 0.9 |
-| shigella_spp. | efflux_tet_abc | 0.03 |
-| shigella_spp. | mutation_pbp_mosaic | 0.001 |
-| shigella_spp. | efflux_mtr_cde | 0.001 |
+| stenotrophomonas_maltophilia | protection_tet_m | 0.003 |
+| stenotrophomonas_maltophilia | enzyme_aac_aph | 0.1 |
+| stenotrophomonas_maltophilia | efflux_tet_abc | 0.009 |
+| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 2e-4 |
+| staphylococcus_aureus | target_site_pbp2a_meca | 3e-5 |
+| staphylococcus_aureus | target_site_van_a | 3e-6 |
+| staphylococcus_aureus | target_site_van_b | 3e-6 |
+| staphylococcus_aureus | mutation_gyra_primary | 30 |
+| staphylococcus_aureus | mutation_gyra_parc_secondary | 30 |
+| staphylococcus_aureus | target_site_erm_b | 30 |
+| staphylococcus_aureus | target_site_cfr | 0.1 |
+| staphylococcus_aureus | enzyme_cat | 0.005 |
+| staphylococcus_aureus | global_efflux_pump | 0.3 |
+| staphylococcus_aureus | mutation_folate_pathway | 30 |
+| staphylococcus_aureus | mutation_nitroreductase | 0.001 |
+| staphylococcus_aureus | enzyme_fos | 0.001 |
+| staphylococcus_aureus | mutation_mpr_f | 5e-4 |
+| staphylococcus_aureus | mutation_rpo_b | 30 |
+| staphylococcus_aureus | protection_fus_b | 30 |
+| staphylococcus_aureus | protection_tet_m | 0.3 |
+| staphylococcus_aureus | enzyme_aac_aph | 0.1 |
+| staphylococcus_aureus | enzyme_bla_z | 2e-4 |
+| staphylococcus_aureus | mutation_23s_rrna | 30 |
+| staphylococcus_aureus | mutation_23s_rrna_oxazolidinone | 3e-5 |
+| staphylococcus_epidermidis | target_site_pbp2a_meca | 2e-4 |
+| staphylococcus_epidermidis | target_site_van_a | 5e-9 |
+| staphylococcus_epidermidis | target_site_van_b | 5e-9 |
+| staphylococcus_epidermidis | mutation_gyra_primary | 0.003 |
+| staphylococcus_epidermidis | mutation_gyra_parc_secondary | 0.003 |
+| staphylococcus_epidermidis | target_site_erm_b | 6e-4 |
+| staphylococcus_epidermidis | target_site_cfr | 2e-6 |
+| staphylococcus_epidermidis | enzyme_cat | 2e-4 |
+| staphylococcus_epidermidis | global_efflux_pump | 0.001 |
+| staphylococcus_epidermidis | mutation_folate_pathway | 0.009 |
+| staphylococcus_epidermidis | mutation_mpr_f | 5e-7 |
+| staphylococcus_epidermidis | mutation_rpo_b | 3e-4 |
+| staphylococcus_epidermidis | protection_fus_b | 0.04 |
+| staphylococcus_epidermidis | protection_tet_m | 6e-6 |
+| staphylococcus_epidermidis | enzyme_aac_aph | 1e-4 |
+| staphylococcus_epidermidis | enzyme_bla_z | 2e-4 |
+| staphylococcus_epidermidis | mutation_23s_rrna | 3e-4 |
+| staphylococcus_epidermidis | mutation_23s_rrna_oxazolidinone | 5e-5 |
+| streptococcus_pneumoniae | mutation_gyra_primary | 1 |
+| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 1 |
+| streptococcus_pneumoniae | target_site_erm_b | 30 |
+| streptococcus_pneumoniae | enzyme_cat | 30 |
+| streptococcus_pneumoniae | global_efflux_pump | 1 |
+| streptococcus_pneumoniae | mutation_folate_pathway | 3e-4 |
+| streptococcus_pneumoniae | mutation_rpo_b | 30 |
+| streptococcus_pneumoniae | protection_tet_m | 0.05 |
+| streptococcus_pneumoniae | mutation_23s_rrna | 30 |
+| streptococcus_pneumoniae | mutation_pbp_mosaic | 5e-7 |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 3e-4 |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 3e-4 |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 3e-4 |
+| salmonella_enterica_serovar_typhi | enzyme_kpc | 1e-5 |
+| salmonella_enterica_serovar_typhi | enzyme_ndm_vim | 1e-5 |
+| salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 1e-5 |
+| salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 3e-4 |
+| salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 3e-4 |
+| salmonella_enterica_serovar_typhi | mutation_gyra_primary | 3 |
+| salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 3 |
+| salmonella_enterica_serovar_typhi | protection_qnr | 3 |
+| salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 1 |
+| salmonella_enterica_serovar_typhi | enzyme_cat | 3 |
+| salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 3 |
+| salmonella_enterica_serovar_typhi | modification_mcr_1 | 30 |
+| salmonella_enterica_serovar_typhi | mutation_polymyxin_regulatory | 30 |
+| salmonella_enterica_serovar_typhi | global_efflux_pump | 3 |
+| salmonella_enterica_serovar_typhi | mutation_folate_pathway | 3 |
+| salmonella_enterica_serovar_typhi | mutation_nitroreductase | 1e-5 |
+| salmonella_enterica_serovar_typhi | enzyme_fos | 3e-5 |
+| salmonella_enterica_serovar_typhi | mutation_rpo_b | 30 |
+| salmonella_enterica_serovar_typhi | protection_tet_m | 3 |
+| salmonella_enterica_serovar_typhi | enzyme_aac_aph | 1 |
+| salmonella_enterica_serovar_typhi | efflux_tet_abc | 3 |
+| salmonella_enterica_serovar_typhi | mutation_siderophore_uptake | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 3e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 3e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 3e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 6e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 6e-5 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 2 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.9 |
+| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.9 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 30 |
+| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.9 |
+| salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 30 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_polymyxin_regulatory | 30 |
+| salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.9 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.05 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 3e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_fos | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 30 |
+| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.5 |
+| salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 6e-5 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_siderophore_uptake | 1e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 3e-11 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 3e-11 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 3e-11 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 2e-8 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 2e-8 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 2e-8 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 3e-11 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 3e-11 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.02 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.02 |
+| invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.02 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 0.009 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.002 |
+| invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 30 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_polymyxin_regulatory | 30 |
+| invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.002 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 5e-10 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_fos | 3e-4 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 30 |
+| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.001 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 5e-11 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.002 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_siderophore_uptake | 1e-4 |
+| shigella_spp. | enzyme_esbl_ctx_m | 0.015 |
+| shigella_spp. | enzyme_esbl_tem | 0.015 |
+| shigella_spp. | enzyme_esbl_shv | 0.01 |
+| shigella_spp. | enzyme_kpc | 1e-5 |
+| shigella_spp. | enzyme_ndm_vim | 1e-5 |
+| shigella_spp. | enzyme_oxa_48 | 1e-5 |
+| shigella_spp. | enzyme_ampc_cmy | 0.003 |
+| shigella_spp. | enzyme_ampc_dha | 0.003 |
+| shigella_spp. | mutation_gyra_primary | 30 |
+| shigella_spp. | mutation_gyra_parc_secondary | 30 |
+| shigella_spp. | protection_qnr | 30 |
+| shigella_spp. | enzyme_16s_rrmt | 30 |
+| shigella_spp. | target_site_erm_b | 30 |
+| shigella_spp. | enzyme_cat | 30 |
+| shigella_spp. | efflux_acrab_tolc | 10 |
+| shigella_spp. | modification_mcr_1 | 30 |
+| shigella_spp. | mutation_polymyxin_regulatory | 30 |
+| shigella_spp. | global_efflux_pump | 10 |
+| shigella_spp. | mutation_folate_pathway | 1 |
+| shigella_spp. | mutation_nitroreductase | 0.3 |
+| shigella_spp. | mutation_rpo_b | 30 |
+| shigella_spp. | protection_tet_m | 1 |
+| shigella_spp. | enzyme_aac_aph | 30 |
 | shigella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.3 |
-| neisseria_gonorrhoeae | mutation_gyra_primary | 1 |
-| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 1 |
-| neisseria_gonorrhoeae | protection_qnr | 1 |
-| neisseria_gonorrhoeae | enzyme_16s_rrmt | 1 |
-| neisseria_gonorrhoeae | target_site_erm_b | 0.01 |
-| neisseria_gonorrhoeae | target_site_cfr | 0.01 |
-| neisseria_gonorrhoeae | enzyme_cat | 0.001 |
+| shigella_spp. | enzyme_mph_a | 3 |
+| shigella_spp. | mutation_23s_rrna | 30 |
+| shigella_spp. | efflux_tet_abc | 1 |
+| shigella_spp. | mutation_siderophore_uptake | 1e-4 |
+| neisseria_gonorrhoeae | mutation_gyra_primary | 3 |
+| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 3 |
+| neisseria_gonorrhoeae | protection_qnr | 3 |
+| neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.01 |
+| neisseria_gonorrhoeae | target_site_erm_b | 0.05 |
+| neisseria_gonorrhoeae | target_site_cfr | 0.001 |
+| neisseria_gonorrhoeae | enzyme_cat | 0.5 |
+| neisseria_gonorrhoeae | efflux_acrab_tolc | 3 |
 | neisseria_gonorrhoeae | modification_mcr_1 | 0.005 |
-| neisseria_gonorrhoeae | global_efflux_pump | 1 |
-| neisseria_gonorrhoeae | mutation_folate_pathway | 0.1 |
-| neisseria_gonorrhoeae | mutation_nitroreductase | 0.1 |
-| neisseria_gonorrhoeae | enzyme_fos_a | 3e-4 |
-| neisseria_gonorrhoeae | mutation_rpo_b | 1 |
+| neisseria_gonorrhoeae | global_efflux_pump | 3 |
+| neisseria_gonorrhoeae | mutation_folate_pathway | 1 |
+| neisseria_gonorrhoeae | mutation_nitroreductase | 0.03 |
+| neisseria_gonorrhoeae | enzyme_fos | 3e-4 |
+| neisseria_gonorrhoeae | mutation_rpo_b | 30 |
 | neisseria_gonorrhoeae | protection_tet_m | 1 |
-| neisseria_gonorrhoeae | enzyme_aac_aph | 1 |
-| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 1 |
-| neisseria_gonorrhoeae | mutation_23s_rrna | 0.03 |
-| neisseria_gonorrhoeae | efflux_tet_abc | 0.003 |
-| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.02 |
-| neisseria_gonorrhoeae | efflux_mtr_cde | 0.02 |
-| streptococcus_pyogenes | mutation_gyra_primary | 3.8e-7 |
-| streptococcus_pyogenes | mutation_gyra_parc_secondary | 7.5e-8 |
-| streptococcus_pyogenes | target_site_erm_b | 7.5e-6 |
-| streptococcus_pyogenes | target_site_cfr | 7.5e-9 |
-| streptococcus_pyogenes | enzyme_cat | 3.8e-7 |
-| streptococcus_pyogenes | global_efflux_pump | 7.5e-7 |
-| streptococcus_pyogenes | mutation_folate_pathway | 3.8e-6 |
-| streptococcus_pyogenes | mutation_mpr_f | 7.5e-9 |
-| streptococcus_pyogenes | mutation_rpo_b | 7.5e-9 |
-| streptococcus_pyogenes | protection_fus_b | 7.5e-9 |
-| streptococcus_pyogenes | protection_tet_m | 7.5e-6 |
-| streptococcus_pyogenes | mutation_23s_rrna | 5e-11 |
-| streptococcus_agalactiae | target_site_pbp2a_meca | 1e-8 |
-| streptococcus_agalactiae | target_site_van_a | 1e-8 |
-| streptococcus_agalactiae | target_site_van_b | 1e-8 |
-| streptococcus_agalactiae | mutation_gyra_primary | 1e-6 |
-| streptococcus_agalactiae | mutation_gyra_parc_secondary | 1e-6 |
-| streptococcus_agalactiae | target_site_erm_b | 5e-5 |
-| streptococcus_agalactiae | target_site_cfr | 1e-8 |
-| streptococcus_agalactiae | enzyme_cat | 3e-7 |
-| streptococcus_agalactiae | global_efflux_pump | 1e-6 |
-| streptococcus_agalactiae | mutation_folate_pathway | 1e-5 |
-| streptococcus_agalactiae | mutation_mpr_f | 1e-7 |
-| streptococcus_agalactiae | mutation_rpo_b | 1e-7 |
-| streptococcus_agalactiae | protection_fus_b | 1e-7 |
-| streptococcus_agalactiae | protection_tet_m | 0.001 |
-| streptococcus_agalactiae | mutation_23s_rrna | 5e-11 |
-| streptococcus_agalactiae | mutation_pbp_mosaic | 1e-6 |
-| haemophilus_influenzae | enzyme_esbl_ctx_m | 5e-7 |
-| haemophilus_influenzae | enzyme_esbl_tem | 5e-7 |
-| haemophilus_influenzae | enzyme_esbl_shv | 5e-7 |
-| haemophilus_influenzae | enzyme_kpc | 5e-8 |
-| haemophilus_influenzae | enzyme_ndm_vim | 5e-8 |
-| haemophilus_influenzae | enzyme_oxa_48 | 5e-8 |
-| haemophilus_influenzae | enzyme_ampc_cmy | 5e-7 |
-| haemophilus_influenzae | enzyme_ampc_dha | 5e-7 |
-| haemophilus_influenzae | mutation_gyra_primary | 3e-4 |
-| haemophilus_influenzae | mutation_gyra_parc_secondary | 8e-5 |
-| haemophilus_influenzae | protection_qnr | 1e-4 |
-| haemophilus_influenzae | enzyme_16s_rrmt | 0.05 |
-| haemophilus_influenzae | target_site_erm_b | 3e-5 |
-| haemophilus_influenzae | target_site_cfr | 3e-5 |
-| haemophilus_influenzae | enzyme_cat | 1e-4 |
-| haemophilus_influenzae | modification_mcr_1 | 2e-6 |
-| haemophilus_influenzae | global_efflux_pump | 3e-4 |
-| haemophilus_influenzae | mutation_folate_pathway | 8e-4 |
-| haemophilus_influenzae | mutation_nitroreductase | 2e-5 |
-| haemophilus_influenzae | mutation_rpo_b | 0.015 |
-| haemophilus_influenzae | protection_tet_m | 8e-4 |
-| haemophilus_influenzae | enzyme_aac_aph | 0.05 |
-| haemophilus_influenzae | enzyme_narrow_spectrum_gram_negative_penicillinase | 5e-5 |
-| haemophilus_influenzae | mutation_23s_rrna | 3e-6 |
-| haemophilus_influenzae | mutation_pbp_mosaic | 5e-7 |
-| haemophilus_influenzae | efflux_mtr_cde | 5e-7 |
-| chlamydia_trachomatis | mutation_gyra_primary | 2e-7 |
-| chlamydia_trachomatis | mutation_gyra_parc_secondary | 2e-7 |
-| chlamydia_trachomatis | target_site_erm_b | 1e-7 |
-| chlamydia_trachomatis | target_site_cfr | 2e-9 |
-| chlamydia_trachomatis | enzyme_cat | 1.3e-9 |
-| chlamydia_trachomatis | global_efflux_pump | 2e-8 |
-| chlamydia_trachomatis | mutation_folate_pathway | 2e-9 |
-| chlamydia_trachomatis | mutation_nitroreductase | 2e-9 |
-| chlamydia_trachomatis | mutation_rpo_b | 2e-8 |
-| chlamydia_trachomatis | protection_tet_m | 2e-7 |
-| chlamydia_trachomatis | mutation_23s_rrna | 1e-10 |
-| mycoplasma_genitalium | mutation_gyra_primary | 0.3 |
-| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.3 |
-| mycoplasma_genitalium | target_site_erm_b | 0.025 |
-| mycoplasma_genitalium | target_site_cfr | 0.025 |
-| mycoplasma_genitalium | enzyme_cat | 0.01 |
-| mycoplasma_genitalium | global_efflux_pump | 0.01 |
-| mycoplasma_genitalium | mutation_folate_pathway | 0.003 |
-| mycoplasma_genitalium | mutation_nitroreductase | 0.003 |
-| mycoplasma_genitalium | mutation_rpo_b | 0.03 |
-| mycoplasma_genitalium | protection_tet_m | 0.06 |
-| mycoplasma_genitalium | mutation_23s_rrna | 0.03 |
-| vibrio_cholerae | enzyme_esbl_ctx_m | 3e-6 |
-| vibrio_cholerae | enzyme_esbl_tem | 3e-6 |
-| vibrio_cholerae | enzyme_esbl_shv | 1e-6 |
-| vibrio_cholerae | enzyme_kpc | 1e-7 |
-| vibrio_cholerae | enzyme_ndm_vim | 1e-6 |
-| vibrio_cholerae | enzyme_oxa_48 | 1e-7 |
-| vibrio_cholerae | enzyme_ampc_cmy | 1e-6 |
-| vibrio_cholerae | enzyme_ampc_dha | 1e-6 |
-| vibrio_cholerae | mutation_gyra_primary | 3e-5 |
-| vibrio_cholerae | mutation_gyra_parc_secondary | 1.5e-5 |
-| vibrio_cholerae | protection_qnr | 3e-6 |
-| vibrio_cholerae | enzyme_16s_rrmt | 3e-8 |
-| vibrio_cholerae | enzyme_cat | 1e-4 |
-| vibrio_cholerae | efflux_acrab_tolc | 3e-6 |
-| vibrio_cholerae | modification_mcr_1 | 3e-7 |
-| vibrio_cholerae | global_efflux_pump | 3e-6 |
-| vibrio_cholerae | mutation_folate_pathway | 1.5e-4 |
-| vibrio_cholerae | mutation_nitroreductase | 3e-7 |
-| vibrio_cholerae | enzyme_fos_a | 3e-7 |
-| vibrio_cholerae | mutation_rpo_b | 3e-7 |
-| vibrio_cholerae | protection_tet_m | 5e-5 |
-| vibrio_cholerae | enzyme_aac_aph | 5e-11 |
-| vibrio_cholerae | mutation_23s_rrna | 1.5e-4 |
-| vibrio_cholerae | efflux_tet_abc | 5e-11 |
-| vibrio_cholerae | efflux_mtr_cde | 1e-9 |
-| neisseria_meningitidis | enzyme_esbl_ctx_m | 1e-8 |
-| neisseria_meningitidis | enzyme_esbl_tem | 1e-8 |
-| neisseria_meningitidis | enzyme_esbl_shv | 1e-8 |
-| neisseria_meningitidis | enzyme_ampc_cmy | 1e-8 |
-| neisseria_meningitidis | enzyme_ampc_dha | 1e-8 |
-| neisseria_meningitidis | mutation_gyra_primary | 3e-5 |
-| neisseria_meningitidis | mutation_gyra_parc_secondary | 1e-5 |
-| neisseria_meningitidis | protection_qnr | 3e-7 |
-| neisseria_meningitidis | enzyme_16s_rrmt | 1e-7 |
-| neisseria_meningitidis | target_site_erm_b | 1e-7 |
-| neisseria_meningitidis | target_site_cfr | 2e-7 |
-| neisseria_meningitidis | enzyme_cat | 2e-6 |
+| neisseria_gonorrhoeae | enzyme_aac_aph | 0.01 |
+| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.3 |
+| neisseria_gonorrhoeae | mutation_23s_rrna | 0.1 |
+| neisseria_gonorrhoeae | efflux_tet_abc | 1 |
+| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.01 |
+| neisseria_gonorrhoeae | efflux_mtr_cde | 0.1 |
+| streptococcus_pyogenes | mutation_gyra_primary | 1e-4 |
+| streptococcus_pyogenes | mutation_gyra_parc_secondary | 1e-4 |
+| streptococcus_pyogenes | target_site_erm_b | 3e-5 |
+| streptococcus_pyogenes | target_site_cfr | 6e-5 |
+| streptococcus_pyogenes | enzyme_cat | 2e-4 |
+| streptococcus_pyogenes | global_efflux_pump | 2e-4 |
+| streptococcus_pyogenes | mutation_folate_pathway | 0.006 |
+| streptococcus_pyogenes | mutation_mpr_f | 3e-5 |
+| streptococcus_pyogenes | mutation_rpo_b | 3e-4 |
+| streptococcus_pyogenes | protection_fus_b | 3e-4 |
+| streptococcus_pyogenes | protection_tet_m | 6e-7 |
+| streptococcus_pyogenes | mutation_23s_rrna | 2e-5 |
+| streptococcus_agalactiae | target_site_pbp2a_meca | 3e-8 |
+| streptococcus_agalactiae | target_site_van_a | 3e-6 |
+| streptococcus_agalactiae | target_site_van_b | 3e-6 |
+| streptococcus_agalactiae | mutation_gyra_primary | 1e-4 |
+| streptococcus_agalactiae | mutation_gyra_parc_secondary | 1e-4 |
+| streptococcus_agalactiae | target_site_erm_b | 0.003 |
+| streptococcus_agalactiae | target_site_cfr | 0.003 |
+| streptococcus_agalactiae | enzyme_cat | 1e-4 |
+| streptococcus_agalactiae | global_efflux_pump | 9e-4 |
+| streptococcus_agalactiae | mutation_folate_pathway | 0.002 |
+| streptococcus_agalactiae | mutation_mpr_f | 1e-4 |
+| streptococcus_agalactiae | mutation_rpo_b | 1e-4 |
+| streptococcus_agalactiae | protection_fus_b | 1e-4 |
+| streptococcus_agalactiae | protection_tet_m | 0.006 |
+| streptococcus_agalactiae | mutation_23s_rrna | 0.003 |
+| streptococcus_agalactiae | mutation_pbp_mosaic | 1e-8 |
+| haemophilus_influenzae | enzyme_esbl_ctx_m | 3e-6 |
+| haemophilus_influenzae | enzyme_esbl_shv | 3e-6 |
+| haemophilus_influenzae | enzyme_kpc | 1e-6 |
+| haemophilus_influenzae | enzyme_ndm_vim | 1e-6 |
+| haemophilus_influenzae | enzyme_oxa_48 | 2e-6 |
+| haemophilus_influenzae | enzyme_ampc_cmy | 5e-6 |
+| haemophilus_influenzae | enzyme_ampc_dha | 5e-6 |
+| haemophilus_influenzae | mutation_gyra_primary | 0.4 |
+| haemophilus_influenzae | mutation_gyra_parc_secondary | 0.4 |
+| haemophilus_influenzae | protection_qnr | 0.4 |
+| haemophilus_influenzae | enzyme_16s_rrmt | 30 |
+| haemophilus_influenzae | target_site_erm_b | 9 |
+| haemophilus_influenzae | target_site_cfr | 0.1 |
+| haemophilus_influenzae | enzyme_cat | 0.001 |
+| haemophilus_influenzae | efflux_acrab_tolc | 0.4 |
+| haemophilus_influenzae | modification_mcr_1 | 5e-5 |
+| haemophilus_influenzae | global_efflux_pump | 0.4 |
+| haemophilus_influenzae | mutation_folate_pathway | 30 |
+| haemophilus_influenzae | mutation_nitroreductase | 5e-4 |
+| haemophilus_influenzae | mutation_rpo_b | 30 |
+| haemophilus_influenzae | protection_tet_m | 0.8 |
+| haemophilus_influenzae | enzyme_aac_aph | 30 |
+| haemophilus_influenzae | enzyme_narrow_spectrum_gram_negative_penicillinase | 6e-4 |
+| haemophilus_influenzae | mutation_23s_rrna | 9 |
+| haemophilus_influenzae | mutation_pbp_mosaic | 5e-6 |
+| haemophilus_influenzae | efflux_mtr_cde | 3e-6 |
+| chlamydia_trachomatis | mutation_gyra_primary | 0.02 |
+| chlamydia_trachomatis | mutation_gyra_parc_secondary | 0.02 |
+| chlamydia_trachomatis | target_site_erm_b | 0.02 |
+| chlamydia_trachomatis | target_site_cfr | 2 |
+| chlamydia_trachomatis | enzyme_cat | 0.002 |
+| chlamydia_trachomatis | global_efflux_pump | 0.02 |
+| chlamydia_trachomatis | mutation_folate_pathway | 0.02 |
+| chlamydia_trachomatis | mutation_nitroreductase | 0.02 |
+| chlamydia_trachomatis | mutation_rpo_b | 0.02 |
+| chlamydia_trachomatis | protection_tet_m | 0.02 |
+| chlamydia_trachomatis | mutation_23s_rrna | 0.02 |
+| mycoplasma_genitalium | mutation_gyra_primary | 1 |
+| mycoplasma_genitalium | mutation_gyra_parc_secondary | 1 |
+| mycoplasma_genitalium | target_site_erm_b | 3 |
+| mycoplasma_genitalium | global_efflux_pump | 1 |
+| mycoplasma_genitalium | mutation_nitroreductase | 0.05 |
+| mycoplasma_genitalium | protection_tet_m | 0.3 |
+| mycoplasma_genitalium | mutation_23s_rrna | 10 |
+| vibrio_cholerae | enzyme_esbl_ctx_m | 2e-7 |
+| vibrio_cholerae | enzyme_esbl_tem | 2e-7 |
+| vibrio_cholerae | enzyme_esbl_shv | 2e-7 |
+| vibrio_cholerae | enzyme_kpc | 2e-7 |
+| vibrio_cholerae | enzyme_ndm_vim | 2e-7 |
+| vibrio_cholerae | enzyme_oxa_48 | 2e-7 |
+| vibrio_cholerae | enzyme_ampc_cmy | 2e-7 |
+| vibrio_cholerae | enzyme_ampc_dha | 2e-7 |
+| vibrio_cholerae | mutation_ampc_derepression | 2e-7 |
+| vibrio_cholerae | mutation_gyra_primary | 0.06 |
+| vibrio_cholerae | mutation_gyra_parc_secondary | 0.06 |
+| vibrio_cholerae | protection_qnr | 0.06 |
+| vibrio_cholerae | enzyme_16s_rrmt | 0.002 |
+| vibrio_cholerae | enzyme_cat | 6e-4 |
+| vibrio_cholerae | efflux_acrab_tolc | 0.06 |
+| vibrio_cholerae | modification_mcr_1 | 0.002 |
+| vibrio_cholerae | mutation_polymyxin_regulatory | 0.002 |
+| vibrio_cholerae | global_efflux_pump | 0.06 |
+| vibrio_cholerae | mutation_folate_pathway | 0.002 |
+| vibrio_cholerae | mutation_nitroreductase | 1e-4 |
+| vibrio_cholerae | enzyme_fos | 1e-4 |
+| vibrio_cholerae | mutation_rpo_b | 1e-4 |
+| vibrio_cholerae | protection_tet_m | 1e-4 |
+| vibrio_cholerae | enzyme_aac_aph | 0.002 |
+| vibrio_cholerae | mutation_23s_rrna | 0.2 |
+| vibrio_cholerae | efflux_tet_abc | 1e-4 |
+| vibrio_cholerae | efflux_mtr_cde | 2e-7 |
+| neisseria_meningitidis | mutation_gyra_primary | 1e-4 |
+| neisseria_meningitidis | mutation_gyra_parc_secondary | 5e-5 |
+| neisseria_meningitidis | protection_qnr | 1.5e-4 |
+| neisseria_meningitidis | enzyme_16s_rrmt | 1e-6 |
+| neisseria_meningitidis | target_site_erm_b | 6e-6 |
+| neisseria_meningitidis | target_site_cfr | 1e-5 |
+| neisseria_meningitidis | enzyme_cat | 2e-5 |
 | neisseria_meningitidis | efflux_acrab_tolc | 3e-7 |
-| neisseria_meningitidis | modification_mcr_1 | 3e-7 |
-| neisseria_meningitidis | global_efflux_pump | 2e-6 |
-| neisseria_meningitidis | mutation_folate_pathway | 5e-6 |
-| neisseria_meningitidis | mutation_nitroreductase | 3e-6 |
-| neisseria_meningitidis | mutation_rpo_b | 3e-6 |
-| neisseria_meningitidis | protection_tet_m | 5e-6 |
-| neisseria_meningitidis | mutation_23s_rrna | 1e-7 |
-| neisseria_meningitidis | efflux_tet_abc | 5e-6 |
-| neisseria_meningitidis | mutation_pbp_mosaic | 1e-6 |
-| neisseria_meningitidis | efflux_mtr_cde | 1e-9 |
-| listeria_monocytogenes | target_site_van_a | 3.8e-6 |
-| listeria_monocytogenes | target_site_van_b | 3.8e-6 |
-| listeria_monocytogenes | mutation_gyra_primary | 1.9e-4 |
-| listeria_monocytogenes | mutation_gyra_parc_secondary | 3.8e-5 |
-| listeria_monocytogenes | target_site_erm_b | 3.8e-4 |
-| listeria_monocytogenes | target_site_cfr | 3.8e-6 |
-| listeria_monocytogenes | enzyme_cat | 1.9e-4 |
-| listeria_monocytogenes | global_efflux_pump | 1.9e-4 |
-| listeria_monocytogenes | mutation_folate_pathway | 3.8e-4 |
-| listeria_monocytogenes | mutation_mpr_f | 3.8e-5 |
-| listeria_monocytogenes | mutation_rpo_b | 3.8e-5 |
-| listeria_monocytogenes | protection_fus_b | 3.8e-5 |
-| listeria_monocytogenes | protection_tet_m | 0.0019 |
-| clostridioides_difficile | mutation_gyra_primary | 6e-5 |
-| clostridioides_difficile | mutation_gyra_parc_secondary | 1e-5 |
-| clostridioides_difficile | enzyme_16s_rrmt | 1e-7 |
-| clostridioides_difficile | target_site_erm_b | 6e-5 |
-| clostridioides_difficile | target_site_cfr | 1e-6 |
-| clostridioides_difficile | enzyme_cat | 6e-6 |
-| clostridioides_difficile | global_efflux_pump | 1e-5 |
-| clostridioides_difficile | mutation_folate_pathway | 6e-6 |
-| clostridioides_difficile | mutation_nitroreductase | 1.2e-4 |
-| clostridioides_difficile | mutation_rpo_b | 6e-5 |
-| clostridioides_difficile | protection_tet_m | 6e-5 |
-| bacteroides_fragilis | enzyme_esbl_ctx_m | 0.003 |
-| bacteroides_fragilis | enzyme_esbl_tem | 0.003 |
-| bacteroides_fragilis | enzyme_esbl_shv | 0.003 |
-| bacteroides_fragilis | enzyme_kpc | 3e-5 |
-| bacteroides_fragilis | enzyme_ndm_vim | 3e-5 |
-| bacteroides_fragilis | enzyme_oxa_48 | 3e-5 |
-| bacteroides_fragilis | enzyme_ampc_cmy | 0.001 |
-| bacteroides_fragilis | enzyme_ampc_dha | 0.001 |
-| bacteroides_fragilis | mutation_gyra_primary | 5e-4 |
-| bacteroides_fragilis | mutation_gyra_parc_secondary | 0.01 |
-| bacteroides_fragilis | protection_qnr | 2e-4 |
-| bacteroides_fragilis | enzyme_16s_rrmt | 1 |
-| bacteroides_fragilis | target_site_erm_b | 0.02 |
-| bacteroides_fragilis | target_site_cfr | 2e-4 |
-| bacteroides_fragilis | enzyme_cat | 2e-5 |
-| bacteroides_fragilis | efflux_acrab_tolc | 1e-4 |
-| bacteroides_fragilis | modification_mcr_1 | 0.002 |
-| bacteroides_fragilis | global_efflux_pump | 1e-4 |
-| bacteroides_fragilis | mutation_folate_pathway | 0.005 |
-| bacteroides_fragilis | mutation_nitroreductase | 5e-4 |
-| bacteroides_fragilis | mutation_rpo_b | 0.002 |
-| bacteroides_fragilis | protection_tet_m | 0.01 |
-| bacteroides_fragilis | enzyme_aac_aph | 1 |
-| bacteroides_fragilis | mutation_pbp_mosaic | 0.001 |
-| campylobacter_jejuni | mutation_gyra_primary | 0.03 |
-| campylobacter_jejuni | mutation_gyra_parc_secondary | 0.03 |
-| campylobacter_jejuni | target_site_erm_b | 1e-5 |
-| campylobacter_jejuni | target_site_cfr | 1e-5 |
-| campylobacter_jejuni | enzyme_cat | 6e-4 |
-| campylobacter_jejuni | global_efflux_pump | 0.03 |
-| campylobacter_jejuni | mutation_folate_pathway | 0.6 |
-| campylobacter_jejuni | mutation_rpo_b | 0.6 |
-| campylobacter_jejuni | protection_tet_m | 0.01 |
-| campylobacter_jejuni | enzyme_aac_aph | 0.1 |
-| campylobacter_jejuni | mutation_23s_rrna | 3e-4 |
-| campylobacter_jejuni | efflux_tet_abc | 0.001 |
-| campylobacter_jejuni | efflux_mtr_cde | 2e-4 |
-| enterobacter_cloacae | enzyme_esbl_ctx_m | 5e-6 |
-| enterobacter_cloacae | enzyme_esbl_tem | 5e-6 |
-| enterobacter_cloacae | enzyme_esbl_shv | 5e-6 |
-| enterobacter_cloacae | enzyme_kpc | 1e-5 |
-| enterobacter_cloacae | enzyme_ndm_vim | 1e-5 |
-| enterobacter_cloacae | enzyme_oxa_48 | 1e-5 |
-| enterobacter_cloacae | enzyme_ampc_cmy | 5e-6 |
-| enterobacter_cloacae | enzyme_ampc_dha | 5e-6 |
-| enterobacter_cloacae | mutation_gyra_primary | 2e-4 |
-| enterobacter_cloacae | mutation_gyra_parc_secondary | 2e-4 |
-| enterobacter_cloacae | protection_qnr | 2e-4 |
-| enterobacter_cloacae | enzyme_16s_rrmt | 0.03 |
-| enterobacter_cloacae | enzyme_cat | 2e-4 |
-| enterobacter_cloacae | efflux_acrab_tolc | 5e-5 |
-| enterobacter_cloacae | modification_mcr_1 | 0.01 |
-| enterobacter_cloacae | mutation_folate_pathway | 5e-5 |
-| enterobacter_cloacae | mutation_nitroreductase | 0.001 |
-| enterobacter_cloacae | enzyme_fos_a | 0.001 |
-| enterobacter_cloacae | mutation_rpo_b | 0.01 |
+| neisseria_meningitidis | modification_mcr_1 | 5e-6 |
+| neisseria_meningitidis | global_efflux_pump | 3e-7 |
+| neisseria_meningitidis | mutation_folate_pathway | 4e-4 |
+| neisseria_meningitidis | mutation_nitroreductase | 5e-6 |
+| neisseria_meningitidis | mutation_rpo_b | 0.03 |
+| neisseria_meningitidis | protection_tet_m | 3e-7 |
+| neisseria_meningitidis | mutation_23s_rrna | 6e-6 |
+| neisseria_meningitidis | efflux_tet_abc | 3e-7 |
+| neisseria_meningitidis | mutation_pbp_mosaic | 3e-7 |
+| listeria_monocytogenes | target_site_van_a | 0.3 |
+| listeria_monocytogenes | target_site_van_b | 0.3 |
+| listeria_monocytogenes | mutation_gyra_primary | 0.03 |
+| listeria_monocytogenes | mutation_gyra_parc_secondary | 0.03 |
+| listeria_monocytogenes | target_site_erm_b | 0.15 |
+| listeria_monocytogenes | target_site_cfr | 0.3 |
+| listeria_monocytogenes | enzyme_cat | 0.005 |
+| listeria_monocytogenes | global_efflux_pump | 0.03 |
+| listeria_monocytogenes | mutation_folate_pathway | 0.05 |
+| listeria_monocytogenes | mutation_mpr_f | 0.3 |
+| listeria_monocytogenes | mutation_rpo_b | 0.002 |
+| listeria_monocytogenes | protection_fus_b | 0.3 |
+| listeria_monocytogenes | protection_tet_m | 0.03 |
+| clostridioides_difficile | mutation_gyra_primary | 0.1 |
+| clostridioides_difficile | mutation_gyra_parc_secondary | 0.1 |
+| clostridioides_difficile | enzyme_16s_rrmt | 0.05 |
+| clostridioides_difficile | target_site_erm_b | 0.002 |
+| clostridioides_difficile | target_site_cfr | 0.02 |
+| clostridioides_difficile | enzyme_cat | 0.05 |
+| clostridioides_difficile | global_efflux_pump | 2e-5 |
+| clostridioides_difficile | mutation_folate_pathway | 0.5 |
+| clostridioides_difficile | mutation_nitroreductase | 0.001 |
+| clostridioides_difficile | mutation_rpo_b | 1 |
+| clostridioides_difficile | protection_tet_m | 6e-6 |
+| clostridioides_difficile | mutation_23s_rrna | 0.003 |
+| bacteroides_fragilis | enzyme_esbl_ctx_m | 0.2 |
+| bacteroides_fragilis | enzyme_esbl_tem | 0.2 |
+| bacteroides_fragilis | enzyme_esbl_shv | 0.2 |
+| bacteroides_fragilis | enzyme_kpc | 3e-6 |
+| bacteroides_fragilis | enzyme_ndm_vim | 3e-6 |
+| bacteroides_fragilis | enzyme_oxa_48 | 3e-6 |
+| bacteroides_fragilis | enzyme_ampc_cmy | 7e-4 |
+| bacteroides_fragilis | enzyme_ampc_dha | 7e-4 |
+| bacteroides_fragilis | mutation_gyra_primary | 0.03 |
+| bacteroides_fragilis | mutation_gyra_parc_secondary | 0.09 |
+| bacteroides_fragilis | protection_qnr | 0.09 |
+| bacteroides_fragilis | enzyme_16s_rrmt | 0.1 |
+| bacteroides_fragilis | target_site_erm_b | 0.05 |
+| bacteroides_fragilis | target_site_cfr | 0.9 |
+| bacteroides_fragilis | enzyme_cat | 1e-9 |
+| bacteroides_fragilis | efflux_acrab_tolc | 0.03 |
+| bacteroides_fragilis | modification_mcr_1 | 5e-5 |
+| bacteroides_fragilis | global_efflux_pump | 0.03 |
+| bacteroides_fragilis | mutation_folate_pathway | 30 |
+| bacteroides_fragilis | mutation_nitroreductase | 4e-5 |
+| bacteroides_fragilis | mutation_rpo_b | 1e-4 |
+| bacteroides_fragilis | protection_tet_m | 3e-5 |
+| bacteroides_fragilis | mutation_pbp_mosaic | 7e-4 |
+| campylobacter_jejuni | mutation_gyra_primary | 30 |
+| campylobacter_jejuni | mutation_gyra_parc_secondary | 30 |
+| campylobacter_jejuni | target_site_erm_b | 0.01 |
+| campylobacter_jejuni | target_site_cfr | 0.003 |
+| campylobacter_jejuni | enzyme_cat | 0.001 |
+| campylobacter_jejuni | global_efflux_pump | 1 |
+| campylobacter_jejuni | mutation_folate_pathway | 0.3 |
+| campylobacter_jejuni | mutation_rpo_b | 0.3 |
+| campylobacter_jejuni | protection_tet_m | 1 |
+| campylobacter_jejuni | mutation_23s_rrna | 0.01 |
+| campylobacter_jejuni | efflux_tet_abc | 3 |
+| enterobacter_cloacae | enzyme_esbl_ctx_m | 4e-4 |
+| enterobacter_cloacae | enzyme_esbl_tem | 4e-4 |
+| enterobacter_cloacae | enzyme_esbl_shv | 4e-4 |
+| enterobacter_cloacae | enzyme_kpc | 5e-6 |
+| enterobacter_cloacae | enzyme_ndm_vim | 5e-6 |
+| enterobacter_cloacae | enzyme_oxa_48 | 5e-6 |
+| enterobacter_cloacae | mutation_ampc_derepression | 5e-6 |
+| enterobacter_cloacae | mutation_gyra_primary | 0.006 |
+| enterobacter_cloacae | mutation_gyra_parc_secondary | 0.006 |
+| enterobacter_cloacae | protection_qnr | 0.006 |
+| enterobacter_cloacae | enzyme_16s_rrmt | 0.001 |
+| enterobacter_cloacae | enzyme_cat | 0.2 |
+| enterobacter_cloacae | efflux_acrab_tolc | 0.002 |
+| enterobacter_cloacae | modification_mcr_1 | 0.006 |
+| enterobacter_cloacae | mutation_polymyxin_regulatory | 0.006 |
+| enterobacter_cloacae | global_efflux_pump | 0.002 |
+| enterobacter_cloacae | mutation_folate_pathway | 0.003 |
+| enterobacter_cloacae | mutation_nitroreductase | 0.009 |
+| enterobacter_cloacae | enzyme_fos | 0.09 |
+| enterobacter_cloacae | mutation_rpo_b | 2e-4 |
 | enterobacter_cloacae | protection_tet_m | 0.002 |
-| enterobacter_cloacae | enzyme_aac_aph | 0.1 |
-| enterobacter_cloacae | efflux_tet_abc | 1e-4 |
-| enterobacter_cloacae | mutation_pbp_mosaic | 5e-6 |
-| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 2e-6 |
-| yersinia_enterocolitica | enzyme_esbl_ctx_m | 3e-10 |
-| yersinia_enterocolitica | enzyme_esbl_tem | 3e-10 |
-| yersinia_enterocolitica | enzyme_esbl_shv | 1e-10 |
-| yersinia_enterocolitica | enzyme_kpc | 3e-11 |
-| yersinia_enterocolitica | enzyme_ndm_vim | 3e-11 |
-| yersinia_enterocolitica | enzyme_oxa_48 | 3e-11 |
-| yersinia_enterocolitica | enzyme_ampc_cmy | 3e-10 |
-| yersinia_enterocolitica | enzyme_ampc_dha | 3e-10 |
-| yersinia_enterocolitica | mutation_gyra_primary | 3e-10 |
-| yersinia_enterocolitica | mutation_gyra_parc_secondary | 3e-10 |
-| yersinia_enterocolitica | protection_qnr | 3e-10 |
-| yersinia_enterocolitica | enzyme_16s_rrmt | 3e-11 |
-| yersinia_enterocolitica | enzyme_cat | 3e-10 |
-| yersinia_enterocolitica | efflux_acrab_tolc | 3e-10 |
-| yersinia_enterocolitica | modification_mcr_1 | 3e-10 |
-| yersinia_enterocolitica | global_efflux_pump | 3e-10 |
-| yersinia_enterocolitica | mutation_folate_pathway | 3e-10 |
-| yersinia_enterocolitica | mutation_nitroreductase | 1e-9 |
-| yersinia_enterocolitica | enzyme_fos_a | 3e-10 |
-| yersinia_enterocolitica | mutation_rpo_b | 3e-11 |
-| yersinia_enterocolitica | protection_tet_m | 3e-10 |
-| yersinia_enterocolitica | enzyme_aac_aph | 1.5e-10 |
-| yersinia_enterocolitica | efflux_tet_abc | 1.5e-10 |
-| yersinia_enterocolitica | efflux_mtr_cde | 3e-10 |
-| moraxella_catarrhalis | enzyme_esbl_ctx_m | 2e-7 |
-| moraxella_catarrhalis | enzyme_esbl_tem | 1e-6 |
-| moraxella_catarrhalis | enzyme_esbl_shv | 2e-8 |
-| moraxella_catarrhalis | enzyme_ampc_cmy | 5e-7 |
-| moraxella_catarrhalis | enzyme_ampc_dha | 2e-7 |
-| moraxella_catarrhalis | mutation_gyra_primary | 2e-6 |
-| moraxella_catarrhalis | mutation_gyra_parc_secondary | 5e-7 |
-| moraxella_catarrhalis | protection_qnr | 2e-7 |
-| moraxella_catarrhalis | enzyme_16s_rrmt | 2e-8 |
-| moraxella_catarrhalis | target_site_erm_b | 5e-6 |
-| moraxella_catarrhalis | target_site_cfr | 5e-8 |
-| moraxella_catarrhalis | enzyme_cat | 5e-7 |
-| moraxella_catarrhalis | efflux_acrab_tolc | 5e-7 |
-| moraxella_catarrhalis | modification_mcr_1 | 2e-8 |
-| moraxella_catarrhalis | global_efflux_pump | 5e-6 |
-| moraxella_catarrhalis | mutation_folate_pathway | 1e-5 |
-| moraxella_catarrhalis | mutation_nitroreductase | 2e-7 |
-| moraxella_catarrhalis | mutation_rpo_b | 2e-7 |
-| moraxella_catarrhalis | protection_tet_m | 1e-5 |
-| moraxella_catarrhalis | mutation_pbp_mosaic | 5e-6 |
-| moraxella_catarrhalis | efflux_mtr_cde | 5e-7 |
-| treponema_pallidum | mutation_gyra_primary | 1.5e-6 |
-| treponema_pallidum | mutation_gyra_parc_secondary | 7.5e-7 |
-| treponema_pallidum | enzyme_cat | 1.5e-7 |
-| treponema_pallidum | global_efflux_pump | 1.5e-7 |
-| treponema_pallidum | mutation_folate_pathway | 1.5e-7 |
-| treponema_pallidum | mutation_rpo_b | 1.5e-7 |
-| treponema_pallidum | protection_tet_m | 1.5e-6 |
-| bordetella_pertussis | enzyme_esbl_ctx_m | 1e-10 |
-| bordetella_pertussis | enzyme_esbl_tem | 1e-10 |
-| bordetella_pertussis | enzyme_esbl_shv | 1e-10 |
-| bordetella_pertussis | enzyme_ampc_cmy | 1e-10 |
-| bordetella_pertussis | enzyme_ampc_dha | 1e-10 |
-| bordetella_pertussis | mutation_gyra_primary | 2e-12 |
-| bordetella_pertussis | mutation_gyra_parc_secondary | 1e-12 |
-| bordetella_pertussis | enzyme_16s_rrmt | 1e-10 |
-| bordetella_pertussis | target_site_cfr | 5e-11 |
-| bordetella_pertussis | enzyme_cat | 3.8e-12 |
-| bordetella_pertussis | efflux_acrab_tolc | 1e-12 |
-| bordetella_pertussis | global_efflux_pump | 5e-12 |
-| bordetella_pertussis | mutation_folate_pathway | 1e-11 |
-| bordetella_pertussis | mutation_nitroreductase | 1e-10 |
-| bordetella_pertussis | mutation_rpo_b | 1e-12 |
-| bordetella_pertussis | protection_tet_m | 1e-11 |
-| bordetella_pertussis | efflux_mtr_cde | 2e-12 |
-| helicobacter_pylori | enzyme_cat | 30 |
+| enterobacter_cloacae | enzyme_aac_aph | 0.001 |
+| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-5 |
+| enterobacter_cloacae | enzyme_mph_a | 2e-6 |
+| enterobacter_cloacae | efflux_tet_abc | 0.01 |
+| enterobacter_cloacae | mutation_pbp_mosaic | 1e-5 |
+| enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 |
+| yersinia_enterocolitica | enzyme_esbl_ctx_m | 9e-5 |
+| yersinia_enterocolitica | enzyme_esbl_tem | 9e-5 |
+| yersinia_enterocolitica | enzyme_esbl_shv | 9e-5 |
+| yersinia_enterocolitica | enzyme_kpc | 1e-5 |
+| yersinia_enterocolitica | enzyme_ndm_vim | 1e-5 |
+| yersinia_enterocolitica | enzyme_oxa_48 | 2e-5 |
+| yersinia_enterocolitica | enzyme_ampc_cmy | 9e-5 |
+| yersinia_enterocolitica | enzyme_ampc_dha | 9e-5 |
+| yersinia_enterocolitica | mutation_gyra_primary | 0.01 |
+| yersinia_enterocolitica | mutation_gyra_parc_secondary | 0.01 |
+| yersinia_enterocolitica | protection_qnr | 0.005 |
+| yersinia_enterocolitica | enzyme_16s_rrmt | 0.002 |
+| yersinia_enterocolitica | enzyme_cat | 0.01 |
+| yersinia_enterocolitica | efflux_acrab_tolc | 0.01 |
+| yersinia_enterocolitica | modification_mcr_1 | 0.06 |
+| yersinia_enterocolitica | global_efflux_pump | 0.01 |
+| yersinia_enterocolitica | mutation_folate_pathway | 0.02 |
+| yersinia_enterocolitica | mutation_nitroreductase | 0.0025 |
+| yersinia_enterocolitica | enzyme_fos | 0.0025 |
+| yersinia_enterocolitica | mutation_rpo_b | 0.003 |
+| yersinia_enterocolitica | protection_tet_m | 0.005 |
+| yersinia_enterocolitica | enzyme_aac_aph | 0.002 |
+| yersinia_enterocolitica | efflux_tet_abc | 0.005 |
+| yersinia_enterocolitica | mutation_siderophore_uptake | 1e-4 |
+| moraxella_catarrhalis | enzyme_esbl_ctx_m | 9e-8 |
+| moraxella_catarrhalis | enzyme_esbl_tem | 9e-8 |
+| moraxella_catarrhalis | enzyme_esbl_shv | 9e-8 |
+| moraxella_catarrhalis | enzyme_ampc_cmy | 3e-12 |
+| moraxella_catarrhalis | enzyme_ampc_dha | 3e-12 |
+| moraxella_catarrhalis | mutation_gyra_primary | 1e-4 |
+| moraxella_catarrhalis | mutation_gyra_parc_secondary | 1e-4 |
+| moraxella_catarrhalis | protection_qnr | 1e-4 |
+| moraxella_catarrhalis | enzyme_16s_rrmt | 1e-5 |
+| moraxella_catarrhalis | target_site_erm_b | 9e-4 |
+| moraxella_catarrhalis | target_site_cfr | 1e-5 |
+| moraxella_catarrhalis | enzyme_cat | 2e-6 |
+| moraxella_catarrhalis | efflux_acrab_tolc | 2e-4 |
+| moraxella_catarrhalis | modification_mcr_1 | 1e-5 |
+| moraxella_catarrhalis | global_efflux_pump | 2e-4 |
+| moraxella_catarrhalis | mutation_folate_pathway | 0.01 |
+| moraxella_catarrhalis | mutation_nitroreductase | 1e-5 |
+| moraxella_catarrhalis | mutation_rpo_b | 3e-5 |
+| moraxella_catarrhalis | protection_tet_m | 0.002 |
+| moraxella_catarrhalis | mutation_pbp_mosaic | 3e-12 |
+| moraxella_catarrhalis | efflux_mtr_cde | 5e-11 |
+| treponema_pallidum | mutation_gyra_primary | 0.001 |
+| treponema_pallidum | mutation_gyra_parc_secondary | 0.001 |
+| treponema_pallidum | enzyme_cat | 0.005 |
+| treponema_pallidum | global_efflux_pump | 0.001 |
+| treponema_pallidum | mutation_folate_pathway | 0.001 |
+| treponema_pallidum | mutation_rpo_b | 0.001 |
+| treponema_pallidum | protection_tet_m | 0.001 |
+| treponema_pallidum | mutation_23s_rrna | 30 |
+| bordetella_pertussis | enzyme_esbl_ctx_m | 3e-4 |
+| bordetella_pertussis | enzyme_esbl_tem | 3e-4 |
+| bordetella_pertussis | enzyme_esbl_shv | 3e-4 |
+| bordetella_pertussis | enzyme_ampc_cmy | 3e-4 |
+| bordetella_pertussis | enzyme_ampc_dha | 3e-4 |
+| bordetella_pertussis | mutation_gyra_primary | 0.02 |
+| bordetella_pertussis | mutation_gyra_parc_secondary | 0.02 |
+| bordetella_pertussis | enzyme_16s_rrmt | 3 |
+| bordetella_pertussis | target_site_cfr | 0.003 |
+| bordetella_pertussis | enzyme_cat | 1e-5 |
+| bordetella_pertussis | efflux_acrab_tolc | 0.008 |
+| bordetella_pertussis | global_efflux_pump | 0.008 |
+| bordetella_pertussis | mutation_folate_pathway | 9 |
+| bordetella_pertussis | mutation_nitroreductase | 2e-4 |
+| bordetella_pertussis | mutation_rpo_b | 0.007 |
+| bordetella_pertussis | protection_tet_m | 2e-6 |
+| bordetella_pertussis | mutation_23s_rrna | 0.001 |
+| bordetella_pertussis | efflux_mtr_cde | 0.001 |
 | helicobacter_pylori | mutation_gyra_primary | 30 |
 | helicobacter_pylori | mutation_gyra_parc_secondary | 30 |
+| helicobacter_pylori | enzyme_cat | 30 |
 | helicobacter_pylori | global_efflux_pump | 30 |
 | helicobacter_pylori | mutation_folate_pathway | 0.005 |
 | helicobacter_pylori | mutation_nitroreductase | 30 |
@@ -8116,58 +8498,60 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | helicobacter_pylori | mutation_23s_rrna | 30 |
 | helicobacter_pylori | mutation_pbp_mosaic | 0.3 |
 | helicobacter_pylori | mutation_16s_rrna_tetracycline | 30 |
-| mycoplasma_pneumoniae | mutation_gyra_primary | 3e-7 |
-| mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-7 |
-| mycoplasma_pneumoniae | target_site_erm_b | 1.5e-5 |
-| mycoplasma_pneumoniae | target_site_cfr | 3e-9 |
-| mycoplasma_pneumoniae | enzyme_cat | 3e-9 |
-| mycoplasma_pneumoniae | global_efflux_pump | 1.5e-7 |
-| mycoplasma_pneumoniae | mutation_folate_pathway | 3e-9 |
-| mycoplasma_pneumoniae | mutation_nitroreductase | 3e-9 |
-| mycoplasma_pneumoniae | mutation_rpo_b | 3e-8 |
-| mycoplasma_pneumoniae | protection_tet_m | 3e-7 |
-| mycoplasma_pneumoniae | mutation_23s_rrna | 5e-9 |
-| legionella_pneumophila | enzyme_esbl_ctx_m | 3e-7 |
-| legionella_pneumophila | enzyme_esbl_tem | 3e-7 |
-| legionella_pneumophila | enzyme_esbl_shv | 3e-7 |
-| legionella_pneumophila | enzyme_ampc_cmy | 3e-7 |
-| legionella_pneumophila | enzyme_ampc_dha | 3e-7 |
-| legionella_pneumophila | mutation_gyra_primary | 3e-5 |
-| legionella_pneumophila | mutation_gyra_parc_secondary | 3e-5 |
-| legionella_pneumophila | protection_qnr | 1e-7 |
-| legionella_pneumophila | enzyme_16s_rrmt | 3e-7 |
-| legionella_pneumophila | target_site_erm_b | 3e-5 |
-| legionella_pneumophila | target_site_cfr | 3e-7 |
-| legionella_pneumophila | enzyme_cat | 3e-6 |
-| legionella_pneumophila | efflux_acrab_tolc | 3e-7 |
-| legionella_pneumophila | modification_mcr_1 | 3e-7 |
-| legionella_pneumophila | global_efflux_pump | 3e-5 |
-| legionella_pneumophila | mutation_folate_pathway | 3e-6 |
-| legionella_pneumophila | mutation_nitroreductase | 3e-7 |
-| legionella_pneumophila | mutation_rpo_b | 3e-6 |
-| legionella_pneumophila | protection_tet_m | 3e-5 |
-| legionella_pneumophila | mutation_23s_rrna | 5e-11 |
-| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_esbl_tem | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_esbl_shv | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_kpc | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_ndm_vim | 3.7e-5 |
-| burkholderia_cepacia_complex | enzyme_oxa_48 | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_ampc_cmy | 3.8e-4 |
-| burkholderia_cepacia_complex | enzyme_ampc_dha | 7.5e-5 |
-| burkholderia_cepacia_complex | mutation_gyra_primary | 3.8e-4 |
-| burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 7.5e-5 |
-| burkholderia_cepacia_complex | protection_qnr | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_16s_rrmt | 7.5e-6 |
-| burkholderia_cepacia_complex | enzyme_cat | 3.7e-5 |
-| burkholderia_cepacia_complex | modification_mcr_1 | 7.5e-6 |
-| burkholderia_cepacia_complex | global_efflux_pump | 7.5e-4 |
-| burkholderia_cepacia_complex | mutation_folate_pathway | 7.5e-5 |
-| burkholderia_cepacia_complex | enzyme_fos_a | 3.7e-5 |
-| burkholderia_cepacia_complex | mutation_rpo_b | 7.5e-6 |
-| burkholderia_cepacia_complex | protection_tet_m | 3.7e-5 |
-| burkholderia_cepacia_complex | enzyme_aac_aph | 5e-11 |
-| burkholderia_cepacia_complex | efflux_tet_abc | 5e-11 |
+| mycoplasma_pneumoniae | mutation_gyra_primary | 3e-8 |
+| mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-8 |
+| mycoplasma_pneumoniae | target_site_erm_b | 0.003 |
+| mycoplasma_pneumoniae | target_site_cfr | 3e-10 |
+| mycoplasma_pneumoniae | enzyme_cat | 3e-10 |
+| mycoplasma_pneumoniae | global_efflux_pump | 1.5e-8 |
+| mycoplasma_pneumoniae | mutation_folate_pathway | 3e-10 |
+| mycoplasma_pneumoniae | mutation_nitroreductase | 3e-10 |
+| mycoplasma_pneumoniae | mutation_rpo_b | 3e-9 |
+| mycoplasma_pneumoniae | protection_tet_m | 3e-8 |
+| mycoplasma_pneumoniae | mutation_23s_rrna | 0.003 |
+| mycoplasma_pneumoniae | mutation_pbp_mosaic | 1e-4 |
+| legionella_pneumophila | enzyme_esbl_ctx_m | 3e-8 |
+| legionella_pneumophila | enzyme_esbl_tem | 3e-8 |
+| legionella_pneumophila | enzyme_esbl_shv | 3e-8 |
+| legionella_pneumophila | enzyme_ampc_cmy | 3e-8 |
+| legionella_pneumophila | enzyme_ampc_dha | 3e-8 |
+| legionella_pneumophila | mutation_gyra_primary | 3e-6 |
+| legionella_pneumophila | mutation_gyra_parc_secondary | 3e-6 |
+| legionella_pneumophila | protection_qnr | 1e-8 |
+| legionella_pneumophila | enzyme_16s_rrmt | 3e-8 |
+| legionella_pneumophila | target_site_erm_b | 3e-6 |
+| legionella_pneumophila | target_site_cfr | 3e-8 |
+| legionella_pneumophila | enzyme_cat | 3e-7 |
+| legionella_pneumophila | efflux_acrab_tolc | 3e-8 |
+| legionella_pneumophila | modification_mcr_1 | 3e-8 |
+| legionella_pneumophila | global_efflux_pump | 3e-6 |
+| legionella_pneumophila | mutation_folate_pathway | 3e-7 |
+| legionella_pneumophila | mutation_nitroreductase | 3e-8 |
+| legionella_pneumophila | mutation_rpo_b | 3e-7 |
+| legionella_pneumophila | protection_tet_m | 3e-6 |
+| legionella_pneumophila | mutation_23s_rrna | 5e-12 |
+| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 0.003 |
+| burkholderia_cepacia_complex | enzyme_esbl_tem | 0.003 |
+| burkholderia_cepacia_complex | enzyme_esbl_shv | 0.003 |
+| burkholderia_cepacia_complex | enzyme_kpc | 6e-4 |
+| burkholderia_cepacia_complex | enzyme_ndm_vim | 6e-4 |
+| burkholderia_cepacia_complex | enzyme_oxa_48 | 6e-4 |
+| burkholderia_cepacia_complex | enzyme_ampc_cmy | 0.003 |
+| burkholderia_cepacia_complex | enzyme_ampc_dha | 0.003 |
+| burkholderia_cepacia_complex | mutation_gyra_primary | 0.3 |
+| burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 0.9 |
+| burkholderia_cepacia_complex | protection_qnr | 0.9 |
+| burkholderia_cepacia_complex | enzyme_16s_rrmt | 10 |
+| burkholderia_cepacia_complex | enzyme_cat | 0.03 |
+| burkholderia_cepacia_complex | modification_mcr_1 | 0.03 |
+| burkholderia_cepacia_complex | global_efflux_pump | 0.1 |
+| burkholderia_cepacia_complex | mutation_folate_pathway | 0.02 |
+| burkholderia_cepacia_complex | enzyme_fos | 0.03 |
+| burkholderia_cepacia_complex | mutation_rpo_b | 0.01 |
+| burkholderia_cepacia_complex | protection_tet_m | 3e-4 |
+| burkholderia_cepacia_complex | enzyme_aac_aph | 10 |
+| burkholderia_cepacia_complex | efflux_tet_abc | 3e-4 |
+| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 |
 
 ### B.11 Horizontal Gene Transfer Matrix
 
@@ -8177,914 +8561,894 @@ See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT 
 
 | Donor | Recipient | Probability/day |
 | --- | ---: | ---: |
-| acinetobacter_baumannii | citrobacter_spp. | 1e-10 |
-| acinetobacter_baumannii | enterobacter_spp. | 1e-10 |
-| acinetobacter_baumannii | escherichia_coli | 1e-10 |
-| acinetobacter_baumannii | klebsiella_pneumoniae | 1e-10 |
-| acinetobacter_baumannii | morganella_spp. | 1e-10 |
-| acinetobacter_baumannii | proteus_spp. | 1e-10 |
-| acinetobacter_baumannii | serratia_spp. | 1e-10 |
-| acinetobacter_baumannii | p_stuartii | 1e-10 |
-| acinetobacter_baumannii | pseudomonas_aeruginosa | 1e-9 |
-| acinetobacter_baumannii | stenotrophomonas_maltophilia | 1e-9 |
-| acinetobacter_baumannii | salmonella_enterica_serovar_typhi | 1e-10 |
-| acinetobacter_baumannii | salmonella_enterica_serovar_paratyphi_a | 1e-10 |
-| acinetobacter_baumannii | invasive_non-typhoidal_salmonella_spp. | 1e-10 |
-| acinetobacter_baumannii | shigella_spp. | 1e-10 |
-| acinetobacter_baumannii | neisseria_gonorrhoeae | 3e-11 |
-| acinetobacter_baumannii | haemophilus_influenzae | 3e-11 |
-| acinetobacter_baumannii | chlamydia_trachomatis | 3e-11 |
-| acinetobacter_baumannii | mycoplasma_genitalium | 3e-11 |
-| acinetobacter_baumannii | vibrio_cholerae | 1e-10 |
-| acinetobacter_baumannii | neisseria_meningitidis | 3e-11 |
-| acinetobacter_baumannii | clostridioides_difficile | 3e-11 |
-| acinetobacter_baumannii | bacteroides_fragilis | 3e-11 |
-| acinetobacter_baumannii | enterobacter_cloacae | 1e-10 |
-| acinetobacter_baumannii | yersinia_enterocolitica | 1e-10 |
-| acinetobacter_baumannii | moraxella_catarrhalis | 3e-11 |
-| acinetobacter_baumannii | bordetella_pertussis | 3e-11 |
-| acinetobacter_baumannii | mycoplasma_pneumoniae | 3e-11 |
-| acinetobacter_baumannii | legionella_pneumophila | 3e-11 |
-| acinetobacter_baumannii | burkholderia_cepacia_complex | 1e-9 |
-| citrobacter_spp. | acinetobacter_baumannii | 1e-10 |
-| citrobacter_spp. | enterobacter_spp. | 1e-9 |
-| citrobacter_spp. | escherichia_coli | 1e-9 |
-| citrobacter_spp. | klebsiella_pneumoniae | 1e-9 |
-| citrobacter_spp. | morganella_spp. | 1e-9 |
-| citrobacter_spp. | proteus_spp. | 1e-9 |
-| citrobacter_spp. | serratia_spp. | 1e-9 |
-| citrobacter_spp. | p_stuartii | 1e-9 |
-| citrobacter_spp. | pseudomonas_aeruginosa | 1e-10 |
-| citrobacter_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| citrobacter_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| citrobacter_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| citrobacter_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| citrobacter_spp. | shigella_spp. | 1e-9 |
-| citrobacter_spp. | neisseria_gonorrhoeae | 3e-11 |
-| citrobacter_spp. | haemophilus_influenzae | 3e-11 |
-| citrobacter_spp. | chlamydia_trachomatis | 3e-11 |
-| citrobacter_spp. | mycoplasma_genitalium | 3e-11 |
-| citrobacter_spp. | vibrio_cholerae | 1e-10 |
-| citrobacter_spp. | neisseria_meningitidis | 3e-11 |
-| citrobacter_spp. | clostridioides_difficile | 3e-11 |
-| citrobacter_spp. | bacteroides_fragilis | 3e-11 |
-| citrobacter_spp. | enterobacter_cloacae | 1e-9 |
-| citrobacter_spp. | yersinia_enterocolitica | 1e-9 |
-| citrobacter_spp. | moraxella_catarrhalis | 3e-11 |
-| citrobacter_spp. | bordetella_pertussis | 3e-11 |
-| citrobacter_spp. | mycoplasma_pneumoniae | 3e-11 |
-| citrobacter_spp. | legionella_pneumophila | 3e-11 |
-| citrobacter_spp. | burkholderia_cepacia_complex | 1e-10 |
-| enterobacter_spp. | acinetobacter_baumannii | 1e-10 |
-| enterobacter_spp. | citrobacter_spp. | 1e-9 |
-| enterobacter_spp. | escherichia_coli | 1e-9 |
-| enterobacter_spp. | klebsiella_pneumoniae | 1e-9 |
-| enterobacter_spp. | morganella_spp. | 1e-9 |
-| enterobacter_spp. | proteus_spp. | 1e-9 |
-| enterobacter_spp. | serratia_spp. | 1e-9 |
-| enterobacter_spp. | p_stuartii | 1e-9 |
-| enterobacter_spp. | pseudomonas_aeruginosa | 1e-10 |
-| enterobacter_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| enterobacter_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| enterobacter_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| enterobacter_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| enterobacter_spp. | shigella_spp. | 1e-9 |
-| enterobacter_spp. | neisseria_gonorrhoeae | 3e-11 |
-| enterobacter_spp. | haemophilus_influenzae | 3e-11 |
-| enterobacter_spp. | chlamydia_trachomatis | 3e-11 |
-| enterobacter_spp. | mycoplasma_genitalium | 3e-11 |
-| enterobacter_spp. | vibrio_cholerae | 1e-10 |
-| enterobacter_spp. | neisseria_meningitidis | 3e-11 |
-| enterobacter_spp. | clostridioides_difficile | 3e-11 |
-| enterobacter_spp. | bacteroides_fragilis | 3e-11 |
-| enterobacter_spp. | enterobacter_cloacae | 1e-9 |
-| enterobacter_spp. | yersinia_enterocolitica | 1e-9 |
-| enterobacter_spp. | moraxella_catarrhalis | 3e-11 |
-| enterobacter_spp. | bordetella_pertussis | 3e-11 |
-| enterobacter_spp. | mycoplasma_pneumoniae | 3e-11 |
-| enterobacter_spp. | legionella_pneumophila | 3e-11 |
-| enterobacter_spp. | burkholderia_cepacia_complex | 1e-10 |
-| enterococcus_faecalis | enterococcus_faecium | 1e-9 |
-| enterococcus_faecalis | staphylococcus_aureus | 1e-9 |
-| enterococcus_faecalis | staphylococcus_epidermidis | 1e-9 |
-| enterococcus_faecalis | streptococcus_pneumoniae | 1e-9 |
-| enterococcus_faecalis | streptococcus_pyogenes | 1e-9 |
-| enterococcus_faecalis | streptococcus_agalactiae | 1e-9 |
-| enterococcus_faecalis | listeria_monocytogenes | 1e-9 |
-| enterococcus_faecium | enterococcus_faecalis | 1e-9 |
-| enterococcus_faecium | staphylococcus_aureus | 1e-9 |
-| enterococcus_faecium | staphylococcus_epidermidis | 1e-9 |
-| enterococcus_faecium | streptococcus_pneumoniae | 1e-9 |
-| enterococcus_faecium | streptococcus_pyogenes | 1e-9 |
-| enterococcus_faecium | streptococcus_agalactiae | 1e-9 |
-| enterococcus_faecium | listeria_monocytogenes | 1e-9 |
-| escherichia_coli | acinetobacter_baumannii | 1e-10 |
-| escherichia_coli | citrobacter_spp. | 1e-9 |
-| escherichia_coli | enterobacter_spp. | 1e-9 |
-| escherichia_coli | klebsiella_pneumoniae | 1e-9 |
-| escherichia_coli | morganella_spp. | 1e-9 |
-| escherichia_coli | proteus_spp. | 1e-9 |
-| escherichia_coli | serratia_spp. | 1e-9 |
-| escherichia_coli | p_stuartii | 1e-9 |
-| escherichia_coli | pseudomonas_aeruginosa | 1e-10 |
-| escherichia_coli | stenotrophomonas_maltophilia | 1e-10 |
-| escherichia_coli | salmonella_enterica_serovar_typhi | 1e-9 |
-| escherichia_coli | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| escherichia_coli | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| escherichia_coli | shigella_spp. | 1e-9 |
-| escherichia_coli | neisseria_gonorrhoeae | 3e-11 |
-| escherichia_coli | haemophilus_influenzae | 3e-11 |
-| escherichia_coli | chlamydia_trachomatis | 3e-11 |
-| escherichia_coli | mycoplasma_genitalium | 3e-11 |
-| escherichia_coli | vibrio_cholerae | 1e-10 |
-| escherichia_coli | neisseria_meningitidis | 3e-11 |
-| escherichia_coli | clostridioides_difficile | 3e-11 |
-| escherichia_coli | bacteroides_fragilis | 3e-11 |
-| escherichia_coli | enterobacter_cloacae | 1e-9 |
-| escherichia_coli | yersinia_enterocolitica | 1e-9 |
-| escherichia_coli | moraxella_catarrhalis | 3e-11 |
-| escherichia_coli | bordetella_pertussis | 3e-11 |
-| escherichia_coli | mycoplasma_pneumoniae | 3e-11 |
-| escherichia_coli | legionella_pneumophila | 3e-11 |
-| escherichia_coli | burkholderia_cepacia_complex | 1e-10 |
-| klebsiella_pneumoniae | acinetobacter_baumannii | 1e-10 |
-| klebsiella_pneumoniae | citrobacter_spp. | 1e-9 |
-| klebsiella_pneumoniae | enterobacter_spp. | 1e-9 |
-| klebsiella_pneumoniae | escherichia_coli | 1e-9 |
-| klebsiella_pneumoniae | morganella_spp. | 1e-9 |
-| klebsiella_pneumoniae | proteus_spp. | 1e-9 |
-| klebsiella_pneumoniae | serratia_spp. | 1e-9 |
-| klebsiella_pneumoniae | p_stuartii | 1e-9 |
-| klebsiella_pneumoniae | pseudomonas_aeruginosa | 1e-10 |
-| klebsiella_pneumoniae | stenotrophomonas_maltophilia | 1e-10 |
-| klebsiella_pneumoniae | salmonella_enterica_serovar_typhi | 1e-9 |
-| klebsiella_pneumoniae | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| klebsiella_pneumoniae | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| klebsiella_pneumoniae | shigella_spp. | 1e-9 |
-| klebsiella_pneumoniae | neisseria_gonorrhoeae | 3e-11 |
-| klebsiella_pneumoniae | haemophilus_influenzae | 3e-11 |
-| klebsiella_pneumoniae | chlamydia_trachomatis | 3e-11 |
-| klebsiella_pneumoniae | mycoplasma_genitalium | 3e-11 |
-| klebsiella_pneumoniae | vibrio_cholerae | 1e-10 |
-| klebsiella_pneumoniae | neisseria_meningitidis | 3e-11 |
-| klebsiella_pneumoniae | clostridioides_difficile | 3e-11 |
-| klebsiella_pneumoniae | bacteroides_fragilis | 3e-11 |
-| klebsiella_pneumoniae | enterobacter_cloacae | 1e-9 |
-| klebsiella_pneumoniae | yersinia_enterocolitica | 1e-9 |
-| klebsiella_pneumoniae | moraxella_catarrhalis | 3e-11 |
-| klebsiella_pneumoniae | bordetella_pertussis | 3e-11 |
-| klebsiella_pneumoniae | mycoplasma_pneumoniae | 3e-11 |
-| klebsiella_pneumoniae | legionella_pneumophila | 3e-11 |
-| klebsiella_pneumoniae | burkholderia_cepacia_complex | 1e-10 |
-| morganella_spp. | acinetobacter_baumannii | 1e-10 |
-| morganella_spp. | citrobacter_spp. | 1e-9 |
-| morganella_spp. | enterobacter_spp. | 1e-9 |
-| morganella_spp. | escherichia_coli | 1e-9 |
-| morganella_spp. | klebsiella_pneumoniae | 1e-9 |
-| morganella_spp. | proteus_spp. | 1e-9 |
-| morganella_spp. | serratia_spp. | 1e-9 |
-| morganella_spp. | p_stuartii | 1e-9 |
-| morganella_spp. | pseudomonas_aeruginosa | 1e-10 |
-| morganella_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| morganella_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| morganella_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| morganella_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| morganella_spp. | shigella_spp. | 1e-9 |
-| morganella_spp. | neisseria_gonorrhoeae | 3e-11 |
-| morganella_spp. | haemophilus_influenzae | 3e-11 |
-| morganella_spp. | chlamydia_trachomatis | 3e-11 |
-| morganella_spp. | mycoplasma_genitalium | 3e-11 |
-| morganella_spp. | vibrio_cholerae | 1e-10 |
-| morganella_spp. | neisseria_meningitidis | 3e-11 |
-| morganella_spp. | clostridioides_difficile | 3e-11 |
-| morganella_spp. | bacteroides_fragilis | 3e-11 |
-| morganella_spp. | enterobacter_cloacae | 1e-9 |
-| morganella_spp. | yersinia_enterocolitica | 1e-9 |
-| morganella_spp. | moraxella_catarrhalis | 3e-11 |
-| morganella_spp. | bordetella_pertussis | 3e-11 |
-| morganella_spp. | mycoplasma_pneumoniae | 3e-11 |
-| morganella_spp. | legionella_pneumophila | 3e-11 |
-| morganella_spp. | burkholderia_cepacia_complex | 1e-10 |
-| proteus_spp. | acinetobacter_baumannii | 1e-10 |
-| proteus_spp. | citrobacter_spp. | 1e-9 |
-| proteus_spp. | enterobacter_spp. | 1e-9 |
-| proteus_spp. | escherichia_coli | 1e-9 |
-| proteus_spp. | klebsiella_pneumoniae | 1e-9 |
-| proteus_spp. | morganella_spp. | 1e-9 |
-| proteus_spp. | serratia_spp. | 1e-9 |
-| proteus_spp. | p_stuartii | 1e-9 |
-| proteus_spp. | pseudomonas_aeruginosa | 1e-10 |
-| proteus_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| proteus_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| proteus_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| proteus_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| proteus_spp. | shigella_spp. | 1e-9 |
-| proteus_spp. | neisseria_gonorrhoeae | 3e-11 |
-| proteus_spp. | haemophilus_influenzae | 3e-11 |
-| proteus_spp. | chlamydia_trachomatis | 3e-11 |
-| proteus_spp. | mycoplasma_genitalium | 3e-11 |
-| proteus_spp. | vibrio_cholerae | 1e-10 |
-| proteus_spp. | neisseria_meningitidis | 3e-11 |
-| proteus_spp. | clostridioides_difficile | 3e-11 |
-| proteus_spp. | bacteroides_fragilis | 3e-11 |
-| proteus_spp. | enterobacter_cloacae | 1e-9 |
-| proteus_spp. | yersinia_enterocolitica | 1e-9 |
-| proteus_spp. | moraxella_catarrhalis | 3e-11 |
-| proteus_spp. | bordetella_pertussis | 3e-11 |
-| proteus_spp. | mycoplasma_pneumoniae | 3e-11 |
-| proteus_spp. | legionella_pneumophila | 3e-11 |
-| proteus_spp. | burkholderia_cepacia_complex | 1e-10 |
-| serratia_spp. | acinetobacter_baumannii | 1e-10 |
-| serratia_spp. | citrobacter_spp. | 1e-9 |
-| serratia_spp. | enterobacter_spp. | 1e-9 |
-| serratia_spp. | escherichia_coli | 1e-9 |
-| serratia_spp. | klebsiella_pneumoniae | 1e-9 |
-| serratia_spp. | morganella_spp. | 1e-9 |
-| serratia_spp. | proteus_spp. | 1e-9 |
-| serratia_spp. | p_stuartii | 1e-9 |
-| serratia_spp. | pseudomonas_aeruginosa | 1e-10 |
-| serratia_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| serratia_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| serratia_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| serratia_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| serratia_spp. | shigella_spp. | 1e-9 |
-| serratia_spp. | neisseria_gonorrhoeae | 3e-11 |
-| serratia_spp. | haemophilus_influenzae | 3e-11 |
-| serratia_spp. | chlamydia_trachomatis | 3e-11 |
-| serratia_spp. | mycoplasma_genitalium | 3e-11 |
-| serratia_spp. | vibrio_cholerae | 1e-10 |
-| serratia_spp. | neisseria_meningitidis | 3e-11 |
-| serratia_spp. | clostridioides_difficile | 3e-11 |
-| serratia_spp. | bacteroides_fragilis | 3e-11 |
-| serratia_spp. | enterobacter_cloacae | 1e-9 |
-| serratia_spp. | yersinia_enterocolitica | 1e-9 |
-| serratia_spp. | moraxella_catarrhalis | 3e-11 |
-| serratia_spp. | bordetella_pertussis | 3e-11 |
-| serratia_spp. | mycoplasma_pneumoniae | 3e-11 |
-| serratia_spp. | legionella_pneumophila | 3e-11 |
-| serratia_spp. | burkholderia_cepacia_complex | 1e-10 |
-| p_stuartii | acinetobacter_baumannii | 1e-10 |
-| p_stuartii | citrobacter_spp. | 1e-9 |
-| p_stuartii | enterobacter_spp. | 1e-9 |
-| p_stuartii | escherichia_coli | 1e-9 |
-| p_stuartii | klebsiella_pneumoniae | 1e-9 |
-| p_stuartii | morganella_spp. | 1e-9 |
-| p_stuartii | proteus_spp. | 1e-9 |
-| p_stuartii | serratia_spp. | 1e-9 |
-| p_stuartii | pseudomonas_aeruginosa | 1e-10 |
-| p_stuartii | stenotrophomonas_maltophilia | 1e-10 |
-| p_stuartii | salmonella_enterica_serovar_typhi | 1e-9 |
-| p_stuartii | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| p_stuartii | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| p_stuartii | shigella_spp. | 1e-9 |
-| p_stuartii | neisseria_gonorrhoeae | 3e-11 |
-| p_stuartii | haemophilus_influenzae | 3e-11 |
-| p_stuartii | chlamydia_trachomatis | 3e-11 |
-| p_stuartii | mycoplasma_genitalium | 3e-11 |
-| p_stuartii | vibrio_cholerae | 1e-10 |
-| p_stuartii | neisseria_meningitidis | 3e-11 |
-| p_stuartii | clostridioides_difficile | 3e-11 |
-| p_stuartii | bacteroides_fragilis | 3e-11 |
-| p_stuartii | enterobacter_cloacae | 1e-9 |
-| p_stuartii | yersinia_enterocolitica | 1e-9 |
-| p_stuartii | moraxella_catarrhalis | 3e-11 |
-| p_stuartii | bordetella_pertussis | 3e-11 |
-| p_stuartii | mycoplasma_pneumoniae | 3e-11 |
-| p_stuartii | legionella_pneumophila | 3e-11 |
-| p_stuartii | burkholderia_cepacia_complex | 1e-10 |
-| pseudomonas_aeruginosa | acinetobacter_baumannii | 1e-9 |
-| pseudomonas_aeruginosa | citrobacter_spp. | 1e-10 |
-| pseudomonas_aeruginosa | enterobacter_spp. | 1e-10 |
-| pseudomonas_aeruginosa | escherichia_coli | 1e-10 |
-| pseudomonas_aeruginosa | klebsiella_pneumoniae | 1e-10 |
-| pseudomonas_aeruginosa | morganella_spp. | 1e-10 |
-| pseudomonas_aeruginosa | proteus_spp. | 1e-10 |
-| pseudomonas_aeruginosa | serratia_spp. | 1e-10 |
-| pseudomonas_aeruginosa | p_stuartii | 1e-10 |
-| pseudomonas_aeruginosa | stenotrophomonas_maltophilia | 1e-9 |
-| pseudomonas_aeruginosa | salmonella_enterica_serovar_typhi | 1e-10 |
-| pseudomonas_aeruginosa | salmonella_enterica_serovar_paratyphi_a | 1e-10 |
-| pseudomonas_aeruginosa | invasive_non-typhoidal_salmonella_spp. | 1e-10 |
-| pseudomonas_aeruginosa | shigella_spp. | 1e-10 |
-| pseudomonas_aeruginosa | neisseria_gonorrhoeae | 3e-11 |
-| pseudomonas_aeruginosa | haemophilus_influenzae | 3e-11 |
-| pseudomonas_aeruginosa | chlamydia_trachomatis | 3e-11 |
-| pseudomonas_aeruginosa | mycoplasma_genitalium | 3e-11 |
-| pseudomonas_aeruginosa | vibrio_cholerae | 1e-10 |
-| pseudomonas_aeruginosa | neisseria_meningitidis | 3e-11 |
-| pseudomonas_aeruginosa | clostridioides_difficile | 3e-11 |
-| pseudomonas_aeruginosa | bacteroides_fragilis | 3e-11 |
-| pseudomonas_aeruginosa | enterobacter_cloacae | 1e-10 |
-| pseudomonas_aeruginosa | yersinia_enterocolitica | 1e-10 |
-| pseudomonas_aeruginosa | moraxella_catarrhalis | 3e-11 |
-| pseudomonas_aeruginosa | bordetella_pertussis | 3e-11 |
-| pseudomonas_aeruginosa | mycoplasma_pneumoniae | 3e-11 |
-| pseudomonas_aeruginosa | legionella_pneumophila | 3e-11 |
-| pseudomonas_aeruginosa | burkholderia_cepacia_complex | 1e-9 |
-| stenotrophomonas_maltophilia | acinetobacter_baumannii | 1e-9 |
-| stenotrophomonas_maltophilia | citrobacter_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | enterobacter_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | escherichia_coli | 1e-10 |
-| stenotrophomonas_maltophilia | klebsiella_pneumoniae | 1e-10 |
-| stenotrophomonas_maltophilia | morganella_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | proteus_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | serratia_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | p_stuartii | 1e-10 |
-| stenotrophomonas_maltophilia | pseudomonas_aeruginosa | 1e-9 |
-| stenotrophomonas_maltophilia | salmonella_enterica_serovar_typhi | 1e-10 |
-| stenotrophomonas_maltophilia | salmonella_enterica_serovar_paratyphi_a | 1e-10 |
-| stenotrophomonas_maltophilia | invasive_non-typhoidal_salmonella_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | shigella_spp. | 1e-10 |
-| stenotrophomonas_maltophilia | neisseria_gonorrhoeae | 3e-11 |
-| stenotrophomonas_maltophilia | haemophilus_influenzae | 3e-11 |
-| stenotrophomonas_maltophilia | chlamydia_trachomatis | 3e-11 |
-| stenotrophomonas_maltophilia | mycoplasma_genitalium | 3e-11 |
-| stenotrophomonas_maltophilia | vibrio_cholerae | 1e-10 |
-| stenotrophomonas_maltophilia | neisseria_meningitidis | 3e-11 |
-| stenotrophomonas_maltophilia | clostridioides_difficile | 3e-11 |
-| stenotrophomonas_maltophilia | bacteroides_fragilis | 3e-11 |
-| stenotrophomonas_maltophilia | enterobacter_cloacae | 1e-10 |
-| stenotrophomonas_maltophilia | yersinia_enterocolitica | 1e-10 |
-| stenotrophomonas_maltophilia | moraxella_catarrhalis | 3e-11 |
-| stenotrophomonas_maltophilia | bordetella_pertussis | 3e-11 |
-| stenotrophomonas_maltophilia | mycoplasma_pneumoniae | 3e-11 |
-| stenotrophomonas_maltophilia | legionella_pneumophila | 3e-11 |
-| stenotrophomonas_maltophilia | burkholderia_cepacia_complex | 1e-9 |
-| staphylococcus_aureus | enterococcus_faecalis | 1e-9 |
-| staphylococcus_aureus | enterococcus_faecium | 1e-9 |
-| staphylococcus_aureus | staphylococcus_epidermidis | 1e-9 |
-| staphylococcus_aureus | streptococcus_pneumoniae | 1e-9 |
-| staphylococcus_aureus | streptococcus_pyogenes | 1e-9 |
-| staphylococcus_aureus | streptococcus_agalactiae | 1e-9 |
-| staphylococcus_aureus | listeria_monocytogenes | 1e-9 |
-| staphylococcus_epidermidis | enterococcus_faecalis | 1e-9 |
-| staphylococcus_epidermidis | enterococcus_faecium | 1e-9 |
-| staphylococcus_epidermidis | staphylococcus_aureus | 1e-9 |
-| staphylococcus_epidermidis | streptococcus_pneumoniae | 1e-9 |
-| staphylococcus_epidermidis | streptococcus_pyogenes | 1e-9 |
-| staphylococcus_epidermidis | streptococcus_agalactiae | 1e-9 |
-| staphylococcus_epidermidis | listeria_monocytogenes | 1e-9 |
-| streptococcus_pneumoniae | enterococcus_faecalis | 1e-9 |
-| streptococcus_pneumoniae | enterococcus_faecium | 1e-9 |
-| streptococcus_pneumoniae | staphylococcus_aureus | 1e-9 |
-| streptococcus_pneumoniae | staphylococcus_epidermidis | 1e-9 |
-| streptococcus_pneumoniae | streptococcus_pyogenes | 1e-9 |
-| streptococcus_pneumoniae | streptococcus_agalactiae | 1e-9 |
-| streptococcus_pneumoniae | listeria_monocytogenes | 1e-9 |
-| salmonella_enterica_serovar_typhi | acinetobacter_baumannii | 1e-10 |
-| salmonella_enterica_serovar_typhi | citrobacter_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | enterobacter_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | escherichia_coli | 1e-9 |
-| salmonella_enterica_serovar_typhi | klebsiella_pneumoniae | 1e-9 |
-| salmonella_enterica_serovar_typhi | morganella_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | proteus_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | serratia_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | p_stuartii | 1e-9 |
-| salmonella_enterica_serovar_typhi | pseudomonas_aeruginosa | 1e-10 |
-| salmonella_enterica_serovar_typhi | stenotrophomonas_maltophilia | 1e-10 |
-| salmonella_enterica_serovar_typhi | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| salmonella_enterica_serovar_typhi | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | shigella_spp. | 1e-9 |
-| salmonella_enterica_serovar_typhi | neisseria_gonorrhoeae | 3e-11 |
-| salmonella_enterica_serovar_typhi | haemophilus_influenzae | 3e-11 |
-| salmonella_enterica_serovar_typhi | chlamydia_trachomatis | 3e-11 |
-| salmonella_enterica_serovar_typhi | mycoplasma_genitalium | 3e-11 |
-| salmonella_enterica_serovar_typhi | vibrio_cholerae | 1e-10 |
-| salmonella_enterica_serovar_typhi | neisseria_meningitidis | 3e-11 |
-| salmonella_enterica_serovar_typhi | clostridioides_difficile | 3e-11 |
-| salmonella_enterica_serovar_typhi | bacteroides_fragilis | 3e-11 |
-| salmonella_enterica_serovar_typhi | enterobacter_cloacae | 1e-9 |
-| salmonella_enterica_serovar_typhi | yersinia_enterocolitica | 1e-9 |
-| salmonella_enterica_serovar_typhi | moraxella_catarrhalis | 3e-11 |
-| salmonella_enterica_serovar_typhi | bordetella_pertussis | 3e-11 |
-| salmonella_enterica_serovar_typhi | mycoplasma_pneumoniae | 3e-11 |
-| salmonella_enterica_serovar_typhi | legionella_pneumophila | 3e-11 |
-| salmonella_enterica_serovar_typhi | burkholderia_cepacia_complex | 1e-10 |
-| salmonella_enterica_serovar_paratyphi_a | acinetobacter_baumannii | 1e-10 |
-| salmonella_enterica_serovar_paratyphi_a | citrobacter_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | enterobacter_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | escherichia_coli | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | klebsiella_pneumoniae | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | morganella_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | proteus_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | serratia_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | p_stuartii | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | pseudomonas_aeruginosa | 1e-10 |
-| salmonella_enterica_serovar_paratyphi_a | stenotrophomonas_maltophilia | 1e-10 |
-| salmonella_enterica_serovar_paratyphi_a | salmonella_enterica_serovar_typhi | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | shigella_spp. | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | neisseria_gonorrhoeae | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | haemophilus_influenzae | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | chlamydia_trachomatis | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | mycoplasma_genitalium | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | vibrio_cholerae | 1e-10 |
-| salmonella_enterica_serovar_paratyphi_a | neisseria_meningitidis | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | clostridioides_difficile | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | bacteroides_fragilis | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | enterobacter_cloacae | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | yersinia_enterocolitica | 1e-9 |
-| salmonella_enterica_serovar_paratyphi_a | moraxella_catarrhalis | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | bordetella_pertussis | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | mycoplasma_pneumoniae | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | legionella_pneumophila | 3e-11 |
-| salmonella_enterica_serovar_paratyphi_a | burkholderia_cepacia_complex | 1e-10 |
-| invasive_non-typhoidal_salmonella_spp. | acinetobacter_baumannii | 1e-10 |
-| invasive_non-typhoidal_salmonella_spp. | citrobacter_spp. | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | enterobacter_spp. | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | escherichia_coli | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | klebsiella_pneumoniae | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | morganella_spp. | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | proteus_spp. | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | serratia_spp. | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | p_stuartii | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | pseudomonas_aeruginosa | 1e-10 |
-| invasive_non-typhoidal_salmonella_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| invasive_non-typhoidal_salmonella_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | shigella_spp. | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | neisseria_gonorrhoeae | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | haemophilus_influenzae | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | chlamydia_trachomatis | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | mycoplasma_genitalium | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | vibrio_cholerae | 1e-10 |
-| invasive_non-typhoidal_salmonella_spp. | neisseria_meningitidis | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | clostridioides_difficile | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | bacteroides_fragilis | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | enterobacter_cloacae | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | yersinia_enterocolitica | 1e-9 |
-| invasive_non-typhoidal_salmonella_spp. | moraxella_catarrhalis | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | bordetella_pertussis | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | mycoplasma_pneumoniae | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | legionella_pneumophila | 3e-11 |
-| invasive_non-typhoidal_salmonella_spp. | burkholderia_cepacia_complex | 1e-10 |
-| shigella_spp. | acinetobacter_baumannii | 1e-10 |
-| shigella_spp. | citrobacter_spp. | 1e-9 |
-| shigella_spp. | enterobacter_spp. | 1e-9 |
-| shigella_spp. | escherichia_coli | 1e-9 |
-| shigella_spp. | klebsiella_pneumoniae | 1e-9 |
-| shigella_spp. | morganella_spp. | 1e-9 |
-| shigella_spp. | proteus_spp. | 1e-9 |
-| shigella_spp. | serratia_spp. | 1e-9 |
-| shigella_spp. | p_stuartii | 1e-9 |
-| shigella_spp. | pseudomonas_aeruginosa | 1e-10 |
-| shigella_spp. | stenotrophomonas_maltophilia | 1e-10 |
-| shigella_spp. | salmonella_enterica_serovar_typhi | 1e-9 |
-| shigella_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| shigella_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| shigella_spp. | neisseria_gonorrhoeae | 3e-11 |
-| shigella_spp. | haemophilus_influenzae | 3e-11 |
-| shigella_spp. | chlamydia_trachomatis | 3e-11 |
-| shigella_spp. | mycoplasma_genitalium | 3e-11 |
-| shigella_spp. | vibrio_cholerae | 1e-10 |
-| shigella_spp. | neisseria_meningitidis | 3e-11 |
-| shigella_spp. | clostridioides_difficile | 3e-11 |
-| shigella_spp. | bacteroides_fragilis | 3e-11 |
-| shigella_spp. | enterobacter_cloacae | 1e-9 |
-| shigella_spp. | yersinia_enterocolitica | 1e-9 |
-| shigella_spp. | moraxella_catarrhalis | 3e-11 |
-| shigella_spp. | bordetella_pertussis | 3e-11 |
-| shigella_spp. | mycoplasma_pneumoniae | 3e-11 |
-| shigella_spp. | legionella_pneumophila | 3e-11 |
-| shigella_spp. | burkholderia_cepacia_complex | 1e-10 |
-| neisseria_gonorrhoeae | acinetobacter_baumannii | 3e-11 |
-| neisseria_gonorrhoeae | citrobacter_spp. | 3e-11 |
-| neisseria_gonorrhoeae | enterobacter_spp. | 3e-11 |
-| neisseria_gonorrhoeae | escherichia_coli | 3e-11 |
-| neisseria_gonorrhoeae | klebsiella_pneumoniae | 3e-11 |
-| neisseria_gonorrhoeae | morganella_spp. | 3e-11 |
-| neisseria_gonorrhoeae | proteus_spp. | 3e-11 |
-| neisseria_gonorrhoeae | serratia_spp. | 3e-11 |
-| neisseria_gonorrhoeae | p_stuartii | 3e-11 |
-| neisseria_gonorrhoeae | pseudomonas_aeruginosa | 3e-11 |
-| neisseria_gonorrhoeae | stenotrophomonas_maltophilia | 3e-11 |
-| neisseria_gonorrhoeae | salmonella_enterica_serovar_typhi | 3e-11 |
-| neisseria_gonorrhoeae | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| neisseria_gonorrhoeae | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| neisseria_gonorrhoeae | shigella_spp. | 3e-11 |
-| neisseria_gonorrhoeae | haemophilus_influenzae | 1e-9 |
-| neisseria_gonorrhoeae | chlamydia_trachomatis | 1e-9 |
-| neisseria_gonorrhoeae | mycoplasma_genitalium | 1e-9 |
-| neisseria_gonorrhoeae | vibrio_cholerae | 3e-11 |
-| neisseria_gonorrhoeae | neisseria_meningitidis | 1e-9 |
-| neisseria_gonorrhoeae | enterobacter_cloacae | 3e-11 |
-| neisseria_gonorrhoeae | yersinia_enterocolitica | 3e-11 |
-| neisseria_gonorrhoeae | moraxella_catarrhalis | 1e-9 |
-| neisseria_gonorrhoeae | bordetella_pertussis | 1e-9 |
-| neisseria_gonorrhoeae | mycoplasma_pneumoniae | 1e-9 |
-| neisseria_gonorrhoeae | legionella_pneumophila | 1e-9 |
-| neisseria_gonorrhoeae | burkholderia_cepacia_complex | 3e-11 |
-| streptococcus_pyogenes | enterococcus_faecalis | 1e-9 |
-| streptococcus_pyogenes | enterococcus_faecium | 1e-9 |
-| streptococcus_pyogenes | staphylococcus_aureus | 1e-9 |
-| streptococcus_pyogenes | staphylococcus_epidermidis | 1e-9 |
-| streptococcus_pyogenes | streptococcus_pneumoniae | 1e-9 |
-| streptococcus_pyogenes | streptococcus_agalactiae | 1e-9 |
-| streptococcus_pyogenes | listeria_monocytogenes | 1e-9 |
-| streptococcus_agalactiae | enterococcus_faecalis | 1e-9 |
-| streptococcus_agalactiae | enterococcus_faecium | 1e-9 |
-| streptococcus_agalactiae | staphylococcus_aureus | 1e-9 |
-| streptococcus_agalactiae | staphylococcus_epidermidis | 1e-9 |
-| streptococcus_agalactiae | streptococcus_pneumoniae | 1e-9 |
-| streptococcus_agalactiae | streptococcus_pyogenes | 1e-9 |
-| streptococcus_agalactiae | listeria_monocytogenes | 1e-9 |
-| haemophilus_influenzae | acinetobacter_baumannii | 3e-11 |
-| haemophilus_influenzae | citrobacter_spp. | 3e-11 |
-| haemophilus_influenzae | enterobacter_spp. | 3e-11 |
-| haemophilus_influenzae | escherichia_coli | 3e-11 |
-| haemophilus_influenzae | klebsiella_pneumoniae | 3e-11 |
-| haemophilus_influenzae | morganella_spp. | 3e-11 |
-| haemophilus_influenzae | proteus_spp. | 3e-11 |
-| haemophilus_influenzae | serratia_spp. | 3e-11 |
-| haemophilus_influenzae | p_stuartii | 3e-11 |
-| haemophilus_influenzae | pseudomonas_aeruginosa | 3e-11 |
-| haemophilus_influenzae | stenotrophomonas_maltophilia | 3e-11 |
-| haemophilus_influenzae | salmonella_enterica_serovar_typhi | 3e-11 |
-| haemophilus_influenzae | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| haemophilus_influenzae | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| haemophilus_influenzae | shigella_spp. | 3e-11 |
-| haemophilus_influenzae | neisseria_gonorrhoeae | 1e-9 |
-| haemophilus_influenzae | chlamydia_trachomatis | 1e-9 |
-| haemophilus_influenzae | mycoplasma_genitalium | 1e-9 |
-| haemophilus_influenzae | vibrio_cholerae | 3e-11 |
-| haemophilus_influenzae | neisseria_meningitidis | 1e-9 |
-| haemophilus_influenzae | enterobacter_cloacae | 3e-11 |
-| haemophilus_influenzae | yersinia_enterocolitica | 3e-11 |
-| haemophilus_influenzae | moraxella_catarrhalis | 1e-9 |
-| haemophilus_influenzae | bordetella_pertussis | 1e-9 |
-| haemophilus_influenzae | mycoplasma_pneumoniae | 1e-9 |
-| haemophilus_influenzae | legionella_pneumophila | 1e-9 |
-| haemophilus_influenzae | burkholderia_cepacia_complex | 3e-11 |
-| chlamydia_trachomatis | acinetobacter_baumannii | 3e-11 |
-| chlamydia_trachomatis | citrobacter_spp. | 3e-11 |
-| chlamydia_trachomatis | enterobacter_spp. | 3e-11 |
-| chlamydia_trachomatis | escherichia_coli | 3e-11 |
-| chlamydia_trachomatis | klebsiella_pneumoniae | 3e-11 |
-| chlamydia_trachomatis | morganella_spp. | 3e-11 |
-| chlamydia_trachomatis | proteus_spp. | 3e-11 |
-| chlamydia_trachomatis | serratia_spp. | 3e-11 |
-| chlamydia_trachomatis | p_stuartii | 3e-11 |
-| chlamydia_trachomatis | pseudomonas_aeruginosa | 3e-11 |
-| chlamydia_trachomatis | stenotrophomonas_maltophilia | 3e-11 |
-| chlamydia_trachomatis | salmonella_enterica_serovar_typhi | 3e-11 |
-| chlamydia_trachomatis | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| chlamydia_trachomatis | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| chlamydia_trachomatis | shigella_spp. | 3e-11 |
-| chlamydia_trachomatis | neisseria_gonorrhoeae | 1e-9 |
-| chlamydia_trachomatis | haemophilus_influenzae | 1e-9 |
-| chlamydia_trachomatis | mycoplasma_genitalium | 1e-9 |
-| chlamydia_trachomatis | vibrio_cholerae | 3e-11 |
-| chlamydia_trachomatis | neisseria_meningitidis | 1e-9 |
-| chlamydia_trachomatis | enterobacter_cloacae | 3e-11 |
-| chlamydia_trachomatis | yersinia_enterocolitica | 3e-11 |
-| chlamydia_trachomatis | moraxella_catarrhalis | 1e-9 |
-| chlamydia_trachomatis | bordetella_pertussis | 1e-9 |
-| chlamydia_trachomatis | mycoplasma_pneumoniae | 1e-9 |
-| chlamydia_trachomatis | legionella_pneumophila | 1e-9 |
-| chlamydia_trachomatis | burkholderia_cepacia_complex | 3e-11 |
-| mycoplasma_genitalium | acinetobacter_baumannii | 3e-11 |
-| mycoplasma_genitalium | citrobacter_spp. | 3e-11 |
-| mycoplasma_genitalium | enterobacter_spp. | 3e-11 |
-| mycoplasma_genitalium | escherichia_coli | 3e-11 |
-| mycoplasma_genitalium | klebsiella_pneumoniae | 3e-11 |
-| mycoplasma_genitalium | morganella_spp. | 3e-11 |
-| mycoplasma_genitalium | proteus_spp. | 3e-11 |
-| mycoplasma_genitalium | serratia_spp. | 3e-11 |
-| mycoplasma_genitalium | p_stuartii | 3e-11 |
-| mycoplasma_genitalium | pseudomonas_aeruginosa | 3e-11 |
-| mycoplasma_genitalium | stenotrophomonas_maltophilia | 3e-11 |
-| mycoplasma_genitalium | salmonella_enterica_serovar_typhi | 3e-11 |
-| mycoplasma_genitalium | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| mycoplasma_genitalium | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| mycoplasma_genitalium | shigella_spp. | 3e-11 |
-| mycoplasma_genitalium | neisseria_gonorrhoeae | 1e-9 |
-| mycoplasma_genitalium | haemophilus_influenzae | 1e-9 |
-| mycoplasma_genitalium | chlamydia_trachomatis | 1e-9 |
-| mycoplasma_genitalium | vibrio_cholerae | 3e-11 |
-| mycoplasma_genitalium | neisseria_meningitidis | 1e-9 |
-| mycoplasma_genitalium | enterobacter_cloacae | 3e-11 |
-| mycoplasma_genitalium | yersinia_enterocolitica | 3e-11 |
-| mycoplasma_genitalium | moraxella_catarrhalis | 1e-9 |
-| mycoplasma_genitalium | bordetella_pertussis | 1e-9 |
-| mycoplasma_genitalium | mycoplasma_pneumoniae | 1e-9 |
-| mycoplasma_genitalium | legionella_pneumophila | 1e-9 |
-| mycoplasma_genitalium | burkholderia_cepacia_complex | 3e-11 |
-| vibrio_cholerae | acinetobacter_baumannii | 1e-10 |
-| vibrio_cholerae | citrobacter_spp. | 1e-10 |
-| vibrio_cholerae | enterobacter_spp. | 1e-10 |
-| vibrio_cholerae | escherichia_coli | 1e-10 |
-| vibrio_cholerae | klebsiella_pneumoniae | 1e-10 |
-| vibrio_cholerae | morganella_spp. | 1e-10 |
-| vibrio_cholerae | proteus_spp. | 1e-10 |
-| vibrio_cholerae | serratia_spp. | 1e-10 |
-| vibrio_cholerae | p_stuartii | 1e-10 |
-| vibrio_cholerae | pseudomonas_aeruginosa | 1e-10 |
-| vibrio_cholerae | stenotrophomonas_maltophilia | 1e-10 |
-| vibrio_cholerae | salmonella_enterica_serovar_typhi | 1e-10 |
-| vibrio_cholerae | salmonella_enterica_serovar_paratyphi_a | 1e-10 |
-| vibrio_cholerae | invasive_non-typhoidal_salmonella_spp. | 1e-10 |
-| vibrio_cholerae | shigella_spp. | 1e-10 |
-| vibrio_cholerae | neisseria_gonorrhoeae | 3e-11 |
-| vibrio_cholerae | haemophilus_influenzae | 3e-11 |
-| vibrio_cholerae | chlamydia_trachomatis | 3e-11 |
-| vibrio_cholerae | mycoplasma_genitalium | 3e-11 |
-| vibrio_cholerae | neisseria_meningitidis | 3e-11 |
-| vibrio_cholerae | clostridioides_difficile | 3e-11 |
-| vibrio_cholerae | bacteroides_fragilis | 3e-11 |
-| vibrio_cholerae | enterobacter_cloacae | 1e-10 |
-| vibrio_cholerae | yersinia_enterocolitica | 1e-10 |
-| vibrio_cholerae | moraxella_catarrhalis | 3e-11 |
-| vibrio_cholerae | bordetella_pertussis | 3e-11 |
-| vibrio_cholerae | mycoplasma_pneumoniae | 3e-11 |
-| vibrio_cholerae | legionella_pneumophila | 3e-11 |
-| vibrio_cholerae | burkholderia_cepacia_complex | 1e-10 |
-| neisseria_meningitidis | acinetobacter_baumannii | 3e-11 |
-| neisseria_meningitidis | citrobacter_spp. | 3e-11 |
-| neisseria_meningitidis | enterobacter_spp. | 3e-11 |
-| neisseria_meningitidis | escherichia_coli | 3e-11 |
-| neisseria_meningitidis | klebsiella_pneumoniae | 3e-11 |
-| neisseria_meningitidis | morganella_spp. | 3e-11 |
-| neisseria_meningitidis | proteus_spp. | 3e-11 |
-| neisseria_meningitidis | serratia_spp. | 3e-11 |
-| neisseria_meningitidis | p_stuartii | 3e-11 |
-| neisseria_meningitidis | pseudomonas_aeruginosa | 3e-11 |
-| neisseria_meningitidis | stenotrophomonas_maltophilia | 3e-11 |
-| neisseria_meningitidis | salmonella_enterica_serovar_typhi | 3e-11 |
-| neisseria_meningitidis | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| neisseria_meningitidis | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| neisseria_meningitidis | shigella_spp. | 3e-11 |
-| neisseria_meningitidis | neisseria_gonorrhoeae | 1e-9 |
-| neisseria_meningitidis | haemophilus_influenzae | 1e-9 |
-| neisseria_meningitidis | chlamydia_trachomatis | 1e-9 |
-| neisseria_meningitidis | mycoplasma_genitalium | 1e-9 |
-| neisseria_meningitidis | vibrio_cholerae | 3e-11 |
-| neisseria_meningitidis | enterobacter_cloacae | 3e-11 |
-| neisseria_meningitidis | yersinia_enterocolitica | 3e-11 |
-| neisseria_meningitidis | moraxella_catarrhalis | 1e-9 |
-| neisseria_meningitidis | bordetella_pertussis | 1e-9 |
-| neisseria_meningitidis | mycoplasma_pneumoniae | 1e-9 |
-| neisseria_meningitidis | legionella_pneumophila | 1e-9 |
-| neisseria_meningitidis | burkholderia_cepacia_complex | 3e-11 |
-| listeria_monocytogenes | enterococcus_faecalis | 1e-9 |
-| listeria_monocytogenes | enterococcus_faecium | 1e-9 |
-| listeria_monocytogenes | staphylococcus_aureus | 1e-9 |
-| listeria_monocytogenes | staphylococcus_epidermidis | 1e-9 |
-| listeria_monocytogenes | streptococcus_pneumoniae | 1e-9 |
-| listeria_monocytogenes | streptococcus_pyogenes | 1e-9 |
-| listeria_monocytogenes | streptococcus_agalactiae | 1e-9 |
-| clostridioides_difficile | acinetobacter_baumannii | 3e-11 |
-| clostridioides_difficile | citrobacter_spp. | 3e-11 |
-| clostridioides_difficile | enterobacter_spp. | 3e-11 |
-| clostridioides_difficile | escherichia_coli | 3e-11 |
-| clostridioides_difficile | klebsiella_pneumoniae | 3e-11 |
-| clostridioides_difficile | morganella_spp. | 3e-11 |
-| clostridioides_difficile | proteus_spp. | 3e-11 |
-| clostridioides_difficile | serratia_spp. | 3e-11 |
-| clostridioides_difficile | p_stuartii | 3e-11 |
-| clostridioides_difficile | pseudomonas_aeruginosa | 3e-11 |
-| clostridioides_difficile | stenotrophomonas_maltophilia | 3e-11 |
-| clostridioides_difficile | salmonella_enterica_serovar_typhi | 3e-11 |
-| clostridioides_difficile | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| clostridioides_difficile | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| clostridioides_difficile | shigella_spp. | 3e-11 |
-| clostridioides_difficile | vibrio_cholerae | 3e-11 |
-| clostridioides_difficile | bacteroides_fragilis | 1e-9 |
-| clostridioides_difficile | enterobacter_cloacae | 3e-11 |
-| clostridioides_difficile | yersinia_enterocolitica | 3e-11 |
-| clostridioides_difficile | burkholderia_cepacia_complex | 3e-11 |
-| bacteroides_fragilis | acinetobacter_baumannii | 3e-11 |
-| bacteroides_fragilis | citrobacter_spp. | 3e-11 |
-| bacteroides_fragilis | enterobacter_spp. | 3e-11 |
-| bacteroides_fragilis | escherichia_coli | 3e-11 |
-| bacteroides_fragilis | klebsiella_pneumoniae | 3e-11 |
-| bacteroides_fragilis | morganella_spp. | 3e-11 |
-| bacteroides_fragilis | proteus_spp. | 3e-11 |
-| bacteroides_fragilis | serratia_spp. | 3e-11 |
-| bacteroides_fragilis | p_stuartii | 3e-11 |
-| bacteroides_fragilis | pseudomonas_aeruginosa | 3e-11 |
-| bacteroides_fragilis | stenotrophomonas_maltophilia | 3e-11 |
-| bacteroides_fragilis | salmonella_enterica_serovar_typhi | 3e-11 |
-| bacteroides_fragilis | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| bacteroides_fragilis | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| bacteroides_fragilis | shigella_spp. | 3e-11 |
-| bacteroides_fragilis | vibrio_cholerae | 3e-11 |
-| bacteroides_fragilis | clostridioides_difficile | 1e-9 |
-| bacteroides_fragilis | enterobacter_cloacae | 3e-11 |
-| bacteroides_fragilis | yersinia_enterocolitica | 3e-11 |
-| bacteroides_fragilis | burkholderia_cepacia_complex | 3e-11 |
-| enterobacter_cloacae | acinetobacter_baumannii | 1e-10 |
-| enterobacter_cloacae | citrobacter_spp. | 1e-9 |
-| enterobacter_cloacae | enterobacter_spp. | 1e-9 |
-| enterobacter_cloacae | escherichia_coli | 1e-9 |
-| enterobacter_cloacae | klebsiella_pneumoniae | 1e-9 |
-| enterobacter_cloacae | morganella_spp. | 1e-9 |
-| enterobacter_cloacae | proteus_spp. | 1e-9 |
-| enterobacter_cloacae | serratia_spp. | 1e-9 |
-| enterobacter_cloacae | p_stuartii | 1e-9 |
-| enterobacter_cloacae | pseudomonas_aeruginosa | 1e-10 |
-| enterobacter_cloacae | stenotrophomonas_maltophilia | 1e-10 |
-| enterobacter_cloacae | salmonella_enterica_serovar_typhi | 1e-9 |
-| enterobacter_cloacae | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| enterobacter_cloacae | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| enterobacter_cloacae | shigella_spp. | 1e-9 |
-| enterobacter_cloacae | neisseria_gonorrhoeae | 3e-11 |
-| enterobacter_cloacae | haemophilus_influenzae | 3e-11 |
-| enterobacter_cloacae | chlamydia_trachomatis | 3e-11 |
-| enterobacter_cloacae | mycoplasma_genitalium | 3e-11 |
-| enterobacter_cloacae | vibrio_cholerae | 1e-10 |
-| enterobacter_cloacae | neisseria_meningitidis | 3e-11 |
-| enterobacter_cloacae | clostridioides_difficile | 3e-11 |
-| enterobacter_cloacae | bacteroides_fragilis | 3e-11 |
-| enterobacter_cloacae | yersinia_enterocolitica | 1e-9 |
-| enterobacter_cloacae | moraxella_catarrhalis | 3e-11 |
-| enterobacter_cloacae | bordetella_pertussis | 3e-11 |
-| enterobacter_cloacae | mycoplasma_pneumoniae | 3e-11 |
-| enterobacter_cloacae | legionella_pneumophila | 3e-11 |
-| enterobacter_cloacae | burkholderia_cepacia_complex | 1e-10 |
-| yersinia_enterocolitica | acinetobacter_baumannii | 1e-10 |
-| yersinia_enterocolitica | citrobacter_spp. | 1e-9 |
-| yersinia_enterocolitica | enterobacter_spp. | 1e-9 |
-| yersinia_enterocolitica | escherichia_coli | 1e-9 |
-| yersinia_enterocolitica | klebsiella_pneumoniae | 1e-9 |
-| yersinia_enterocolitica | morganella_spp. | 1e-9 |
-| yersinia_enterocolitica | proteus_spp. | 1e-9 |
-| yersinia_enterocolitica | serratia_spp. | 1e-9 |
-| yersinia_enterocolitica | p_stuartii | 1e-9 |
-| yersinia_enterocolitica | pseudomonas_aeruginosa | 1e-10 |
-| yersinia_enterocolitica | stenotrophomonas_maltophilia | 1e-10 |
-| yersinia_enterocolitica | salmonella_enterica_serovar_typhi | 1e-9 |
-| yersinia_enterocolitica | salmonella_enterica_serovar_paratyphi_a | 1e-9 |
-| yersinia_enterocolitica | invasive_non-typhoidal_salmonella_spp. | 1e-9 |
-| yersinia_enterocolitica | shigella_spp. | 1e-9 |
-| yersinia_enterocolitica | neisseria_gonorrhoeae | 3e-11 |
-| yersinia_enterocolitica | haemophilus_influenzae | 3e-11 |
-| yersinia_enterocolitica | chlamydia_trachomatis | 3e-11 |
-| yersinia_enterocolitica | mycoplasma_genitalium | 3e-11 |
-| yersinia_enterocolitica | vibrio_cholerae | 1e-10 |
-| yersinia_enterocolitica | neisseria_meningitidis | 3e-11 |
-| yersinia_enterocolitica | clostridioides_difficile | 3e-11 |
-| yersinia_enterocolitica | bacteroides_fragilis | 3e-11 |
-| yersinia_enterocolitica | enterobacter_cloacae | 1e-9 |
-| yersinia_enterocolitica | moraxella_catarrhalis | 3e-11 |
-| yersinia_enterocolitica | bordetella_pertussis | 3e-11 |
-| yersinia_enterocolitica | mycoplasma_pneumoniae | 3e-11 |
-| yersinia_enterocolitica | legionella_pneumophila | 3e-11 |
-| yersinia_enterocolitica | burkholderia_cepacia_complex | 1e-10 |
-| moraxella_catarrhalis | acinetobacter_baumannii | 3e-11 |
-| moraxella_catarrhalis | citrobacter_spp. | 3e-11 |
-| moraxella_catarrhalis | enterobacter_spp. | 3e-11 |
-| moraxella_catarrhalis | escherichia_coli | 3e-11 |
-| moraxella_catarrhalis | klebsiella_pneumoniae | 3e-11 |
-| moraxella_catarrhalis | morganella_spp. | 3e-11 |
-| moraxella_catarrhalis | proteus_spp. | 3e-11 |
-| moraxella_catarrhalis | serratia_spp. | 3e-11 |
-| moraxella_catarrhalis | p_stuartii | 3e-11 |
-| moraxella_catarrhalis | pseudomonas_aeruginosa | 3e-11 |
-| moraxella_catarrhalis | stenotrophomonas_maltophilia | 3e-11 |
-| moraxella_catarrhalis | salmonella_enterica_serovar_typhi | 3e-11 |
-| moraxella_catarrhalis | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| moraxella_catarrhalis | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| moraxella_catarrhalis | shigella_spp. | 3e-11 |
-| moraxella_catarrhalis | neisseria_gonorrhoeae | 1e-9 |
-| moraxella_catarrhalis | haemophilus_influenzae | 1e-9 |
-| moraxella_catarrhalis | chlamydia_trachomatis | 1e-9 |
-| moraxella_catarrhalis | mycoplasma_genitalium | 1e-9 |
-| moraxella_catarrhalis | vibrio_cholerae | 3e-11 |
-| moraxella_catarrhalis | neisseria_meningitidis | 1e-9 |
-| moraxella_catarrhalis | enterobacter_cloacae | 3e-11 |
-| moraxella_catarrhalis | yersinia_enterocolitica | 3e-11 |
-| moraxella_catarrhalis | bordetella_pertussis | 1e-9 |
-| moraxella_catarrhalis | mycoplasma_pneumoniae | 1e-9 |
-| moraxella_catarrhalis | legionella_pneumophila | 1e-9 |
-| moraxella_catarrhalis | burkholderia_cepacia_complex | 3e-11 |
-| bordetella_pertussis | acinetobacter_baumannii | 3e-11 |
-| bordetella_pertussis | citrobacter_spp. | 3e-11 |
-| bordetella_pertussis | enterobacter_spp. | 3e-11 |
-| bordetella_pertussis | escherichia_coli | 3e-11 |
-| bordetella_pertussis | klebsiella_pneumoniae | 3e-11 |
-| bordetella_pertussis | morganella_spp. | 3e-11 |
-| bordetella_pertussis | proteus_spp. | 3e-11 |
-| bordetella_pertussis | serratia_spp. | 3e-11 |
-| bordetella_pertussis | p_stuartii | 3e-11 |
-| bordetella_pertussis | pseudomonas_aeruginosa | 3e-11 |
-| bordetella_pertussis | stenotrophomonas_maltophilia | 3e-11 |
-| bordetella_pertussis | salmonella_enterica_serovar_typhi | 3e-11 |
-| bordetella_pertussis | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| bordetella_pertussis | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| bordetella_pertussis | shigella_spp. | 3e-11 |
-| bordetella_pertussis | neisseria_gonorrhoeae | 1e-9 |
-| bordetella_pertussis | haemophilus_influenzae | 1e-9 |
-| bordetella_pertussis | chlamydia_trachomatis | 1e-9 |
-| bordetella_pertussis | mycoplasma_genitalium | 1e-9 |
-| bordetella_pertussis | vibrio_cholerae | 3e-11 |
-| bordetella_pertussis | neisseria_meningitidis | 1e-9 |
-| bordetella_pertussis | enterobacter_cloacae | 3e-11 |
-| bordetella_pertussis | yersinia_enterocolitica | 3e-11 |
-| bordetella_pertussis | moraxella_catarrhalis | 1e-9 |
-| bordetella_pertussis | mycoplasma_pneumoniae | 1e-9 |
-| bordetella_pertussis | legionella_pneumophila | 1e-9 |
-| bordetella_pertussis | burkholderia_cepacia_complex | 3e-11 |
-| mycoplasma_pneumoniae | acinetobacter_baumannii | 3e-11 |
-| mycoplasma_pneumoniae | citrobacter_spp. | 3e-11 |
-| mycoplasma_pneumoniae | enterobacter_spp. | 3e-11 |
-| mycoplasma_pneumoniae | escherichia_coli | 3e-11 |
-| mycoplasma_pneumoniae | klebsiella_pneumoniae | 3e-11 |
-| mycoplasma_pneumoniae | morganella_spp. | 3e-11 |
-| mycoplasma_pneumoniae | proteus_spp. | 3e-11 |
-| mycoplasma_pneumoniae | serratia_spp. | 3e-11 |
-| mycoplasma_pneumoniae | p_stuartii | 3e-11 |
-| mycoplasma_pneumoniae | pseudomonas_aeruginosa | 3e-11 |
-| mycoplasma_pneumoniae | stenotrophomonas_maltophilia | 3e-11 |
-| mycoplasma_pneumoniae | salmonella_enterica_serovar_typhi | 3e-11 |
-| mycoplasma_pneumoniae | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| mycoplasma_pneumoniae | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| mycoplasma_pneumoniae | shigella_spp. | 3e-11 |
-| mycoplasma_pneumoniae | neisseria_gonorrhoeae | 1e-9 |
-| mycoplasma_pneumoniae | haemophilus_influenzae | 1e-9 |
-| mycoplasma_pneumoniae | chlamydia_trachomatis | 1e-9 |
-| mycoplasma_pneumoniae | mycoplasma_genitalium | 1e-9 |
-| mycoplasma_pneumoniae | vibrio_cholerae | 3e-11 |
-| mycoplasma_pneumoniae | neisseria_meningitidis | 1e-9 |
-| mycoplasma_pneumoniae | enterobacter_cloacae | 3e-11 |
-| mycoplasma_pneumoniae | yersinia_enterocolitica | 3e-11 |
-| mycoplasma_pneumoniae | moraxella_catarrhalis | 1e-9 |
-| mycoplasma_pneumoniae | bordetella_pertussis | 1e-9 |
-| mycoplasma_pneumoniae | legionella_pneumophila | 1e-9 |
-| mycoplasma_pneumoniae | burkholderia_cepacia_complex | 3e-11 |
-| legionella_pneumophila | acinetobacter_baumannii | 3e-11 |
-| legionella_pneumophila | citrobacter_spp. | 3e-11 |
-| legionella_pneumophila | enterobacter_spp. | 3e-11 |
-| legionella_pneumophila | escherichia_coli | 3e-11 |
-| legionella_pneumophila | klebsiella_pneumoniae | 3e-11 |
-| legionella_pneumophila | morganella_spp. | 3e-11 |
-| legionella_pneumophila | proteus_spp. | 3e-11 |
-| legionella_pneumophila | serratia_spp. | 3e-11 |
-| legionella_pneumophila | p_stuartii | 3e-11 |
-| legionella_pneumophila | pseudomonas_aeruginosa | 3e-11 |
-| legionella_pneumophila | stenotrophomonas_maltophilia | 3e-11 |
-| legionella_pneumophila | salmonella_enterica_serovar_typhi | 3e-11 |
-| legionella_pneumophila | salmonella_enterica_serovar_paratyphi_a | 3e-11 |
-| legionella_pneumophila | invasive_non-typhoidal_salmonella_spp. | 3e-11 |
-| legionella_pneumophila | shigella_spp. | 3e-11 |
-| legionella_pneumophila | neisseria_gonorrhoeae | 1e-9 |
-| legionella_pneumophila | haemophilus_influenzae | 1e-9 |
-| legionella_pneumophila | chlamydia_trachomatis | 1e-9 |
-| legionella_pneumophila | mycoplasma_genitalium | 1e-9 |
-| legionella_pneumophila | vibrio_cholerae | 3e-11 |
-| legionella_pneumophila | neisseria_meningitidis | 1e-9 |
-| legionella_pneumophila | enterobacter_cloacae | 3e-11 |
-| legionella_pneumophila | yersinia_enterocolitica | 3e-11 |
-| legionella_pneumophila | moraxella_catarrhalis | 1e-9 |
-| legionella_pneumophila | bordetella_pertussis | 1e-9 |
-| legionella_pneumophila | mycoplasma_pneumoniae | 1e-9 |
-| legionella_pneumophila | burkholderia_cepacia_complex | 3e-11 |
-| burkholderia_cepacia_complex | acinetobacter_baumannii | 1e-9 |
-| burkholderia_cepacia_complex | citrobacter_spp. | 1e-10 |
-| burkholderia_cepacia_complex | enterobacter_spp. | 1e-10 |
-| burkholderia_cepacia_complex | escherichia_coli | 1e-10 |
-| burkholderia_cepacia_complex | klebsiella_pneumoniae | 1e-10 |
-| burkholderia_cepacia_complex | morganella_spp. | 1e-10 |
-| burkholderia_cepacia_complex | proteus_spp. | 1e-10 |
-| burkholderia_cepacia_complex | serratia_spp. | 1e-10 |
-| burkholderia_cepacia_complex | p_stuartii | 1e-10 |
-| burkholderia_cepacia_complex | pseudomonas_aeruginosa | 1e-9 |
-| burkholderia_cepacia_complex | stenotrophomonas_maltophilia | 1e-9 |
-| burkholderia_cepacia_complex | salmonella_enterica_serovar_typhi | 1e-10 |
-| burkholderia_cepacia_complex | salmonella_enterica_serovar_paratyphi_a | 1e-10 |
-| burkholderia_cepacia_complex | invasive_non-typhoidal_salmonella_spp. | 1e-10 |
-| burkholderia_cepacia_complex | shigella_spp. | 1e-10 |
-| burkholderia_cepacia_complex | neisseria_gonorrhoeae | 3e-11 |
-| burkholderia_cepacia_complex | haemophilus_influenzae | 3e-11 |
-| burkholderia_cepacia_complex | chlamydia_trachomatis | 3e-11 |
-| burkholderia_cepacia_complex | mycoplasma_genitalium | 3e-11 |
-| burkholderia_cepacia_complex | vibrio_cholerae | 1e-10 |
-| burkholderia_cepacia_complex | neisseria_meningitidis | 3e-11 |
-| burkholderia_cepacia_complex | clostridioides_difficile | 3e-11 |
-| burkholderia_cepacia_complex | bacteroides_fragilis | 3e-11 |
-| burkholderia_cepacia_complex | enterobacter_cloacae | 1e-10 |
-| burkholderia_cepacia_complex | yersinia_enterocolitica | 1e-10 |
-| burkholderia_cepacia_complex | moraxella_catarrhalis | 3e-11 |
-| burkholderia_cepacia_complex | bordetella_pertussis | 3e-11 |
-| burkholderia_cepacia_complex | mycoplasma_pneumoniae | 3e-11 |
-| burkholderia_cepacia_complex | legionella_pneumophila | 3e-11 |
-| acinetobacter_baumannii | mutation_siderophore_uptake | 1e-4 |
-| citrobacter_spp. | mutation_siderophore_uptake | 1e-4 |
-| enterobacter_spp. | mutation_siderophore_uptake | 1e-4 |
-| escherichia_coli | mutation_siderophore_uptake | 1e-4 |
-| klebsiella_pneumoniae | mutation_siderophore_uptake | 1e-4 |
-| morganella_spp. | mutation_siderophore_uptake | 1e-4 |
-| proteus_spp. | mutation_siderophore_uptake | 1e-4 |
-| serratia_spp. | mutation_siderophore_uptake | 1e-4 |
-| p_stuartii | mutation_siderophore_uptake | 1e-4 |
-| pseudomonas_aeruginosa | mutation_siderophore_uptake | 1e-4 |
-| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 1e-4 |
-| salmonella_enterica_serovar_typhi | mutation_siderophore_uptake | 1e-4 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_siderophore_uptake | 1e-4 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_siderophore_uptake | 1e-4 |
-| shigella_spp. | mutation_siderophore_uptake | 1e-4 |
-| enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 |
-| yersinia_enterocolitica | mutation_siderophore_uptake | 1e-4 |
-| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 |
+| acinetobacter_baumannii | citrobacter_spp. | 1e-6 |
+| acinetobacter_baumannii | enterobacter_spp. | 1e-6 |
+| acinetobacter_baumannii | escherichia_coli | 1e-6 |
+| acinetobacter_baumannii | klebsiella_pneumoniae | 1e-6 |
+| acinetobacter_baumannii | morganella_spp. | 1e-6 |
+| acinetobacter_baumannii | proteus_spp. | 1e-6 |
+| acinetobacter_baumannii | serratia_spp. | 1e-6 |
+| acinetobacter_baumannii | p_stuartii | 1e-6 |
+| acinetobacter_baumannii | pseudomonas_aeruginosa | 1e-5 |
+| acinetobacter_baumannii | stenotrophomonas_maltophilia | 1e-5 |
+| acinetobacter_baumannii | salmonella_enterica_serovar_typhi | 1e-6 |
+| acinetobacter_baumannii | salmonella_enterica_serovar_paratyphi_a | 1e-6 |
+| acinetobacter_baumannii | invasive_non-typhoidal_salmonella_spp. | 1e-6 |
+| acinetobacter_baumannii | shigella_spp. | 1e-6 |
+| acinetobacter_baumannii | neisseria_gonorrhoeae | 3e-8 |
+| acinetobacter_baumannii | haemophilus_influenzae | 3e-8 |
+| acinetobacter_baumannii | chlamydia_trachomatis | 3e-8 |
+| acinetobacter_baumannii | mycoplasma_genitalium | 3e-8 |
+| acinetobacter_baumannii | vibrio_cholerae | 1e-6 |
+| acinetobacter_baumannii | neisseria_meningitidis | 3e-8 |
+| acinetobacter_baumannii | clostridioides_difficile | 3e-7 |
+| acinetobacter_baumannii | bacteroides_fragilis | 3e-7 |
+| acinetobacter_baumannii | enterobacter_cloacae | 1e-6 |
+| acinetobacter_baumannii | yersinia_enterocolitica | 1e-6 |
+| acinetobacter_baumannii | moraxella_catarrhalis | 3e-8 |
+| acinetobacter_baumannii | bordetella_pertussis | 3e-8 |
+| acinetobacter_baumannii | mycoplasma_pneumoniae | 3e-8 |
+| acinetobacter_baumannii | legionella_pneumophila | 3e-8 |
+| acinetobacter_baumannii | burkholderia_cepacia_complex | 1e-5 |
+| citrobacter_spp. | acinetobacter_baumannii | 1e-6 |
+| citrobacter_spp. | enterobacter_spp. | 1e-5 |
+| citrobacter_spp. | escherichia_coli | 1e-5 |
+| citrobacter_spp. | klebsiella_pneumoniae | 1e-5 |
+| citrobacter_spp. | morganella_spp. | 1e-5 |
+| citrobacter_spp. | proteus_spp. | 1e-5 |
+| citrobacter_spp. | serratia_spp. | 1e-5 |
+| citrobacter_spp. | p_stuartii | 1e-5 |
+| citrobacter_spp. | pseudomonas_aeruginosa | 1e-6 |
+| citrobacter_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| citrobacter_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| citrobacter_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| citrobacter_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| citrobacter_spp. | shigella_spp. | 1e-5 |
+| citrobacter_spp. | neisseria_gonorrhoeae | 3e-8 |
+| citrobacter_spp. | haemophilus_influenzae | 3e-8 |
+| citrobacter_spp. | chlamydia_trachomatis | 3e-8 |
+| citrobacter_spp. | mycoplasma_genitalium | 3e-8 |
+| citrobacter_spp. | vibrio_cholerae | 1e-6 |
+| citrobacter_spp. | neisseria_meningitidis | 3e-8 |
+| citrobacter_spp. | clostridioides_difficile | 3e-7 |
+| citrobacter_spp. | bacteroides_fragilis | 3e-7 |
+| citrobacter_spp. | enterobacter_cloacae | 1e-5 |
+| citrobacter_spp. | yersinia_enterocolitica | 1e-5 |
+| citrobacter_spp. | moraxella_catarrhalis | 3e-8 |
+| citrobacter_spp. | bordetella_pertussis | 3e-8 |
+| citrobacter_spp. | mycoplasma_pneumoniae | 3e-8 |
+| citrobacter_spp. | legionella_pneumophila | 3e-8 |
+| citrobacter_spp. | burkholderia_cepacia_complex | 1e-6 |
+| enterobacter_spp. | acinetobacter_baumannii | 1e-6 |
+| enterobacter_spp. | citrobacter_spp. | 1e-5 |
+| enterobacter_spp. | escherichia_coli | 1e-5 |
+| enterobacter_spp. | klebsiella_pneumoniae | 1e-5 |
+| enterobacter_spp. | morganella_spp. | 1e-5 |
+| enterobacter_spp. | proteus_spp. | 1e-5 |
+| enterobacter_spp. | serratia_spp. | 1e-5 |
+| enterobacter_spp. | p_stuartii | 1e-5 |
+| enterobacter_spp. | pseudomonas_aeruginosa | 1e-6 |
+| enterobacter_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| enterobacter_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| enterobacter_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| enterobacter_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| enterobacter_spp. | shigella_spp. | 1e-5 |
+| enterobacter_spp. | neisseria_gonorrhoeae | 3e-8 |
+| enterobacter_spp. | haemophilus_influenzae | 3e-8 |
+| enterobacter_spp. | chlamydia_trachomatis | 3e-8 |
+| enterobacter_spp. | mycoplasma_genitalium | 3e-8 |
+| enterobacter_spp. | vibrio_cholerae | 1e-6 |
+| enterobacter_spp. | neisseria_meningitidis | 3e-8 |
+| enterobacter_spp. | clostridioides_difficile | 3e-7 |
+| enterobacter_spp. | bacteroides_fragilis | 3e-7 |
+| enterobacter_spp. | enterobacter_cloacae | 1e-5 |
+| enterobacter_spp. | yersinia_enterocolitica | 1e-5 |
+| enterobacter_spp. | moraxella_catarrhalis | 3e-8 |
+| enterobacter_spp. | bordetella_pertussis | 3e-8 |
+| enterobacter_spp. | mycoplasma_pneumoniae | 3e-8 |
+| enterobacter_spp. | legionella_pneumophila | 3e-8 |
+| enterobacter_spp. | burkholderia_cepacia_complex | 1e-6 |
+| enterococcus_faecalis | enterococcus_faecium | 1e-5 |
+| enterococcus_faecalis | staphylococcus_aureus | 1e-6 |
+| enterococcus_faecalis | staphylococcus_epidermidis | 1e-6 |
+| enterococcus_faecalis | streptococcus_pneumoniae | 1e-5 |
+| enterococcus_faecalis | streptococcus_pyogenes | 1e-5 |
+| enterococcus_faecalis | streptococcus_agalactiae | 1e-5 |
+| enterococcus_faecalis | listeria_monocytogenes | 1e-5 |
+| enterococcus_faecium | enterococcus_faecalis | 1e-5 |
+| enterococcus_faecium | staphylococcus_aureus | 1e-6 |
+| enterococcus_faecium | staphylococcus_epidermidis | 1e-6 |
+| enterococcus_faecium | streptococcus_pneumoniae | 1e-5 |
+| enterococcus_faecium | streptococcus_pyogenes | 1e-5 |
+| enterococcus_faecium | streptococcus_agalactiae | 1e-5 |
+| enterococcus_faecium | listeria_monocytogenes | 1e-5 |
+| escherichia_coli | acinetobacter_baumannii | 1e-6 |
+| escherichia_coli | citrobacter_spp. | 1e-5 |
+| escherichia_coli | enterobacter_spp. | 1e-5 |
+| escherichia_coli | klebsiella_pneumoniae | 1e-5 |
+| escherichia_coli | morganella_spp. | 1e-5 |
+| escherichia_coli | proteus_spp. | 1e-5 |
+| escherichia_coli | serratia_spp. | 1e-5 |
+| escherichia_coli | p_stuartii | 1e-5 |
+| escherichia_coli | pseudomonas_aeruginosa | 1e-6 |
+| escherichia_coli | stenotrophomonas_maltophilia | 1e-6 |
+| escherichia_coli | salmonella_enterica_serovar_typhi | 1e-5 |
+| escherichia_coli | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| escherichia_coli | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| escherichia_coli | shigella_spp. | 1e-5 |
+| escherichia_coli | neisseria_gonorrhoeae | 3e-8 |
+| escherichia_coli | haemophilus_influenzae | 3e-8 |
+| escherichia_coli | chlamydia_trachomatis | 3e-8 |
+| escherichia_coli | mycoplasma_genitalium | 3e-8 |
+| escherichia_coli | vibrio_cholerae | 1e-6 |
+| escherichia_coli | neisseria_meningitidis | 3e-8 |
+| escherichia_coli | clostridioides_difficile | 3e-7 |
+| escherichia_coli | bacteroides_fragilis | 3e-7 |
+| escherichia_coli | enterobacter_cloacae | 1e-5 |
+| escherichia_coli | yersinia_enterocolitica | 1e-5 |
+| escherichia_coli | moraxella_catarrhalis | 3e-8 |
+| escherichia_coli | bordetella_pertussis | 3e-8 |
+| escherichia_coli | mycoplasma_pneumoniae | 3e-8 |
+| escherichia_coli | legionella_pneumophila | 3e-8 |
+| escherichia_coli | burkholderia_cepacia_complex | 1e-6 |
+| klebsiella_pneumoniae | acinetobacter_baumannii | 1e-6 |
+| klebsiella_pneumoniae | citrobacter_spp. | 1e-5 |
+| klebsiella_pneumoniae | enterobacter_spp. | 1e-5 |
+| klebsiella_pneumoniae | escherichia_coli | 1e-5 |
+| klebsiella_pneumoniae | morganella_spp. | 1e-5 |
+| klebsiella_pneumoniae | proteus_spp. | 1e-5 |
+| klebsiella_pneumoniae | serratia_spp. | 1e-5 |
+| klebsiella_pneumoniae | p_stuartii | 1e-5 |
+| klebsiella_pneumoniae | pseudomonas_aeruginosa | 1e-6 |
+| klebsiella_pneumoniae | stenotrophomonas_maltophilia | 1e-6 |
+| klebsiella_pneumoniae | salmonella_enterica_serovar_typhi | 1e-5 |
+| klebsiella_pneumoniae | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| klebsiella_pneumoniae | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| klebsiella_pneumoniae | shigella_spp. | 1e-5 |
+| klebsiella_pneumoniae | neisseria_gonorrhoeae | 3e-8 |
+| klebsiella_pneumoniae | haemophilus_influenzae | 3e-8 |
+| klebsiella_pneumoniae | chlamydia_trachomatis | 3e-8 |
+| klebsiella_pneumoniae | mycoplasma_genitalium | 3e-8 |
+| klebsiella_pneumoniae | vibrio_cholerae | 1e-6 |
+| klebsiella_pneumoniae | neisseria_meningitidis | 3e-8 |
+| klebsiella_pneumoniae | clostridioides_difficile | 3e-7 |
+| klebsiella_pneumoniae | bacteroides_fragilis | 3e-7 |
+| klebsiella_pneumoniae | enterobacter_cloacae | 1e-5 |
+| klebsiella_pneumoniae | yersinia_enterocolitica | 1e-5 |
+| klebsiella_pneumoniae | moraxella_catarrhalis | 3e-8 |
+| klebsiella_pneumoniae | bordetella_pertussis | 3e-8 |
+| klebsiella_pneumoniae | mycoplasma_pneumoniae | 3e-8 |
+| klebsiella_pneumoniae | legionella_pneumophila | 3e-8 |
+| klebsiella_pneumoniae | burkholderia_cepacia_complex | 1e-6 |
+| morganella_spp. | acinetobacter_baumannii | 1e-6 |
+| morganella_spp. | citrobacter_spp. | 1e-5 |
+| morganella_spp. | enterobacter_spp. | 1e-5 |
+| morganella_spp. | escherichia_coli | 1e-5 |
+| morganella_spp. | klebsiella_pneumoniae | 1e-5 |
+| morganella_spp. | proteus_spp. | 1e-5 |
+| morganella_spp. | serratia_spp. | 1e-5 |
+| morganella_spp. | p_stuartii | 1e-5 |
+| morganella_spp. | pseudomonas_aeruginosa | 1e-6 |
+| morganella_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| morganella_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| morganella_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| morganella_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| morganella_spp. | shigella_spp. | 1e-5 |
+| morganella_spp. | neisseria_gonorrhoeae | 3e-8 |
+| morganella_spp. | haemophilus_influenzae | 3e-8 |
+| morganella_spp. | chlamydia_trachomatis | 3e-8 |
+| morganella_spp. | mycoplasma_genitalium | 3e-8 |
+| morganella_spp. | vibrio_cholerae | 1e-6 |
+| morganella_spp. | neisseria_meningitidis | 3e-8 |
+| morganella_spp. | clostridioides_difficile | 3e-7 |
+| morganella_spp. | bacteroides_fragilis | 3e-7 |
+| morganella_spp. | enterobacter_cloacae | 1e-5 |
+| morganella_spp. | yersinia_enterocolitica | 1e-5 |
+| morganella_spp. | moraxella_catarrhalis | 3e-8 |
+| morganella_spp. | bordetella_pertussis | 3e-8 |
+| morganella_spp. | mycoplasma_pneumoniae | 3e-8 |
+| morganella_spp. | legionella_pneumophila | 3e-8 |
+| morganella_spp. | burkholderia_cepacia_complex | 1e-6 |
+| proteus_spp. | acinetobacter_baumannii | 1e-6 |
+| proteus_spp. | citrobacter_spp. | 1e-5 |
+| proteus_spp. | enterobacter_spp. | 1e-5 |
+| proteus_spp. | escherichia_coli | 1e-5 |
+| proteus_spp. | klebsiella_pneumoniae | 1e-5 |
+| proteus_spp. | morganella_spp. | 1e-5 |
+| proteus_spp. | serratia_spp. | 1e-5 |
+| proteus_spp. | p_stuartii | 1e-5 |
+| proteus_spp. | pseudomonas_aeruginosa | 1e-6 |
+| proteus_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| proteus_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| proteus_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| proteus_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| proteus_spp. | shigella_spp. | 1e-5 |
+| proteus_spp. | neisseria_gonorrhoeae | 3e-8 |
+| proteus_spp. | haemophilus_influenzae | 3e-8 |
+| proteus_spp. | chlamydia_trachomatis | 3e-8 |
+| proteus_spp. | mycoplasma_genitalium | 3e-8 |
+| proteus_spp. | vibrio_cholerae | 1e-6 |
+| proteus_spp. | neisseria_meningitidis | 3e-8 |
+| proteus_spp. | clostridioides_difficile | 3e-7 |
+| proteus_spp. | bacteroides_fragilis | 3e-7 |
+| proteus_spp. | enterobacter_cloacae | 1e-5 |
+| proteus_spp. | yersinia_enterocolitica | 1e-5 |
+| proteus_spp. | moraxella_catarrhalis | 3e-8 |
+| proteus_spp. | bordetella_pertussis | 3e-8 |
+| proteus_spp. | mycoplasma_pneumoniae | 3e-8 |
+| proteus_spp. | legionella_pneumophila | 3e-8 |
+| proteus_spp. | burkholderia_cepacia_complex | 1e-6 |
+| serratia_spp. | acinetobacter_baumannii | 1e-6 |
+| serratia_spp. | citrobacter_spp. | 1e-5 |
+| serratia_spp. | enterobacter_spp. | 1e-5 |
+| serratia_spp. | escherichia_coli | 1e-5 |
+| serratia_spp. | klebsiella_pneumoniae | 1e-5 |
+| serratia_spp. | morganella_spp. | 1e-5 |
+| serratia_spp. | proteus_spp. | 1e-5 |
+| serratia_spp. | p_stuartii | 1e-5 |
+| serratia_spp. | pseudomonas_aeruginosa | 1e-6 |
+| serratia_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| serratia_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| serratia_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| serratia_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| serratia_spp. | shigella_spp. | 1e-5 |
+| serratia_spp. | neisseria_gonorrhoeae | 3e-8 |
+| serratia_spp. | haemophilus_influenzae | 3e-8 |
+| serratia_spp. | chlamydia_trachomatis | 3e-8 |
+| serratia_spp. | mycoplasma_genitalium | 3e-8 |
+| serratia_spp. | vibrio_cholerae | 1e-6 |
+| serratia_spp. | neisseria_meningitidis | 3e-8 |
+| serratia_spp. | clostridioides_difficile | 3e-7 |
+| serratia_spp. | bacteroides_fragilis | 3e-7 |
+| serratia_spp. | enterobacter_cloacae | 1e-5 |
+| serratia_spp. | yersinia_enterocolitica | 1e-5 |
+| serratia_spp. | moraxella_catarrhalis | 3e-8 |
+| serratia_spp. | bordetella_pertussis | 3e-8 |
+| serratia_spp. | mycoplasma_pneumoniae | 3e-8 |
+| serratia_spp. | legionella_pneumophila | 3e-8 |
+| serratia_spp. | burkholderia_cepacia_complex | 1e-6 |
+| p_stuartii | acinetobacter_baumannii | 1e-6 |
+| p_stuartii | citrobacter_spp. | 1e-5 |
+| p_stuartii | enterobacter_spp. | 1e-5 |
+| p_stuartii | escherichia_coli | 1e-5 |
+| p_stuartii | klebsiella_pneumoniae | 1e-5 |
+| p_stuartii | morganella_spp. | 1e-5 |
+| p_stuartii | proteus_spp. | 1e-5 |
+| p_stuartii | serratia_spp. | 1e-5 |
+| p_stuartii | pseudomonas_aeruginosa | 1e-6 |
+| p_stuartii | stenotrophomonas_maltophilia | 1e-6 |
+| p_stuartii | salmonella_enterica_serovar_typhi | 1e-5 |
+| p_stuartii | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| p_stuartii | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| p_stuartii | shigella_spp. | 1e-5 |
+| p_stuartii | neisseria_gonorrhoeae | 3e-8 |
+| p_stuartii | haemophilus_influenzae | 3e-8 |
+| p_stuartii | chlamydia_trachomatis | 3e-8 |
+| p_stuartii | mycoplasma_genitalium | 3e-8 |
+| p_stuartii | vibrio_cholerae | 1e-6 |
+| p_stuartii | neisseria_meningitidis | 3e-8 |
+| p_stuartii | clostridioides_difficile | 3e-7 |
+| p_stuartii | bacteroides_fragilis | 3e-7 |
+| p_stuartii | enterobacter_cloacae | 1e-5 |
+| p_stuartii | yersinia_enterocolitica | 1e-5 |
+| p_stuartii | moraxella_catarrhalis | 3e-8 |
+| p_stuartii | bordetella_pertussis | 3e-8 |
+| p_stuartii | mycoplasma_pneumoniae | 3e-8 |
+| p_stuartii | legionella_pneumophila | 3e-8 |
+| p_stuartii | burkholderia_cepacia_complex | 1e-6 |
+| pseudomonas_aeruginosa | acinetobacter_baumannii | 1e-5 |
+| pseudomonas_aeruginosa | citrobacter_spp. | 1e-6 |
+| pseudomonas_aeruginosa | enterobacter_spp. | 1e-6 |
+| pseudomonas_aeruginosa | escherichia_coli | 1e-6 |
+| pseudomonas_aeruginosa | klebsiella_pneumoniae | 1e-6 |
+| pseudomonas_aeruginosa | morganella_spp. | 1e-6 |
+| pseudomonas_aeruginosa | proteus_spp. | 1e-6 |
+| pseudomonas_aeruginosa | serratia_spp. | 1e-6 |
+| pseudomonas_aeruginosa | p_stuartii | 1e-6 |
+| pseudomonas_aeruginosa | stenotrophomonas_maltophilia | 1e-5 |
+| pseudomonas_aeruginosa | salmonella_enterica_serovar_typhi | 1e-6 |
+| pseudomonas_aeruginosa | salmonella_enterica_serovar_paratyphi_a | 1e-6 |
+| pseudomonas_aeruginosa | invasive_non-typhoidal_salmonella_spp. | 1e-6 |
+| pseudomonas_aeruginosa | shigella_spp. | 1e-6 |
+| pseudomonas_aeruginosa | neisseria_gonorrhoeae | 3e-8 |
+| pseudomonas_aeruginosa | haemophilus_influenzae | 3e-8 |
+| pseudomonas_aeruginosa | chlamydia_trachomatis | 3e-8 |
+| pseudomonas_aeruginosa | mycoplasma_genitalium | 3e-8 |
+| pseudomonas_aeruginosa | vibrio_cholerae | 1e-6 |
+| pseudomonas_aeruginosa | neisseria_meningitidis | 3e-8 |
+| pseudomonas_aeruginosa | clostridioides_difficile | 3e-7 |
+| pseudomonas_aeruginosa | bacteroides_fragilis | 3e-7 |
+| pseudomonas_aeruginosa | enterobacter_cloacae | 1e-6 |
+| pseudomonas_aeruginosa | yersinia_enterocolitica | 1e-6 |
+| pseudomonas_aeruginosa | moraxella_catarrhalis | 3e-8 |
+| pseudomonas_aeruginosa | bordetella_pertussis | 3e-8 |
+| pseudomonas_aeruginosa | mycoplasma_pneumoniae | 3e-8 |
+| pseudomonas_aeruginosa | legionella_pneumophila | 3e-8 |
+| pseudomonas_aeruginosa | burkholderia_cepacia_complex | 1e-5 |
+| stenotrophomonas_maltophilia | acinetobacter_baumannii | 1e-5 |
+| stenotrophomonas_maltophilia | citrobacter_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | enterobacter_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | escherichia_coli | 1e-6 |
+| stenotrophomonas_maltophilia | klebsiella_pneumoniae | 1e-6 |
+| stenotrophomonas_maltophilia | morganella_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | proteus_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | serratia_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | p_stuartii | 1e-6 |
+| stenotrophomonas_maltophilia | pseudomonas_aeruginosa | 1e-5 |
+| stenotrophomonas_maltophilia | salmonella_enterica_serovar_typhi | 1e-6 |
+| stenotrophomonas_maltophilia | salmonella_enterica_serovar_paratyphi_a | 1e-6 |
+| stenotrophomonas_maltophilia | invasive_non-typhoidal_salmonella_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | shigella_spp. | 1e-6 |
+| stenotrophomonas_maltophilia | neisseria_gonorrhoeae | 3e-8 |
+| stenotrophomonas_maltophilia | haemophilus_influenzae | 3e-8 |
+| stenotrophomonas_maltophilia | chlamydia_trachomatis | 3e-8 |
+| stenotrophomonas_maltophilia | mycoplasma_genitalium | 3e-8 |
+| stenotrophomonas_maltophilia | vibrio_cholerae | 1e-6 |
+| stenotrophomonas_maltophilia | neisseria_meningitidis | 3e-8 |
+| stenotrophomonas_maltophilia | clostridioides_difficile | 3e-7 |
+| stenotrophomonas_maltophilia | bacteroides_fragilis | 3e-7 |
+| stenotrophomonas_maltophilia | enterobacter_cloacae | 1e-6 |
+| stenotrophomonas_maltophilia | yersinia_enterocolitica | 1e-6 |
+| stenotrophomonas_maltophilia | moraxella_catarrhalis | 3e-8 |
+| stenotrophomonas_maltophilia | bordetella_pertussis | 3e-8 |
+| stenotrophomonas_maltophilia | mycoplasma_pneumoniae | 3e-8 |
+| stenotrophomonas_maltophilia | legionella_pneumophila | 3e-8 |
+| stenotrophomonas_maltophilia | burkholderia_cepacia_complex | 1e-5 |
+| staphylococcus_aureus | enterococcus_faecalis | 1e-6 |
+| staphylococcus_aureus | enterococcus_faecium | 1e-6 |
+| staphylococcus_aureus | staphylococcus_epidermidis | 1e-5 |
+| staphylococcus_aureus | streptococcus_pneumoniae | 1e-6 |
+| staphylococcus_aureus | streptococcus_pyogenes | 1e-6 |
+| staphylococcus_aureus | streptococcus_agalactiae | 1e-6 |
+| staphylococcus_aureus | listeria_monocytogenes | 1e-6 |
+| staphylococcus_epidermidis | enterococcus_faecalis | 1e-6 |
+| staphylococcus_epidermidis | enterococcus_faecium | 1e-6 |
+| staphylococcus_epidermidis | staphylococcus_aureus | 1e-5 |
+| staphylococcus_epidermidis | streptococcus_pneumoniae | 1e-6 |
+| staphylococcus_epidermidis | streptococcus_pyogenes | 1e-6 |
+| staphylococcus_epidermidis | streptococcus_agalactiae | 1e-6 |
+| staphylococcus_epidermidis | listeria_monocytogenes | 1e-6 |
+| streptococcus_pneumoniae | enterococcus_faecalis | 1e-5 |
+| streptococcus_pneumoniae | enterococcus_faecium | 1e-5 |
+| streptococcus_pneumoniae | staphylococcus_aureus | 1e-6 |
+| streptococcus_pneumoniae | staphylococcus_epidermidis | 1e-6 |
+| streptococcus_pneumoniae | streptococcus_pyogenes | 1e-5 |
+| streptococcus_pneumoniae | streptococcus_agalactiae | 1e-5 |
+| streptococcus_pneumoniae | listeria_monocytogenes | 1e-5 |
+| salmonella_enterica_serovar_typhi | acinetobacter_baumannii | 1e-6 |
+| salmonella_enterica_serovar_typhi | citrobacter_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | enterobacter_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | escherichia_coli | 1e-5 |
+| salmonella_enterica_serovar_typhi | klebsiella_pneumoniae | 1e-5 |
+| salmonella_enterica_serovar_typhi | morganella_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | proteus_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | serratia_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | p_stuartii | 1e-5 |
+| salmonella_enterica_serovar_typhi | pseudomonas_aeruginosa | 1e-6 |
+| salmonella_enterica_serovar_typhi | stenotrophomonas_maltophilia | 1e-6 |
+| salmonella_enterica_serovar_typhi | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| salmonella_enterica_serovar_typhi | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | shigella_spp. | 1e-5 |
+| salmonella_enterica_serovar_typhi | neisseria_gonorrhoeae | 3e-8 |
+| salmonella_enterica_serovar_typhi | haemophilus_influenzae | 3e-8 |
+| salmonella_enterica_serovar_typhi | chlamydia_trachomatis | 3e-8 |
+| salmonella_enterica_serovar_typhi | mycoplasma_genitalium | 3e-8 |
+| salmonella_enterica_serovar_typhi | vibrio_cholerae | 1e-6 |
+| salmonella_enterica_serovar_typhi | neisseria_meningitidis | 3e-8 |
+| salmonella_enterica_serovar_typhi | clostridioides_difficile | 3e-7 |
+| salmonella_enterica_serovar_typhi | bacteroides_fragilis | 3e-7 |
+| salmonella_enterica_serovar_typhi | enterobacter_cloacae | 1e-5 |
+| salmonella_enterica_serovar_typhi | yersinia_enterocolitica | 1e-5 |
+| salmonella_enterica_serovar_typhi | moraxella_catarrhalis | 3e-8 |
+| salmonella_enterica_serovar_typhi | bordetella_pertussis | 3e-8 |
+| salmonella_enterica_serovar_typhi | mycoplasma_pneumoniae | 3e-8 |
+| salmonella_enterica_serovar_typhi | legionella_pneumophila | 3e-8 |
+| salmonella_enterica_serovar_typhi | burkholderia_cepacia_complex | 1e-6 |
+| salmonella_enterica_serovar_paratyphi_a | acinetobacter_baumannii | 1e-6 |
+| salmonella_enterica_serovar_paratyphi_a | citrobacter_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enterobacter_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | escherichia_coli | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | klebsiella_pneumoniae | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | morganella_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | proteus_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | serratia_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | p_stuartii | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | pseudomonas_aeruginosa | 1e-6 |
+| salmonella_enterica_serovar_paratyphi_a | stenotrophomonas_maltophilia | 1e-6 |
+| salmonella_enterica_serovar_paratyphi_a | salmonella_enterica_serovar_typhi | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | shigella_spp. | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | neisseria_gonorrhoeae | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | haemophilus_influenzae | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | chlamydia_trachomatis | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | mycoplasma_genitalium | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | vibrio_cholerae | 1e-6 |
+| salmonella_enterica_serovar_paratyphi_a | neisseria_meningitidis | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | clostridioides_difficile | 3e-7 |
+| salmonella_enterica_serovar_paratyphi_a | bacteroides_fragilis | 3e-7 |
+| salmonella_enterica_serovar_paratyphi_a | enterobacter_cloacae | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | yersinia_enterocolitica | 1e-5 |
+| salmonella_enterica_serovar_paratyphi_a | moraxella_catarrhalis | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | bordetella_pertussis | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | mycoplasma_pneumoniae | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | legionella_pneumophila | 3e-8 |
+| salmonella_enterica_serovar_paratyphi_a | burkholderia_cepacia_complex | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | acinetobacter_baumannii | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | citrobacter_spp. | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enterobacter_spp. | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | escherichia_coli | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | klebsiella_pneumoniae | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | morganella_spp. | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | proteus_spp. | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | serratia_spp. | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | p_stuartii | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | pseudomonas_aeruginosa | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | shigella_spp. | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | neisseria_gonorrhoeae | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | haemophilus_influenzae | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | chlamydia_trachomatis | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | mycoplasma_genitalium | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | vibrio_cholerae | 1e-6 |
+| invasive_non-typhoidal_salmonella_spp. | neisseria_meningitidis | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | clostridioides_difficile | 3e-7 |
+| invasive_non-typhoidal_salmonella_spp. | bacteroides_fragilis | 3e-7 |
+| invasive_non-typhoidal_salmonella_spp. | enterobacter_cloacae | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | yersinia_enterocolitica | 1e-5 |
+| invasive_non-typhoidal_salmonella_spp. | moraxella_catarrhalis | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | bordetella_pertussis | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | mycoplasma_pneumoniae | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | legionella_pneumophila | 3e-8 |
+| invasive_non-typhoidal_salmonella_spp. | burkholderia_cepacia_complex | 1e-6 |
+| shigella_spp. | acinetobacter_baumannii | 1e-6 |
+| shigella_spp. | citrobacter_spp. | 1e-5 |
+| shigella_spp. | enterobacter_spp. | 1e-5 |
+| shigella_spp. | escherichia_coli | 1e-5 |
+| shigella_spp. | klebsiella_pneumoniae | 1e-5 |
+| shigella_spp. | morganella_spp. | 1e-5 |
+| shigella_spp. | proteus_spp. | 1e-5 |
+| shigella_spp. | serratia_spp. | 1e-5 |
+| shigella_spp. | p_stuartii | 1e-5 |
+| shigella_spp. | pseudomonas_aeruginosa | 1e-6 |
+| shigella_spp. | stenotrophomonas_maltophilia | 1e-6 |
+| shigella_spp. | salmonella_enterica_serovar_typhi | 1e-5 |
+| shigella_spp. | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| shigella_spp. | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| shigella_spp. | neisseria_gonorrhoeae | 3e-8 |
+| shigella_spp. | haemophilus_influenzae | 3e-8 |
+| shigella_spp. | chlamydia_trachomatis | 3e-8 |
+| shigella_spp. | mycoplasma_genitalium | 3e-8 |
+| shigella_spp. | vibrio_cholerae | 1e-6 |
+| shigella_spp. | neisseria_meningitidis | 3e-8 |
+| shigella_spp. | clostridioides_difficile | 3e-7 |
+| shigella_spp. | bacteroides_fragilis | 3e-7 |
+| shigella_spp. | enterobacter_cloacae | 1e-5 |
+| shigella_spp. | yersinia_enterocolitica | 1e-5 |
+| shigella_spp. | moraxella_catarrhalis | 3e-8 |
+| shigella_spp. | bordetella_pertussis | 3e-8 |
+| shigella_spp. | mycoplasma_pneumoniae | 3e-8 |
+| shigella_spp. | legionella_pneumophila | 3e-8 |
+| shigella_spp. | burkholderia_cepacia_complex | 1e-6 |
+| neisseria_gonorrhoeae | acinetobacter_baumannii | 3e-8 |
+| neisseria_gonorrhoeae | citrobacter_spp. | 3e-8 |
+| neisseria_gonorrhoeae | enterobacter_spp. | 3e-8 |
+| neisseria_gonorrhoeae | escherichia_coli | 3e-8 |
+| neisseria_gonorrhoeae | klebsiella_pneumoniae | 3e-8 |
+| neisseria_gonorrhoeae | morganella_spp. | 3e-8 |
+| neisseria_gonorrhoeae | proteus_spp. | 3e-8 |
+| neisseria_gonorrhoeae | serratia_spp. | 3e-8 |
+| neisseria_gonorrhoeae | p_stuartii | 3e-8 |
+| neisseria_gonorrhoeae | pseudomonas_aeruginosa | 3e-8 |
+| neisseria_gonorrhoeae | stenotrophomonas_maltophilia | 3e-8 |
+| neisseria_gonorrhoeae | salmonella_enterica_serovar_typhi | 3e-8 |
+| neisseria_gonorrhoeae | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| neisseria_gonorrhoeae | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| neisseria_gonorrhoeae | shigella_spp. | 3e-8 |
+| neisseria_gonorrhoeae | haemophilus_influenzae | 1e-5 |
+| neisseria_gonorrhoeae | chlamydia_trachomatis | 1e-5 |
+| neisseria_gonorrhoeae | mycoplasma_genitalium | 1e-5 |
+| neisseria_gonorrhoeae | vibrio_cholerae | 3e-8 |
+| neisseria_gonorrhoeae | enterobacter_cloacae | 3e-8 |
+| neisseria_gonorrhoeae | yersinia_enterocolitica | 3e-8 |
+| neisseria_gonorrhoeae | moraxella_catarrhalis | 1e-5 |
+| neisseria_gonorrhoeae | bordetella_pertussis | 1e-5 |
+| neisseria_gonorrhoeae | mycoplasma_pneumoniae | 1e-5 |
+| neisseria_gonorrhoeae | legionella_pneumophila | 1e-5 |
+| neisseria_gonorrhoeae | burkholderia_cepacia_complex | 3e-8 |
+| streptococcus_pyogenes | enterococcus_faecalis | 1e-5 |
+| streptococcus_pyogenes | enterococcus_faecium | 1e-5 |
+| streptococcus_pyogenes | staphylococcus_aureus | 1e-6 |
+| streptococcus_pyogenes | staphylococcus_epidermidis | 1e-6 |
+| streptococcus_pyogenes | streptococcus_pneumoniae | 1e-5 |
+| streptococcus_pyogenes | streptococcus_agalactiae | 1e-5 |
+| streptococcus_pyogenes | listeria_monocytogenes | 1e-5 |
+| streptococcus_agalactiae | enterococcus_faecalis | 1e-5 |
+| streptococcus_agalactiae | enterococcus_faecium | 1e-5 |
+| streptococcus_agalactiae | staphylococcus_aureus | 1e-6 |
+| streptococcus_agalactiae | staphylococcus_epidermidis | 1e-6 |
+| streptococcus_agalactiae | streptococcus_pneumoniae | 1e-5 |
+| streptococcus_agalactiae | streptococcus_pyogenes | 1e-5 |
+| streptococcus_agalactiae | listeria_monocytogenes | 1e-5 |
+| haemophilus_influenzae | acinetobacter_baumannii | 3e-8 |
+| haemophilus_influenzae | citrobacter_spp. | 3e-8 |
+| haemophilus_influenzae | enterobacter_spp. | 3e-8 |
+| haemophilus_influenzae | escherichia_coli | 3e-8 |
+| haemophilus_influenzae | klebsiella_pneumoniae | 3e-8 |
+| haemophilus_influenzae | morganella_spp. | 3e-8 |
+| haemophilus_influenzae | proteus_spp. | 3e-8 |
+| haemophilus_influenzae | serratia_spp. | 3e-8 |
+| haemophilus_influenzae | p_stuartii | 3e-8 |
+| haemophilus_influenzae | pseudomonas_aeruginosa | 3e-8 |
+| haemophilus_influenzae | stenotrophomonas_maltophilia | 3e-8 |
+| haemophilus_influenzae | salmonella_enterica_serovar_typhi | 3e-8 |
+| haemophilus_influenzae | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| haemophilus_influenzae | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| haemophilus_influenzae | shigella_spp. | 3e-8 |
+| haemophilus_influenzae | neisseria_gonorrhoeae | 1e-5 |
+| haemophilus_influenzae | chlamydia_trachomatis | 1e-5 |
+| haemophilus_influenzae | mycoplasma_genitalium | 1e-5 |
+| haemophilus_influenzae | vibrio_cholerae | 3e-8 |
+| haemophilus_influenzae | neisseria_meningitidis | 1e-5 |
+| haemophilus_influenzae | enterobacter_cloacae | 3e-8 |
+| haemophilus_influenzae | yersinia_enterocolitica | 3e-8 |
+| haemophilus_influenzae | moraxella_catarrhalis | 1e-5 |
+| haemophilus_influenzae | bordetella_pertussis | 1e-5 |
+| haemophilus_influenzae | mycoplasma_pneumoniae | 1e-5 |
+| haemophilus_influenzae | legionella_pneumophila | 1e-5 |
+| haemophilus_influenzae | burkholderia_cepacia_complex | 3e-8 |
+| chlamydia_trachomatis | acinetobacter_baumannii | 3e-8 |
+| chlamydia_trachomatis | citrobacter_spp. | 3e-8 |
+| chlamydia_trachomatis | enterobacter_spp. | 3e-8 |
+| chlamydia_trachomatis | escherichia_coli | 3e-8 |
+| chlamydia_trachomatis | klebsiella_pneumoniae | 3e-8 |
+| chlamydia_trachomatis | morganella_spp. | 3e-8 |
+| chlamydia_trachomatis | proteus_spp. | 3e-8 |
+| chlamydia_trachomatis | serratia_spp. | 3e-8 |
+| chlamydia_trachomatis | p_stuartii | 3e-8 |
+| chlamydia_trachomatis | pseudomonas_aeruginosa | 3e-8 |
+| chlamydia_trachomatis | stenotrophomonas_maltophilia | 3e-8 |
+| chlamydia_trachomatis | salmonella_enterica_serovar_typhi | 3e-8 |
+| chlamydia_trachomatis | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| chlamydia_trachomatis | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| chlamydia_trachomatis | shigella_spp. | 3e-8 |
+| chlamydia_trachomatis | neisseria_gonorrhoeae | 1e-5 |
+| chlamydia_trachomatis | haemophilus_influenzae | 1e-5 |
+| chlamydia_trachomatis | mycoplasma_genitalium | 1e-5 |
+| chlamydia_trachomatis | vibrio_cholerae | 3e-8 |
+| chlamydia_trachomatis | neisseria_meningitidis | 1e-5 |
+| chlamydia_trachomatis | enterobacter_cloacae | 3e-8 |
+| chlamydia_trachomatis | yersinia_enterocolitica | 3e-8 |
+| chlamydia_trachomatis | moraxella_catarrhalis | 1e-5 |
+| chlamydia_trachomatis | bordetella_pertussis | 1e-5 |
+| chlamydia_trachomatis | mycoplasma_pneumoniae | 1e-5 |
+| chlamydia_trachomatis | legionella_pneumophila | 1e-5 |
+| chlamydia_trachomatis | burkholderia_cepacia_complex | 3e-8 |
+| mycoplasma_genitalium | acinetobacter_baumannii | 3e-8 |
+| mycoplasma_genitalium | citrobacter_spp. | 3e-8 |
+| mycoplasma_genitalium | enterobacter_spp. | 3e-8 |
+| mycoplasma_genitalium | escherichia_coli | 3e-8 |
+| mycoplasma_genitalium | klebsiella_pneumoniae | 3e-8 |
+| mycoplasma_genitalium | morganella_spp. | 3e-8 |
+| mycoplasma_genitalium | proteus_spp. | 3e-8 |
+| mycoplasma_genitalium | serratia_spp. | 3e-8 |
+| mycoplasma_genitalium | p_stuartii | 3e-8 |
+| mycoplasma_genitalium | pseudomonas_aeruginosa | 3e-8 |
+| mycoplasma_genitalium | stenotrophomonas_maltophilia | 3e-8 |
+| mycoplasma_genitalium | salmonella_enterica_serovar_typhi | 3e-8 |
+| mycoplasma_genitalium | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| mycoplasma_genitalium | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| mycoplasma_genitalium | shigella_spp. | 3e-8 |
+| mycoplasma_genitalium | neisseria_gonorrhoeae | 1e-5 |
+| mycoplasma_genitalium | haemophilus_influenzae | 1e-5 |
+| mycoplasma_genitalium | chlamydia_trachomatis | 1e-5 |
+| mycoplasma_genitalium | vibrio_cholerae | 3e-8 |
+| mycoplasma_genitalium | neisseria_meningitidis | 1e-5 |
+| mycoplasma_genitalium | enterobacter_cloacae | 3e-8 |
+| mycoplasma_genitalium | yersinia_enterocolitica | 3e-8 |
+| mycoplasma_genitalium | moraxella_catarrhalis | 1e-5 |
+| mycoplasma_genitalium | bordetella_pertussis | 1e-5 |
+| mycoplasma_genitalium | mycoplasma_pneumoniae | 1e-5 |
+| mycoplasma_genitalium | legionella_pneumophila | 1e-5 |
+| mycoplasma_genitalium | burkholderia_cepacia_complex | 3e-8 |
+| vibrio_cholerae | acinetobacter_baumannii | 1e-6 |
+| vibrio_cholerae | citrobacter_spp. | 1e-6 |
+| vibrio_cholerae | enterobacter_spp. | 1e-6 |
+| vibrio_cholerae | escherichia_coli | 1e-6 |
+| vibrio_cholerae | klebsiella_pneumoniae | 1e-6 |
+| vibrio_cholerae | morganella_spp. | 1e-6 |
+| vibrio_cholerae | proteus_spp. | 1e-6 |
+| vibrio_cholerae | serratia_spp. | 1e-6 |
+| vibrio_cholerae | p_stuartii | 1e-6 |
+| vibrio_cholerae | pseudomonas_aeruginosa | 1e-6 |
+| vibrio_cholerae | stenotrophomonas_maltophilia | 1e-6 |
+| vibrio_cholerae | salmonella_enterica_serovar_typhi | 1e-6 |
+| vibrio_cholerae | salmonella_enterica_serovar_paratyphi_a | 1e-6 |
+| vibrio_cholerae | invasive_non-typhoidal_salmonella_spp. | 1e-6 |
+| vibrio_cholerae | shigella_spp. | 1e-6 |
+| vibrio_cholerae | neisseria_gonorrhoeae | 3e-8 |
+| vibrio_cholerae | haemophilus_influenzae | 3e-8 |
+| vibrio_cholerae | chlamydia_trachomatis | 3e-8 |
+| vibrio_cholerae | mycoplasma_genitalium | 3e-8 |
+| vibrio_cholerae | neisseria_meningitidis | 3e-8 |
+| vibrio_cholerae | clostridioides_difficile | 3e-7 |
+| vibrio_cholerae | bacteroides_fragilis | 3e-7 |
+| vibrio_cholerae | enterobacter_cloacae | 1e-6 |
+| vibrio_cholerae | yersinia_enterocolitica | 1e-6 |
+| vibrio_cholerae | moraxella_catarrhalis | 3e-8 |
+| vibrio_cholerae | bordetella_pertussis | 3e-8 |
+| vibrio_cholerae | mycoplasma_pneumoniae | 3e-8 |
+| vibrio_cholerae | legionella_pneumophila | 3e-8 |
+| vibrio_cholerae | burkholderia_cepacia_complex | 1e-6 |
+| neisseria_meningitidis | acinetobacter_baumannii | 3e-8 |
+| neisseria_meningitidis | citrobacter_spp. | 3e-8 |
+| neisseria_meningitidis | enterobacter_spp. | 3e-8 |
+| neisseria_meningitidis | escherichia_coli | 3e-8 |
+| neisseria_meningitidis | klebsiella_pneumoniae | 3e-8 |
+| neisseria_meningitidis | morganella_spp. | 3e-8 |
+| neisseria_meningitidis | proteus_spp. | 3e-8 |
+| neisseria_meningitidis | serratia_spp. | 3e-8 |
+| neisseria_meningitidis | p_stuartii | 3e-8 |
+| neisseria_meningitidis | pseudomonas_aeruginosa | 3e-8 |
+| neisseria_meningitidis | stenotrophomonas_maltophilia | 3e-8 |
+| neisseria_meningitidis | salmonella_enterica_serovar_typhi | 3e-8 |
+| neisseria_meningitidis | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| neisseria_meningitidis | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| neisseria_meningitidis | shigella_spp. | 3e-8 |
+| neisseria_meningitidis | haemophilus_influenzae | 1e-5 |
+| neisseria_meningitidis | chlamydia_trachomatis | 1e-5 |
+| neisseria_meningitidis | mycoplasma_genitalium | 1e-5 |
+| neisseria_meningitidis | vibrio_cholerae | 3e-8 |
+| neisseria_meningitidis | enterobacter_cloacae | 3e-8 |
+| neisseria_meningitidis | yersinia_enterocolitica | 3e-8 |
+| neisseria_meningitidis | moraxella_catarrhalis | 1e-5 |
+| neisseria_meningitidis | bordetella_pertussis | 1e-5 |
+| neisseria_meningitidis | mycoplasma_pneumoniae | 1e-5 |
+| neisseria_meningitidis | legionella_pneumophila | 1e-5 |
+| neisseria_meningitidis | burkholderia_cepacia_complex | 3e-8 |
+| listeria_monocytogenes | enterococcus_faecalis | 1e-5 |
+| listeria_monocytogenes | enterococcus_faecium | 1e-5 |
+| listeria_monocytogenes | staphylococcus_aureus | 1e-6 |
+| listeria_monocytogenes | staphylococcus_epidermidis | 1e-6 |
+| listeria_monocytogenes | streptococcus_pneumoniae | 1e-5 |
+| listeria_monocytogenes | streptococcus_pyogenes | 1e-5 |
+| listeria_monocytogenes | streptococcus_agalactiae | 1e-5 |
+| clostridioides_difficile | acinetobacter_baumannii | 3e-7 |
+| clostridioides_difficile | citrobacter_spp. | 3e-7 |
+| clostridioides_difficile | enterobacter_spp. | 3e-7 |
+| clostridioides_difficile | escherichia_coli | 3e-7 |
+| clostridioides_difficile | klebsiella_pneumoniae | 3e-7 |
+| clostridioides_difficile | morganella_spp. | 3e-7 |
+| clostridioides_difficile | proteus_spp. | 3e-7 |
+| clostridioides_difficile | serratia_spp. | 3e-7 |
+| clostridioides_difficile | p_stuartii | 3e-7 |
+| clostridioides_difficile | pseudomonas_aeruginosa | 3e-7 |
+| clostridioides_difficile | stenotrophomonas_maltophilia | 3e-7 |
+| clostridioides_difficile | salmonella_enterica_serovar_typhi | 3e-7 |
+| clostridioides_difficile | salmonella_enterica_serovar_paratyphi_a | 3e-7 |
+| clostridioides_difficile | invasive_non-typhoidal_salmonella_spp. | 3e-7 |
+| clostridioides_difficile | shigella_spp. | 3e-7 |
+| clostridioides_difficile | vibrio_cholerae | 3e-7 |
+| clostridioides_difficile | bacteroides_fragilis | 1e-5 |
+| clostridioides_difficile | enterobacter_cloacae | 3e-7 |
+| clostridioides_difficile | yersinia_enterocolitica | 3e-7 |
+| clostridioides_difficile | burkholderia_cepacia_complex | 3e-7 |
+| bacteroides_fragilis | acinetobacter_baumannii | 3e-7 |
+| bacteroides_fragilis | citrobacter_spp. | 3e-7 |
+| bacteroides_fragilis | enterobacter_spp. | 3e-7 |
+| bacteroides_fragilis | escherichia_coli | 3e-7 |
+| bacteroides_fragilis | klebsiella_pneumoniae | 3e-7 |
+| bacteroides_fragilis | morganella_spp. | 3e-7 |
+| bacteroides_fragilis | proteus_spp. | 3e-7 |
+| bacteroides_fragilis | serratia_spp. | 3e-7 |
+| bacteroides_fragilis | p_stuartii | 3e-7 |
+| bacteroides_fragilis | pseudomonas_aeruginosa | 3e-7 |
+| bacteroides_fragilis | stenotrophomonas_maltophilia | 3e-7 |
+| bacteroides_fragilis | salmonella_enterica_serovar_typhi | 3e-7 |
+| bacteroides_fragilis | salmonella_enterica_serovar_paratyphi_a | 3e-7 |
+| bacteroides_fragilis | invasive_non-typhoidal_salmonella_spp. | 3e-7 |
+| bacteroides_fragilis | shigella_spp. | 3e-7 |
+| bacteroides_fragilis | vibrio_cholerae | 3e-7 |
+| bacteroides_fragilis | clostridioides_difficile | 1e-5 |
+| bacteroides_fragilis | enterobacter_cloacae | 3e-7 |
+| bacteroides_fragilis | yersinia_enterocolitica | 3e-7 |
+| bacteroides_fragilis | burkholderia_cepacia_complex | 3e-7 |
+| enterobacter_cloacae | acinetobacter_baumannii | 1e-6 |
+| enterobacter_cloacae | citrobacter_spp. | 1e-5 |
+| enterobacter_cloacae | enterobacter_spp. | 1e-5 |
+| enterobacter_cloacae | escherichia_coli | 1e-5 |
+| enterobacter_cloacae | klebsiella_pneumoniae | 1e-5 |
+| enterobacter_cloacae | morganella_spp. | 1e-5 |
+| enterobacter_cloacae | proteus_spp. | 1e-5 |
+| enterobacter_cloacae | serratia_spp. | 1e-5 |
+| enterobacter_cloacae | p_stuartii | 1e-5 |
+| enterobacter_cloacae | pseudomonas_aeruginosa | 1e-6 |
+| enterobacter_cloacae | stenotrophomonas_maltophilia | 1e-6 |
+| enterobacter_cloacae | salmonella_enterica_serovar_typhi | 1e-5 |
+| enterobacter_cloacae | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| enterobacter_cloacae | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| enterobacter_cloacae | shigella_spp. | 1e-5 |
+| enterobacter_cloacae | neisseria_gonorrhoeae | 3e-8 |
+| enterobacter_cloacae | haemophilus_influenzae | 3e-8 |
+| enterobacter_cloacae | chlamydia_trachomatis | 3e-8 |
+| enterobacter_cloacae | mycoplasma_genitalium | 3e-8 |
+| enterobacter_cloacae | vibrio_cholerae | 1e-6 |
+| enterobacter_cloacae | neisseria_meningitidis | 3e-8 |
+| enterobacter_cloacae | clostridioides_difficile | 3e-7 |
+| enterobacter_cloacae | bacteroides_fragilis | 3e-7 |
+| enterobacter_cloacae | yersinia_enterocolitica | 1e-5 |
+| enterobacter_cloacae | moraxella_catarrhalis | 3e-8 |
+| enterobacter_cloacae | bordetella_pertussis | 3e-8 |
+| enterobacter_cloacae | mycoplasma_pneumoniae | 3e-8 |
+| enterobacter_cloacae | legionella_pneumophila | 3e-8 |
+| enterobacter_cloacae | burkholderia_cepacia_complex | 1e-6 |
+| yersinia_enterocolitica | acinetobacter_baumannii | 1e-6 |
+| yersinia_enterocolitica | citrobacter_spp. | 1e-5 |
+| yersinia_enterocolitica | enterobacter_spp. | 1e-5 |
+| yersinia_enterocolitica | escherichia_coli | 1e-5 |
+| yersinia_enterocolitica | klebsiella_pneumoniae | 1e-5 |
+| yersinia_enterocolitica | morganella_spp. | 1e-5 |
+| yersinia_enterocolitica | proteus_spp. | 1e-5 |
+| yersinia_enterocolitica | serratia_spp. | 1e-5 |
+| yersinia_enterocolitica | p_stuartii | 1e-5 |
+| yersinia_enterocolitica | pseudomonas_aeruginosa | 1e-6 |
+| yersinia_enterocolitica | stenotrophomonas_maltophilia | 1e-6 |
+| yersinia_enterocolitica | salmonella_enterica_serovar_typhi | 1e-5 |
+| yersinia_enterocolitica | salmonella_enterica_serovar_paratyphi_a | 1e-5 |
+| yersinia_enterocolitica | invasive_non-typhoidal_salmonella_spp. | 1e-5 |
+| yersinia_enterocolitica | shigella_spp. | 1e-5 |
+| yersinia_enterocolitica | neisseria_gonorrhoeae | 3e-8 |
+| yersinia_enterocolitica | haemophilus_influenzae | 3e-8 |
+| yersinia_enterocolitica | chlamydia_trachomatis | 3e-8 |
+| yersinia_enterocolitica | mycoplasma_genitalium | 3e-8 |
+| yersinia_enterocolitica | vibrio_cholerae | 1e-6 |
+| yersinia_enterocolitica | neisseria_meningitidis | 3e-8 |
+| yersinia_enterocolitica | clostridioides_difficile | 3e-7 |
+| yersinia_enterocolitica | bacteroides_fragilis | 3e-7 |
+| yersinia_enterocolitica | enterobacter_cloacae | 1e-5 |
+| yersinia_enterocolitica | moraxella_catarrhalis | 3e-8 |
+| yersinia_enterocolitica | bordetella_pertussis | 3e-8 |
+| yersinia_enterocolitica | mycoplasma_pneumoniae | 3e-8 |
+| yersinia_enterocolitica | legionella_pneumophila | 3e-8 |
+| yersinia_enterocolitica | burkholderia_cepacia_complex | 1e-6 |
+| moraxella_catarrhalis | acinetobacter_baumannii | 3e-8 |
+| moraxella_catarrhalis | citrobacter_spp. | 3e-8 |
+| moraxella_catarrhalis | enterobacter_spp. | 3e-8 |
+| moraxella_catarrhalis | escherichia_coli | 3e-8 |
+| moraxella_catarrhalis | klebsiella_pneumoniae | 3e-8 |
+| moraxella_catarrhalis | morganella_spp. | 3e-8 |
+| moraxella_catarrhalis | proteus_spp. | 3e-8 |
+| moraxella_catarrhalis | serratia_spp. | 3e-8 |
+| moraxella_catarrhalis | p_stuartii | 3e-8 |
+| moraxella_catarrhalis | pseudomonas_aeruginosa | 3e-8 |
+| moraxella_catarrhalis | stenotrophomonas_maltophilia | 3e-8 |
+| moraxella_catarrhalis | salmonella_enterica_serovar_typhi | 3e-8 |
+| moraxella_catarrhalis | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| moraxella_catarrhalis | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| moraxella_catarrhalis | shigella_spp. | 3e-8 |
+| moraxella_catarrhalis | neisseria_gonorrhoeae | 1e-5 |
+| moraxella_catarrhalis | haemophilus_influenzae | 1e-5 |
+| moraxella_catarrhalis | chlamydia_trachomatis | 1e-5 |
+| moraxella_catarrhalis | mycoplasma_genitalium | 1e-5 |
+| moraxella_catarrhalis | vibrio_cholerae | 3e-8 |
+| moraxella_catarrhalis | neisseria_meningitidis | 1e-5 |
+| moraxella_catarrhalis | enterobacter_cloacae | 3e-8 |
+| moraxella_catarrhalis | yersinia_enterocolitica | 3e-8 |
+| moraxella_catarrhalis | bordetella_pertussis | 1e-5 |
+| moraxella_catarrhalis | mycoplasma_pneumoniae | 1e-5 |
+| moraxella_catarrhalis | legionella_pneumophila | 1e-5 |
+| moraxella_catarrhalis | burkholderia_cepacia_complex | 3e-8 |
+| bordetella_pertussis | acinetobacter_baumannii | 3e-8 |
+| bordetella_pertussis | citrobacter_spp. | 3e-8 |
+| bordetella_pertussis | enterobacter_spp. | 3e-8 |
+| bordetella_pertussis | escherichia_coli | 3e-8 |
+| bordetella_pertussis | klebsiella_pneumoniae | 3e-8 |
+| bordetella_pertussis | morganella_spp. | 3e-8 |
+| bordetella_pertussis | proteus_spp. | 3e-8 |
+| bordetella_pertussis | serratia_spp. | 3e-8 |
+| bordetella_pertussis | p_stuartii | 3e-8 |
+| bordetella_pertussis | pseudomonas_aeruginosa | 3e-8 |
+| bordetella_pertussis | stenotrophomonas_maltophilia | 3e-8 |
+| bordetella_pertussis | salmonella_enterica_serovar_typhi | 3e-8 |
+| bordetella_pertussis | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| bordetella_pertussis | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| bordetella_pertussis | shigella_spp. | 3e-8 |
+| bordetella_pertussis | neisseria_gonorrhoeae | 1e-5 |
+| bordetella_pertussis | haemophilus_influenzae | 1e-5 |
+| bordetella_pertussis | chlamydia_trachomatis | 1e-5 |
+| bordetella_pertussis | mycoplasma_genitalium | 1e-5 |
+| bordetella_pertussis | vibrio_cholerae | 3e-8 |
+| bordetella_pertussis | neisseria_meningitidis | 1e-5 |
+| bordetella_pertussis | enterobacter_cloacae | 3e-8 |
+| bordetella_pertussis | yersinia_enterocolitica | 3e-8 |
+| bordetella_pertussis | moraxella_catarrhalis | 1e-5 |
+| bordetella_pertussis | mycoplasma_pneumoniae | 1e-5 |
+| bordetella_pertussis | legionella_pneumophila | 1e-5 |
+| bordetella_pertussis | burkholderia_cepacia_complex | 3e-8 |
+| mycoplasma_pneumoniae | acinetobacter_baumannii | 3e-8 |
+| mycoplasma_pneumoniae | citrobacter_spp. | 3e-8 |
+| mycoplasma_pneumoniae | enterobacter_spp. | 3e-8 |
+| mycoplasma_pneumoniae | escherichia_coli | 3e-8 |
+| mycoplasma_pneumoniae | klebsiella_pneumoniae | 3e-8 |
+| mycoplasma_pneumoniae | morganella_spp. | 3e-8 |
+| mycoplasma_pneumoniae | proteus_spp. | 3e-8 |
+| mycoplasma_pneumoniae | serratia_spp. | 3e-8 |
+| mycoplasma_pneumoniae | p_stuartii | 3e-8 |
+| mycoplasma_pneumoniae | pseudomonas_aeruginosa | 3e-8 |
+| mycoplasma_pneumoniae | stenotrophomonas_maltophilia | 3e-8 |
+| mycoplasma_pneumoniae | salmonella_enterica_serovar_typhi | 3e-8 |
+| mycoplasma_pneumoniae | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| mycoplasma_pneumoniae | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| mycoplasma_pneumoniae | shigella_spp. | 3e-8 |
+| mycoplasma_pneumoniae | neisseria_gonorrhoeae | 1e-5 |
+| mycoplasma_pneumoniae | haemophilus_influenzae | 1e-5 |
+| mycoplasma_pneumoniae | chlamydia_trachomatis | 1e-5 |
+| mycoplasma_pneumoniae | mycoplasma_genitalium | 1e-5 |
+| mycoplasma_pneumoniae | vibrio_cholerae | 3e-8 |
+| mycoplasma_pneumoniae | neisseria_meningitidis | 1e-5 |
+| mycoplasma_pneumoniae | enterobacter_cloacae | 3e-8 |
+| mycoplasma_pneumoniae | yersinia_enterocolitica | 3e-8 |
+| mycoplasma_pneumoniae | moraxella_catarrhalis | 1e-5 |
+| mycoplasma_pneumoniae | bordetella_pertussis | 1e-5 |
+| mycoplasma_pneumoniae | legionella_pneumophila | 1e-5 |
+| mycoplasma_pneumoniae | burkholderia_cepacia_complex | 3e-8 |
+| legionella_pneumophila | acinetobacter_baumannii | 3e-8 |
+| legionella_pneumophila | citrobacter_spp. | 3e-8 |
+| legionella_pneumophila | enterobacter_spp. | 3e-8 |
+| legionella_pneumophila | escherichia_coli | 3e-8 |
+| legionella_pneumophila | klebsiella_pneumoniae | 3e-8 |
+| legionella_pneumophila | morganella_spp. | 3e-8 |
+| legionella_pneumophila | proteus_spp. | 3e-8 |
+| legionella_pneumophila | serratia_spp. | 3e-8 |
+| legionella_pneumophila | p_stuartii | 3e-8 |
+| legionella_pneumophila | pseudomonas_aeruginosa | 3e-8 |
+| legionella_pneumophila | stenotrophomonas_maltophilia | 3e-8 |
+| legionella_pneumophila | salmonella_enterica_serovar_typhi | 3e-8 |
+| legionella_pneumophila | salmonella_enterica_serovar_paratyphi_a | 3e-8 |
+| legionella_pneumophila | invasive_non-typhoidal_salmonella_spp. | 3e-8 |
+| legionella_pneumophila | shigella_spp. | 3e-8 |
+| legionella_pneumophila | neisseria_gonorrhoeae | 1e-5 |
+| legionella_pneumophila | haemophilus_influenzae | 1e-5 |
+| legionella_pneumophila | chlamydia_trachomatis | 1e-5 |
+| legionella_pneumophila | mycoplasma_genitalium | 1e-5 |
+| legionella_pneumophila | vibrio_cholerae | 3e-8 |
+| legionella_pneumophila | neisseria_meningitidis | 1e-5 |
+| legionella_pneumophila | enterobacter_cloacae | 3e-8 |
+| legionella_pneumophila | yersinia_enterocolitica | 3e-8 |
+| legionella_pneumophila | moraxella_catarrhalis | 1e-5 |
+| legionella_pneumophila | bordetella_pertussis | 1e-5 |
+| legionella_pneumophila | mycoplasma_pneumoniae | 1e-5 |
+| legionella_pneumophila | burkholderia_cepacia_complex | 3e-8 |
+| burkholderia_cepacia_complex | acinetobacter_baumannii | 1e-5 |
+| burkholderia_cepacia_complex | citrobacter_spp. | 1e-6 |
+| burkholderia_cepacia_complex | enterobacter_spp. | 1e-6 |
+| burkholderia_cepacia_complex | escherichia_coli | 1e-6 |
+| burkholderia_cepacia_complex | klebsiella_pneumoniae | 1e-6 |
+| burkholderia_cepacia_complex | morganella_spp. | 1e-6 |
+| burkholderia_cepacia_complex | proteus_spp. | 1e-6 |
+| burkholderia_cepacia_complex | serratia_spp. | 1e-6 |
+| burkholderia_cepacia_complex | p_stuartii | 1e-6 |
+| burkholderia_cepacia_complex | pseudomonas_aeruginosa | 1e-5 |
+| burkholderia_cepacia_complex | stenotrophomonas_maltophilia | 1e-5 |
+| burkholderia_cepacia_complex | salmonella_enterica_serovar_typhi | 1e-6 |
+| burkholderia_cepacia_complex | salmonella_enterica_serovar_paratyphi_a | 1e-6 |
+| burkholderia_cepacia_complex | invasive_non-typhoidal_salmonella_spp. | 1e-6 |
+| burkholderia_cepacia_complex | shigella_spp. | 1e-6 |
+| burkholderia_cepacia_complex | neisseria_gonorrhoeae | 3e-8 |
+| burkholderia_cepacia_complex | haemophilus_influenzae | 3e-8 |
+| burkholderia_cepacia_complex | chlamydia_trachomatis | 3e-8 |
+| burkholderia_cepacia_complex | mycoplasma_genitalium | 3e-8 |
+| burkholderia_cepacia_complex | vibrio_cholerae | 1e-6 |
+| burkholderia_cepacia_complex | neisseria_meningitidis | 3e-8 |
+| burkholderia_cepacia_complex | clostridioides_difficile | 3e-7 |
+| burkholderia_cepacia_complex | bacteroides_fragilis | 3e-7 |
+| burkholderia_cepacia_complex | enterobacter_cloacae | 1e-6 |
+| burkholderia_cepacia_complex | yersinia_enterocolitica | 1e-6 |
+| burkholderia_cepacia_complex | moraxella_catarrhalis | 3e-8 |
+| burkholderia_cepacia_complex | bordetella_pertussis | 3e-8 |
+| burkholderia_cepacia_complex | mycoplasma_pneumoniae | 3e-8 |
+| burkholderia_cepacia_complex | legionella_pneumophila | 3e-8 |
 
 ## Appendix C — Output Specification
 

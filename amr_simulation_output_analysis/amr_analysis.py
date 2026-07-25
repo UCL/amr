@@ -3,8 +3,7 @@
 AMR Simulation Analysis - Main Analysis Script
 
 This is the main script for running comprehensive AMR simulation analysis and visualization.
-It replaces the original monolithic analyze_simulation.py with a modular, configurable system
-that can generate all plots or specific subsets based on your analysis needs.
+It uses the configured grouped and detail plot modules to generate the requested outputs.
 
 Usage:
     python -m amr_simulation_output_analysis.amr_analysis
@@ -12,9 +11,9 @@ Usage:
 To control which plots are generated, modify the configuration settings in:
     amr_simulation_output_analysis/config.py
 
-The script will generate comprehensive analysis including:
-- All 9 grouped figures (main simulation summaries)
-- Detailed individual plots across 27+ categories  
+The script can generate:
+- Configured grouped figures
+- Configured detail plots
 - Age-specific, regional, and bacteria-specific analyses
 - Drug usage and resistance pattern visualizations
 
@@ -79,8 +78,8 @@ def check_system_memory():
         
         if available_gb < 8:
             print("[WARN] WARNING: Less than 8 GB RAM available.")
-            print("   Large CSV files (~3GB) may cause system instability.")
-            print("   Consider closing other applications or using low_memory_mode.\n")
+            print("   Large simulation-summary files may cause system instability.")
+            print("   Consider closing other applications or disabling detail plots.\n")
             return False
         return True
     except ImportError:
@@ -140,11 +139,11 @@ def main():
     # Check system memory before starting
     mem_ok = check_system_memory()
 
-    # Main comprehensive analysis - equivalent to original analyze_simulation.py
+    # Run the configured analysis workflow.
     print("Running comprehensive AMR analysis...")
     try:
         config = PlotConfig()
-        # Ensure newly added carrier-share plot (and any future toggles) stay enabled when running standalone
+        # Include the three carriage-focused detail outputs in the standalone run.
         config.carrier_infection_share = True
         config.carriage_duration_distribution = True
         config.microbiome_resistance_microbiome_vs_infection = True
@@ -164,14 +163,6 @@ def main():
     except Exception as e:  # noqa: BLE001 - top-level CLI
         print(f"   [ERROR] Error: {e}\n")
         gc.collect()  # Clean up on error too
-
-    # Generate summary statistics (equivalent to original script)
-    # try:
-    #     summary_df = generate_summary_statistics()
-    #     if summary_df is not None:
-    #         print("   [OK] Summary statistics reported above.\n")
-    # except Exception as e:  # noqa: BLE001 - top-level CLI
-    #     print(f"   [ERROR] Error generating summary statistics: {e}\n")
 
     # Generate calibration summary file (not printed to console)
     try:

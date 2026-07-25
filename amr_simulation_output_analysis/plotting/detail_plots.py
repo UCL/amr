@@ -2,9 +2,7 @@
 """
 Detail plotting functions for AMR simulation analysis.
 
-This module contains individual plot creation functions extracted from
-the original analyze_simulation.py script. Each function creates specific
-visualizations for different aspects of the AMR simulation data.
+Each function creates a specific visualization of the simulation output.
 """
 
 import gc
@@ -37,13 +35,13 @@ from ..utils import (
 
 logger = logging.getLogger(__name__)
 
-# Plot constants - these match the original script
+# Shared plot dimensions and smoothing window
 FIGURE_SIZE_SINGLE = (12, 6)
 FIGURE_SIZE_DOUBLE = (12, 10)
 FIGURE_SIZE_OVERVIEW = (12, 12)
 SMOOTHING_WINDOW_DAYS = 1095
 
-# Output file mapping for modular system
+# Output filenames for the basic plots
 OUTPUT_FILES = {
     'overview': 'simulation_overview.png',
     'infection_prop': 'infection_proportion_over_time.png',
@@ -509,13 +507,12 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.resistance_benchmark_bar_charts:
         create_resistance_benchmark_bar_charts(config)
     
-    # Create individual plot types based on original script flags
+    # Create the enabled detail plots.
     if config.distribution_drug_use_by_bacteria:
         create_distribution_drug_use_by_bacteria_plots(data, config)
     
     if config.proportion_of_people_taking_each_drug:
-        # Only create regional proportion plots (DDD plots archived - redundant and misleading)
-        create_regional_drug_usage_proportion_plots(data, config)  # Optional comparison overlays
+        create_regional_drug_usage_proportion_plots(data, config)
     
     if config.proportion_of_people_infected_with_each_bacteria:
         create_bacteria_infection_proportion_plots(data, config)
@@ -608,7 +605,6 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.mean_mic_by_drug_for_each_bacteria:
         create_mean_mic_by_drug_for_each_bacteria_plots(data, config)
     
-    # Additional plots can be added here as they are implemented
     if config.death_rate_by_bacteria:
         create_death_rate_by_bacteria_plots(config, data_cache)
 
@@ -734,14 +730,15 @@ def create_bacteria_infection_proportion_plots(df: pd.DataFrame, config: PlotCon
 @safe_plot_creation
 def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    For each bacteria, plot the proportion of infections with MIC < 2 for all drugs.
-    Each plot is saved as a separate PNG file showing all drugs for one bacteria.
+    Plot the legacy `_mic_lt2` reciprocal-activity proxy for each bacterium.
+
+    The proxy is unitless and is not a laboratory MIC measurement.
     """
     print("\n=== CREATING MIC<2 BY DRUG PLOTS FOR EACH BACTERIA ===")
     out_dir = Path(config.output_dir) / "for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2"
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find MIC columns using the correct pattern from legacy code
+    # Find the retained reciprocal-activity proxy columns.
     mic_cols = [col for col in df.columns if '_infected_and_mic_lt2_' in col]
     if not mic_cols:
         print("  [WARNING] No MIC<2 columns found - expected pattern: {bacteria}_infected_and_mic_lt2_{drug}")
@@ -767,7 +764,7 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             if mic_col not in df.columns:
                 continue
             
-            # Use total infections as denominator (same as legacy code fallback)
+            # This retained plot normalizes the counter by all current infections.
             infections = df['total_currently_infected']
             mic_lt2 = df[mic_col]
             
@@ -827,21 +824,11 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
 @safe_plot_creation  
 def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    DEPRECATED: This function is no longer used as of 2025-09-26.
-    
-    Plot drug usage in DDD per 1000 inhabitants per day with optional comparison overlays.
-    
-    REASON FOR DEPRECATION:
-    - Misleading labeling: Claims "DDD/1000/day" but actually calculates percentage
-    - Redundant functionality: Same core calculation as create_regional_drug_usage_proportion_plots
-    - Poor organization: Puts all regional plots in single "overall_global" folder
-    - Replaced by: create_regional_drug_usage_proportion_plots which provides better 
-      organization, honest labeling, and same empirical overlays
-    
-    Original description:
-    Both simulation and empirical data are converted to DDD/1000/day for direct comparison:
-    - Simulation data: Has 10-fold scaling, so divide percentage by 10 to get DDD/1000/day
-    - Comparison overlay: convert from courses_per_100k_per_year back to DDD/1000/day by dividing by 36.5
+    Deprecated global drug-use plot retained for compatibility.
+
+    It is not called by the detail-plot dispatcher. Its fixed transforms do
+    not establish a dimensionally valid DDD/1000/day measure; use
+    create_regional_drug_usage_proportion_plots for current-user percentages.
     """
     print("\n=== CREATING DRUG USAGE DDD PLOTS ===")
     
@@ -905,9 +892,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
         # Map empirical years to simulation years (1930-2020 → years 14-104) 
         simulation_years = drug_match['year'] - 1916  # 1930 → 14
         
-        # Convert from courses_per_100k_per_year back to DDD/1000/day
-        # Original conversion was: courses_per_100k = DDD_per_1000_per_day * 36.5
-        # So: DDD_per_1000_per_day = courses_per_100k_per_year / 36.5
+        # Retained fixed transform used only by this deprecated plot.
         empirical_ddd_per_1000_per_day = drug_match['mean'] / 36.5
         
         # Handle confidence intervals if available
@@ -927,9 +912,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
         
         print(f"  Processing {drug_name}...")
         
-        # Convert simulation data to DDD/1000/day
-        # Simulation data represents DDD/1000/day with 10-fold scaling
-        # So: DDD_per_1000_per_day = (drug_count / total_population) * 1000 / 10
+        # Retained fixed transform from current-user prevalence.
         simulation_ddd_per_1000_per_day = safe_divide(df[drug_col], df['total_population']) * 100
         
         # Apply smoothing
@@ -1309,7 +1292,7 @@ def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) ->
     out_dir = config.output_dir / "incidence_of_infection"
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Define regions and their population columns (matching legacy code)
+    # Region identifiers and their population denominators
     regions = {
         'North America': 'north_america_population',
         'South America': 'south_america_population', 
@@ -1837,12 +1820,10 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
 
 def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    Create plots showing mean MIC (Minimum Inhibitory Concentration) for each drug 
-    amongst people infected with each bacteria, with optional comparison overlays.
-    One plot per bacteria, with multiple drug lines on each plot.
-    
-    MIC represents the drug concentration needed to inhibit bacterial growth.
-    Higher MIC values indicate greater resistance.
+    Plot the legacy `_sum_mic_` reciprocal-activity proxy by bacterium and drug.
+
+    Despite the retained field and function names, this unitless model score is
+    not a laboratory MIC and is not directly comparable with MIC in mg/L.
     """
     print("\n=== CREATING MEAN MIC BY DRUG FOR EACH BACTERIA PLOTS ===")
     
@@ -1861,7 +1842,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     output_dir = config.output_dir / "mean_mic_by_drug_per_bacteria"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Helper function to create source attribution text for MIC data
+    # Build attribution for the optional laboratory-MIC overlay.
     def create_empirical_mic_source_text(sources):
         """Create MIC source attribution without overstating provenance."""
         if not sources:
@@ -1901,10 +1882,10 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     else:
         bacteria_names = bacteria_list_all
     
-    # Extract all available drugs from MIC sum columns
+    # Extract drugs from the legacy reciprocal-activity sum columns.
     mic_sum_cols = [col for col in df.columns if '_sum_mic_' in col]
     if not mic_sum_cols:
-        # Fallback: look for drug_score_sum columns which contain MIC data  
+        # This retained fallback uses another abstract treatment score.
         mic_sum_cols = [col for col in df.columns if '_drug_score_sum_' in col]
         print("  [INFO] Using drug_score_sum columns as MIC data source")
     
@@ -1912,7 +1893,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         print("  [WARNING] No MIC sum columns found (*_sum_mic_* or *_drug_score_sum_*)")
         return
     
-    # Extract drug names from MIC sum columns
+    # Extract drug names from the selected score columns.
     all_drugs = set()
     for col in mic_sum_cols:
         if '_sum_mic_' in col:
@@ -2005,7 +1986,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             infected_counts = df[infection_col]
             mic_sums = df[mic_sum_col]
             
-            # Calculate mean MIC using pandas vectorization
+            # Calculate the mean reciprocal-activity proxy.
             mean_mic_values = pd.Series(index=df.index, dtype=float)
             mask = infected_counts > 0
             mean_mic_values[mask] = mic_sums[mask] / infected_counts[mask]
@@ -2026,9 +2007,9 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             else:
                 mean_mic_smooth = mean_mic_values
             
-            # [TOOL] IMPROVED: Plot if there's any data, even if very low values
+            # Plot every non-empty series, including zero-valued series.
             valid_data = mean_mic_smooth.dropna()
-            if len(valid_data) > 0:  # Removed the `valid_data.max() > 0` condition that was too strict
+            if len(valid_data) > 0:
                 # Plot simulation data (solid line) using consistent per-drug color mapping
                 drug_color = get_consistent_color_for_drug(drug, all_drugs_all)
                 sim_line = plt.plot(df['time_in_years'], mean_mic_smooth, 
@@ -2041,7 +2022,8 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                 
                 print(f"      [OK] Plotted {drug}: {len(valid_data)} data points, range {valid_data.min():.3f}-{valid_data.max():.3f}")
                 
-                # Add empirical MIC overlay for this drug-bacteria combination
+                # Optional laboratory-MIC overlay retained for diagnostics. It
+                # is not on the same scale as the modeled proxy.
                 if empirical_data['mic_values'] is not None:
                     # Import normalization function for consistent naming
                     from ..empirical.normalizers import normalize_name_for_empirical_matching
@@ -2141,15 +2123,14 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         plt.xlabel('Time (Years)', fontsize=12)
         plt.ylabel('Mean MIC (mg/L)', fontsize=12)
         
-        # [TOOL] FIX: Set proper axis limits
+        # Use the full simulation time range and the retained proxy's display range.
         plt.xlim(0, max(105, df['time_in_years'].max()) if 'time_in_years' in df.columns else 105)  # Extend to actual simulation length
         plt.ylim(0, 50)   # Expand to fit empirical MIC data range
         
         # Add grid
         plt.grid(True, alpha=0.3)
         
-        # [TOOL] IMPROVED: Always show drug legend for ALL bacteria with data, even if MIC values are very low
-        # Drug legend (colors) - ALWAYS show if we have relevant drugs, regardless of plot success
+        # Show the drug legend whenever relevant drug columns are available.
         if len(relevant_drugs) > 0:
             # If we successfully plotted lines with handles, use those
             if len(drug_handles) > 0:
@@ -2349,7 +2330,7 @@ def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, confi
                     ax.plot(emp_years, emp_means, 
                            color=color,
                            label=f"{overlay_kind}: {region_name}",
-                           linewidth=3,  # Increased from 2 to 3 for better visibility
+                           linewidth=3,
                            linestyle='--',
                            alpha=0.8)
                     
@@ -2434,7 +2415,6 @@ def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, confi
 def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=None):
     """
     Extract empirical data points for a specific drug/bacteria/region combination.
-    Simplified version adapted from legacy implementation for death data.
     
     Args:
         empirical_df: The empirical data DataFrame
@@ -2480,7 +2460,7 @@ def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=N
 
 @safe_plot_creation
 def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
-    """Create death rate plots for each region separately (like Figure 2 bottom-right)."""
+    """Create a separate death-rate plot for each region."""
     logger.info("=== CREATING DEATH RATE BY REGION PLOTS ===")
     
     # Create output directory
@@ -5043,7 +5023,9 @@ def create_carriage_duration_distribution_plot(df: pd.DataFrame, config: PlotCon
 @safe_plot_creation
 def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    Create plots showing mean MIC for each drug amongst people infected with each bacteria.
+    Plot the legacy reciprocal-activity proxy for each bacterium and drug.
+
+    The retained `_sum_mic_` name does not denote laboratory MIC.
     Files: bacteria_{bacteria}_mean_mic_by_drug.png
     """
     output_dir = config.output_dir / 'mean_mic_by_drug_per_bacteria'
@@ -5060,14 +5042,14 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: Pl
     bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
     logger.info(f"Found {len(bacteria_names)} bacteria to analyze")
     
-    # Extract all available drugs from MIC sum columns
+    # Extract drugs from the legacy reciprocal-activity sum columns.
     mic_sum_cols = [col for col in df.columns if '_sum_mic_' in col]
     if not mic_sum_cols:
         logger.warning("No MIC sum columns found (*_sum_mic_*)")
         logger.warning("Make sure to run the updated Rust simulation first")
         return
     
-    # Extract drug names from MIC sum columns
+    # Extract drug names from the proxy columns.
     all_drugs = set()
     for col in mic_sum_cols:
         if '_sum_mic_' in col:
@@ -5088,7 +5070,7 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: Pl
             logger.warning(f"Skipping {bacteria} - no infection data column")
             continue
         
-        # Find relevant drugs for this bacteria (those with MIC sum data)
+        # Find drugs with reciprocal-activity sums for this bacterium.
         relevant_drugs = []
         for drug in all_drugs:
             mic_sum_col = f"{bacteria}_sum_mic_{drug}"
@@ -5115,7 +5097,7 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: Pl
             infected_counts = df[infection_col]
             mic_sums = df[mic_sum_col]
             
-            # Calculate mean MIC using pandas vectorization
+            # Calculate the mean reciprocal-activity proxy.
             mean_mic_values = pd.Series(index=df.index, dtype=float)
             mask = infected_counts > 0
             mean_mic_values[mask] = mic_sums[mask] / infected_counts[mask]

@@ -1,47 +1,46 @@
 #!/usr/bin/env python3
 """
-Configuration Management for AMR Simulation Output Analysis
+Configuration for AMR simulation output analysis.
 
-This module replaces the scattered boolean toggles and global constants
-from the original analyze_simulation.py with organized, typed configuration.
+The loader selects columns according to enabled grouped and detail plots. Exact
+column counts vary with the Rust output schema, selected policies, and plot
+toggles, so the categories below describe relative rather than fixed memory
+costs.
 
 MEMORY USAGE GUIDE:
 ==================
-The simulation CSVs contain ~31,000 columns. To avoid memory exhaustion,
-the loader uses selective column loading based on which plots are enabled.
 
 GROUPED PLOTS (grouped_plots=True):
-- Always loads ~9,500 columns for figures 1-10
-- This is the baseline memory usage when any plots are enabled
-- Safe to enable alongside a few lightweight detail plots
+- Load the fields required by the enabled grouped figures.
+- Can usually be combined with several lightweight detail plots.
 
 DETAIL PLOT MEMORY CATEGORIES:
 ------------------------------
-LIGHTWEIGHT (~234 columns each, bacteria×region matrix):
+LIGHTWEIGHT (small regional or bacterium-level matrices):
   Can enable multiple together with grouped_plots:
-  - death_rate_by_bacteria_region ✓
-  - population_mortality_by_bacteria_region ✓
-  - incidence_of_infection ✓
-  - drug_failure_rate_by_bacteria_region ✓
-  - death_rate_by_region ✓
-  - age_distribution_by_region ✓
-  - infection_resolution_by_bacteria ✓ (uses existing columns)
+  - death_rate_by_bacteria_region
+  - population_mortality_by_bacteria_region
+  - incidence_of_infection
+  - drug_failure_rate_by_bacteria_region
+  - death_rate_by_region
+  - age_distribution_by_region
+  - infection_resolution_by_bacteria
 
-MODERATE (~500-1000 columns):
-  Can enable 1-2 with grouped_plots:
+MODERATE (larger bacterium, region, or microbiome groups):
+  Can usually enable one or two with grouped_plots:
   - incidence_of_infection_hospital
-  - proportion_of_people_infected_with_each_bacteria (uses existing)
-  - proportion_of_people_taking_each_drug (uses existing)
-  - mean_activity_r_by_bacteria (uses existing)
-  - microbiome plots (uses existing calibration columns)
+  - proportion_of_people_infected_with_each_bacteria
+  - proportion_of_people_taking_each_drug
+  - mean_activity_r_by_bacteria
+  - microbiome plots
 
-HEAVY (1000-4000 columns, bacteria×drug matrix):
+HEAVY (bacterium x drug or mechanism matrices):
   Enable ONE at a time, or disable grouped_plots:
-  - mean_mic_by_drug_for_each_bacteria (~3640 cols - MIC distributions)
+  - mean_mic_by_drug_for_each_bacteria (legacy reciprocal-activity proxy)
   - for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-  - drug_score_analysis_by_bacteria (~1820 cols)
-  - drug_score_summary (~1820 cols)
-  - mean_any_r_by_drug_for_each_bacteria (~1820 cols)
+  - drug_score_analysis_by_bacteria
+  - drug_score_summary
+  - mean_any_r_by_drug_for_each_bacteria
   - resistance_mechanism_by_bacteria
   - source_of_new_resistance_by_drug_bacteria
 
@@ -60,11 +59,8 @@ class PlotConfig:
     """Configuration for individual plot types and categories."""
     
     # Main plot category controls
-    grouped_plots: bool = True    # Enable/disable grouped figures 1-9
+    grouped_plots: bool = True    # Enable or disable the grouped-figure suite.
     grouped_microbiome_acquisition_panel: bool = False  # Toggle grouped Figure 3 microbiome acquisition panel
-    
-    # Individual grouped figure controls
-
     
     # =========================================================================
     # DETAIL PLOTS - Individual plot type controls
@@ -74,7 +70,7 @@ class PlotConfig:
     # --- LIGHTWEIGHT PLOTS (safe to enable multiple) ---
     drug_failure_rate_by_bacteria_region: bool = False
     incidence_of_infection: bool = False
-    death_rate_by_bacteria_region: bool = False  # ~234 columns
+    death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
     death_rate_by_region: bool = True 
     age_distribution_by_region: bool = False
@@ -101,11 +97,13 @@ class PlotConfig:
     age_specific_death_rate_by_region: bool = False
     
     # --- HEAVY PLOTS (enable ONE at a time, or disable grouped_plots) ---
-    mean_mic_by_drug_for_each_bacteria: bool = False  # ~3640 columns (MIC distributions)
+    # The two `mic` names are retained output-contract names for a unitless
+    # reciprocal-activity proxy; the model does not simulate laboratory MICs.
+    mean_mic_by_drug_for_each_bacteria: bool = False
     for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
-    drug_score_analysis_by_bacteria: bool = False  # ~1820 columns
-    drug_score_summary: bool = False  # ~1820 columns - Individual drug score time series
-    mean_any_r_by_drug_for_each_bacteria: bool = False  # ~1820 columns
+    drug_score_analysis_by_bacteria: bool = False
+    drug_score_summary: bool = False  # Individual drug-score time series.
+    mean_any_r_by_drug_for_each_bacteria: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
     resistance_mechanism_by_bacteria: bool = False
     source_of_new_resistance_by_drug_bacteria: bool = False
@@ -122,48 +120,46 @@ class PlotConfig:
     show_best_guess_placeholder_overlays: bool = False
     show_comparison_overlay_source_attribution: bool = True
     
-    # Individual plot controls - DISABLED since they're included in grouped figures
+    # Detail equivalents of outputs already represented in grouped figures.
     basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
     infection_duration: bool = False  # Included in grouped figures
     sepsis_among_infected: bool = False  # Included in grouped figures
     death_causes: bool = False  # Included in grouped figures  
     resistance_among_infected: bool = False  # Included in grouped figures
 
-    # Per-entity filters (limit which series appear on per-bacteria/per-drug plots)
-    # Example: include_bacteria=['staph_aureus', 'e_coli']; include_drugs=['ciprofloxacin'] (see src/population.rs for canonical short names)
-    # default:
-    #  include_bacteria: Optional[List[str]] = None
-    #  include_drugs: Optional[List[str]] = None
+    # Per-entity filters for bacteria/drug detail plots. Use canonical Rust
+    # identifiers, for example `escherichia_coli` and `ciprofloxacin`.
     include_bacteria: Optional[List[str]] = None  # Only render requested bacteria when provided
-    # include_drugs: Optional[List[str]] = field(default_factory=lambda: ['erythromycin', 'penicillin_g', 'meropenem'])  # Only render requested drugs when provided
     include_drugs: Optional[List[str]] = None
 
     # Policy comparison controls
     # None => plot all policies that exist in the dataset (default behavior)
     # Provide a list like [0] to restrict plots to baseline only.
-    ## here here
     policies_to_plot: Optional[List[int]] = field(default_factory=lambda: [0, 1, 2, 3, 4])
 
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))
     figure_format: str = "png"
-    dpi: int = 150  # Reduced from 300 to lower memory usage (use 300 for publication quality)
+    dpi: int = 150
     show_plots: bool = False  # Whether to display plots interactively
     empirical_overlay: bool = True  # Whether to show provenance-controlled comparison overlays
     simulation_run_id: Optional[str] = None  # Derived from simulation CSV filename
     
     # Memory management
-    low_memory_mode: bool = True  # Enable memory-saving optimizations for large datasets
-    gc_after_each_figure: bool = True  # Force garbage collection after each figure
-    max_figures_before_gc: int = 1  # Force GC after this many figures (1 = aggressive)
+    # These three compatibility fields are not currently read by the loader or
+    # plot dispatchers. Active memory controls are column selection,
+    # drop_raw_data_after_preprocess, and the parquet cache.
+    low_memory_mode: bool = True
+    gc_after_each_figure: bool = True
+    max_figures_before_gc: int = 1
     drop_raw_data_after_preprocess: bool = True  # Free raw CSV data after preprocessing
-    use_float32: bool = True  # Use float32 instead of float64 to halve memory
+    use_float32: bool = True  # Compatibility field; float downcasting is currently unconditional.
     
     # Smoothing and styling
     smoothing_window_days: int = 365  
     smoothing_window: int = 365  # Alias for smoothing_window_days
     drug_score_smoothing_window_days: int = 180  # Shorter window just for drug score plots
-    plot_style: str = 'seaborn-v0_8'
+    plot_style: str = 'seaborn-v0_8'  # Compatibility field; current plot modules set their styles directly.
     bbox_inches: str = 'tight'
     
     # Figure size parameters
@@ -175,7 +171,7 @@ class PlotConfig:
     calibration_window_years_before: int = 3  # Years before target year to include in calibration window
     calibration_window_years_after: int = 0  # Years after target year to include in calibration window
     
-    # Grouped figure toggles (always True to ensure figures 1-9 are generated)
+    # Per-figure grouped-output toggles.
     create_grouped_figure_1: bool = True
     create_grouped_figure_2: bool = True
     create_grouped_figure_3: bool = True
@@ -218,7 +214,7 @@ class PlotConfig:
     
     @property 
     def output_dirs(self) -> Dict[str, Path]:
-        """Get organized output directories by category."""
+        """Map detail-plot categories to their shared output root."""
         return {
             'basic': self.output_dir,
             'mortality': self.output_dir,
@@ -233,7 +229,11 @@ class PlotConfig:
 
 @dataclass
 class EmpiricalConfig:
-    """Configuration for provenance-controlled comparison data integration."""
+    """Reserved comparison-data configuration.
+
+    The current loaders use their own explicit paths and do not consume this
+    dataclass directly.
+    """
     
     enable_empirical_overlays: bool = True  # Observed comparisons by default; placeholders need separate opt-in.
     ecdc_data_path: Path = field(default_factory=lambda: Path("data/ecdc"))
@@ -258,18 +258,17 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_122041.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_216804.csv")
     )
-    cache_data: bool = True  # Whether to cache loaded data
-    validate_data: bool = True  # Whether to validate data integrity 
-    enable_parquet_cache: bool = True
-      # Persist a columnar cache of the simulation CSV
+    cache_data: bool = True  # Compatibility field; in-memory caching is currently always enabled.
+    validate_data: bool = True  # Compatibility field; schema validation is currently always enabled.
+    enable_parquet_cache: bool = True  # Persist a columnar cache of the simulation CSV.
     parquet_cache_path: Optional[Path] = None  # Custom path or directory for the cache (defaults beside CSV)
     parquet_cache_compression: str = "snappy"  # Compression codec used when writing parquet caches
     
-    # Data processing settings 
+    # Reserved compatibility fields; the current loader does not read them.
     float_precision: str = '%.6f'
-    missing_data_strategy: str = 'skip'  # 'skip', 'interpolate', 'zero'
+    missing_data_strategy: str = 'skip'
 
 @dataclass
 class AnalysisConfig:

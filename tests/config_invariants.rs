@@ -209,17 +209,22 @@ fn collect_get_or_default_literal_keys(source: &str) -> HashSet<String> {
 
 #[test]
 fn readme_model_inventory_counts_match_executable_authority() {
-    let expected = format!(
-        "across {} bacterial species, {} antibiotics, {} resistance mechanisms",
-        BACTERIA_LIST.len(),
-        DRUG_SHORT_NAMES.len(),
-        ResistanceMechanism::all().len()
-    );
-
-    assert!(
-        README_MD.contains(&expected),
-        "README model dimensions should match the executable inventories: {expected}"
-    );
+    for expected in [
+        format!("- {} bacteria", BACTERIA_LIST.len()),
+        format!(
+            "- {} individual antibacterial drugs",
+            DRUG_SHORT_NAMES.len()
+        ),
+        format!(
+            "- {} resistance mechanisms",
+            ResistanceMechanism::all().len()
+        ),
+    ] {
+        assert!(
+            README_MD.contains(&expected),
+            "README model dimensions should match the executable inventory: {expected}"
+        );
+    }
 }
 
 #[test]
@@ -280,7 +285,7 @@ fn terminal_death_return_precedes_all_later_person_day_rules() {
         "no random draw may occur between recording death and the terminal return"
     );
     assert!(
-        after_terminal_return.contains("// --- sepsis recovery logic"),
+        after_terminal_return.contains("if individual.sepsis[b_idx]"),
         "the death return must remain before later recovery and transition rules"
     );
 }
@@ -540,6 +545,59 @@ fn bacterium_mechanism_status_matrix_has_explicit_route_semantics() {
             .map(str::to_string)
             .collect(),
         "all four route statuses should be represented in the current matrix"
+    );
+}
+
+#[test]
+fn emergence_rate_tier_zero_comments_only_label_zero_rates() {
+    let store = parameter_store();
+    let mut mismatches = Vec::new();
+
+    for (bacteria_idx, bacterium) in BACTERIA_LIST.iter().enumerate() {
+        for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+            let key = format!(
+                "bacteria_{bacterium}_mechanism_{}_emergence_rate",
+                mechanism.as_str()
+            );
+            let quoted_key = format!("\"{key}\"");
+            let matching_lines = CONFIG_RS
+                .lines()
+                .filter(|line| line.contains(&quoted_key))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                matching_lines.len(),
+                1,
+                "expected exactly one source line for {key}"
+            );
+
+            let comment = matching_lines[0]
+                .split_once("//")
+                .map(|(_, comment)| comment.trim().to_ascii_lowercase())
+                .unwrap_or_default();
+            assert!(
+                !comment.is_empty(),
+                "emergence-rate entry {key} needs a scope comment"
+            );
+            let says_tier_zero = comment.contains("tier 0");
+            let emergence_rate = store
+                .bacteria_mechanism_emergence
+                .rate(bacteria_idx, mechanism_idx);
+
+            if says_tier_zero {
+                if emergence_rate != 0.0 {
+                    mismatches.push(format!(
+                        "{bacterium}/{}={emergence_rate}",
+                        mechanism.as_str()
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "tier-0 comments must label zero de novo rates only:\n{}",
+        mismatches.join("\n")
     );
 }
 

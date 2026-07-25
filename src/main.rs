@@ -8,10 +8,6 @@
 // Useful local workflow note:
 //   PowerShell: `$env:RAYON_NUM_THREADS = "4"` before running to cap parallelism.
 
-//
-//
-//
-
 use amr_project::config::{get_global_param, PARAMETERS};
 use amr_project::config_validation::{validate_parameter_map, ConfigValidationMode};
 use amr_project::observability;
@@ -242,13 +238,13 @@ fn main() {
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
 
-    // Examples of bacteria filter values (use lowercase with underscores):
+    // The filter must exactly match a value in BACTERIA_LIST. Examples:
     // Some("escherichia_coli")
     // Some("staphylococcus_aureus")
     // Some("pseudomonas_aeruginosa")
     // Some("acinetobacter_baumannii")
     // Some("enterococcus_faecium")
-    // None - logs all bacteria types
+    // None logs all bacteria types.
 
     let resolved_run_seed = resolve_run_seed(use_fixed_seed, fixed_seed_value);
     std::env::set_var("AMR_RNG_SEED", resolved_run_seed.value.to_string());
@@ -262,9 +258,9 @@ fn main() {
     //
     //   0 = Baseline continuation      (status quo carried forward to 2035)
     //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
-    //   2 = AMR Counterfactual         (resistance cleared; models a world without AMR)
-    //   3 = Perfect Diagnostics        (implausibly complete & immediate testing)
-    //   4 = Equal Global Access        (all regions get North America–level access)
+    //   2 = AMR Counterfactual         (resistance-suppressed comparison branch)
+    //   3 = Near-complete Diagnostics  (high testing and more targeted selection)
+    //   4 = Equal Global Access        (testing, initiation, and cessation use North America references)
     //
     // Policies are independent branches starting from POLICY_BRANCH_YEAR (2027);
     // they do not interact with each other.
@@ -272,7 +268,7 @@ fn main() {
         0, // Baseline continuation
         1, // Stewardship
         2, // AMR counterfactual
-        3, // Perfect diagnostics
+        3, // Near-complete diagnostics
         4, // Equal global access
     ];
 
@@ -506,7 +502,6 @@ fn main() {
         csv_path.display()
     );
 
-    // Log the simulation run details
     if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
         eprintln!("Error logging simulation run: {}", e);
     }
@@ -597,7 +592,6 @@ fn log_simulation_run(
         .append(true)
         .open(log_path)?;
 
-    // Write header if file is new
     if !file_exists {
         writeln!(
             file,
@@ -605,7 +599,6 @@ fn log_simulation_run(
         )?;
     }
 
-    // Write the log entry
     file.write_all(log_entry.as_bytes())?;
 
     println!("Simulation run logged to {}", log_path);
@@ -615,9 +608,9 @@ fn log_simulation_run(
 
 /// Validate the bacteria roster before the simulation starts.
 ///
-/// The model can technically run with one or a few organisms, but many ecosystem-level
-/// assumptions (HGT, microbiome competition, syndromic empiric therapy) become much less
-/// realistic, so this prints warnings rather than silently accepting a misleading setup.
+/// The executable currently uses the canonical roster in `BACTERIA_LIST`. Subset runs require
+/// coordinated changes to aligned inventories, parameters, output contracts, and tests; this
+/// function is only a startup guard and summary, not a complete subset-run validator.
 fn validate_bacteria_configuration() {
     let num_bacteria = BACTERIA_LIST.len();
 
@@ -642,7 +635,6 @@ fn validate_bacteria_configuration() {
         println!("✓ MULTI-BACTERIA MODE: Full ecosystem modeling enabled");
     }
 
-    // Check for potential HGT configuration issues
     if num_bacteria == 1 {
         for bacteria in BACTERIA_LIST.iter() {
             for other in BACTERIA_LIST.iter() {

@@ -2,8 +2,8 @@
 """
 Base plotting classes and utilities for AMR simulation output analysis.
 
-This module provides standardized plotting infrastructure that eliminates
-code duplication and ensures consistent styling across all plots.
+This module provides shared plotting infrastructure for consistent styling,
+validation, saving, and cleanup.
 """
 
 import matplotlib.pyplot as plt
@@ -243,7 +243,7 @@ class StandardizedPlot(BasePlot):
 
 class GroupedPlot(BasePlot):
     """
-    Base class for grouped plots (like Figures 1-9) with multiple subplots.
+    Base class for grouped plots with multiple subplots.
     """
     
     def __init__(self,

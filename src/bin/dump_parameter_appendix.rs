@@ -1,8 +1,7 @@
 /// Generates the Appendix B markdown for MODEL_DESCRIPTION.md.
 ///
 /// Prints structured, thematically organized parameter tables derived from the
-/// live Rust configuration, replacing the previous monolithic key-value dump
-/// with resolved, reader-friendly Markdown tables.
+/// live Rust configuration as resolved Markdown tables.
 use amr_project::config::{
     get_drug_class, get_drug_introduction_time_step, PARAMETERS, PARAMETER_STORE,
 };
@@ -120,8 +119,8 @@ fn print_heading() {
         "This appendix is auto-generated from the live Rust configuration. \
               Parameters are organized thematically into resolved tables \
               derived from the internal data structures. All values shown are \
-              the effective defaults before any run-level sampling multipliers \
-              are applied."
+              the effective defaults before any run-level pathway sensitivity \
+              multipliers are applied."
     );
     println!();
 }

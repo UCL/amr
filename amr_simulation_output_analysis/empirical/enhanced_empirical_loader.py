@@ -31,7 +31,7 @@ from .provenance import (
 logger = logging.getLogger(__name__)
 
 class IntegratedEmpiricalLoader:
-    """Enhanced loader that integrates multiple surveillance data sources."""
+    """Load provenance-controlled overlays from the configured source families."""
     
     def __init__(
         self,
@@ -69,20 +69,20 @@ class IntegratedEmpiricalLoader:
             'hospital_incidence': None
         }
         
-        # Load new surveillance sources
+        # Load the configured source-shaped surveillance files.
         surveillance_data = self._load_surveillance_sources()
         
-        # Load existing calibration data
+        # Load the project calibration-overlay files.
         calibration_data = self._load_calibration_data()
         
-        # Integrate surveillance data with calibration data
+        # Integrate all eligible overlay rows.
         integrated_data = self._integrate_data_sources(surveillance_data, calibration_data)
         
         logger.info("Integrated comparison-overlay loading completed")
         return integrated_data
     
     def _load_surveillance_sources(self) -> Dict[str, Optional[pd.DataFrame]]:
-        """Load data from the four new surveillance sources."""
+        """Load data from the four configured source families."""
         
         surveillance_sources = {
             'who_glass': self.who_dir / "glass_amr_surveillance.csv",
@@ -168,7 +168,7 @@ class IntegratedEmpiricalLoader:
         # Integrate drug usage data 
         integrated['drug_usage'] = self._integrate_drug_usage_data(surveillance_data, calibration_data)
         
-        # Pass through other calibration data (enhanced later)
+        # Pass through overlay types without source-family integration.
         for data_type in ['incidence', 'deaths', 'drug_failure', 'mic_values', 'hospital_incidence']:
             integrated[data_type] = calibration_data.get(data_type)
         
@@ -177,7 +177,7 @@ class IntegratedEmpiricalLoader:
     def _integrate_resistance_data(self, surveillance_data: Dict, calibration_data: Dict) -> pd.DataFrame:
         """Integrate resistance surveillance data with existing calibration data."""
         
-        # Start with existing calibration data
+        # Begin with the project resistance-overlay file.
         base_resistance_data = calibration_data.get('resistance')
         
         if base_resistance_data is not None:
@@ -327,7 +327,7 @@ class IntegratedEmpiricalLoader:
     def _integrate_drug_usage_data(self, surveillance_data: Dict, calibration_data: Dict) -> pd.DataFrame:
         """Integrate drug usage data from surveillance sources."""
         
-        # Start with existing calibration data
+        # Drug-use integration currently uses the project calibration file.
         base_usage_data = calibration_data.get('drug_usage')
         
         if base_usage_data is not None:
@@ -338,9 +338,6 @@ class IntegratedEmpiricalLoader:
                 'units', 'source_quality', 'notes'
             ])
         
-        # For now, pass through existing calibration data
-        # Future enhancement: integrate AMU data from WHO GLASS and ECDC
-        
         logger.info(f"   Drug usage data: {len(integrated_usage):,} records")
         return integrated_usage
 
@@ -348,29 +345,24 @@ def load_integrated_empirical_data(
     include_best_guess_placeholders: bool = False,
 ) -> Dict[str, pd.DataFrame]:
     """
-    Main function to load integrated empirical data.
-    
-    This function can be used as a drop-in replacement for the original
-    load_empirical_calibration_data() function.
+    Load the integrated comparison-overlay datasets.
     """
     loader = IntegratedEmpiricalLoader(
         include_best_guess_placeholders=include_best_guess_placeholders
     )
     return loader.load_integrated_empirical_data()
 
-# Compatibility function for existing code
+# Compatibility entry point with the standard empirical-loader name.
 def load_empirical_calibration_data(
     include_best_guess_placeholders: bool = False,
 ):
-    """
-    Enhanced version of original function with integrated surveillance data.
-    """
+    """Load integrated comparison-overlay datasets."""
     return load_integrated_empirical_data(
         include_best_guess_placeholders=include_best_guess_placeholders
     )
 
 if __name__ == "__main__":
-    # Test the integrated loader
+    # Print a concise inventory of eligible overlay rows.
     data = load_integrated_empirical_data()
     
     print("Integrated Comparison Overlay Summary:")

@@ -72,9 +72,9 @@ def load_empirical_calibration_data(
             if filename.exists():
                 df = pd.read_csv(filename, keep_default_na=False, na_values=[""])
 
-                # Fix: Drug failure data has bacteria/drug columns swapped
+                # Normalize known malformed drug-failure files when entity
+                # values reveal that the two columns are swapped.
                 if data_type == 'drug_failure' and 'bacteria' in df.columns and 'drug' in df.columns:
-                    # Check if swap is needed (if bacteria column contains drug names)
                     sample_bacteria = df['bacteria'].iloc[0] if len(df) > 0 else ""
                     if any(drug_name in sample_bacteria for drug_name in ['amoxicillin', 'ciprofloxacin', 'vancomycin']):
                         print(f"   Fixing swapped bacteria/drug columns in {filename}")

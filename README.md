@@ -1,289 +1,273 @@
-# AMR Simulation
+# AMR Simulation Framework
 
-Agent-based simulation of antimicrobial resistance dynamics across 42 bacterial species, 62 antibiotics, 46 resistance mechanisms, and 6 world regions over the period 1930–2035.
+An individual-based simulation framework for studying antimicrobial use,
+antimicrobial resistance (AMR), infection outcomes, and potential policy
+interventions across a broad bacterial and antibacterial ecosystem.
 
-## Model Inventory Authority
+The current executable configuration represents:
 
-The executable bacteria, drug, and resistance-mechanism inventories are defined by
-`BACTERIA_LIST`, `DRUG_SHORT_NAMES`, and `ResistanceMechanism::all()` in
-`src/simulation/population.rs`. Current parameter values are defined in `src/config.rs`.
-Files under `archive/` are historical evidence only and are never model or analysis inputs.
-Repository tests keep the counts above aligned with the executable inventories.
+- 42 bacteria
+- 62 individual antibacterial drugs
+- 39 internal drug classes
+- 46 resistance mechanisms
+- 6 world regions
+- daily simulation from 1930 to 2025 for calibration, or to 2035 for policy
+  branches
 
-## Quick Start
+The framework is under active development and calibration. It is intended for
+research and policy analysis, not for diagnosis, prescribing, or individual
+clinical decision-making. A formal open-source licence has not yet been
+selected, so this repository is not yet a released software version.
 
-### Prerequisites
+## Scientific Scope
 
-- **Rust** (stable, edition 2021)
-- **Cargo** (comes with Rust)
-- Optional: Python 3.10+ for output analysis
+The model follows simulated people through demographic change, bacterial
+infection and carriage, symptoms and sepsis, diagnostic testing, antibacterial
+treatment, resistance dynamics, and mortality.
 
-### Build and Run
+Resistance can be introduced or altered through:
+
+- resistance profiles sampled at infection or carriage acquisition
+- de novo mechanism emergence under relevant drug pressure
+- horizontal gene transfer for eligible mobile mechanisms
+- mechanism reversion and fitness costs
+- treatment selection and differential bacterial clearance
+- regional and care-setting resistance history
+- a bounded local persistence archive representing resistant strains circulating
+  outside the finite simulated sample
+
+Infection incidence is externally parameterised. The model does not dynamically
+generate infection incidence from the prevalence of infected people. Its
+dynamic population interaction concerns resistance profiles and treatment
+pressure rather than explicit person-to-person transmission.
+
+The framework deliberately does not model organism-drug MIC values or detailed
+drug-specific PK/PD. Resistance severity is represented by bounded model
+quantities such as `any_r`, while Figure 2 calibration prevalence is based on
+whether `any_r > 0`.
+
+See the [technical model description](model_description/MODEL_DESCRIPTION.md)
+for the complete scientific and implementation specification.
+
+## Inventory Authority
+
+The executable inventories are defined in:
+
+- `BACTERIA_LIST` in `src/simulation/population.rs`
+- `DRUG_SHORT_NAMES` in `src/simulation/population.rs`
+- `ResistanceMechanism::all()` in `src/simulation/population.rs`
+
+Current parameter values are defined in `src/config.rs`. Files under `archive/`
+are historical evidence only and are not model or analysis inputs. Repository
+tests protect the dimensions and relationships between the executable
+inventories, parameters, targets, and output schema.
+
+## Requirements
+
+- Rust stable with Cargo; the crate uses Rust edition 2021
+- Python 3.10 or later for analysis
+- Substantial RAM and runtime for research-scale simulations
+
+The Python environment is currently specified by lower bounds in
+`requirements.txt`; a frozen release environment is still to be added.
+
+## Build and Test
 
 ```bash
 cargo build --release
+cargo test --all-targets
+```
+
+The default binary is `executable_amr`.
+
+## Run the Simulation
+
+```bash
 cargo run --release
 ```
 
-The executable is named `executable_amr`. All configuration is hardcoded in `src/main.rs` — there are no command-line arguments. To adjust the simulation, edit the constants at the top of `main()`:
+Run settings are currently selected near the top of `main()` in
+`src/main.rs`. The checked-in configuration uses a population of 3,000,000,
+`CalibrationMode::Full`, random seeding, and no individual or infection-journey
+logging. This is a long research run, not a quick installation test.
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `population_size` | 3,000,000 | Number of simulated individuals |
-| `calibration_mode` | `CalibrationMode::Partial` | Output/detail mode for calibration vs full policy runs |
-| `time_steps` | 35,040 for calibration; 38,325 for policy runs | Days simulated by mode |
-| `log_individuals` | `false` | Per-individual logging (very verbose) |
-| `log_infection_journeys` | `false` | Infection lifecycle logging |
-| `infection_journey_sample_rate` | 1.0 | Fraction of journeys to log |
-| `use_fixed_seed` | `false` | Deterministic RNG for reproducibility |
-| `fixed_seed_value` | 1,234,567,890 | Seed when fixed seeding is on |
-| `RAYON_WORKER_STACK_BYTES` | 4 MiB | Rayon worker stack size |
-| `infection_journey_bacteria_filter` | `None` | Filter journeys to one species |
-| `use_disk_branch_checkpointing` | `false` | Serialise branch checkpoints to disk |
+For a smoke test only, temporarily use a much smaller `population_size`.
+Outputs from a small population must not be interpreted as calibrated model
+results.
 
-### Fixed-Seed Reproducibility
+### Run Modes
 
-Fixed-seed runs use named ChaCha RNG streams derived from the run seed. Daily population updates are processed in fixed-size deterministic chunks, so a fixed seed is not tied to Rayon worker assignment or thread count. `AMR_RNG_SEED=<u64>` overrides the hardcoded seed setting for replay.
+| Mode | Years and output |
+|---|---|
+| `FullMinimal` | Sparse 2022-2025 output containing drug share and bacteria-drug resistance fields |
+| `Full` | Sparse 2022-2025 output containing all fields required by `calibration_summary.py` |
+| `Partial` | Daily 1930-2025 output for historical time-series analysis |
+| `None` | Full 1930-2035 run with selected policy branches from 2027 |
 
-For the same source, configuration, and seed, fixed-seed summary output should be identical across repeated runs and across different `RAYON_NUM_THREADS` values.
+`time_steps` is selected from the mode in `src/main.rs`: 35,040 days for
+calibration modes and 38,325 days for the full policy horizon.
 
-### Stack Safety
+### Reproducible Seeds
 
-The checked-in Rayon worker stack default is 4 MiB. Population updates use deterministic chunks and boxed chunk totals so Rayon worker stacks do not carry the large `LocalTotals` accumulator by value.
+The launcher generates and records a random `u64` seed unless fixed seeding is
+enabled. `AMR_RNG_SEED` overrides the source setting and is the preferred way to
+replay a run.
 
-### Limiting CPU Cores
+PowerShell:
+
+```powershell
+$env:AMR_RNG_SEED = "1234567890"
+cargo run --release
+```
+
+Bash:
+
+```bash
+AMR_RNG_SEED=1234567890 cargo run --release
+```
+
+Fixed-seed runs use named ChaCha RNG streams and deterministic population
+chunks. For the same source, configuration, and seed, summary output is
+expected to be reproducible across repeated runs and different
+`RAYON_NUM_THREADS` settings.
+
+### CPU Threads
+
+Rayon uses the available logical cores unless `RAYON_NUM_THREADS` is set.
+
+PowerShell:
 
 ```powershell
 $env:RAYON_NUM_THREADS = "4"
 cargo run --release
 ```
 
-### Remote Submission
-
-```powershell
-.\submit.ps1
-```
-
-Copies the project to a remote Linux build runner via SSH, compiles, and runs there.
-
-## Project Structure
-
-```
-src/
-├── main.rs                      Entry point, run configuration, validation
-├── config.rs                    All parameters (~11,700 lines), HashMap-based
-├── rules/
-│   └── mod.rs                   Daily update rules (~5,800 lines)
-└── simulation/
-    ├── mod.rs                   Module declarations
-    ├── simulation.rs            Main simulation loop, CSV export (~5,200 lines)
-    ├── population.rs            Individual struct, enums, constants (~1,700 lines)
-    └── journey_logger.rs        Infection journey CSV logger
-
-amr_simulation_output_analysis/  Python analysis package
-├── amr_analysis.py              Main analysis entry point
-├── calibration_summary.py       Calibration metric computation
-├── column_selector.py           Dynamic column selection from wide CSVs
-├── config.py                    Analysis configuration
-├── data_loader.py               Pandas-based CSV loader
-├── polars_loader.py             Polars-based fast loader
-├── multi_run_activity_r_plot.py Multi-run resistance comparison
-├── utils.py                     Shared utilities
-├── empirical/                   Provenance-controlled comparison overlays
-│   ├── acquire_empirical_data.py
-│   ├── data_loader.py
-│   ├── enhanced_empirical_loader.py
-│   └── normalizers.py
-└── plotting/                    Visualisation modules
-    ├── base_plots.py
-    ├── detail_plots.py
-    └── grouped_plots.py
-
-amr_simulation_output_analysis_outputs/
-    simulation_summary_NNNNNN.csv   Output CSVs (one per run)
-
-archive/                         Historical, non-executable snapshots and documentation
-data/                            Empirical reference data
-infection_journeys/              Infection journey log output
-output_graphs/                   Generated plots
-```
-
-## Architecture
-
-### Simulation Loop
-
-`Simulation::run()` iterates over `time_steps` days. Each day:
-
-1. The population is partitioned across threads with **Rayon** (`par_chunks_mut`).
-2. Each thread applies the daily rule sequence to its individuals and accumulates per-thread `LocalTotals`.
-3. Thread-local totals are merged into a global `TimestepSummary`.
-4. Population-level caches (`MajorityRCache`, `MechanismProfileCache`) are rebuilt from the merged totals for the next day.
-
-### Daily Rule Sequence
-
-Applied in order for each individual (see `rules/mod.rs`):
-
-| # | Rule | Description |
-|---|------|-------------|
-| 1 | Age update | Increment age, assign age category |
-| 2 | Background mortality | Non-infection death (age/region/sex-dependent) |
-| 3 | Immunodeficiency transitions | Onset/recovery of transient or chronic immunosuppression |
-| 4 | Hospitalisation | Admission/discharge based on clinical state |
-| 5 | Travel | Region reassignment |
-| 6 | Infection acquisition | Community/hospital/carrier-derived new infections |
-| 7 | Symptom onset | Infection → symptomatic transition |
-| 8 | Sepsis onset | Symptomatic → sepsis progression |
-| 9 | Sepsis resolution | Recovery or death from sepsis |
-| 10 | Bacterial testing | Culture ordering and result |
-| 11 | Resistance testing | AST ordering and result |
-| 12 | Drug initiation | Empiric or targeted therapy selection |
-| 13 | Drug level update | PK decay, toxicity reservoir accumulation |
-| 14 | Drug toxicity check | Sub-lethal discontinuation, lethal toxicity death |
-| 15 | Drug efficacy | Active drug reduces bacterial load |
-| 16 | Drug treatment stop | Course completion, clinical response |
-| 17 | Natural clearance | Immune-mediated infection resolution |
-| 18 | Resistance emergence | De novo mutation under drug pressure |
-| 19 | Resistance reversion | Fitness-cost-driven loss of resistance |
-| 20 | Microbiome dynamics | Resistance promotion/decay in carriage flora |
-| 21 | HGT | Horizontal gene transfer (mechanism-driven, compartment-aware) |
-
-### Key Data Structures
-
-#### `Individual` (population.rs)
-
-~60 fields organised into:
-
-- **Demographics**: `age_days`, `sex`, `region`, `age_category`
-- **Location**: `hospital_status`, `hospital_days`
-- **Infection state** (per-bacteria `Vec`): `cur_bacteria_level`, `cur_infection_duration`, `cur_syndrome`, `symptomatic`, `sepsis`
-- **Microbiome** (per-bacteria `Vec`): `is_carrier`, `carriage_days`
-- **Microbiome Disruption**: `microbiome_disruption_level` (long-term antibiotic ecological damage)
-- **Treatment** (per-drug `Vec`): `cur_drug_level`, `drug_treatment_days`, `toxicity_reservoir`, `toxicity_stopped_drug_day`
-- **Resistance** (bacteria × mechanism `Vec<Vec<bool>>`): `cur_resistance`
-- **Computed resistance** (per-bacteria): `Resistance` struct with `microbiome_r`, `test_r`, `activity_r`, `any_r`, `majority_r`
-- **Testing**: `test_bacteria_result`, `test_r_result`, `test_day`
-- **Mortality/risk**: `immunodeficiency_type`, `not_under_care`
-- **Tracking**: `drugs_taken`, `lifetime_infection_count`, `death_cause`
-
-#### `Resistance` Struct
-
-| Field | Type | Meaning |
-|-------|------|---------|
-| `microbiome_r` | `f64` | Fraction of resistance in gut/carriage flora |
-| `test_r` | `f64` | Last AST result (0 or 1) |
-| `activity_r` | `f64` | Computed resistance affecting drug efficacy |
-| `any_r` | `f64` | Max of microbiome/test/activity |
-| `majority_r` | `f64` | Population-level prevalence (from cache) |
-
-#### Parameter System (config.rs)
-
-All ~5,000+ parameters are stored in a global `lazy_static` `HashMap<String, f64>`. Parameters are looked up by string key at runtime:
-
-```rust
-let val = get_param("sepsis_death_base_log_odds");
-let val = get_bacteria_param("escherichia_coli", "acquisition_log_odds");
-let val = get_region_param("africa", "hospitalization_log_odds");
-```
-
-Key naming conventions:
-- `bacteria_{name}_{param}` — per-bacteria parameters
-- `drug_{name}_{param}` — per-drug parameters
-- `{region}_{param}` — per-region parameters
-- `{bacteria}_{drug}_potency_when_no_r` — potency matrix entries
-- `hgt_prob_{source}_to_{target}` — HGT probability matrix
-
-See [MODEL_DESCRIPTION.md](MODEL_DESCRIPTION.md) for the complete parameter reference.
-
-#### Caches
-
-| Cache | Rebuilt | Purpose |
-|-------|---------|---------|
-| `MajorityRCache` | Every timestep | Rolling window of population-level resistance prevalence per bacteria×drug |
-| `MechanismProfileCache` | Every timestep | Reservoir sample (≤200) of resistance mechanism profiles from infected individuals per bacteria |
-
-### Policy System
-
-`PolicyAdjustments` defines three built-in policy branches that diverge at `POLICY_BRANCH_YEAR` (2027):
-
-| Branch | Description |
-|--------|-------------|
-| `baseline` | No intervention changes |
-| `stewardship` | Antibiotic stewardship adjustments |
-| `counterfactual` | Alternative scenario |
-
-At the branch point, the simulation serialises (or clones) the full population state and runs each branch independently to the end.
-
-### Key Constants
-
-| Constant | Value | Location |
-|----------|-------|----------|
-| `INFECTION_EPS` | 0.001 | Minimum meaningful infection level |
-| `MICROBIOME_MAJORITY_THRESHOLD` | 0.5 | Threshold for minority→majority resistance promotion |
-| `SIMULATION_START_YEAR` | 1930.0 | Calendar year at day 0 |
-| `POLICY_BRANCH_YEAR` | 2027.0 | Year policies diverge |
-| `MAX_MECHANISM_PROFILES` | 200 | Reservoir sample size per bacteria |
-| `REGION_COUNT` | 6 | Number of world regions |
-| `BACTERIA_COUNT` | 42 | Number of bacterial species |
-| `DrugClass::NUM_CLASSES` | 18 | Number of drug classes |
-
-## Output Format
-
-Each run produces a single CSV file: `amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv`
-
-Each row is one timestep (day). Columns include:
-
-- **Scalar**: `day`, `year`, `total_alive`, `total_infected`, `total_on_treatment`, `total_in_hospital`, `total_sepsis`, `total_died_infection`, `total_died_sepsis`, `total_died_background`, `total_died_toxicity`, `total_new_infections`, `drug_stops_due_to_toxicity`, `policy_name`, ...
-- **Per-bacteria** (~42 each): `{bacteria}_infected`, `{bacteria}_carriers`, `{bacteria}_deaths`, `{bacteria}_new_infections`, ...
-- **Per-drug** (~58 each): `{drug}_prescribed`, `{drug}_active_treatments`, ...
-- **Per-bacteria×drug** (~2,436 each): `{bacteria}_{drug}_activity_r`, `{bacteria}_{drug}_majority_r`, ...
-- **Per-region**: `{region}_infected`, `{region}_hospitalized`, ...
-
-The CSV is wide-format with hundreds of columns per row.
-
-## Analysis Tools
-
-### Python Setup
+Bash:
 
 ```bash
-pip install -r requirements.txt
+RAYON_NUM_THREADS=4 cargo run --release
 ```
 
-Dependencies: `pandas`, `matplotlib`, `seaborn`, `numpy`, `scipy`, `polars`, `pyarrow`
+## Outputs and Run Provenance
 
-### Running Analysis
+Simulation outputs are written under
+`amr_simulation_output_analysis_outputs/`. A completed run normally produces:
 
-```python
-from amr_simulation_output_analysis.amr_analysis import run_analysis
-run_analysis("amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv")
+- `simulation_summary_NNNNNN.csv`
+- `run_metadata_<timestamp>_seed_<seed>.txt`
+- `config_validation_<timestamp>.txt`
+
+The summary CSV uses output schema version 1. Its fields depend on the selected
+run mode and can number in the tens of thousands. The metadata records the
+source hash, seed and seed source, run ID, population, time steps, mode,
+policies, thread count, duration, output path, CSV SHA-256 hash, validation
+status, and completion or failure state.
+
+The source hash can be supplied by `AMR_SOURCE_HASH` or `source_hash.txt`.
+Otherwise the launcher uses the current Git commit and marks a dirty worktree.
+For formal analyses, retain the metadata file and exact source snapshot with
+the CSV.
+
+Parameter validation is strict by default. `AMR_CONFIG_VALIDATION=warn` permits
+a diagnostic run to continue despite validation errors, but such a run should
+not be used as a calibrated research result.
+
+## Python Analysis
+
+Create an environment and install the current analysis dependencies:
+
+```bash
+python -m venv .venv
+python -m pip install -r requirements.txt
 ```
 
-Key analysis modules:
+Activate the environment using the command appropriate for the operating
+system. Select the input CSV through `DataConfig.simulation_file` in
+`amr_simulation_output_analysis/config.py`, then run:
 
-| Module | Purpose |
-|--------|---------|
-| `amr_analysis.py` | Main orchestrator |
-| `calibration_summary.py` | Compare outputs to calibration targets |
-| `multi_run_activity_r_plot.py` | Overlay resistance trends across runs |
-| `plotting/base_plots.py` | Time series, prevalence plots |
-| `plotting/detail_plots.py` | Per-bacteria/drug detailed views |
-| `plotting/grouped_plots.py` | Drug-class and region aggregations |
-| `empirical/` | Load provenance-checked observed comparisons and optional best-guess placeholder overlays |
+```bash
+python -m amr_simulation_output_analysis.amr_analysis
+```
 
-## Dependencies
+The analysis writes calibration summaries and configured plots under
+`output_graphs/`. Plot selection, policies, output format, caching, and memory
+settings are controlled by `PlotConfig` in
+`amr_simulation_output_analysis/config.py`.
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `rand` | 0.8 | Random number generation (SmallRng) |
-| `rayon` | 1.7 | Data-parallel iteration |
-| `lazy_static` | 1.4 | Global parameter initialisation |
-| `chrono` | 0.4 | Timestamp formatting |
-| `csv` | 1.3 | CSV export |
-| `serde` | 1.0 | Serialisation for branch checkpointing |
-| `bincode` | 1.3 | Binary serialisation |
-| `log` | 0.4 | Logging framework |
-| `env_logger` | 0.11 | Log output to stderr |
-| `plotters` | 0.3 | Optional plotting (feature-gated behind `plots`) |
+Run the Python regression tests from the repository root with:
 
-## License
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
 
-Not yet specified.
+## Calibration Evidence
+
+The current calibration combines sourced estimates, transformed comparisons,
+evidence-informed benchmarks, and transparent expert-informed placeholders.
+These categories must not be treated as interchangeable observations.
+
+Key provenance documents are:
+
+- [Resistance target provenance](data/RESISTANCE_TARGETS.md)
+- [Comparison overlay provenance](data/empirical/OVERLAY_PROVENANCE.md)
+- `data/resistance_targets_v1.manifest.json`
+
+Best-guess placeholder overlays are disabled by default and are not calibration
+score inputs.
+
+## Policy Branches
+
+`CalibrationMode::None` can run five independent branches from 2027:
+
+| ID | Branch |
+|---:|---|
+| 0 | Baseline continuation |
+| 1 | Antimicrobial stewardship example |
+| 2 | Resistance-suppressed AMR counterfactual |
+| 3 | Near-complete diagnostics bound |
+| 4 | Equal global access example |
+
+These branches are research scenarios and should not be interpreted as
+validated policy forecasts without scenario-specific calibration, uncertainty
+analysis, and suitable comparison across well-fitting parameter sets.
+
+## Repository Layout
+
+```text
+src/
+  main.rs                         Run launcher and provenance
+  config.rs                       Model parameters
+  config_validation.rs            Parameter validation
+  observability.rs                Run/source observability
+  rules/mod.rs                    Daily individual-level rules
+  simulation/
+    population.rs                 State, inventories, and enums
+    simulation.rs                 Simulation loop, caches, branches, CSV export
+    journey_logger.rs             Optional sampled infection journeys
+
+amr_simulation_output_analysis/   Python analysis package
+data/                             Calibration targets and comparison data
+model_description/                Technical model description
+tests/                            Rust integration and Python regression tests
+paper_tables/                     Generated manuscript tables and figures
+archive/                          Historical, non-executable material
+```
+
+## Infection Journeys
+
+Sampled infection-journey logging can be enabled in `src/main.rs` for
+illustrative or diagnostic work. It records much denser individual traces and
+can materially slow a run, so it is disabled for routine calibration.
+
+## Contribution and Release Status
+
+Contribution guidance, citation metadata, a stable run configuration
+interface, a locked Python environment, and a formal release archive are still
+being prepared. Until those are available, please treat the repository as an
+active research workspace rather than a stable public API.
+
+## Licence
+
+No software licence has yet been selected. A standard open-source licence and
+the appropriate UCL/contributor copyright notice must be added before formal
+public release and reuse.

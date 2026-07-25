@@ -3,8 +3,7 @@
 Polars-based Data Loading for AMR Simulation Output Analysis
 
 This module provides high-performance CSV loading and preprocessing using Polars.
-It delivers 2-5x speedup over pandas for large simulation files, while maintaining
-backward compatibility by converting to pandas DataFrames for downstream plotting.
+Results are converted to pandas DataFrames for downstream plotting.
 
 Key optimizations:
 - Lazy evaluation for efficient query planning
@@ -34,7 +33,7 @@ except ImportError:
 
 def load_csv_with_polars(csv_path: Path) -> Optional["pl.DataFrame"]:
     """
-    Load a CSV file using Polars for maximum performance.
+    Load a CSV file using Polars.
     
     Args:
         csv_path: Path to the CSV file
@@ -89,10 +88,9 @@ def polars_safe_divide(
 
 def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: bool = True) -> "pl.DataFrame":
     """
-    Preprocess simulation data using Polars for maximum performance.
+    Preprocess simulation data using Polars.
     
-    This mirrors the preprocessing logic in data_loader.py but uses Polars
-    for 2-5x speedup on large datasets.
+    This mirrors the preprocessing logic in data_loader.py.
     
     Args:
         df: Polars DataFrame with raw simulation data

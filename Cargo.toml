@@ -4,9 +4,8 @@ version = "0.1.0"
 edition = "2021"
 default-run = "executable_amr"
 
-# Explicitly define the binary target
 [[bin]]
-name = "executable_amr" # You can choose a name for your executable
+name = "executable_amr"
 path = "src/main.rs"
 
 [[bin]]
@@ -15,8 +14,7 @@ path = "src/bin/dump_parameter_appendix.rs"
 
 [features]
 default = []
-# Enable "plots" when the plotting helpers are needed; it keeps heavy GUI deps out of
-# the normal build so rebuilds stay fast.
+# Optional Rust plotting helpers; the Python package provides the main analysis workflow.
 plots = ["dep:plotters"]
 
 [dependencies]

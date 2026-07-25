@@ -3,14 +3,11 @@
 Data Loading and Caching for AMR Simulation Output Analysis
 
 This module handles loading and caching of simulation data to eliminate 
-repeated CSV reads that were causing performance issues in the original
-analyze_simulation.py script.
+repeated CSV reads.
 
-Performance optimization: Uses Polars for 2-5x faster CSV loading when available,
-with automatic fallback to pandas if Polars is not installed.
+Polars is used when available, with automatic fallback to pandas.
 
-Memory optimization: Uses column subsetting to load only needed columns,
-reducing memory by 70-90% for large simulation files.
+Column subsetting limits loading to fields required by the requested analyses.
 """
 
 import pandas as pd
@@ -30,7 +27,7 @@ from .summary_schema import (
 
 def downcast_floats(df: pd.DataFrame, target_dtype: str = 'float32') -> pd.DataFrame:
     """
-    Downcast float64 columns to float32 to reduce memory by ~50%.
+    Downcast float64 columns to the requested lower-precision dtype.
     
     Args:
         df: DataFrame with float64 columns
@@ -68,7 +65,7 @@ def _missing_required_analysis_columns(
     cached_column_set = set(cached_columns)
     return [column for column in required_columns if column not in cached_column_set]
 
-# Import Polars loader for optimized CSV processing
+# Import the optional Polars loader.
 try:
     from .polars_loader import (
         load_csv_with_polars,
@@ -205,7 +202,7 @@ class DataCache:
             preprocessed_parquet_path = self._simulation_csv_path.with_suffix('.preprocessed.parquet')
             if preprocessed_parquet_path.exists() and not force_reload:
                 try:
-                    # Use Polars for faster parquet reading if available
+                    # Use Polars for parquet reading when available.
                     import time as _time
                     _t_preproc = _time.time()
                     if is_polars_available():
@@ -383,11 +380,11 @@ def _resolve_parquet_cache_path(csv_path: Path, configured_path: Optional[Path])
 
 
 def _read_parquet_cache(parquet_path: Path) -> Optional[pd.DataFrame]:
-    """Attempt to load a cached parquet dataframe using Polars (faster) or pandas."""
+    """Attempt to load a cached parquet dataframe using Polars or pandas."""
     import time as _time
     _t_start = _time.time()
     
-    # Try Polars first - much faster parquet reading
+    # Try Polars first.
     if is_polars_available():
         try:
             import polars as pl
@@ -451,11 +448,9 @@ def load_simulation_data(
     """
     Load simulation data from CSV file with optional column subsetting.
     
-    Uses Polars for 2-5x faster loading when available, with automatic
-    fallback to pandas if Polars is not installed.
+    Uses Polars when available, with automatic fallback to pandas.
     
-    Memory optimization: When use_column_subset=True (default), only loads
-    columns needed for grouped plots and calibration, reducing memory by 70-90%.
+    When use_column_subset=True, only requested analysis columns are loaded.
     
     Args:
         csv_file: Path to the simulation summary CSV file
@@ -536,7 +531,7 @@ def load_simulation_data(
                     csv_path,
                 )
 
-    # Try Polars first for 2-5x faster loading (but only if not subsetting, as polars API differs)
+    # Use Polars when loading the full column set.
     if is_polars_available() and usecols is None:
         try:
             polars_df = load_csv_with_polars(csv_path)
@@ -549,7 +544,7 @@ def load_simulation_data(
                 gc.collect()
                 if df is not None:
                     validate_summary_frame(df, csv_path)
-                    # Downcast floats to reduce memory by ~50%
+                    # Downcast floating-point columns to reduce memory use.
                     df = downcast_floats(df)
                     _write_parquet_cache(df, parquet_path, parquet_compression)
                     return df
@@ -620,8 +615,7 @@ def preprocess_data(
     """
     Add calculated columns and prepare data for analysis.
     
-    Uses Polars for 2-5x faster preprocessing when available, with automatic
-    fallback to pandas if Polars is not installed.
+    Uses Polars when available, with automatic fallback to pandas.
     
     Args:
         df: Raw simulation data DataFrame
@@ -721,8 +715,8 @@ def preprocess_data(
     df['infection_proportion'] = safe_divide(df['total_currently_infected'], df['total_population'])
     df['death_proportion'] = safe_divide(df['total_deaths'], df['total_population'])
     
-    # Calculate resistance proportion among infected (excluding MDR TB)
-    # MDR-TB has guaranteed ~90% rifampicin resistance, which skews overall resistance metrics
+    # This overview metric excludes MDR-TB, whose configured rifampicin
+    # resistance seeding probability is 0.90.
     tb_slug = "mdr_mycobacterium_tuberculosis"
     tb_infected_col = f"{tb_slug}_currently_infected"
     tb_res_carrier_col = f"{tb_slug}_resistant_infected_carrier_count"
@@ -737,7 +731,7 @@ def preprocess_data(
         df['resistance_among_infected'] = safe_divide(resistance_excl_tb, infected_excl_tb)
         logger.info("Calculated resistance_among_infected excluding MDR-TB")
     else:
-        # Fallback to original calculation if TB columns not found
+        # Use the all-bacteria calculation when TB-specific columns are unavailable.
         df['resistance_among_infected'] = safe_divide(df['total_with_resistance'], df['total_currently_infected'])
     
     # Calculate infection duration proportions

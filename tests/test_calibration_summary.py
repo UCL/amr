@@ -19,6 +19,7 @@ from amr_simulation_output_analysis.calibration_summary import (
     _calculate_calibration_score,
     _calculate_resistance_fit_metrics,
     _calculate_serious_resistance_locus_table,
+    _calculate_syndrome_incidence_table,
     _write_calibration_score_summary,
     _write_resistance_provenance_summary,
 )
@@ -27,6 +28,53 @@ from amr_simulation_output_analysis.make_paper_tables import (
     _clean_df,
     _figure_20_parse_calibration_summary,
 )
+
+
+class SyndromeIncidenceTests(unittest.TestCase):
+    def test_person_acquisition_counters_produce_incidence_and_shares(self) -> None:
+        data = {
+            "total_population": [1_000.0, 1_000.0],
+            "syndrome_1_infection_acquisition_people_count": [10, 20],
+            "syndrome_2_infection_acquisition_people_count": [5, 5],
+        }
+        for syndrome_id in range(3, 11):
+            data[f"syndrome_{syndrome_id}_infection_acquisition_people_count"] = [
+                0,
+                0,
+            ]
+
+        result = _calculate_syndrome_incidence_table(
+            pd.DataFrame(data),
+            window_years=2.0,
+        ).set_index("Syndrome")
+
+        self.assertAlmostEqual(
+            result.loc["Urinary tract", "Incidence per 100k per year"],
+            1_500.0,
+        )
+        self.assertAlmostEqual(
+            result.loc["Skin and soft tissue", "Share of total (%)"],
+            25.0,
+        )
+        self.assertAlmostEqual(
+            result.loc["TOTAL", "Incidence per 100k per year"],
+            2_000.0,
+        )
+        self.assertAlmostEqual(result.loc["TOTAL", "Share of total (%)"], 100.0)
+
+    def test_missing_person_acquisition_counter_is_an_error(self) -> None:
+        data = {"total_population": [1_000.0]}
+        for syndrome_id in range(1, 10):
+            data[f"syndrome_{syndrome_id}_infection_acquisition_people_count"] = [0]
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "syndrome_10_infection_acquisition_people_count",
+        ):
+            _calculate_syndrome_incidence_table(
+                pd.DataFrame(data),
+                window_years=1.0,
+            )
 
 
 class ResistanceWeightTests(unittest.TestCase):

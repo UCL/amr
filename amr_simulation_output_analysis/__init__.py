@@ -3,8 +3,6 @@
 AMR Simulation Output Analysis Package
 
 This package provides modular analysis tools for AMR simulation data.
-It replaces the monolithic analyze_simulation.py script with organized,
-maintainable modules.
 
 Key Features:
 - Data caching to avoid repeated CSV reads
@@ -30,14 +28,12 @@ from .utils import (
 # Plotting modules
 from .plotting.grouped_plots import create_grouped_plots
 from .plotting.detail_plots import create_detail_plots
-# TODO: Add when implemented
-# from .plotting.base_plots import BasePlot
 
 import time as _time
 
 def create_all_plots(config=None):
     """
-    Main function to create all plots - equivalent to original analyze_simulation.py
+    Create the grouped and detail plots enabled in the configuration.
     
     Args:
         config (PlotConfig, optional): Configuration for plot generation.
@@ -145,7 +141,7 @@ def create_all_plots(config=None):
     
     # Create grouped plots only when enabled
     if getattr(config, 'grouped_plots', True):
-        print("Creating grouped plots (Figures 1-10)...")
+        print("Creating grouped plots...")
         _t2 = _time.time()
         create_grouped_plots(df, config, run_identifier=run_identifier)
         print(f"[TIME] Grouped plots took {_time.time() - _t2:.1f} seconds")
@@ -196,7 +192,6 @@ def create_all_plots(config=None):
         config.death_causes,
         config.resistance_among_infected,
         config.global_antibiotic_activity,
-        # Add more as needed
     ])
     
     if detail_plot_enabled:
@@ -224,7 +219,6 @@ __all__ = [
     
     # Plotting
     'create_grouped_plots', 'create_detail_plots',
-    # TODO: Add when implemented: 'BasePlot',
     
     # Empirical data
     'load_empirical_calibration_data', 'normalize_name_for_empirical_matching'

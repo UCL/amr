@@ -4,7 +4,7 @@ Plotting modules for AMR simulation output analysis.
 
 This package contains:
 - base_plots: Base classes and common plotting utilities
-- grouped_plots: Overview plots (Figures 1-9) 
+- grouped_plots: Grouped summary plots
 - detail_plots: Granular analysis plots saved to subfolders
 """
 
