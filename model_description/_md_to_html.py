@@ -35,7 +35,13 @@ body {{
 h1 {{ border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }}
 h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 40px; }}
 h3 {{ margin-top: 30px; }}
-table {{ border-collapse: collapse; margin-bottom: 20px; width: 100%; }}
+table {{
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}}
 th, td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
 th {{ background-color: #f2f2f2; font-weight: 600; }}
 tr:nth-child(even) {{ background-color: #fafafa; }}

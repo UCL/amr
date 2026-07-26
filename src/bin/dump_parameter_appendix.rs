@@ -42,7 +42,7 @@ const SYNDROME_NAMES: [&str; 11] = [
     "other",
 ];
 
-const VACCINES: [&str; 3] = ["pneumococcal", "meningococcal", "hib"];
+const VACCINES: [&str; 4] = ["pneumococcal", "meningococcal", "hib", "pertussis"];
 
 fn format_value(v: f64) -> String {
     if v == 0.0 {
@@ -1317,8 +1317,10 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
     println!("#### Mechanism Enhancement Multipliers by Drug Class");
     println!();
     println!(
-        "How much resistance each mechanism confers against each drug class. \
-              Only non-zero entries shown."
+        "Raw class enhancement values loaded for each mechanism. These values are applied only \
+              to bacterium-drug pairs admitted by the executable host and drug-specific \
+              applicability gates in `rules::mechanism_applies_to_drug`; non-applicable fallback \
+              values shown here are inert. Only non-zero raw entries are shown."
     );
     println!();
     let mut rows = Vec::new();
