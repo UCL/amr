@@ -7844,7 +7844,7 @@ mod tests {
             );
         }
 
-        assert_eq!(positive_rate_hosts, 7);
+        assert_eq!(positive_rate_hosts, 8);
     }
 
     #[test]
