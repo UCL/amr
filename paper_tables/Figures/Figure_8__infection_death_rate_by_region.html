@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Figure 4. Calibration: 2025 infection deaths by bacterium</title><style>
+<head><meta charset="UTF-8"><title>Figure 8. Infection death rate by region, 2022-2025</title><style>
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5; max-width: 1500px; margin: 0 auto;
@@ -33,8 +33,8 @@ a { color: #2980b9; }
 </style></head>
 <body>
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
-<img src='Figure_4__calibration_infection_deaths_by_bacteria.png' alt='Figure_4__calibration_infection_deaths_by_bacteria' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
-<p class='note'>Download: <a href='Figure_4__calibration_infection_deaths_by_bacteria.png'>PNG</a> | <a href='Figure_4__calibration_infection_deaths_by_bacteria.svg'>SVG</a></p>
+<img src='Figure_8__infection_death_rate_by_region.png' alt='Figure_8__infection_death_rate_by_region' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
+<p class='note'>Download: <a href='Figure_8__infection_death_rate_by_region.png'>PNG</a> | <a href='Figure_8__infection_death_rate_by_region.svg'>SVG</a></p>
 <ol class='footnotes'>
-<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,762,718; population scale factor: 4,651.9077; runs: 5 accepted calibration runs.</li><li>Bacteria with zero modelled deaths are omitted. Sorted by target/observed estimate where available, otherwise by simulation. Error bars show simulation 5th-95th percentile ranges. n = 5 runs.</li><li>Deaths are scaled to the global population using the run-specific population scale factor and annualised to yearly equivalents.</li><li>Observed infection-death estimates are based on GBD 2019/2020 cause-of-death attributions, WHO mortality data, and organism-specific published literature.</li><li>Bacterium-level death estimates can sum to more than the headline all-cause bacterial death estimate because polymicrobial deaths may be attributed to all contributing pathogens.</li>
+<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,762,718; population scale factor: 4,651.9077; runs: 5 accepted calibration runs.</li><li>Deaths include sepsis and infection_non_sepsis deaths. Rates are all-age rates for the 2022-2025 calibration window. Error bars show 5th-95th percentile ranges across runs. n = 5 simulation runs.</li><li>Source: matched simulation_summary_*.csv files discovered from the supplied calibration_summary_*.txt paths.</li><li>Calculation: 100,000 x regional infection deaths divided by regional person-years alive. Person-years are summed from regional alive population counts across daily/timestep simulation rows.</li>
 </ol></body></html>
