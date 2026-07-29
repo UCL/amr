@@ -64,6 +64,9 @@ Thumbs.db
 !/data/calibration_targets.json
 !/data/number_on_drug_by_class.csv
 !/data/drug_class_share_history_targets.csv
+!/data/calibration_target_ranges_v1.csv
+!/data/calibration_target_ranges_v1.schema.json
+!/data/CALIBRATION_TARGET_RANGES.md
 !/data/empirical/
 !/data/empirical/calibration_drug_usage_empirical.csv
 !/data/empirical/calibration_resistance_empirical.csv

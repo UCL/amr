@@ -94,6 +94,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 OUT_DIR = REPO_ROOT / "paper_tables"
 CALIBRATION_TARGETS_PATH = REPO_ROOT / "data" / "calibration_targets.json"
+CALIBRATION_TARGET_RANGES_PATH = REPO_ROOT / "data" / "calibration_target_ranges_v1.csv"
 SIMULATION_OUTPUTS_DIR = REPO_ROOT / "amr_simulation_output_analysis_outputs"
 
 # Figure 2 toggle. Options:
@@ -404,28 +405,58 @@ _RESISTANCE_TARGET_SOURCE_NOTES = [
 ]
 
 _DRUG_CLASS_TARGET_SOURCE_NOTES = [
-    "Global drug-class share estimates are derived from the WHO AWaRe classification "
-    "database, IQVIA MIDAS market data, and ECDC ESAC-Net surveillance, adjusted to "
-    "represent the global population mix.",
+    "The 28-class global composition is a source-informed calibration benchmark rather "
+    "than a directly observed global composition. WHO GLASS-AMU and the existing coarse "
+    "class comparators inform the expert plausible ranges.",
     "Drug class codes follow the WHO ATC classification system (J01 antibacterials for "
-    "systemic use). Classes without a standard J01 code are assigned their closest "
-    "available ATC grouping.",
+    "systemic use). Marginal class ranges are not a joint compositional confidence region.",
 ]
 
 _MORTALITY_TARGET_SOURCE_NOTES = [
-    "Observed infection-death estimates are based on GBD 2019/2020 cause-of-death "
-    "attributions, WHO mortality data, and organism-specific published literature.",
+    "Infection-death calibration targets draw on GBD 2019/2020 cause-of-death "
+    "attributions, WHO mortality data, organism-specific literature, and explicit "
+    "best-guess placeholders where direct estimates are unavailable.",
     "Bacterium-level death estimates can sum to more than the headline all-cause bacterial "
     "death estimate because polymicrobial deaths may be attributed to all contributing "
     "pathogens.",
 ]
 
 _CARRIAGE_TARGET_SOURCE_NOTES = [
-    "Carriage target/observed-estimate values are drawn from published cross-sectional "
-    "carriage surveys; individual source details are given in the model description.",
+    "Carriage calibration targets combine published cross-sectional ranges, prevalence "
+    "proxies, and explicit best-guess placeholders; the range registry records which "
+    "interval treatment was used.",
     "Carriage values are percentages of the world population carrying the organism "
     "asymptomatically in the modelled microbiome/carriage compartment.",
 ]
+
+_SIMULATION_MEAN_CI_FOOTNOTE = (
+    "Where shown, blue simulation error bars are two-sided 95% t confidence "
+    "intervals for the mean across independent stochastic runs. They quantify "
+    "run-to-run Monte Carlo uncertainty conditional on the chosen parameter set "
+    "and model structure; they do not represent uncertainty in parameters, "
+    "calibration targets, or model structure. No confidence interval can be "
+    "estimated from a single run."
+)
+
+_SIMULATION_PERCENTILE_RANGE_FOOTNOTE = (
+    "Where shown, blue simulation error bars span the aggregated 5th-95th "
+    "percentile across accepted runs. They describe run-to-run variation and are "
+    "not 95% confidence intervals for the simulation mean."
+)
+
+_TARGET_PLAUSIBLE_RANGE_FOOTNOTE = (
+    "Orange target error bars are review-informed plausible ranges recorded in "
+    "data/calibration_target_ranges_v1.csv. They synthesise published uncertainty "
+    "ranges, evidence-derived ranges, expert judgement, and design constraints, "
+    "with the basis for each range recorded in the registry. These bounds provide "
+    "context around the central target and do not enter the calibration score."
+)
+
+_RESISTANCE_POINT_TARGET_FOOTNOTE = (
+    "Figure 2 orange bars are point calibration benchmarks. Target uncertainty "
+    "bars are not shown because cell-level source intervals have not yet been "
+    "recovered; their absence should not be interpreted as certainty."
+)
 
 _INFECTION_DEATH_EXCLUDED_BACTERIA_SLUGS = {
     "helicobacter_pylori",
@@ -2673,6 +2704,7 @@ _F2_DRUG_SLUG_NORMALIZATION_OVERRIDES = {
     "doxyclycline": "doxycycline",
 }
 _F2_BASELINE_POTENCY_LOOKUP_CACHE: dict[tuple[str, str], float] | None = None
+_TARGET_RANGE_LOOKUP_CACHE: dict[tuple[str, str, int], dict[str, object]] | None = None
 
 # Colour scheme
 _F2_COLOUR_SIM    = "#2196F3"   # blue — simulation
@@ -2744,6 +2776,160 @@ def _asymmetric_errors(df: pd.DataFrame, prefix: str) -> tuple[np.ndarray, np.nd
     return np.clip(med - lo, 0, None), np.clip(hi - med, 0, None)
 
 
+def _normalise_target_range_key(value: object) -> str:
+    text = re.sub(r"\s+\*$", "", str(value or "").strip().lower())
+    return re.sub(r"\s+", " ", text)
+
+
+def _load_target_range_lookup() -> dict[tuple[str, str, int], dict[str, object]]:
+    """Load the display-only target plausible-range registry."""
+    global _TARGET_RANGE_LOOKUP_CACHE
+    if _TARGET_RANGE_LOOKUP_CACHE is not None:
+        return _TARGET_RANGE_LOOKUP_CACHE
+    if not CALIBRATION_TARGET_RANGES_PATH.exists():
+        _TARGET_RANGE_LOOKUP_CACHE = {}
+        return _TARGET_RANGE_LOOKUP_CACHE
+
+    registry = pd.read_csv(CALIBRATION_TARGET_RANGES_PATH)
+    required = {
+        "target_family",
+        "target_key",
+        "target_year",
+        "central_value",
+        "plausible_lower",
+        "plausible_upper",
+        "interval_kind",
+    }
+    missing = required.difference(registry.columns)
+    if missing:
+        raise ValueError(
+            "Target plausible-range registry is missing columns: "
+            + ", ".join(sorted(missing))
+        )
+
+    lookup: dict[tuple[str, str, int], dict[str, object]] = {}
+    for _, row in registry.iterrows():
+        family = str(row["target_family"]).strip()
+        key = _normalise_target_range_key(row["target_key"])
+        year = int(row["target_year"])
+        lookup_key = (family, key, year)
+        if lookup_key in lookup:
+            raise ValueError(f"Duplicate target plausible-range row: {lookup_key}")
+        central = float(row["central_value"])
+        lower = float(row["plausible_lower"])
+        upper = float(row["plausible_upper"])
+        if not lower <= central <= upper:
+            raise ValueError(
+                f"Target plausible range does not contain its central value: {lookup_key}"
+            )
+        lookup[lookup_key] = row.to_dict()
+
+    _TARGET_RANGE_LOOKUP_CACHE = lookup
+    return lookup
+
+
+def _target_range(
+    family: str,
+    key: object,
+    *,
+    year: int = 2025,
+    scale: float = 1.0,
+) -> tuple[float, float, float, str] | None:
+    row = _load_target_range_lookup().get(
+        (family, _normalise_target_range_key(key), int(year))
+    )
+    if row is None:
+        return None
+    return (
+        float(row["central_value"]) * scale,
+        float(row["plausible_lower"]) * scale,
+        float(row["plausible_upper"]) * scale,
+        str(row["interval_kind"]),
+    )
+
+
+_HEADLINE_RANGE_KEY_HINTS = {
+    "infection deaths": "infection_deaths_millions",
+    "people on antibiotics": "people_on_antibiotics_millions",
+    "incidence of bacterial infection": "annual_infection_incidence_percent",
+    "incident cases of sepsis": "sepsis_incident_cases_millions",
+}
+
+
+def _headline_range_key(metric: object) -> str | None:
+    text = re.sub(r"\s*\(\d+\)\s*$", "", str(metric or "").strip().lower())
+    return next(
+        (key for hint, key in _HEADLINE_RANGE_KEY_HINTS.items() if hint in text),
+        None,
+    )
+
+
+def _mean_ci95(
+    values: list[float],
+    *,
+    lower_bound: float | None = 0.0,
+    upper_bound: float | None = None,
+) -> tuple[float | None, float | None, float | None]:
+    arr = np.array([value for value in values if np.isfinite(value)], dtype=float)
+    if len(arr) == 0:
+        return None, None, None
+    center = float(np.mean(arr))
+    if len(arr) == 1:
+        return center, center, center
+    standard_error = float(np.std(arr, ddof=1) / math.sqrt(len(arr)))
+    half_width = _f2_t_critical_975(len(arr)) * standard_error
+    lower = center - half_width
+    upper = center + half_width
+    if lower_bound is not None:
+        lower = max(lower_bound, lower)
+    if upper_bound is not None:
+        upper = min(upper_bound, upper)
+    return center, lower, upper
+
+
+def _run_section_mean_ci(
+    runs: list[dict] | None,
+    *,
+    section: str,
+    key_column: str,
+    value_column: str,
+    key_normaliser: Callable[[object], str] = _normalise_target_range_key,
+    lower_bound: float | None = 0.0,
+    upper_bound: float | None = None,
+) -> dict[str, tuple[float, float, float, int]]:
+    """Return run-level means and 95% t CIs keyed by a normalised row label."""
+    values_by_key: dict[str, list[float]] = {}
+    for run in runs or []:
+        frame = run.get(section, pd.DataFrame()) if isinstance(run, dict) else pd.DataFrame()
+        if frame is None or frame.empty:
+            continue
+        if key_column not in frame.columns or value_column not in frame.columns:
+            continue
+
+        run_values: dict[str, list[float]] = {}
+        for _, row in frame.iterrows():
+            key = key_normaliser(row.get(key_column))
+            value = _first_numeric_value(row.get(value_column))
+            if not key or value is None or not np.isfinite(value):
+                continue
+            run_values.setdefault(key, []).append(float(value))
+
+        for key, values in run_values.items():
+            values_by_key.setdefault(key, []).append(float(np.mean(values)))
+
+    summary: dict[str, tuple[float, float, float, int]] = {}
+    for key, values in values_by_key.items():
+        center, lower, upper = _mean_ci95(
+            values,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+        )
+        if center is None or lower is None or upper is None:
+            continue
+        summary[key] = (center, lower, upper, len(values))
+    return summary
+
+
 def _parse_resistance_val(v: object) -> tuple[float, float, float] | None:
     """
     Parse a resistance value from resistance_benchmarks into (median, lo, hi).
@@ -2794,15 +2980,7 @@ def _f2_t_critical_975(n_values: int) -> float:
 
 
 def _f2_ci95(values: list[float]) -> tuple[float | None, float | None, float | None]:
-    arr = np.array([v for v in values if np.isfinite(v)], dtype=float)
-    if len(arr) == 0:
-        return None, None, None
-    center = float(np.mean(arr))
-    if len(arr) == 1:
-        return center, center, center
-    se = float(np.std(arr, ddof=1) / math.sqrt(len(arr)))
-    half_width = _f2_t_critical_975(len(arr)) * se
-    return center, max(0.0, center - half_width), min(100.0, center + half_width)
+    return _mean_ci95(values, lower_bound=0.0, upper_bound=100.0)
 
 
 def _f2_class_summary_from_aggregated_rows(
@@ -3511,6 +3689,12 @@ def make_figure_2_calibration_resistance_fit(
         _meta_footnote(agg),
         figure_note,
         (
+            _SIMULATION_MEAN_CI_FOOTNOTE
+            if mode == _F2_SUMMARY_MEAN_CI
+            else _SIMULATION_PERCENTILE_RANGE_FOOTNOTE
+        ),
+        _RESISTANCE_POINT_TARGET_FOOTNOTE,
+        (
             f"Figure 2 summary mode: {mode}. To switch modes, edit "
             "FIGURE2_SUMMARY_MODE in make_paper_tables.py."
         ),
@@ -3602,13 +3786,18 @@ def make_f3_calibration_scores(agg: dict, out_dir: Path) -> None:
 # Figure F4 — Headline metrics (figure version of T2)
 # ---------------------------------------------------------------------------
 
-def make_figure_1_calibration_headline_metrics(agg: dict, out_dir: Path) -> None:
+def make_figure_1_calibration_headline_metrics(
+    agg: dict,
+    out_dir: Path,
+    *,
+    runs: list[dict] | None = None,
+) -> None:
     """
     Figure 1: 4-panel grouped bar chart for headline calibration metrics
     (figure version of Table T2).
     """
     hm = agg.get("headline_metrics", pd.DataFrame()).copy()
-    n  = agg.get("n_runs", 1)
+    n = len(runs or []) or int(agg.get("n_runs", 1) or 1)
     if hm is None or hm.empty:
         print("  F4: no headline_metrics data — skipping.")
         return
@@ -3619,6 +3808,14 @@ def make_figure_1_calibration_headline_metrics(agg: dict, out_dir: Path) -> None
                        or "observed data" in c.lower()), None)
     if sim_col is None:
         return
+    simulation_ci = _run_section_mean_ci(
+        runs,
+        section="headline_metrics",
+        key_column="Metric",
+        value_column="Simulation",
+        key_normaliser=lambda value: _headline_range_key(value) or "",
+        lower_bound=0.0,
+    )
 
     wanted = [
         "infection deaths",
@@ -3652,8 +3849,18 @@ def make_figure_1_calibration_headline_metrics(agg: dict, out_dir: Path) -> None
     for idx, (_, row) in enumerate(hm.iterrows()):
         ax   = axes[idx]
         name = row[metric_col]
+        range_key = _headline_range_key(row.get("_raw_metric"))
         sim_p = _parse_resistance_val(row.get(sim_col))
-        tgt_p = _parse_resistance_val(row.get(tgt_col)) if tgt_col else None
+        if range_key in simulation_ci:
+            mean, lower, upper, _ = simulation_ci[range_key]
+            sim_p = (mean, lower, upper)
+
+        target_range = _target_range("headline", range_key) if range_key else None
+        tgt_p = (
+            (target_range[0], target_range[1], target_range[2])
+            if target_range is not None
+            else (_parse_resistance_val(row.get(tgt_col)) if tgt_col else None)
+        )
         if tgt_p is None and tgt_col:
             tgt_first = _first_numeric_value(row.get(tgt_col))
             if tgt_first is not None:
@@ -3665,16 +3872,27 @@ def make_figure_1_calibration_headline_metrics(agg: dict, out_dir: Path) -> None
             err_lo.append(max(0, sim_p[0] - sim_p[1]))
             err_hi.append(max(0, sim_p[2] - sim_p[0]))
         if tgt_p:
-            vals.append(tgt_p[0]); labels.append("Target/\nobserved"); colors.append("#FF7043")
-            err_lo.append(0.0); err_hi.append(0.0)
+            vals.append(tgt_p[0]); labels.append("Calibration\ntarget"); colors.append("#FF7043")
+            err_lo.append(max(0, tgt_p[0] - tgt_p[1]))
+            err_hi.append(max(0, tgt_p[2] - tgt_p[0]))
         if not vals:
             ax.axis("off"); continue
 
         x = np.arange(len(vals))
         ax.bar(x, vals, color=colors, width=0.55, edgecolor="none", alpha=0.88)
-        if sim_p and err_lo[0] + err_hi[0] > 0:
-            ax.errorbar([0], [vals[0]], yerr=[[err_lo[0]], [err_hi[0]]],
-                        fmt="none", color="#0D47A1", capsize=5, linewidth=1.5)
+        for bar_idx, (lower_error, upper_error) in enumerate(zip(err_lo, err_hi)):
+            if lower_error + upper_error <= 0:
+                continue
+            error_color = "#0D47A1" if labels[bar_idx] == "Simulation" else "#A63D16"
+            ax.errorbar(
+                [bar_idx],
+                [vals[bar_idx]],
+                yerr=[[lower_error], [upper_error]],
+                fmt="none",
+                color=error_color,
+                capsize=5,
+                linewidth=1.5,
+            )
         ax.set_xticks(x)
         ax.set_xticklabels(labels, fontsize=9)
         for i, v in enumerate(vals):
@@ -3692,9 +3910,13 @@ def make_figure_1_calibration_headline_metrics(agg: dict, out_dir: Path) -> None
     _save_figure(
         fig, out_dir, "Figure_1__calibration_headline_metrics",
         "Figure 1. Calibration: 2025 headline health and antibiotic-use metrics",
-        f"Simulation compared with target/observed estimates. Error bars show 5th\u201395th "
-        f"percentile range across {n} accepted run{'s' if n > 1 else ''}.",
-        _HEADLINE_TARGET_SOURCE_NOTES,
+        f"Simulation bars show the mean across {n} stochastic run{'s' if n != 1 else ''}; "
+        f"{'blue error bars show two-sided 95% t confidence intervals for the mean. ' if n > 1 else ''}"
+        "Orange error bars show review-informed plausible ranges.",
+        [
+            _SIMULATION_MEAN_CI_FOOTNOTE,
+            _TARGET_PLAUSIBLE_RANGE_FOOTNOTE,
+        ] + _HEADLINE_TARGET_SOURCE_NOTES,
         agg=agg,
     )
 
@@ -3738,13 +3960,18 @@ _F5_AWARE: dict[str, str] = {
 }
 
 
-def make_figure_3_calibration_drug_class_share(agg: dict, out_dir: Path) -> None:
+def make_figure_3_calibration_drug_class_share(
+    agg: dict,
+    out_dir: Path,
+    *,
+    runs: list[dict] | None = None,
+) -> None:
     """
     Figure 3: paired horizontal bars of drug-class share.
     Bars coloured by WHO AWaRe category.
     """
     dc_raw = agg.get("drug_class_share", pd.DataFrame()).copy()
-    n  = agg.get("n_runs", 1)
+    n = len(runs or []) or int(agg.get("n_runs", 1) or 1)
     if dc_raw is None or dc_raw.empty:
         print("  F5: no drug_class_share data — skipping.")
         return
@@ -3762,8 +3989,40 @@ def make_figure_3_calibration_drug_class_share(agg: dict, out_dir: Path) -> None
     plot_df = dc.copy()
 
     plot_df = _add_interval_columns(plot_df, sim_col, "_sim")
+    simulation_ci = _run_section_mean_ci(
+        runs,
+        section="drug_class_share",
+        key_column="Class",
+        value_column=sim_col,
+        lower_bound=0.0,
+        upper_bound=100.0,
+    )
+    for row_idx, row in plot_df.iterrows():
+        key = _normalise_target_range_key(row[class_col])
+        if key in simulation_ci:
+            mean, lower, upper, _ = simulation_ci[key]
+            plot_df.loc[row_idx, ["_sim_med", "_sim_lo", "_sim_hi"]] = [
+                mean,
+                lower,
+                upper,
+            ]
+
     if tgt_col:
         plot_df = _add_interval_columns(plot_df, tgt_col, "_tgt")
+    else:
+        plot_df["_tgt_med"] = np.nan
+        plot_df["_tgt_lo"] = np.nan
+        plot_df["_tgt_hi"] = np.nan
+    for row_idx, row in plot_df.iterrows():
+        target_range = _target_range("drug_class_share", row[class_col])
+        if target_range is None:
+            continue
+        plot_df.loc[row_idx, ["_tgt_med", "_tgt_lo", "_tgt_hi"]] = [
+            target_range[0],
+            target_range[1],
+            target_range[2],
+        ]
+
     sort_col = "_tgt_med" if tgt_col else "_sim_med"
     order = plot_df.sort_values(sort_col, ascending=True, na_position="first").index
     plot_df = plot_df.loc[order].reset_index(drop=True)
@@ -3784,10 +4043,25 @@ def make_figure_3_calibration_drug_class_share(agg: dict, out_dir: Path) -> None
         xerr=[sim_err_lo, sim_err_hi] if n > 1 else None,
         error_kw={"elinewidth": 0.9, "ecolor": "#263238", "capthick": 0.9, "capsize": 2.5},
     )
-    if tgt_col:
-        ax.barh(y - bar_h / 2, plot_df["_tgt_med"].fillna(0), bar_h,
-                color="none", edgecolor="#444", linewidth=0.9, hatch="///",
-                label="Target (estimate)")
+    if plot_df["_tgt_med"].notna().any():
+        tgt_err_lo, tgt_err_hi = _asymmetric_errors(plot_df, "_tgt")
+        ax.barh(
+            y - bar_h / 2,
+            plot_df["_tgt_med"].fillna(0),
+            bar_h,
+            color="none",
+            edgecolor="#A63D16",
+            linewidth=0.9,
+            hatch="///",
+            label="Calibration target",
+            xerr=[tgt_err_lo, tgt_err_hi],
+            error_kw={
+                "elinewidth": 0.9,
+                "ecolor": "#A63D16",
+                "capthick": 0.9,
+                "capsize": 2.5,
+            },
+        )
     ax.set_yticks(y)
     ax.set_yticklabels(plot_df[class_col].values, fontsize=7.5)
     ax.set_xlabel("Share of active antibiotic drug exposure (%)", fontsize=10)
@@ -3797,12 +4071,21 @@ def make_figure_3_calibration_drug_class_share(agg: dict, out_dir: Path) -> None
     watch_p   = mpatches.Patch(color="#FF9800", alpha=0.85, label="Watch")
     reserve_p = mpatches.Patch(color="#F44336", alpha=0.85, label="Reserve")
     other_p   = mpatches.Patch(color="#9E9E9E", alpha=0.85, label="Not classified")
-    tgt_p     = mpatches.Patch(facecolor="none", edgecolor="#444",
-                                hatch="///", label="Target (estimate)")
+    tgt_p     = mpatches.Patch(facecolor="none", edgecolor="#A63D16",
+                                hatch="///", label="Calibration target")
     handles = [access_p, watch_p, reserve_p, other_p, tgt_p]
     if n > 1:
         handles.append(plt.Line2D([0], [0], color="#263238", linewidth=1.0,
-                                  label="Simulation 5th-95th percentile"))
+                                  label="Simulation mean 95% CI"))
+    handles.append(
+        plt.Line2D(
+            [0],
+            [0],
+            color="#A63D16",
+            linewidth=1.0,
+            label="Target plausible range",
+        )
+    )
     ax.legend(handles=handles,
               fontsize=7.5, frameon=False, loc="lower right")
     fig.suptitle("Figure 3. Calibration: 2025 antibiotic use by drug class", fontsize=10, fontweight="bold")
@@ -3813,10 +4096,13 @@ def make_figure_3_calibration_drug_class_share(agg: dict, out_dir: Path) -> None
         f"Bars coloured by WHO AWaRe category "
         f"(green = Access, orange = Watch, red = Reserve). "
         f"Simulation shares use total active antibiotic drug-days across configured classes as the denominator. "
-        f"Hatched outlines = global target/observed estimates. "
-        f"{'Error bars show simulation 5th-95th percentile ranges. ' if n > 1 else ''}"
+        f"Hatched outlines = global calibration targets. "
+        f"{'Simulation error bars show two-sided 95% t confidence intervals for the mean. ' if n > 1 else ''}"
+        "Target error bars show marginal review-informed plausible ranges. "
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
         [
+            _SIMULATION_MEAN_CI_FOOTNOTE,
+            _TARGET_PLAUSIBLE_RANGE_FOOTNOTE,
             "WHO AWaRe classification: Access, Watch, Reserve (WHO 2023 AWaRe antibiotic book).",
             "Class-level global shares are approximate calibration benchmarks and carry substantial uncertainty.",
         ] + _DRUG_CLASS_TARGET_SOURCE_NOTES,
@@ -4032,13 +4318,18 @@ def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
 # Supplementary Figure FS1 — Infection deaths per organism (figure version of S1)
 # ---------------------------------------------------------------------------
 
-def make_figure_4_calibration_infection_deaths(agg: dict, out_dir: Path) -> None:
+def make_figure_4_calibration_infection_deaths(
+    agg: dict,
+    out_dir: Path,
+    *,
+    runs: list[dict] | None = None,
+) -> None:
     """
     Figure 4: horizontal bar chart of infection deaths per bacterium,
     simulation vs. target/observed estimate.
     """
     bm = agg.get("bacteria_mortality", pd.DataFrame()).copy()
-    n  = agg.get("n_runs", 1)
+    n = len(runs or []) or int(agg.get("n_runs", 1) or 1)
     if bm is None or bm.empty:
         print("  FS1: no bacteria_mortality data — skipping.")
         return
@@ -4061,8 +4352,42 @@ def make_figure_4_calibration_infection_deaths(agg: dict, out_dir: Path) -> None
         bm = _add_interval_columns(bm, tgt_col, "_tgt")
         bm["_tgt"] = bm["_tgt_med"]
     else:
+        bm["_tgt_med"] = np.nan
+        bm["_tgt_lo"] = np.nan
+        bm["_tgt_hi"] = np.nan
         bm["_tgt"] = np.nan
     bm = _add_interval_columns(bm, sim_col, "_sim")
+
+    simulation_ci = _run_section_mean_ci(
+        runs,
+        section="bacteria_mortality",
+        key_column="Bacteria",
+        value_column=sim_col,
+        lower_bound=0.0,
+    )
+    for row_idx, row in bm.iterrows():
+        key = _normalise_target_range_key(row[bact_col])
+        if key in simulation_ci:
+            mean, lower, upper, _ = simulation_ci[key]
+            bm.loc[row_idx, ["_sim_med", "_sim_lo", "_sim_hi"]] = [
+                mean,
+                lower,
+                upper,
+            ]
+        target_range = _target_range("infection_deaths", key)
+        if target_range is not None:
+            bm.loc[row_idx, ["_tgt_med", "_tgt_lo", "_tgt_hi"]] = [
+                target_range[0],
+                target_range[1],
+                target_range[2],
+            ]
+        bm.loc[row_idx, bact_col] = re.sub(
+            r"\s+\*$",
+            "",
+            str(row[bact_col]).strip(),
+        )
+
+    bm["_tgt"] = bm["_tgt_med"]
     bm["_sim"] = bm["_sim_med"]
     bm = bm.dropna(subset=["_sim"])
     bm = bm[(bm["_tgt"].fillna(0) > 0) | (bm["_sim"].fillna(0) > 0)].copy()
@@ -4084,8 +4409,22 @@ def make_figure_4_calibration_infection_deaths(agg: dict, out_dir: Path) -> None
         error_kw={"elinewidth": 0.9, "ecolor": "#0D47A1", "capthick": 0.9, "capsize": 2.5},
     )
     if bm["_tgt"].notna().any():
-        ax.barh(y - bar_h / 2, bm["_tgt"].fillna(0), bar_h,
-                color="#FF7043", alpha=0.85, label="Observed estimate")
+        tgt_err_lo, tgt_err_hi = _asymmetric_errors(bm, "_tgt")
+        ax.barh(
+            y - bar_h / 2,
+            bm["_tgt"].fillna(0),
+            bar_h,
+            color="#FF7043",
+            alpha=0.85,
+            label="Calibration target",
+            xerr=[tgt_err_lo, tgt_err_hi],
+            error_kw={
+                "elinewidth": 0.9,
+                "ecolor": "#A63D16",
+                "capthick": 0.9,
+                "capsize": 2.5,
+            },
+        )
     ax.set_yticks(y)
     ax.set_yticklabels(bm[bact_col].values, fontsize=7.5, fontstyle="italic")
     ax.set_xlabel("Deaths (millions per year)", fontsize=10)
@@ -4097,12 +4436,17 @@ def make_figure_4_calibration_infection_deaths(agg: dict, out_dir: Path) -> None
     _save_figure(
         fig, out_dir, "Figure_4__calibration_infection_deaths_by_bacteria",
         "Figure 4. Calibration: 2025 infection deaths by bacterium",
-        f"Bacteria with zero modelled deaths are omitted. Sorted by target/observed estimate "
+        f"Bacteria with zero modelled deaths are omitted. Sorted by calibration target "
         f"where available, otherwise by simulation. "
-        f"{'Error bars show simulation 5th-95th percentile ranges. ' if n > 1 else ''}"
+        f"{'Blue error bars show two-sided 95% t confidence intervals for the simulation mean. ' if n > 1 else ''}"
+        "Orange error bars show review-informed plausible ranges. "
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
-        ["Deaths are scaled to the global population using the run-specific population scale factor "
-         "and annualised to yearly equivalents."] + _MORTALITY_TARGET_SOURCE_NOTES,
+        [
+            _SIMULATION_MEAN_CI_FOOTNOTE,
+            _TARGET_PLAUSIBLE_RANGE_FOOTNOTE,
+            "Deaths are scaled to the global population using the run-specific population scale factor "
+            "and annualised to yearly equivalents.",
+        ] + _MORTALITY_TARGET_SOURCE_NOTES,
         agg=agg,
     )
 
@@ -4111,13 +4455,18 @@ def make_figure_4_calibration_infection_deaths(agg: dict, out_dir: Path) -> None
 # Supplementary Figure FS2 — Syndrome incidence (figure version of S2)
 # ---------------------------------------------------------------------------
 
-def make_figure_5_calibration_carriage_prevalence(agg: dict, out_dir: Path) -> None:
+def make_figure_5_calibration_carriage_prevalence(
+    agg: dict,
+    out_dir: Path,
+    *,
+    runs: list[dict] | None = None,
+) -> None:
     """
     Figure 5: horizontal bar chart of asymptomatic carriage prevalence by bacterium,
     simulation vs. target/observed estimate where available.
     """
     bi_raw = agg.get("bacteria_infections", pd.DataFrame()).copy()
-    n = agg.get("n_runs", 1)
+    n = len(runs or []) or int(agg.get("n_runs", 1) or 1)
     if bi_raw is None or bi_raw.empty:
         print("  Figure 5: no bacteria_infections data — skipping.")
         return
@@ -4146,6 +4495,38 @@ def make_figure_5_calibration_carriage_prevalence(agg: dict, out_dir: Path) -> N
         bi = _add_interval_columns(bi, tgt_col, "_tgt")
     else:
         bi["_tgt_med"] = np.nan
+        bi["_tgt_lo"] = np.nan
+        bi["_tgt_hi"] = np.nan
+
+    simulation_ci = _run_section_mean_ci(
+        runs,
+        section="bacteria_infections",
+        key_column="Bacteria",
+        value_column=sim_col,
+        lower_bound=0.0,
+        upper_bound=100.0,
+    )
+    for row_idx, row in bi.iterrows():
+        key = _normalise_target_range_key(row[bact_col])
+        if key in simulation_ci:
+            mean, lower, upper, _ = simulation_ci[key]
+            bi.loc[row_idx, ["_sim_med", "_sim_lo", "_sim_hi"]] = [
+                mean,
+                lower,
+                upper,
+            ]
+        target_range = _target_range("carriage", key, scale=100.0)
+        if target_range is not None:
+            bi.loc[row_idx, ["_tgt_med", "_tgt_lo", "_tgt_hi"]] = [
+                target_range[0],
+                target_range[1],
+                target_range[2],
+            ]
+        bi.loc[row_idx, bact_col] = re.sub(
+            r"\s+\*$",
+            "",
+            str(row[bact_col]).strip(),
+        )
 
     bi = bi.dropna(subset=["_sim_med"]).copy()
     if bi.empty:
@@ -4172,13 +4553,21 @@ def make_figure_5_calibration_carriage_prevalence(agg: dict, out_dir: Path) -> N
         error_kw={"elinewidth": 0.9, "ecolor": "#0D47A1", "capthick": 0.9, "capsize": 2.5},
     )
     if bi["_tgt_med"].notna().any():
+        tgt_err_lo, tgt_err_hi = _asymmetric_errors(bi, "_tgt")
         ax.barh(
             y - bar_h / 2,
             bi["_tgt_med"].fillna(0),
             bar_h,
             color="#FF7043",
             alpha=0.85,
-            label="Target/observed estimate",
+            label="Calibration target",
+            xerr=[tgt_err_lo, tgt_err_hi],
+            error_kw={
+                "elinewidth": 0.9,
+                "ecolor": "#A63D16",
+                "capthick": 0.9,
+                "capsize": 2.5,
+            },
         )
 
     ax.set_yticks(y)
@@ -4196,10 +4585,15 @@ def make_figure_5_calibration_carriage_prevalence(agg: dict, out_dir: Path) -> N
         "Figure_5__calibration_carriage_prevalence_by_bacteria",
         "Figure 5. Calibration: 2025 prevalence of carriage by bacterium",
         f"Horizontal paired bars show simulated asymptomatic carriage prevalence and "
-        f"target/observed estimates where available. "
-        f"{'Error bars show simulation 5th-95th percentile ranges. ' if n > 1 else ''}"
+        f"calibration targets where available. "
+        f"{'Blue error bars show two-sided 95% t confidence intervals for the simulation mean. ' if n > 1 else ''}"
+        "Orange error bars show review-informed plausible ranges. "
         f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
-        ["Zero target/observed-estimate values are retained where they represent design zeros."]
+        [
+            _SIMULATION_MEAN_CI_FOOTNOTE,
+            _TARGET_PLAUSIBLE_RANGE_FOOTNOTE,
+            "Zero calibration targets are retained where they represent design constraints.",
+        ]
         + _CARRIAGE_TARGET_SOURCE_NOTES,
         agg=agg,
     )
@@ -11962,16 +12356,16 @@ def main(input_args: list[str]) -> None:
     _prepare_output_dirs(out)
     make_t1(out)
     make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
-    make_figure_1_calibration_headline_metrics(agg, out)
+    make_figure_1_calibration_headline_metrics(agg, out, runs=runs)
     make_figure_2_calibration_resistance_fit(
         agg,
         out,
         runs=runs,
         summary_mode=FIGURE2_SUMMARY_MODE,
     )
-    make_figure_3_calibration_drug_class_share(agg, out)
-    make_figure_4_calibration_infection_deaths(agg, out)
-    make_figure_5_calibration_carriage_prevalence(agg, out)
+    make_figure_3_calibration_drug_class_share(agg, out, runs=runs)
+    make_figure_4_calibration_infection_deaths(agg, out, runs=runs)
+    make_figure_5_calibration_carriage_prevalence(agg, out, runs=runs)
     make_supplementary_figure_s1_potential_activity_retained(sf1_csv_paths, out, agg=agg)
     make_supplementary_figure_s2_microbiome_resistance_reservoir(runs, out, agg=agg)
     make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(sf3_csv_paths, out, agg=agg)

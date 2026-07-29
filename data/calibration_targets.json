@@ -1,5 +1,10 @@
 {
   "target_year": 2025,
+  "target_uncertainty": {
+    "path": "data/calibration_target_ranges_v1.csv",
+    "schema_path": "data/calibration_target_ranges_v1.schema.json",
+    "score_use": "display_only"
+  },
   "population_scaling": {
     "world_population": 8200000000
   },
