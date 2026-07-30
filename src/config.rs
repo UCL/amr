@@ -7500,12 +7500,12 @@ lazy_static! {
         // exogenous source may still add configured environmental-floor mechanisms.
 
         // Predominantly environmental or waterborne acquisition.
-        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.03);
+        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.20); // 0.03
+        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.20); // 0.03
+        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.20); // 0.03
+        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.20); // 0.03
+        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.20); // 0.03
+        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.20); // 0.03
         // Foodborne and enteric acquisition. Campylobacter uses a high cache
         // fraction as a proxy for pre-selected food-chain resistance profiles.
         map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.90);
@@ -7518,21 +7518,21 @@ lazy_static! {
 
         // Healthcare-associated organisms that also colonise the community.
         map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.18); // Environmental persistence plus human selection
-        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.15); // Gut and environmental reservoirs
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.05);
-        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.22); // Gut and environmental reservoirs
+        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.25); // 0.15  Gut and environmental reservoirs
+        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.15); // 0.05
+        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.22  Gut and environmental reservoirs
         map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut and environmental reservoirs
-        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut commensal
-        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut commensal
-        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.20); // Gut commensal
-        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.30); // Human and environmental reservoirs
+        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
+        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
+        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
+        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.45); // 0.30 Human and environmental reservoirs
         map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.35); // Human gut and environmental reservoirs
         map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.40); // Human gut and environmental reservoirs
-        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.25); // Human skin and healthcare reservoirs
+        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.50); // 0.25 Human skin and healthcare reservoirs
 
         // Endogenous flora and high-carriage human commensals.
         map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.75); // Human gut plus food-chain exposure
-        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.65); // Human carriage plus livestock exposure
+        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.80); // 0.65 Human carriage plus livestock exposure
         map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.65); // Human gut reservoir
         map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.65); // Human nasopharyngeal reservoir
         map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.60); // Human nasopharyngeal reservoir

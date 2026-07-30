@@ -29,6 +29,8 @@ paper_tables/
     Figures/
         Figure_1__calibration_headline_metrics.html/.png/.svg
         Figure_2__calibration_resistance_fit_by_bacteria_drug_class.html/.png/.svg
+        Figure_2A__hospital_resistance_fit_by_bacteria_drug_class.html/.png/.svg
+        Figure_2B__community_resistance_fit_by_bacteria_drug_class.html/.png/.svg
         Figure_3__calibration_drug_class_share.html/.png/.svg
         Figure_4__calibration_infection_deaths_by_bacteria.html/.png/.svg
         Figure_5__calibration_carriage_prevalence_by_bacteria.html/.png/.svg
@@ -3180,7 +3182,11 @@ def _f2_class_has_display_potency(rows: pd.DataFrame) -> bool:
     return False
 
 
-def _f2_apply_display_filters(rb: pd.DataFrame) -> pd.DataFrame:
+def _f2_apply_display_filters(
+    rb: pd.DataFrame,
+    *,
+    figure_label: str = "Figure 2",
+) -> pd.DataFrame:
     """Apply Figure 2 presentation exclusions without changing upstream metrics."""
     if rb.empty:
         return rb
@@ -3202,10 +3208,13 @@ def _f2_apply_display_filters(rb: pd.DataFrame) -> pd.DataFrame:
         kept_indices.extend(rows.index.tolist())
 
     if dropped_excluded:
-        print(f"  Figure 2: excluded {dropped_excluded} special-case organism/class cell(s).")
+        print(
+            f"  {figure_label}: excluded {dropped_excluded} "
+            "special-case organism/class cell(s)."
+        )
     if dropped_potency:
         print(
-            f"  Figure 2: excluded {dropped_potency} organism/class cell(s) with no drug "
+            f"  {figure_label}: excluded {dropped_potency} organism/class cell(s) with no drug "
             f"at baseline potency >= {_F2_DISPLAY_POTENCY_THRESHOLD:.2f}."
         )
 
@@ -3232,6 +3241,270 @@ def _f2_is_valid_organism_label(v: object) -> bool:
     )
     compact = "".join(ch for ch in dash_normalised if not ch.isspace())
     return set(compact) != {"-"}
+
+
+_F2_RESISTANCE_SETTINGS = {"hospital", "community"}
+
+
+def _f2_setting_benchmark_template(
+    agg: dict,
+    *,
+    figure_label: str,
+) -> pd.DataFrame:
+    """Return Figure 2 benchmark rows eligible for a setting-specific companion."""
+    rb = agg.get("resistance_benchmarks", pd.DataFrame())
+    if rb is None or rb.empty:
+        return pd.DataFrame()
+    required = {"Bacteria", "Drug", "Class", "Inf target (%)"}
+    if not required.issubset(rb.columns):
+        return pd.DataFrame()
+
+    rb = rb.copy()
+    if "Flags" in rb.columns:
+        rb = rb[
+            ~rb["Flags"].astype(str).str.contains("negligible", case=False, na=False)
+        ].copy()
+    rb = rb.loc[rb["Bacteria"].apply(_f2_is_valid_organism_label)].copy()
+    rb = _f2_apply_display_filters(rb, figure_label=figure_label)
+    return rb.drop_duplicates(subset=["Bacteria", "Drug"]).reset_index(drop=True)
+
+
+def _f2_setting_column_specs(
+    benchmark_rows: pd.DataFrame,
+    available_columns: set[str],
+    *,
+    setting: str,
+) -> list[tuple[int, str, str]]:
+    """Map benchmark rows to setting-specific denominator and numerator columns."""
+    if setting not in _F2_RESISTANCE_SETTINGS:
+        raise ValueError(f"Unsupported Figure 2 resistance setting: {setting!r}")
+    denominator_suffix = f"_currently_infected_{setting}_count"
+    numerator_marker = f"_infected_with_any_r_positive_{setting}_"
+    denominator_by_bacterium: dict[str, str] = {}
+    numerator_by_pair: dict[tuple[str, str], str] = {}
+
+    for column in available_columns:
+        if column.endswith(denominator_suffix):
+            raw_bacterium = column[: -len(denominator_suffix)]
+            denominator_by_bacterium[_f2_slugify_bacteria_value(raw_bacterium)] = column
+            continue
+        if numerator_marker not in column:
+            continue
+        raw_bacterium, raw_drug = column.split(numerator_marker, 1)
+        numerator_by_pair[
+            (
+                _f2_slugify_bacteria_value(raw_bacterium),
+                _f2_normalize_drug_slug(raw_drug),
+            )
+        ] = column
+
+    specs: list[tuple[int, str, str]] = []
+    for row_index, row in benchmark_rows.iterrows():
+        bacterium = _f2_slugify_bacteria_value(row.get("Bacteria"))
+        drug = _f2_normalize_drug_slug(row.get("Drug"))
+        denominator = denominator_by_bacterium.get(bacterium)
+        numerator = numerator_by_pair.get((bacterium, drug))
+        if denominator is not None and numerator is not None:
+            specs.append((int(row_index), denominator, numerator))
+    return specs
+
+
+def _f2a_hospital_column_specs(
+    benchmark_rows: pd.DataFrame,
+    available_columns: set[str],
+) -> list[tuple[int, str, str]]:
+    return _f2_setting_column_specs(
+        benchmark_rows,
+        available_columns,
+        setting="hospital",
+    )
+
+
+def _f2b_community_column_specs(
+    benchmark_rows: pd.DataFrame,
+    available_columns: set[str],
+) -> list[tuple[int, str, str]]:
+    return _f2_setting_column_specs(
+        benchmark_rows,
+        available_columns,
+        setting="community",
+    )
+
+
+def _f2_setting_benchmark_table_from_frame(
+    frame: pd.DataFrame,
+    benchmark_rows: pd.DataFrame,
+    *,
+    setting: str,
+    specs: list[tuple[int, str, str]] | None = None,
+) -> pd.DataFrame:
+    """
+    Replace Figure 2 simulation values with setting-specific resistance prevalence.
+
+    Numerators and denominators are summed over baseline-policy rows in the
+    2022-2025 calibration window, so each value is an active-infection
+    person-day prevalence for one bacterium-drug pair.
+    """
+    if frame.empty or benchmark_rows.empty or "time_in_years" not in frame.columns:
+        return pd.DataFrame()
+
+    if specs is None:
+        specs = _f2_setting_column_specs(
+            benchmark_rows,
+            set(frame.columns),
+            setting=setting,
+        )
+    if not specs:
+        return pd.DataFrame()
+
+    working = frame.copy()
+    if "policy_option" in working.columns:
+        policy = pd.to_numeric(working["policy_option"], errors="coerce")
+        working = working.loc[policy.eq(0)].copy()
+    years = _F1_SIM_EPOCH_YEAR + pd.to_numeric(
+        working["time_in_years"],
+        errors="coerce",
+    )
+    working = working.loc[(years >= 2022.0) & (years < 2026.0)].copy()
+    if working.empty:
+        return pd.DataFrame()
+
+    output = benchmark_rows.copy()
+    output["Inf sim (%)"] = np.nan
+    if "Inf days" in output.columns:
+        output["Inf days"] = np.nan
+    if "Res days" in output.columns:
+        output["Res days"] = np.nan
+
+    denominator_totals: dict[str, float] = {}
+    for _, denominator, _ in specs:
+        if denominator not in denominator_totals:
+            denominator_totals[denominator] = float(
+                pd.to_numeric(working[denominator], errors="coerce").sum(min_count=1)
+            )
+
+    for row_index, denominator, numerator in specs:
+        denominator_total = denominator_totals[denominator]
+        numerator_total = float(
+            pd.to_numeric(working[numerator], errors="coerce").sum(min_count=1)
+        )
+        if (
+            not np.isfinite(denominator_total)
+            or denominator_total <= 0.0
+            or not np.isfinite(numerator_total)
+        ):
+            continue
+        output.at[row_index, "Inf sim (%)"] = 100.0 * numerator_total / denominator_total
+        if "Inf days" in output.columns:
+            output.at[row_index, "Inf days"] = denominator_total
+        if "Res days" in output.columns:
+            output.at[row_index, "Res days"] = numerator_total
+
+    return output
+
+
+def _f2a_hospital_benchmark_table_from_frame(
+    frame: pd.DataFrame,
+    benchmark_rows: pd.DataFrame,
+    specs: list[tuple[int, str, str]] | None = None,
+) -> pd.DataFrame:
+    return _f2_setting_benchmark_table_from_frame(
+        frame,
+        benchmark_rows,
+        setting="hospital",
+        specs=specs,
+    )
+
+
+def _f2b_community_benchmark_table_from_frame(
+    frame: pd.DataFrame,
+    benchmark_rows: pd.DataFrame,
+    specs: list[tuple[int, str, str]] | None = None,
+) -> pd.DataFrame:
+    return _f2_setting_benchmark_table_from_frame(
+        frame,
+        benchmark_rows,
+        setting="community",
+        specs=specs,
+    )
+
+
+def _f2_setting_benchmark_table_from_csv(
+    csv_path: Path,
+    benchmark_rows: pd.DataFrame,
+    *,
+    setting: str,
+) -> tuple[pd.DataFrame, str | None]:
+    available = _simulation_csv_columns(csv_path)
+    if available is None:
+        return pd.DataFrame(), f"{csv_path.name}: could not read the CSV header."
+    if "time_in_years" not in available:
+        return pd.DataFrame(), f"{csv_path.name}: missing time_in_years."
+
+    specs = _f2_setting_column_specs(
+        benchmark_rows,
+        available,
+        setting=setting,
+    )
+    if not specs:
+        return (
+            pd.DataFrame(),
+            f"{csv_path.name}: no {setting} bacterium-drug resistance columns matched Figure 2.",
+        )
+
+    usecols = {"time_in_years"}
+    if "policy_option" in available:
+        usecols.add("policy_option")
+    for _, denominator, numerator in specs:
+        usecols.add(denominator)
+        usecols.add(numerator)
+
+    try:
+        frame = _read_csv_selected(csv_path, usecols)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return pd.DataFrame(), f"{csv_path.name}: {exc}"
+
+    table = _f2_setting_benchmark_table_from_frame(
+        frame,
+        benchmark_rows,
+        setting=setting,
+        specs=specs,
+    )
+    if table.empty or table["Inf sim (%)"].notna().sum() == 0:
+        return (
+            pd.DataFrame(),
+            f"{csv_path.name}: no {setting} infection-days in 2022-2025.",
+        )
+    return table.loc[table["Inf sim (%)"].notna()].copy(), None
+
+
+def _f2_setting_runs(
+    csv_paths: list[Path],
+    benchmark_rows: pd.DataFrame,
+    *,
+    setting: str,
+) -> tuple[list[dict], list[str]]:
+    runs: list[dict] = []
+    problems: list[str] = []
+    for csv_path in csv_paths:
+        table, problem = _f2_setting_benchmark_table_from_csv(
+            csv_path,
+            benchmark_rows,
+            setting=setting,
+        )
+        if problem is not None:
+            problems.append(problem)
+            continue
+        runs.append(
+            {
+                "meta": {
+                    "run_id": csv_path.stem,
+                    "source_file": csv_path.name,
+                },
+                "resistance_benchmarks": table,
+            }
+        )
+    return runs, problems
 
 
 def _make_figure_2_calibration_resistance_fit_legacy(agg: dict, out_dir: Path) -> None:
@@ -3448,6 +3721,12 @@ def make_figure_2_calibration_resistance_fit(
     *,
     runs: list[dict] | None = None,
     summary_mode: str | None = None,
+    figure_label: str = "Figure 2",
+    figure_title: str | None = None,
+    output_stem: str = "Figure_2__calibration_resistance_fit_by_bacteria_drug_class",
+    simulation_scope: str | None = None,
+    simulation_legend_prefix: str | None = None,
+    extra_footnotes: list[str] | None = None,
 ) -> None:
     """
     Create Figure 2 with a selectable uncertainty summary.
@@ -3459,6 +3738,9 @@ def make_figure_2_calibration_resistance_fit(
     """
     mode = _f2_normalize_summary_mode(summary_mode or _f2_default_summary_mode())
     n_runs = int(agg.get("n_runs", 1) or 1)
+    title = figure_title or (
+        f"{figure_label}. Calibration: resistance fit by bacterium and drug class"
+    )
     sim_col = "Inf sim (%)"
     tgt_col = "Inf target (%)"
 
@@ -3467,7 +3749,8 @@ def make_figure_2_calibration_resistance_fit(
         class_summary = _f2_build_mean_ci_class_table(runs, sim_col, tgt_col)
         if class_summary.empty:
             print(
-                "  Figure 2: mean-CI mode needs per-run resistance_benchmarks data; "
+                f"  {figure_label}: mean-CI mode needs per-run "
+                "resistance_benchmarks data; "
                 "falling back to median/range mode."
             )
             mode = _F2_SUMMARY_MEDIAN_RANGE
@@ -3475,39 +3758,51 @@ def make_figure_2_calibration_resistance_fit(
     if mode == _F2_SUMMARY_MEDIAN_RANGE:
         rb = agg.get("resistance_benchmarks", pd.DataFrame())
         if rb is None or rb.empty:
-            print("  F2: no resistance_benchmarks data - skipping figure.")
+            print(f"  {figure_label}: no resistance_benchmarks data - skipping figure.")
             return
 
         if "Flags" in rb.columns:
             rb = rb[~rb["Flags"].astype(str).str.contains("negligible", case=False, na=False)].copy()
         if rb.empty:
-            print("  Figure 2: no non-negligible resistance_benchmarks rows - skipping figure.")
+            print(
+                f"  {figure_label}: no non-negligible resistance_benchmarks "
+                "rows - skipping figure."
+            )
             return
 
         valid_organism_mask = rb["Bacteria"].apply(_f2_is_valid_organism_label)
         if not bool(valid_organism_mask.all()):
             skipped = sorted({str(v).strip() for v in rb.loc[~valid_organism_mask, "Bacteria"].dropna()})
             print(
-                "  Figure 2: omitted non-organism resistance benchmark label(s): "
+                f"  {figure_label}: omitted non-organism resistance benchmark label(s): "
                 f"{', '.join(repr(v) for v in skipped)}."
             )
             rb = rb.loc[valid_organism_mask].copy()
         if rb.empty:
-            print("  Figure 2: no plottable organism resistance_benchmarks rows - skipping figure.")
+            print(
+                f"  {figure_label}: no plottable organism resistance_benchmarks "
+                "rows - skipping figure."
+            )
             return
 
-        rb = _f2_apply_display_filters(rb)
+        rb = _f2_apply_display_filters(rb, figure_label=figure_label)
         if rb.empty:
-            print("  Figure 2: no rows remain after display potency/special-case filters - skipping figure.")
+            print(
+                f"  {figure_label}: no rows remain after display potency/special-case "
+                "filters - skipping figure."
+            )
             return
 
         class_summary = _f2_build_median_range_class_table(rb, sim_col, tgt_col)
 
     if class_summary.empty:
-        print("  Figure 2: no plottable resistance_benchmarks class summaries - skipping figure.")
+        print(
+            f"  {figure_label}: no plottable resistance_benchmarks class "
+            "summaries - skipping figure."
+        )
         return
 
-    print(f"  Figure 2: summary mode = {mode}.")
+    print(f"  {figure_label}: summary mode = {mode}.")
 
     all_organisms_in_data = sorted(class_summary["Bacteria"].dropna().unique().tolist())
     ordered = [o for o in _F2_ORGANISM_ORDER if o in all_organisms_in_data]
@@ -3615,7 +3910,11 @@ def make_figure_2_calibration_resistance_fit(
     for idx in range(len(ordered), nrows * ncols):
         axes_flat[idx].axis("off")
 
-    sim_label = "Simulation mean" if mode == _F2_SUMMARY_MEAN_CI else "Simulation median"
+    if simulation_legend_prefix:
+        statistic = "mean" if mode == _F2_SUMMARY_MEAN_CI else "median"
+        sim_label = f"{simulation_legend_prefix} {statistic}"
+    else:
+        sim_label = "Simulation mean" if mode == _F2_SUMMARY_MEAN_CI else "Simulation median"
     sim_patch = mpatches.Patch(color=_F2_COLOUR_SIM, alpha=0.85, label=sim_label)
     tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Calibration benchmark")
     if mode == _F2_SUMMARY_MEAN_CI:
@@ -3639,18 +3938,13 @@ def make_figure_2_calibration_resistance_fit(
         frameon=False,
         bbox_to_anchor=(0.5, 0.0),
     )
-    fig.suptitle(
-        "Figure 2. Calibration: resistance fit by bacterium and drug class",
-        fontsize=11,
-        fontweight="bold",
-        y=1.01,
-    )
+    fig.suptitle(title, fontsize=11, fontweight="bold", y=1.01)
     fig.text(0.5, -0.01, ci_note, ha="center", fontsize=7.5, color="#555")
     fig.tight_layout(rect=[0, 0.04, 1, 1])
 
     fig_dir = out_dir / FIGURES_DIRNAME
     fig_dir.mkdir(parents=True, exist_ok=True)
-    stem = "Figure_2__calibration_resistance_fit_by_bacteria_drug_class"
+    stem = output_stem
     png_path = fig_dir / f"{stem}.png"
     svg_path = fig_dir / f"{stem}.svg"
     fig.savefig(png_path, dpi=150, bbox_inches="tight")
@@ -3661,27 +3955,52 @@ def make_figure_2_calibration_resistance_fit(
 
     html_rel_img = f"{stem}.png"
     html_rel_svg = f"{stem}.svg"
-    body = _html_head("Figure 2. Calibration: Resistance Fit")
+    html_title = (
+        "Figure 2. Calibration: Resistance Fit"
+        if figure_label == "Figure 2" and figure_title is None
+        else title
+    )
+    body = _html_head(html_title)
     body += _back_link()
     if mode == _F2_SUMMARY_MEAN_CI:
-        figure_note = (
-            "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
-            "infection resistance percentage by drug class for one bacterium. "
-            "Simulation bars show the mean of run-level class means; error bars show "
-            "a two-sided 95% t confidence interval across stochastic runs. "
-            "Classes without data for a given bacterium are omitted."
-        )
+        if simulation_scope:
+            figure_note = (
+                "Each panel shows the simulated (blue) "
+                f"{simulation_scope} resistance percentage and the Figure 2 "
+                "calibration benchmark (orange) by drug class for one bacterium. "
+                "Simulation bars show the mean of run-level class means; error bars "
+                "show a two-sided 95% t confidence interval across stochastic runs. "
+                "Classes without usable simulation data are omitted."
+            )
+        else:
+            figure_note = (
+                "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
+                "infection resistance percentage by drug class for one bacterium. "
+                "Simulation bars show the mean of run-level class means; error bars show "
+                "a two-sided 95% t confidence interval across stochastic runs. "
+                "Classes without data for a given bacterium are omitted."
+            )
     else:
-        figure_note = (
-            "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
-            "infection resistance percentage by drug class for one bacterium. "
-            "Simulation bars show the mean across all drugs in the class using the "
-            "aggregated calibration-summary median; error bars retain the aggregated "
-            "5th-95th percentile range. Classes without data for a given bacterium "
-            "are omitted."
-        )
+        if simulation_scope:
+            figure_note = (
+                "Each panel shows the simulated (blue) "
+                f"{simulation_scope} resistance percentage and the Figure 2 "
+                "calibration benchmark (orange) by drug class for one bacterium. "
+                "Simulation bars show the median of run-level class means; error bars "
+                "show the 5th-95th percentile range across stochastic runs. Classes "
+                "without usable simulation data are omitted."
+            )
+        else:
+            figure_note = (
+                "Each panel shows the simulated (blue) and calibration-benchmark (orange) "
+                "infection resistance percentage by drug class for one bacterium. "
+                "Simulation bars show the mean across all drugs in the class using the "
+                "aggregated calibration-summary median; error bars retain the aggregated "
+                "5th-95th percentile range. Classes without data for a given bacterium "
+                "are omitted."
+            )
     body += (
-        f"<img src='{html_rel_img}' alt='Figure 2' "
+        f"<img src='{html_rel_img}' alt='{figure_label}' "
         f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
     )
     body += f"<p class='note'>Download: <a href='{html_rel_img}'>PNG</a> | <a href='{html_rel_svg}'>SVG</a></p>\n"
@@ -3695,7 +4014,7 @@ def make_figure_2_calibration_resistance_fit(
         ),
         _RESISTANCE_POINT_TARGET_FOOTNOTE,
         (
-            f"Figure 2 summary mode: {mode}. To switch modes, edit "
+            f"{figure_label} summary mode: {mode}. To switch modes, edit "
             "FIGURE2_SUMMARY_MODE in make_paper_tables.py."
         ),
         "Drug class resistance within a panel is averaged across all specific drugs in that class.",
@@ -3707,10 +4026,151 @@ def make_figure_2_calibration_resistance_fit(
         "general drug-class calibration cells.",
         "Eligible bacteria with resistance benchmark data in the simulation output are included. "
         "IHME/WHO-ESKAPE priority bacteria are shown first, remainder alphabetically.",
-    ] + _RESISTANCE_TARGET_SOURCE_NOTES)
+    ] + list(extra_footnotes or []) + _RESISTANCE_TARGET_SOURCE_NOTES)
     body += "</body></html>"
     html_path = fig_dir / f"{stem}.html"
     _save(html_path, body)
+
+
+def _make_figure_2_setting_resistance_fit(
+    agg: dict,
+    out_dir: Path,
+    csv_paths: list[Path],
+    *,
+    setting: str,
+    figure_label: str,
+    figure_title: str,
+    output_stem: str,
+    simulation_scope: str,
+    simulation_legend_prefix: str,
+    interpretation_note: str,
+    summary_mode: str | None = None,
+) -> None:
+    """Create a setting-specific active-infection companion to Figure 2."""
+    benchmark_rows = _f2_setting_benchmark_template(
+        agg,
+        figure_label=figure_label,
+    )
+    if benchmark_rows.empty:
+        print(
+            f"  {figure_label}: no eligible Figure 2 benchmark rows - skipping figure."
+        )
+        return
+    if not csv_paths:
+        print(f"  {figure_label}: no matching simulation CSVs - skipping figure.")
+        return
+
+    setting_runs, problems = _f2_setting_runs(
+        csv_paths,
+        benchmark_rows,
+        setting=setting,
+    )
+    for problem in problems:
+        print(f"  {figure_label}: {problem}")
+    if not setting_runs:
+        print(
+            f"  {figure_label}: no usable {setting} resistance runs - skipping figure."
+        )
+        return
+
+    setting_agg = aggregate(setting_runs)
+    setting_agg["meta"] = agg.get("meta", setting_agg.get("meta", {}))
+    setting_agg["n_runs"] = len(setting_runs)
+    n_runs = len(setting_runs)
+    print(
+        f"  {figure_label}: using {n_runs} matched simulation CSV"
+        f"{'s' if n_runs != 1 else ''}."
+    )
+
+    make_figure_2_calibration_resistance_fit(
+        setting_agg,
+        out_dir,
+        runs=setting_runs,
+        summary_mode=summary_mode,
+        figure_label=figure_label,
+        figure_title=figure_title,
+        output_stem=output_stem,
+        simulation_scope=simulation_scope,
+        simulation_legend_prefix=simulation_legend_prefix,
+        extra_footnotes=[
+            interpretation_note,
+            (
+                f"Confidence intervals use up to {n_runs} matched stochastic runs. A run "
+                f"with no {setting} active-infection days for a bacterium contributes "
+                "no simulation value for that bacterium."
+            ),
+        ],
+    )
+
+
+def make_figure_2a_hospital_resistance_fit(
+    agg: dict,
+    out_dir: Path,
+    csv_paths: list[Path],
+    *,
+    summary_mode: str | None = None,
+) -> None:
+    """Create the hospital active-infection companion to Figure 2."""
+    _make_figure_2_setting_resistance_fit(
+        agg,
+        out_dir,
+        csv_paths,
+        setting="hospital",
+        figure_label="Figure 2A",
+        figure_title=(
+            "Figure 2A. Calibration benchmarks compared with resistance among "
+            "active-infection person-days while hospitalised, by bacterium and "
+            "drug class"
+        ),
+        output_stem="Figure_2A__hospital_resistance_fit_by_bacteria_drug_class",
+        simulation_scope="hospital active-infection",
+        simulation_legend_prefix="Hospital simulation",
+        interpretation_note=(
+            "Simulation values are the proportion of active-infection person-days "
+            "occurring while the individual was hospitalised for which any_r > 0. "
+            "Repeated days from the same infection episode contribute repeated "
+            "observations. Colonisation without active infection is excluded. The "
+            "benchmark values are unchanged from Figure 2 and are not "
+            "hospital-specific; the comparison is therefore diagnostic rather than "
+            "a separate hospital calibration."
+        ),
+        summary_mode=summary_mode,
+    )
+
+
+def make_figure_2b_community_resistance_fit(
+    agg: dict,
+    out_dir: Path,
+    csv_paths: list[Path],
+    *,
+    summary_mode: str | None = None,
+) -> None:
+    """Create the community active-infection companion to Figure 2."""
+    _make_figure_2_setting_resistance_fit(
+        agg,
+        out_dir,
+        csv_paths,
+        setting="community",
+        figure_label="Figure 2B",
+        figure_title=(
+            "Figure 2B. Calibration benchmarks compared with resistance among "
+            "active-infection person-days while in the community, by bacterium "
+            "and drug class"
+        ),
+        output_stem="Figure_2B__community_resistance_fit_by_bacteria_drug_class",
+        simulation_scope="community active-infection",
+        simulation_legend_prefix="Community simulation",
+        interpretation_note=(
+            "Simulation values are the proportion of active-infection person-days "
+            "occurring while the individual was in the community for which any_r > 0. "
+            "Repeated days from the same infection episode contribute repeated "
+            "observations. Colonisation without active infection is excluded. The "
+            "benchmark values are unchanged from Figure 2 and are not "
+            "community-specific; the comparison is therefore diagnostic rather than "
+            "a separate community calibration."
+        ),
+        summary_mode=summary_mode,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -12144,6 +12604,14 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "Figure 2. Calibration: resistance fit by bacterium and drug class",
             ),
             (
+                "Figures/Figure_2A__hospital_resistance_fit_by_bacteria_drug_class.html",
+                "Figure 2A. Resistance among active-infection person-days while hospitalised",
+            ),
+            (
+                "Figures/Figure_2B__community_resistance_fit_by_bacteria_drug_class.html",
+                "Figure 2B. Resistance among active-infection person-days while in the community",
+            ),
+            (
                 "Figures/Figure_3__calibration_drug_class_share.html",
                 "Figure 3. Calibration: 2025 antibiotic use by drug class",
             ),
@@ -12307,14 +12775,14 @@ def main(input_args: list[str]) -> None:
     csv_runs_with_scale = _discover_simulation_csvs_with_scale(paths)
     if csv_paths:
         print(
-            f"  Found {len(csv_paths)} simulation CSV(s) for Figures 6A, 6B, 8, 9, 10, 11, 12, "
+            f"  Found {len(csv_paths)} simulation CSV(s) for Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, 12, "
             "Supplementary Figures S1, S3, S5, S6, and S8, "
             "and diagnostic Supplementary Figure SX. "
             "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
     else:
         print(
-            "  No matching simulation CSVs found; Figures 6A, 6B, 8, 9, 10, 11, 12, and "
+            "  No matching simulation CSVs found; Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, 12, and "
             "Supplementary Figures S1, S3, S5, S6, S8, and diagnostic SX may render as placeholders. "
             "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
         )
@@ -12361,6 +12829,18 @@ def main(input_args: list[str]) -> None:
         agg,
         out,
         runs=runs,
+        summary_mode=FIGURE2_SUMMARY_MODE,
+    )
+    make_figure_2a_hospital_resistance_fit(
+        agg,
+        out,
+        csv_paths,
+        summary_mode=FIGURE2_SUMMARY_MODE,
+    )
+    make_figure_2b_community_resistance_fit(
+        agg,
+        out,
+        csv_paths,
         summary_mode=FIGURE2_SUMMARY_MODE,
     )
     make_figure_3_calibration_drug_class_share(agg, out, runs=runs)
