@@ -62,9 +62,24 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 
 **Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter, selected against a mixture of observed quantities, transformed comparisons, and transparent expert placeholders. Resistance calibration uses evidence-informed benchmarks drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD), but the current matrix does not retain cell-level provenance sufficient to call every value an observed estimate. Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
 
-**Resistance calibration quantities.** Figure 2 deliberately defines simulated resistance prevalence as the proportion of active-infection person-days for which the bacterium-drug `any_r` value is greater than zero. Resistance severity is represented separately by the mean `any_r` among those positive infection-days. These are policy-scale model quantities rather than literal clinical breakpoint categories. The model does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because the additional pharmacokinetic, laboratory, and breakpoint parameterisation would be disproportionate to its all-bacteria policy-comparison purpose.
+**Resistance calibration quantities.** Figure 2 deliberately defines simulated
+resistance prevalence as the proportion of active-infection person-days for which
+the bacterium-drug `any_r` value is greater than zero. Resistance severity is
+represented separately by the mean `any_r` among those positive infection-days.
+These are policy-scale model quantities rather than literal clinical breakpoint
+categories. The model does not assign drug-specific concentration units or attempt
+to reproduce organism-drug MIC values, because the additional pharmacokinetic,
+laboratory, and breakpoint parameterisation would be disproportionate to its
+all-bacteria policy-comparison purpose.
 
-**Reference configuration and extensibility.** The current parameter set and resistance-mechanism inventory constitute one reference implementation of the framework rather than a definitive global parameterisation. Users should review and, where appropriate, recalibrate acquisition, treatment, resistance and outcome parameters for their setting and policy question. The present mechanism set deliberately compresses some molecular distinctions into policy-scale pathways. Where a proposed policy depends on a resistance distinction that the current mechanism-to-drug map cannot express, users may add or subdivide mechanisms, revise drug applicability and effect magnitudes, or implement a more detailed observation model. Such extensions should be driven by the intended decision problem and supporting data rather than by the aim of matching individual uncertain benchmark cells.
+**Surveillance ascertainment.** Many of the evidence sources informing the
+resistance benchmarks are based on cultured clinical isolates and may overrepresent
+infections that are tested, severe, persistent, invasive, or healthcare-associated
+relative to all simulated active-infection person-days. This is a difference between
+the model output and the evidence used for calibration. It should not be interpreted
+as the operational meaning of `community_resistance_dilution_factor`, which instead
+controls whether a community infection or carriage acquisition attempts to inherit
+a resistance profile from the local human circulating-profile library.
 
 
 ### 1.2 Document structure
@@ -379,11 +394,15 @@ Because the stored profile library includes both resistant and susceptible profi
 
 **Hospital enrichment lever.** Hospital-acquired active infections can be made more likely to draw already-observed resistant profiles through `hospital_resistance_prune_susceptible_percent`. Before a profile is drawn, the model temporarily removes the configured fraction of fully susceptible profiles from the candidate hospital pool; resistant profiles are never removed. The default is 50%, with higher organism-specific values for classic nosocomial pathogens. This changes the probability of selecting complete profiles already observed in the local library and does not create new mechanisms or artificial combinations of mechanisms.
 
-**Step 2 — Community dilution**
+**Step 2 — Community resistance-profile source**
 
-Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that many community acquisitions are not drawn from the same resistant pool seen in clinical sampling, the model applies a per-bacterium **community resistance dilution factor** (`community_resistance_dilution_factor`). The term "dilution" is therefore a source-mixture shorthand, not a direct multiplier applied to resistance after a strain has been sampled.
+Community infection and carriage acquisition hazards are determined independently of the resistance profile assigned at acquisition. Conditional on a new community acquisition, the bacterium-specific community_resistance_dilution_factor controls whether the model attempts to inherit a complete resistance profile from the local human circulating-profile library. Despite its retained configuration name, the parameter is therefore a profile-source probability rather than a direct multiplier applied to resistance prevalence.
 
-Operationally, the factor is the probability that a community-acquired infection is treated as coming from the local human circulating profile library. If the random check fails, sampling from that library, including its local persistence archive, is skipped and the acquisition enters the exogenous/no-profile path. Static environmental and dynamic ratchet probabilities may add mechanisms on that path; later pathways such as same-person carriage inheritance can also add mechanisms independently. The factor therefore limits how much local human AMR is inherited directly from the profile library. It is not intended to force every non-human source to be susceptible: organisms whose food-chain, wastewater, or human-faecal source already carries substantial resistance are assigned higher human-reservoir values, supported by explicit exogenous probabilities, or both. This dilution step is only applied to community-acquired infections; hospital-acquired infections are always treated as drawing from a human-associated circulating pool.
+The circulating-profile library is generated internally from the majority-mechanism profiles of all simulated active-infection person-days in the relevant region and current care setting. It includes untested and fully susceptible infections as well as resistant infections, and a persistent infection can contribute on successive days. It should therefore not be interpreted as a library of clinical isolates or as a direct representation of surveillance sampling.
+
+For a new active community infection, a successful gate leads to profile sampling from the local community human-profile library, including its bounded local persistence archive. If the gate fails, that profile library is skipped and the infection follows the exogenous/no-profile route, where configured environmental or dynamic ratchet probabilities may assign mechanisms. Same-person carriage inheritance can add mechanisms after either route. For a new community carriage episode, the same factor gates sampling from the human-profile library, but the active-infection exogenous-floor assignment step is not applied; resistance can subsequently arise through the other carriage pathways. Hospital acquisitions do not use the community gate.
+
+The parameter consequently controls the mixture of resistance-profile pathways conditional on acquisition. Its effect on resistance is usually, but not necessarily, monotonic because the human-profile library contains susceptible as well as resistant profiles and the exogenous active-infection route can itself assign resistance.
 
 The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir and to resistant exogenous reservoirs:
 
@@ -396,6 +415,9 @@ The dilution factor is assigned by ecological category, reflecting the strength 
 | Obligate human pathogen / STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission means the community pool is the human circulating pool |
 
 Per-bacteria values are calibrated within these ecological bands.
+
+Differences between clinically sampled resistance evidence and the model's active-infection person-day outputs are discussed in Sections 1.1 and 12.1.  They are an issue for interpretation of the calibration comparison and are not
+implemented through `community_resistance_dilution_factor`.
 
 **Step 3 — Correlated mechanism profile sampling**
 

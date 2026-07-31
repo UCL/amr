@@ -7511,15 +7511,15 @@ lazy_static! {
         map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.90);
         map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.95); // Obligate human pathogen
         map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.75); // Predominantly human transmission
-        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.07);
+        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.20); // 0.07
+        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.20); // 0.07
+        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.20); // 0.07
         map.insert("shigella_spp._community_resistance_dilution_factor".to_string(), 0.72); // Human transmission plus an exogenous global-import fraction
 
         // Healthcare-associated organisms that also colonise the community.
-        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.18); // Environmental persistence plus human selection
+        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.20); // 0.20 Environmental persistence plus human selection
         map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.25); // 0.15  Gut and environmental reservoirs
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.15); // 0.05
+        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.20); // 0.15  0.05
         map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.22  Gut and environmental reservoirs
         map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut and environmental reservoirs
         map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
@@ -7587,9 +7587,9 @@ lazy_static! {
     // Community mechanism-reversion multipliers. Outside hospital, this factor
     // multiplies the base reversion probability of every present mechanism that
     // is not under selection by an active drug. The hospital factor is 1.0.
-    map.insert("acinetobacter_baumannii_community_mechanism_reversion_multiplier".to_string(), 200.0);
-    map.insert("stenotrophomonas_maltophilia_community_mechanism_reversion_multiplier".to_string(), 200.0);
-    map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(), 200.0);
+    map.insert("acinetobacter_baumannii_community_mechanism_reversion_multiplier".to_string(),  30.0); // 200
+    map.insert("stenotrophomonas_maltophilia_community_mechanism_reversion_multiplier".to_string(),  30.0); // 200
+    map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(),  30.0); // 200
     // A value below 1 slows community reversion for N. gonorrhoeae.
     map.insert("neisseria_gonorrhoeae_community_mechanism_reversion_multiplier".to_string(), 0.01);
 
@@ -7645,7 +7645,7 @@ lazy_static! {
         map.insert("vibrio_cholerae_log_odds_hospital_acquired".to_string(), 2.0);
         map.insert("campylobacter_jejuni_log_odds_hospital_acquired".to_string(), -7.5); // Effectively no nosocomial acquisition; hospital cases are overwhelmingly community or foodborne exposures
         map.insert("mdr_mycobacterium_tuberculosis_log_odds_hospital_acquired".to_string(), 2.0);
-        map.insert("helicobacter_pylori_log_odds_hospital_acquired".to_string(), 4.0);
+        map.insert("helicobacter_pylori_log_odds_hospital_acquired".to_string(), 0.0); // 4.0
         map.insert("legionella_pneumophila_log_odds_hospital_acquired".to_string(), 3.7);
         map.insert("mycoplasma_pneumoniae_log_odds_hospital_acquired".to_string(), 2.5);
         map.insert("bordetella_pertussis_log_odds_hospital_acquired".to_string(), 3.0);
@@ -10971,7 +10971,7 @@ lazy_static! {
                 1,
                 &[
                     ("trim_sulf", 0.60),
-                    ("amoxicillin_clavulanate",  8.8),
+                    ("amoxicillin_clavulanate",  7.0),
                     ("amoxicillin", 1.4),
                     ("ciprofloxacin", 0.9 ), // stewardship concerns limit empiric quinolone use for UTI
                     ("ampicillin", 0.7 ),
@@ -10988,8 +10988,8 @@ lazy_static! {
                     ("meropenem", 25.0),
                     ("imipenem_c", 25.0),
                     ("ertapenem", 25.0),
-                    ("meropenem_vaborbactam", 18.0),
-                    ("ceftazidime_avibactam", 12.0),
+                    ("meropenem_vaborbactam", 15.0),
+                    ("ceftazidime_avibactam", 10.0),
                     ("aztreonam_avibactam", 1.0),
                     ("cefixime", 6.2),
                     ("gentamicin", 6.0),
@@ -11031,7 +11031,7 @@ lazy_static! {
             (
                 3,
                 &[
-                    ("amoxicillin_clavulanate", 10.0),
+                    ("amoxicillin_clavulanate",  8.0),
                     ("amoxicillin", 4.5),
                     ("penicillin_g", 4.5),
                     ("ampicillin", 2.3),
@@ -11040,7 +11040,7 @@ lazy_static! {
                     ("ceftriaxone", 6.2),
                     ("erythromycin", 0.8 ),
                     ("cefuroxime", 3.0),
-                    ("piperacillin_tazobactam", 9.0),
+                    ("piperacillin_tazobactam", 8.0),
                     ("levofloxacin", 1.1),
                     ("moxifloxacin", 1.1),
                     ("cefixime", 5.7),
@@ -11326,7 +11326,7 @@ lazy_static! {
             ("fidaxomicin", 0.0010),
             ("furazolidone", 0.023),
             ("rifampicin", 0.0010),
-            ("amoxicillin_clavulanate", 0.45),
+            ("amoxicillin_clavulanate", 0.40),
             ("piperacillin_tazobactam", 0.0010),
             ("ampicillin_sulbactam", 0.0010),
             ("ticarcillin_clavulanate", 0.0010),
