@@ -3264,6 +3264,19 @@ def _f2_setting_benchmark_template(
         rb = rb[
             ~rb["Flags"].astype(str).str.contains("negligible", case=False, na=False)
         ].copy()
+
+    # Parsed fixed-width summaries can lose a trailing Flags value when the
+    # preceding provenance fields are empty. Match Figure 2's effective row
+    # eligibility directly so such excluded drugs do not become zero-valued
+    # observations in the hospital/community class averages.
+    simulation_is_numeric = (
+        rb["Inf sim (%)"].apply(_first_numeric_value).notna()
+        if "Inf sim (%)" in rb.columns
+        else pd.Series(False, index=rb.index)
+    )
+    target_is_numeric = rb["Inf target (%)"].apply(_first_numeric_value).notna()
+    rb = rb.loc[simulation_is_numeric | target_is_numeric].copy()
+
     rb = rb.loc[rb["Bacteria"].apply(_f2_is_valid_organism_label)].copy()
     rb = _f2_apply_display_filters(rb, figure_label=figure_label)
     return rb.drop_duplicates(subset=["Bacteria", "Drug"]).reset_index(drop=True)

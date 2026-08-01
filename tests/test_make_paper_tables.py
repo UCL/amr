@@ -3,6 +3,7 @@ import unittest
 import pandas as pd
 
 from amr_simulation_output_analysis.make_paper_tables import (
+    _f2_setting_benchmark_template,
     _f2a_hospital_benchmark_table_from_frame,
     _f2a_hospital_column_specs,
     _f2b_community_benchmark_table_from_frame,
@@ -11,6 +12,43 @@ from amr_simulation_output_analysis.make_paper_tables import (
 
 
 class Figure2SettingResistanceTests(unittest.TestCase):
+    def test_setting_template_excludes_drugs_absent_from_figure_2(self) -> None:
+        rows = []
+        for drug in ["amoxicillin", "ampicillin", "penicillin_g", "flucloxacillin"]:
+            rows.append(
+                {
+                    "Bacteria": "Acinetobacter baumannii",
+                    "Drug": drug,
+                    "Class": "Penicillins (J01C)",
+                    "Inf sim (%)": float("nan"),
+                    "Inf target (%)": float("nan"),
+                    # Reproduce summaries where the trailing negligible-potency
+                    # note was not retained in the parsed Flags column.
+                    "Flags": "",
+                }
+            )
+        for drug, target in [("piperacillin", 70.0), ("ticarcillin", 65.0)]:
+            rows.append(
+                {
+                    "Bacteria": "Acinetobacter baumannii",
+                    "Drug": drug,
+                    "Class": "Penicillins (J01C)",
+                    "Inf sim (%)": "45.9 (27.3-60.1)",
+                    "Inf target (%)": target,
+                    "Flags": "",
+                }
+            )
+
+        result = _f2_setting_benchmark_template(
+            {"resistance_benchmarks": pd.DataFrame(rows)},
+            figure_label="Figure 2A test",
+        )
+
+        self.assertEqual(
+            result["Drug"].tolist(),
+            ["piperacillin", "ticarcillin"],
+        )
+
     def test_uses_baseline_2022_2025_hospital_infection_person_days(self) -> None:
         benchmark_rows = pd.DataFrame(
             [
