@@ -3420,7 +3420,8 @@ lazy_static! {
         map.insert("hgt_gut_compartment_multiplier".to_string(), 2.0);
         map.insert("hgt_minority_donor_multiplier".to_string(), 0.20);
         map.insert("mechanismless_resistance_reversion_rate".to_string(), 0.0004);
-        map.insert("community_mechanism_reversion_multiplier".to_string(), 1.0);
+        // ^^^^
+        map.insert("community_mechanism_reversion_multiplier".to_string(), 0.5);  // 1.0
 
         map.insert("default_clearance_delay_days".to_string(), 3.0);
         map.insert("default_clearance_base_log_odds".to_string(), -4.2);
@@ -7539,7 +7540,7 @@ lazy_static! {
         map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.70); // Human nasopharyngeal reservoir
         map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.75); // Human transmission
         map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.60); // Predominantly human carriage
-        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.80); // Human transmission
+        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 1.00); // 0.80 Human transmission
 
         // Pathogens modeled as drawing all community profiles from the
         // circulating cache.
@@ -7587,9 +7588,9 @@ lazy_static! {
     // Community mechanism-reversion multipliers. Outside hospital, this factor
     // multiplies the base reversion probability of every present mechanism that
     // is not under selection by an active drug. The hospital factor is 1.0.
-    map.insert("acinetobacter_baumannii_community_mechanism_reversion_multiplier".to_string(),  10.0); // 200
-    map.insert("stenotrophomonas_maltophilia_community_mechanism_reversion_multiplier".to_string(),  10.0); // 200
-    map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(),  10.0); // 200
+    map.insert("acinetobacter_baumannii_community_mechanism_reversion_multiplier".to_string(),   3.0); // 200
+    map.insert("stenotrophomonas_maltophilia_community_mechanism_reversion_multiplier".to_string(),   3.0); // 200
+    map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(),   3.0); // 200
     // A value below 1 slows community reversion for N. gonorrhoeae.
     map.insert("neisseria_gonorrhoeae_community_mechanism_reversion_multiplier".to_string(), 0.01);
 
