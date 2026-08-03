@@ -404,17 +404,17 @@ For a new active community infection, a successful gate leads to profile samplin
 
 The parameter consequently controls the mixture of resistance-profile pathways conditional on acquisition. Its effect on resistance is usually, but not necessarily, monotonic because the human-profile library contains susceptible as well as resistant profiles and the exogenous active-infection route can itself assign resistance.
 
-The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir and to resistant exogenous reservoirs:
+The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir and to resistant exogenous reservoirs. The categories are interpretive groupings rather than constraints enforced by the code; the resolved bacterium-specific values in Appendix B.3 are the canonical values used by the model.
 
 | Category | Dilution range | Example bacteria | Rationale |
 |----------|---------------:|------------------|-----------|
-| Environmental / waterborne | 0.03 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition is dominated by environmental exposure rather than the local human circulating pool |
-| Foodborne / mixed exogenous reservoir | 0.07–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | The non-human or broad exogenous fraction remains important, but some organisms in this group are still largely human-maintained |
-| Healthcare-associated | 0.05–0.40 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance is amplified in hospitals, so the community pool is materially more susceptible |
-| Endogenous flora / commensal | 0.60–0.80 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology and carriage |
+| Environmental / waterborne | 0.30 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition has a substantial exogenous component rather than being drawn exclusively from the local human circulating pool |
+| Foodborne / mixed exogenous reservoir | 0.30–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | The non-human or broad exogenous fraction remains important, but some organisms in this group are still largely human-maintained |
+| Healthcare-associated | 0.30–0.50 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance is amplified in hospitals, so community acquisitions retain a material exogenous/no-profile component |
+| Endogenous flora / human-associated | 0.60–1.00 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology; *H. pylori* uses the human-profile source but has no separate modelled carriage compartment |
 | Obligate human pathogen / STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission means the community pool is the human circulating pool |
 
-Per-bacteria values are calibrated within these ecological bands.
+The values are best-guess ecological and calibration parameters. They determine source-pathway mixing rather than acquisition incidence, which is parameterised separately.
 
 Differences between clinically sampled resistance evidence and the model's active-infection person-day outputs are discussed in Sections 1.1 and 12.1.  They are an issue for interpretation of the calibration comparison and are not
 implemented through `community_resistance_dilution_factor`.
@@ -570,7 +570,7 @@ Each day, for each active infection that is not already septic, the model calcul
 
 | Component | Parameter(s) | Current value / pattern | Interpretation |
 |-----------|--------------|-------------------------|----------------|
-| Per-bacterium baseline sepsis propensity | `<bacterium>_sepsis_baseline_log_odds`; fallback `sepsis_baseline_log_odds` | Fallback −12.0. Explicit organism values range from effectively non-septic sentinels such as *H. pylori* (−500.0) and MDR-TB (−38.0), through low-sepsis organisms, to high-risk invasive pathogens such as *P. aeruginosa* (−5.0) and *S. pyogenes* (−5.6). | Captures organism-level invasive potential and virulence at a given bacterial burden. This is separate from the syndrome/site term below: it says how septic this organism tends to be, not where the infection is. |
+| Per-bacterium baseline sepsis propensity | `<bacterium>_sepsis_baseline_log_odds`; fallback `sepsis_baseline_log_odds` | Fallback −12.0. Explicit organism values range from effectively non-septic sentinels such as *H. pylori* (−500.0) and MDR-TB (−38.0), through low-sepsis organisms, to high-risk invasive pathogens such as *P. aeruginosa* (−5.0) and *S. pyogenes* (−6.0). | Captures organism-level invasive potential and virulence at a given bacterial burden. This is separate from the syndrome/site term below: it says how septic this organism tends to be, not where the infection is. |
 | Bacterial burden | `<bacterium>_log_odds_sepsis_infection_level`; fallback `log_odds_sepsis_infection_level` | Default +0.93 per unit of infection level. Current organism-specific overrides include smaller level effects for *S. epidermidis* (+0.04) and *S. maltophilia* (+0.08). | Higher simulated bacterial burden increases daily sepsis-onset risk. |
 | Duration of infection | `<bacterium>_log_odds_sepsis_infection_duration`; fallback `log_odds_sepsis_infection_duration` | Default +0.005 per day since acquisition. Current organism-specific overrides include *S. epidermidis* (+0.005) and *S. maltophilia* (+0.012). | Longer-standing infections gradually become more dangerous, especially if not brought under control. |
 | Age and bacterium-age interaction | `sepsis_age_log_odds_baseline`, `sepsis_age_log_odds_neonatal`, `sepsis_age_log_odds_pediatric`, `sepsis_age_log_odds_young_adult`, `sepsis_age_log_odds_elderly`, plus `<bacterium>_<age_category>_sepsis_log_odds` | General age terms: baseline 0.0; neonatal (≤28 days) +1.10; paediatric (>28 days to 18 years) +0.18; young adult (>18 to 65 years) 0.0; elderly (>65 years) +0.69. Selected organisms add extra age-specific deltas, e.g. neonatal GBS, neonatal *E. coli*, paediatric pneumococcus/*H. influenzae*/*N. meningitidis*, elderly pneumococcus/*E. coli*/*Klebsiella*/*Pseudomonas*/*Acinetobacter*/VRE/*S. aureus*, and young-adult meningococcus/*S. aureus*. | Captures both general host vulnerability and pathogen-specific age patterns. The detailed organism-age terms are calibration terms rather than direct empirical case-fatality estimates. |
@@ -579,7 +579,7 @@ Each day, for each active infection that is not already septic, the model calcul
 | Immunodeficiency | `log_odds_sepsis_onset_immunosuppressed` | +0.7 if the person currently has an immunodeficiency state; otherwise 0.0. | Immunocompromised people have higher daily risk of progressing from infection to sepsis. |
 | Hospitalisation | `log_odds_sepsis_onset_hospitalized` | +0.5 if the person is currently hospitalised; otherwise 0.0. | Hospitalised people are a higher-risk case mix and often have more severe or device-associated infections. |
 | Not currently under medical care | `log_odds_sepsis_onset_not_under_care` | +1.0 unless the person is taking any antibiotic, is hospitalised, or has a bacterium identified for a still-active infection; otherwise 0.0. This is a person-level supportive-care proxy and does not require the antibiotic or test to concern the particular bacterium whose sepsis risk is being evaluated. | Represents the nonspecific benefits of clinical attention, monitoring, oxygen, fluids, and other supportive care in addition to antimicrobial treatment. |
-| Special *H. pylori* handling | Hard-coded onset override in `apply_rules()` plus `helicobacter_pylori_sepsis_baseline_log_odds` | If *H. pylori* is the only active infection, its daily sepsis-onset probability is forced to 0.0. Its baseline is also set to −500.0, so it has effectively no intrinsic sepsis propensity in normal model use. | Keeps *H. pylori* as a localised chronic disease/gastric-cancer organism rather than a classic invasive sepsis pathogen. Other active organisms in polymicrobial infection can still cause sepsis through their own calculations. |
+| Special *H. pylori* handling | Hard-coded onset override in `apply_rules()` plus `helicobacter_pylori_sepsis_baseline_log_odds` | If *H. pylori* is the only active infection, its daily sepsis-onset probability is forced to 0.0. Its baseline is also set to −500.0, so it has effectively no intrinsic sepsis propensity in normal model use. | Represents *H. pylori* as a localised gastric infection rather than a classic invasive sepsis pathogen. Other active organisms in polymicrobial infection can still cause sepsis through their own calculations. |
 
 The result is converted to a daily probability using the logistic function. These terms are calibrated model components designed to preserve plausible clinical ordering; the exact numeric values should not be read as direct empirical estimates of portable sepsis risk.
 
@@ -593,7 +593,13 @@ This part of the model contains two related but distinct processes:
 - **Drug-assisted carriage clearance**: `microbiome_clearance_probability_on_drug_treatment` = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves. This means 80% of the time, when an infection is successfully treated with an antibiotic, the asymptomatic carriage compartment is also cleared; 20% of the time, the microbiome is not cleared and persists.
 - **Microbiome acquisition on active drug therapy**: The model tracks a separate flag `microbiome_acquired_on_drug_today` that identifies when carriage is acquired while the individual is already on antibiotic treatment. This captures "opportunistic overgrowth" — bacteria that would normally be outcompeted but thrive in the antibiotic-disrupted microbiome (example: *Clostridioides difficile* overgrowth during broad-spectrum therapy). This is distinct from acquisition in the absence of treatment.
 
-**Infection resolution** Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level is driven down to a near-zero threshold in the rules engine, or when an immune-clearance event is triggered; this is not controlled by `default_microbiome_clearance_probability_per_day`.
+**Active-infection immune clearance** is a separate daily logistic hazard. In the live implementation its log-odds are
+
+$$-4.2 + \text{bacterium adjustment} + \text{age adjustment} - 0.69\,I(\text{immunodeficient}) - 0.3\times\text{infection level} + 0.25\times\text{duration in days}.$$
+
+All current bacterium and age adjustments are zero. The `default_clearance_delay_days = 3` setting and optional bacterium-specific delay settings are loaded into `ClearanceParameters`, but the active rules do not currently consult them: clearance eligibility is armed on the acquisition day (or backfilled to that day for older state), and the duration term is measured from that date. This distinction is important when interpreting short active-infection episodes and is retained explicitly here rather than presenting the configured delay as executable behaviour.
+
+**Infection resolution.** Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level is driven below 0.0001 in the rules engine, or when an immune-clearance event is triggered; this is not controlled by `default_microbiome_clearance_probability_per_day`. *H. pylori* uses this same active-infection clearance pathway and, uniquely among the 42 bacteria, has no separate microbiome/carriage state. Its configured microbiome-clearance value is consequently loaded but not applied to a distinct *H. pylori* carriage compartment.
 
 This distinction matters for AMR because there can be a delay between infection acquisition and symptom-driven treatment. During that untreated interval, bacteria continue replicating, and resistant subclones can emerge or expand within the infecting population before antibiotics are started. Before treatment begins, the dominant process is therefore untreated growth and diversification rather than antibiotic selection.
 
@@ -630,7 +636,7 @@ Once testing is available and ordered, the model simulates a laboratory workflow
 |------|-----------|-------|-------------|
 | **Bacterial identification delay** | `test_delay_days` | 3 days | Bacterial identification cannot be recorded until 3 days after infection acquisition. This is a simplified aggregate representation of specimen collection, culture, and identification. |
 | **AST result delay** | `resistance_test_result_delay_days` | 2 days | Once AST is ordered following bacterial identification, its result panel remains pending for 2 days. Treatment selection cannot use that panel during the pending interval. |
-| **Reporting error rate** | `test_r_error_probability` | 2% | AST results are wrong 2% of the time — the lab reports a resistant organism as susceptible or vice versa. This aims to reflect issues with breakpoint interpretation, contaminated samples, and technical failures. Error rates in disc-diffusion and gradient-strip AST methods are typically in the 1–5% range depending on organism and drug class (International Organization for Standardization, 2021; EUCAST, 2023) |
+| **Reporting error rate** | `test_r_error_probability` | 2% per drug result | Each drug entry in a completed AST panel independently receives an error draw. If the simulated `any_r` is effectively zero, an error reports `test_r_error_value = 0.25`; if `any_r` is positive, an error reports 0.0. Otherwise the reported value equals `any_r`. The parameter is a simplified false-positive/false-negative process rather than a platform-specific measurement-error model. |
 
 
 
@@ -712,7 +718,7 @@ Each day, the model decides whether to start a new antibiotic course for each pe
 | Sepsis | +6.5 | Strong additional increase | Sepsis is a medical emergency requiring immediate antibiotics |
 | Hospitalised | +0.7 | ~2× higher odds | Inpatient care increases access to and opportunity for treatment |
 | Immunodeficiency | +0.2 | weak positive effect in isolation | Immunodeficiency alone is not usually a stand-alone treatment indication; symptoms, sepsis, test confirmation, and the constrained prophylaxis pool drive most starts |
-| No clinical indication | −1.2 | ~3.3× lower odds | Background prescribing remains possible without an active modelled bacterial infection, but is suppressed |
+| No clinical indication | −1.1 | ~3× lower odds | Background prescribing remains possible without an active modelled bacterial infection, but is suppressed |
 | Lab-confirmed infection | +0.92 | ~2.5× more likely | Positive culture results prompt targeted therapy |
 | Already on an antibiotic | +0.18 | ~1.2× more likely | People taking an antibiotic may be started on an additional agent (combination therapy) |
 
@@ -1289,7 +1295,7 @@ emergence_rate = mechanism_rate
 ```
 
 | Factor | What it represents |
-|--------|-------------------|------------------|
+|--------|-------------------|
 | `mechanism_rate` | How biologically likely this bacterium is to acquire this specific mechanism |
 | `run_pathway_infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level and scenario-level scaling applied on top of the organism-specific baseline |
 | `bacteria_level_factor` | Logarithmic scaling by bacterial load |
@@ -1409,33 +1415,24 @@ The full reversion rates by mechanism category:
 | **MexXY-OprM** | `0.0005` | Endogenous efflux system upregulation (common in *Pseudomonas aeruginosa*). |
 | **Global / Generic Efflux** | `0.0005` | Broad, non-specific transport energy costs. |
 
-#### 7.4.1 Community-setting accelerated reversion for hospital-adapted organisms
+#### 7.4.1 Bacterium-specific community reversion
 
-The baseline reversion rates above are model-wide effective values. For a subset of predominantly nosocomial organisms, the model uses faster effective turnover outside hospital to represent loss of hospital-adapted resistant populations when acute-care selection and transmission are absent. This parameter should not be read as asserting literal genetic reversion of each mechanism. Three considerations motivate the approximation:
+The mechanism rates above are multiplied by the run-level reversion sensitivity multiplier and, outside hospital, by a bacterium-specific `community_mechanism_reversion_multiplier`. Hospitalised people use a setting multiplier of 1.0. A reversion draw is attempted only when the person has no active drug that selects for the mechanism. The final daily probability is clamped to the interval 0–1.
 
-1. **Fitness cost without compensatory selection.** The high-level resistance cassettes that define MDR nosocomial clones — carbapenemases (OXA-type, KPC, NDM), VanA/VanB glycopeptide resistance operons, and acquired efflux overexpression — impose a significant metabolic burden. In the hospital, that cost is offset by continuous antibiotic pressure and clonal amplification under selection.  In community carriers who are no longer receiving antibiotics, susceptible wild-type competitors may displace the resistant clone, although clearance timing varies substantially by organism, host, and re-exposure risk. The model therefore treats this as an effective reversion term rather than a literal decolonisation half-life (Andersson DI & Hughes D, 2010; San Millán A & MacLean RC, 2017; Arcilla MS et al., 2017).
+On the active-infection side, a successful event removes the mechanism from `mechanism_majority` but leaves minority persistence in `mechanism_any`; in carriage it removes the mechanism from `mechanism_microbiome`. The process is therefore an effective loss from the transmissible/dominant or carriage state. It need not represent literal reversal of the underlying determinant, and its numerical values are model parameters rather than measured decolonisation half-lives.
 
-2. **Absence of the hospital ecological niche.** MDR hospital-adapted clones (e.g., OXA-23/40/58 *A. baumannii* international clones, VRE *E. faecium* clonal complex 17, MDR *Stenotrophomonas* lineages) are ecologically distinct from their community congeners. They are disproportionately maintained by healthcare exposure, devices, high antibiotic pressure, and repeated admissions rather than by stable community transmission for most people. Community-dwelling individuals who are not recent hospital discharges are therefore less likely to provide the conditions that maintain these clones (Magill SS et al., 2018; Bassetti M et al., 2018; Brooke JS, 2012; Werner G et al., 2008).
+The live global community multiplier is **0.1**. Most bacteria inherit that value, so an unselected mechanism is lost at one tenth of its configured hospital/base rate while the person is in the community. This slows finite-population loss of established resistance outside hospital. Four bacteria have explicit overrides:
 
-3. **Consequence for resistance pool dynamics.** If the same effective turnover is applied in hospital and community settings, discharged patients can repeatedly seed resistant majority/carriage profiles into the community cache and reduce the intended hospital-community contrast. The multiplier is a modelling device for that setting transition; its numerical value is calibrated within this compressed representation rather than measured as a genetic reversion rate.
+| Organism | Community multiplier | Effect relative to the same mechanism's base/hospital rate | Interpretation |
+|---|---:|---:|---|
+| *Acinetobacter baumannii* | 3.0 | 3× faster | Effective community turnover of predominantly healthcare-associated resistant profiles |
+| *Stenotrophomonas maltophilia* | 3.0 | 3× faster | Effective loss of healthcare/device-associated resistant profiles outside their main ecological niche |
+| *Enterococcus faecium* | 3.0 | 3× faster | Maintains a hospital-community contrast for hospital-adapted VRE lineages |
+| *Neisseria gonorrhoeae* | 0.01 | 100× slower | Strong persistence of resistant gonococcal lineages after the original selecting pressure falls |
 
-To address this, the model assigns a per-bacterium `community_mechanism_reversion_multiplier` (default for most bacteria: 1.0, no effect). It multiplies the reversion probability for **every mechanism** of that bacterium when the individual is not currently hospitalised and no active drug selects for that mechanism. On the active-infection side a successful event removes the mechanism from `mechanism_majority` but leaves minority persistence in `mechanism_any`; in carriage it removes the mechanism from `mechanism_microbiome`. The parameter therefore represents effective setting-specific loss from transmissible/dominant or carriage states, not necessarily loss of every resistant cell or literal reversal of the underlying determinant.
+The three 3.0 overrides are 30 times the ordinary 0.1 community multiplier, but only three times the same mechanism's hospital/base rate; they are not the former 200× settings and do not imply loss within a few days for the configured mechanism rates. These organism-level multipliers apply to every eligible mechanism for that bacterium, not only to carbapenemases, VanA/VanB, or *gyrA*. They are compressed ecological calibration terms used to preserve plausible setting contrasts while retaining the same mechanism-specific fitness-cost ordering (Andersson DI & Hughes D, 2010; San Millán A & MacLean RC, 2017; Arcilla MS et al., 2017).
 
-The following organisms are assigned a community multiplier of **200×**:
-
-| Organism | Multiplier | Effective community carbapenemase reversion | Effective community VanA/B reversion | Rationale |
-|---|---|---|---|---|
-| *Acinetobacter baumannii* | 200 | ~0.2/day (50% in ~3 days) | — | Strongly healthcare-associated MDR ecology; multiplier produces rapid effective community turnover in the compressed model |
-| *Stenotrophomonas maltophilia* | 200 | ~0.2/day | — | Predominantly healthcare/device-associated infection ecology; multiplier limits persistent community seeding by hospital-adapted profiles |
-| *Enterococcus faecium* | 200 | — | ~0.4/day (50% in ~1.5 days) | VRE is strongly hospital/LTCF concentrated; multiplier preserves a marked setting contrast in the model |
-
-These are very strong effective multipliers: in the absence of selecting drugs they can remove majority or carriage mechanism flags within days. They apply to all mechanisms for the listed bacterium, not only the illustrative carbapenemase or VanA/B mechanisms shown in the table. They should therefore be interpreted as calibration approximations for rapid loss of hospital-adapted resistant populations from community-transmissible states, not as direct estimates of genetic determinant loss.
-
-The multiplier can also be set **below 1.0** to slow effective community turnover for organisms whose resistant lineages remain stable after the original drug pressure falls. *N. gonorrhoeae* fluoroquinolone resistance is the configured example: surveillance data from multiple countries show no meaningful rebound in ciprofloxacin susceptibility after fluoroquinolones were withdrawn from gonorrhoea treatment guidelines in 2007 (Unemo M & Shafer WM, 2014; Unemo M et al., 2021; World Health Organization STI fact sheet, 2025). The responsible *gyrA*/*parC* mutations and associated resistant lineages can persist with comparatively low effective cost. The current multiplier is 0.01 (100× slower than the unmodified mechanism rate). As with the 200× values, this bacterium-level multiplier applies to every eligible mechanism, although gyrA is the illustrative calibration target.
-
-| Organism | Multiplier | Effective gyrA reversion | Rationale |
-|---|---|---|---|
-| *N. gonorrhoeae* | 0.01 | ~0.000001/day for primary gyrA (nominal half-life ~1,900 years when other multipliers are 1) | Strong effective persistence of gonococcal FQ-resistant lineages; surveillance shows no susceptibility rebound after FQ withdrawal |
+The 0.01 gonococcal value reflects the durable population-level persistence of fluoroquinolone-resistant lineages seen after fluoroquinolones were withdrawn from treatment guidelines (Unemo M & Shafer WM, 2014; Unemo M et al., 2021). It likewise applies to all eligible gonococcal mechanisms, although *gyrA*/*parC* resistance is the motivating example.
 
 
 *Note: The former dormant `as_yet_unknown` state slot has been retired and repurposed as the explicit `mutation_siderophore_uptake` mechanism. This preserves the fixed mechanism-state width while removing an uninterpretable calibration placeholder.*
@@ -1464,9 +1461,11 @@ The former `resistance_floor_*` configuration and `calculate_resistance_floor` p
 
 Stenotrophomonas maltophilia. Intrinsic non-susceptibility to carbapenems, unprotected penicillins, 1st/2nd-generation cephalosporins, macrolides, and most aminoglycosides is encoded directly as near-zero potency values (`potency_when_no_r` ≤ 0.05). Acquired resistance to TMP-SMX, fluoroquinolones, and tetracyclines is generated and maintained through the standard emergence, carriage, HGT, profile-transmission, local persistence, ratchet, and explicit exogenous pathways where applicable.
 
-Helicobacter pylori. Resistance is driven primarily by chromosomal mutation during treatment courses. A major persistence pathway is treatment failure without second-line rescue therapy (`helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80`). When first-line clarithromycin-based triple therapy fails, approximately 80% of patients in the model do not proceed to bismuth quadruple rescue therapy — reflecting real-world loss to follow-up, access barriers, poor tolerability of the quadruple regimen, and incomplete prescriber uptake. These patients are left chronically infected with an *H. pylori* strain that has been under macrolide selection pressure; each minority mechanism receives one 0.18/day promotion roll whenever any applicable drug pressure is present, and successful transitions enter the `mechanism_majority` profile recorded in the community mechanism cache. Over a 35-year simulation, this persistent-carrier pool builds up the circulating resistant-strain reservoir through the standard mechanism-inheritance pathway at acquisition. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other organisms contributes additional selection pressure.
+Helicobacter pylori. Resistance is driven primarily by the standard chromosomal de novo and selection pathways during active infection and antibiotic exposure. The configured `helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80` has a narrower role than its name can suggest: after an eligible treatment failure, a successful draw stops the current active drugs and bypasses the immediate alternative-drug selection branch. It does not create a chronic-infection state, disable immune clearance, or guarantee that the infection persists. *H. pylori* has no separate microbiome/carriage compartment, and its active episodes remain subject to the generic immune-clearance hazard described in Section 4.4.
 
-The organism-specific *H. pylori* target routes are explicit: PBP1A-dominant changes use `MutationPbpMosaic` for amoxicillin resistance, 23S rRNA mutations use `Mutation23sRrna` for clarithromycin-class resistance, and 16S rRNA mutations use `Mutation16sRrnaTetracycline` for tetracycline-class resistance. Staphylococcal `mecA/PBP2a`, acquired `ErmB`/`Cfr`, VanA/VanB, and TetM/TetO are not used as *H. pylori* proxies. The 16S route is non-transferable and restricted to *H. pylori*; tetracycline remains policy-relevant because it is explicitly selected in the bismuth rescue pathway.
+Population-level persistence of *H. pylori* resistance instead arises through the same majority-profile cache, local historical archive, ratchet, inheritance, and repeated-acquisition machinery used for other active infections. Drug-bacterium initiation multipliers favour drugs associated with *H. pylori* treatment once the organism is identified, but the drug-scoring engine is a compressed representation and does not implement named triple or quadruple regimens as atomic treatment objects. Incidental exposure to applicable drugs prescribed for other indications can also contribute selection pressure while an *H. pylori* episode is active.
+
+The organism-specific target routes are explicit: PBP1A-dominant changes use `MutationPbpMosaic` for amoxicillin resistance, 23S rRNA mutations use `Mutation23sRrna` for clarithromycin-class resistance, and 16S rRNA mutations use `Mutation16sRrnaTetracycline` for tetracycline-class resistance. Staphylococcal `mecA/PBP2a`, acquired `ErmB`/`Cfr`, VanA/VanB, and TetM/TetO are not used as *H. pylori* proxies. The 16S route is non-transferable and restricted to *H. pylori*.
 
 Enterococcus faecium. VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. Glycopeptide resistance is maintained through the standard selection, carriage, HGT, profile-transmission, local persistence, and other explicit pathways.
 
@@ -1718,24 +1717,24 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 | *Enterobacter* spp. | -6.0 | Opportunistic hospital-associated Enterobacterales with meaningful bloodstream-infection potential |
 | *Enterococcus faecalis* | -5.2 | Endocarditis and line-related bacteraemia |
 | *Enterococcus faecium* | -4.2 | Hospital-acquired bloodstream infections, especially VRE |
-| *Escherichia coli* | -10.1 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe than highly invasive ICU pathogens (Poolman JT et al., 2016) |
-| *Klebsiella pneumoniae* | -7.5 | Gram-negative sepsis; carbapenem-resistant strains carry high mortality (Xu L et al., 2017) |
+| *Escherichia coli* | -10.3 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe than highly invasive ICU pathogens (Poolman JT et al., 2016) |
+| *Klebsiella pneumoniae* | -7.8 | Gram-negative sepsis; carbapenem-resistant strains carry high mortality (Xu L et al., 2017) |
 | *Morganella* spp. | -7.1 | Opportunistic Enterobacterales associated with urinary, wound, and healthcare-associated invasive infection |
-| *Proteus* spp. | -6.1 | UTI-associated Enterobacterales with potential for urosepsis, especially in older or catheterised patients |
+| *Proteus* spp. | -6.4 | UTI-associated Enterobacterales with potential for urosepsis, especially in older or catheterised patients |
 | *Serratia* spp. | -7.3 | Opportunistic healthcare-associated Enterobacterales with bloodstream-infection potential |
 | *Providencia stuartii* | -12.0 (fallback) | No organism-specific override configured; handled using the global fallback sepsis baseline |
 | *Pseudomonas aeruginosa* | -5.0 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
 | *Stenotrophomonas maltophilia* | -7.3 | Opportunistic non-fermenter, mainly in severely ill or immunocompromised patients |
-| *Staphylococcus aureus* | -9.7 | Aggressive bloodstream pathogen; 20-30% mortality in bacteraemia (Tong SYC et al., 2015) |
+| *Staphylococcus aureus* | -8.8 | Aggressive bloodstream pathogen; 20-30% mortality in bacteraemia (Tong SYC et al., 2015) |
 | *Staphylococcus epidermidis* | -7.3 | Device-associated and line-related infection; lower virulence than *S. aureus* but clinically important in hospitalised patients |
-| *Streptococcus pneumoniae* | -10.2 | Invasive pneumococcal disease can cause sepsis, but many infections are respiratory and non-bacteraemic |
+| *Streptococcus pneumoniae* | -9.5 | Invasive pneumococcal disease can cause sepsis, but many infections are respiratory and non-bacteraemic |
 | *Salmonella enterica* serovar Typhi | -8.4 | Enteric fever with potential for systemic invasive disease |
-| *Salmonella enterica* serovar Paratyphi A | -8.3 | Enteric fever with occasional septic complications |
+| *Salmonella enterica* serovar Paratyphi A | -8.7 | Enteric fever with occasional septic complications |
 | Invasive non-typhoidal *Salmonella* spp. | -8.5 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2019) |
-| *Shigella* spp. | -14.1 | Primarily dysentery/dehydration mortality; sepsis is not the dominant pathway |
+| *Shigella* spp. | -20.5 | Primarily dysentery/dehydration mortality; sepsis is not the dominant pathway |
 | *Neisseria gonorrhoeae* | -23.3 | Disseminated gonococcal infection is rare |
-| *Streptococcus pyogenes* | -5.6 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS can be highly lethal (Carapetis JR et al., 2005) |
-| *Streptococcus agalactiae* | -5.7 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2013) |
+| *Streptococcus pyogenes* | -6.0 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS can be highly lethal (Carapetis JR et al., 2005) |
+| *Streptococcus agalactiae* | -6.1 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2013) |
 | *Haemophilus influenzae* | -8.5 | Invasive respiratory pathogen, especially in young children, older adults, and unvaccinated populations |
 | *Chlamydia trachomatis* | -18.3 | STI; essentially never causes classic bacterial sepsis |
 | *Mycoplasma genitalium* | -12.0 (fallback) | No organism-specific override configured; handled using the global fallback sepsis baseline |
@@ -1745,12 +1744,12 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 | *Clostridioides difficile* | -9.8 | Deaths are often toxin-mediated colitis rather than classic bloodstream sepsis |
 | *Bacteroides fragilis* | -12.0 (fallback) | No organism-specific override configured; handled using the global fallback sepsis baseline |
 | *Campylobacter jejuni* | -20.2 | Usually enteritis; bacteraemia/sepsis is rare |
-| *Enterobacter cloacae* | -5.2 | Opportunistic hospital-associated Enterobacterales with bloodstream-infection potential |
+| *Enterobacter cloacae* | -6.0 | Opportunistic hospital-associated Enterobacterales with bloodstream-infection potential |
 | *Yersinia enterocolitica* | -8.8 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
-| *Moraxella catarrhalis* | -10.4 | Usually respiratory mucosal infection; invasive sepsis is uncommon |
+| *Moraxella catarrhalis* | -12.4 | Usually respiratory mucosal infection; invasive sepsis is uncommon |
 | *Treponema pallidum* | -10.3 | Syphilis mortality is typically chronic, congenital, or cardiovascular/neurologic rather than acute sepsis |
 | *Bordetella pertussis* | -500.0 | Classic sepsis is suppressed; pertussis mortality is represented through the non-sepsis respiratory-failure pathway |
-| *Helicobacter pylori* | -500.0 | Gastric pathogen; deaths are chronic/cancer-related, and the implementation also forces zero sepsis risk when this is the sole active infection |
+| *Helicobacter pylori* | -500.0 | Gastric pathogen; the implementation forces zero sepsis risk when this is the sole active infection |
 | MDR *Mycobacterium tuberculosis* | -38.0 | Chronic mycobacterial disease rather than acute bacterial sepsis |
 | *Mycoplasma pneumoniae* | -12.0 (fallback) | No organism-specific override configured; handled using the global fallback sepsis baseline |
 | *Legionella pneumophila* | -12.0 (fallback) | No organism-specific override configured; handled using the global fallback sepsis baseline |
@@ -1780,7 +1779,7 @@ All other organisms default to 0.0 (no adjustment).
 
 ### 10.3 Non-sepsis infection death
 
-Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: *V. cholerae* through fatal dehydration (Ali M et al., 2015), *B. pertussis* through infantile respiratory failure (Yeung KHT et al., 2017), *H. pylori* through gastric adenocarcinoma (Plummer M et al., 2015), *T. pallidum* through tertiary and congenital syphilis (Korenromp EL et al., 2019), and *C. difficile* through toxic megacolon (Guh AY et al., 2020). These deaths would not be captured by the sepsis pathway alone.
+Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: *V. cholerae* through fatal dehydration (Ali M et al., 2015), *B. pertussis* through infantile respiratory failure (Yeung KHT et al., 2017), *T. pallidum* through tertiary and congenital syphilis (Korenromp EL et al., 2019), and *C. difficile* through toxic megacolon (Guh AY et al., 2020). Such deaths would not be captured by the sepsis pathway alone. The model also contains effective organism terms motivated by chronic sequelae, including *H. pylori*-attributable gastric cancer, but it does not simulate latency, cancer development, or delayed post-infection deaths explicitly.
 
 The model evaluates a **daily non-sepsis infection death probability** for every active infection that is *not* already progressing through the sepsis pathway. The probability is computed via a logistic model:
 
@@ -1817,14 +1816,14 @@ The per-bacterium adjustments are the primary calibration lever. **Negative valu
 | *C. difficile* | +2.0 | Colitis and toxic megacolon deaths (Guh AY et al., 2020) |
 | *S. pyogenes* | +3.0 | STSS and superantigen (SPE-A/C/SMEZ)-mediated rapid death independent of bacterial burden, plus rheumatic heart disease and post-streptococcal complications (Carapetis JR et al., 2005; Watkins DA et al., 2017) |
 | *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
-| *H. pylori* | +1.7 | Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015) |
+| *H. pylori* | +1.7 | Effective non-sepsis mortality proxy applied only while an active gastric-infection episode exists; the model does not explicitly simulate gastric-cancer latency or progression, and *H. pylori* deaths are excluded from the main reportable infection-death calibration output (Plummer M et al., 2015) |
 | *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2018) |
 
 
 
 This dual-pathway design means that the model can reproduce both the typical sepsis mortality pattern (where broad-spectrum antibiotics and ICU care determine survival) and the non-sepsis mortality pattern (where the primary driver may be dehydration, organ-specific damage, or chronic sequelae).
 
-The non-sepsis adjustments are therefore best viewed as compensating structural terms for important death pathways that a pure sepsis model would miss, rather than as direct organism-specific fatality estimates. That is especially important for globally important syndromes such as cholera, pertussis, diarrhoeal disease, and chronic sequelae-associated infections, where the pathway to death is real but not well represented by bloodstream invasion alone.
+The non-sepsis adjustments are therefore best viewed as compensating structural terms for important death pathways that a pure sepsis model would miss, rather than as direct organism-specific fatality estimates. That is especially important for globally important syndromes such as cholera, pertussis, diarrhoeal disease, and chronic-sequelae-associated infections. For the last group, the implementation is only a contemporaneous active-infection proxy and should not be interpreted as a mechanistic natural-history model.
 
 
 ### 10.4 Infection mortality — syndrome multipliers
@@ -1978,7 +1977,7 @@ the intended schema, not downloaded observations.
 
 6. **No person-to-person transmission network**: Community and hospital infection hazards are driven by externally parameterised organism-specific log-odds, not by direct contacts between simulated individuals. Hospital status changes acquisition through bacterium-specific hospital terms, but neither current pathogen prevalence nor the current hospital census feeds back into incidence. There is no explicit transmission network, no basic reproduction number (R₀), and no herd-immunity dynamic. The absence of a transmission model means the simulation cannot reproduce epidemic waves, outbreak amplification, or the impact of interventions — such as isolation, contact tracing, or infection-control procedures — that primarily work through blocking transmission chains. It also means community resistance prevalence is driven by selection, reversion, HGT, and calibrated acquisition rates rather than by strain spread from person to person. This is a deliberate trade-off: adding a full population-transmission layer for 42 organisms would require extensive additional parameterisation and would substantially increase runtime, while the primary policy questions addressed here (prescribing, stewardship, diagnostics, and access) are primarily mediated through selection pressure rather than transmission dynamics.
 
-7. **Constant infection acquisition rates for most organisms**: With the exception of a global sanitation-improvement adjustment that raises all community-acquisition log-odds by approximately +1 in 1930 and declines to zero by 1950, bacterial infection acquisition rates are treated as constant over the simulation period. This is defensible for most of the 42 modelled organisms, where secular incidence trends have been small relative to the magnitude of resistance-selection effects. Two organisms are worth noting as caveats. First, *Helicobacter pylori*: birth-cohort prevalence in high-income countries was substantially higher in populations that grew up before 1960 (approximately 70–80%) than in those born after 1970 (approximately 30%), a consequence of improved sanitation and reduced intrafamilial transmission. Since clarithromycin-based triple therapy was introduced in the 1990s and most patients treated in that era were adults who had acquired *H. pylori* in childhood, the model's constant acquisition rate may underestimate the size of the treated pool that generated early clarithromycin and metronidazole resistance. Second, *Campylobacter jejuni*: community incidence in high-income countries rose approximately 4–6-fold between 1960 and 1990 as a consequence of intensification of industrial poultry farming (Blaser MJ, 1997). The model therefore applies nalidixic acid selection pressure to a *Campylobacter* population that is implicitly larger than it would have been in reality during the 1963–1975 period, which may slightly overestimate early quinolone-driven GyrA selection for this organism. Neither effect is expected to alter the model's resistance trajectories in a clinically meaningful way given the logarithmic relationship between drug-pressure volume and equilibrium resistance prevalence, but both are limitations to bear in mind when interpreting *H. pylori* clarithromycin resistance trends and the early phase of *Campylobacter* fluoroquinolone resistance.
+7. **Constant infection acquisition rates for most organisms and simplified *H. pylori* natural history**: With the exception of a global sanitation-improvement adjustment that raises all community-acquisition log-odds by approximately +1 in 1930 and declines to zero by 1950, bacterial infection acquisition rates are treated as constant over the simulation period. Two organisms are especially important caveats. First, birth-cohort *Helicobacter pylori* prevalence in high-income countries was substantially higher among people who grew up before 1960 than among later cohorts, following improvements in sanitation and reduced intrafamilial transmission. The model does not represent lifelong gastric colonisation as a separate carriage state: *H. pylori* is represented by repeated active-infection acquisition episodes subject to the generic active-infection clearance hazard. Accordingly, the calibration field labelled `Infection simulation (%)` is an acquisition-event incidence measure, not *H. pylori* point prevalence, even though prevalence evidence helps inform its target. This compressed natural history can misrepresent the size and age structure of the pool exposed to clarithromycin and metronidazole after those therapies became common. Second, *Campylobacter jejuni* community incidence in high-income countries rose approximately 4–6-fold between 1960 and 1990 alongside intensification of industrial poultry farming (Blaser MJ, 1997). The model therefore applies nalidixic-acid selection pressure to a *Campylobacter* population that is implicitly larger than it would have been during 1963–1975, which may overestimate early quinolone-driven GyrA selection. Both limitations should be considered when interpreting historical resistance trajectories; neither is an explicit transmission or cohort model.
 
 8. **Simplified historical gonorrhoea incidence decline**: Gonorrhoea incidence in high-income countries was approximately 3-fold higher in the 1960s–1970s than in the present day, before sexual health programmes, contact tracing, and partner notification services substantially reduced transmission. The model now applies coarse historical acquisition multipliers for *N. gonorrhoeae* so that the pre-1980 and transitional pre-2000 eras generate a larger organism pool than the modern era, which better aligns the volume of penicillin, tetracycline, sulfonamide, and early fluoroquinolone treatment with the historical period that seeded the major resistance layers. This is still a compressed approximation rather than a full epidemiological reconstruction: the era multipliers are global and intentionally simple, so resistance trajectories for *N. gonorrhoeae* should still be interpreted as reflecting the broad timing and scale of historical selection rather than an exact quantitative reconstruction of country-specific gonorrhoea incidence.
 
@@ -2045,7 +2044,7 @@ The appendix is implementation-facing. Names, groupings, and enum labels are the
 | 34 | Moraxella catarrhalis | Fastidious | Respiratory |
 | 35 | Treponema pallidum | Spirochete | Genitourinary |
 | 36 | Bordetella pertussis | Fastidious | Respiratory |
-| 37 | Helicobacter pylori | Helicobacter | Gut |
+| 37 | Helicobacter pylori | Helicobacter | Gut assignment; no separate carriage state |
 | 38 | MDR Mycobacterium tuberculosis | Mycobacteria | Respiratory |
 | 39 | Mycoplasma pneumoniae | Fastidious | Respiratory |
 | 40 | Legionella pneumophila | Fastidious | Respiratory |
@@ -2261,7 +2260,7 @@ See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
 ## Appendix B — Parameter Reference
 
-This appendix is auto-generated from the live Rust configuration. Parameters are organised thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level pathway sensitivity multipliers are applied.
+This appendix is auto-generated from the live Rust configuration. Parameters are organised thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level pathway sensitivity multipliers are applied. Where a family has a uniform fallback, the fallback is stated and only explicit exceptions are listed. Dynamically parsed era overrides and environmental floors are included. Raw compatibility keys that are loaded nowhere in the executable rules are intentionally excluded.
 
 ### B.1 Global Scalar Parameters
 
@@ -2280,7 +2279,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | antibiotic_initiation_log_odds_immunodeficiency | 0.2 |
 | antibiotic_initiation_log_odds_sepsis | 6.5 |
 | antibiotic_initiation_log_odds_hospitalized | 0.7 |
-| antibiotic_initiation_log_odds_no_indication | -1.2 |
+| antibiotic_initiation_log_odds_no_indication | -1.1 |
 
 #### Drug Activity and Cessation
 
@@ -2306,12 +2305,15 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 
 | Parameter | Value |
 | --- | ---: |
+| treatment_failure_enabled | 1 |
 | treatment_failure_assessment_day | 4 |
 | treatment_failure_threshold | 0.5 |
 | drug_failure_memory_days | 14 |
+| restart_window_enabled | 1 |
 | restart_window_days | 5 |
 | restart_bacteria_level_threshold | 1.5 |
 | restart_window_probability | 0.3 |
+| drug_evaluation_days_post_infection | 7 |
 
 #### Hospitalisation
 
@@ -2338,6 +2340,11 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | resistance_development_inhibition_partial_cross | 0.3 |
 | mechanism_assignment_probability_on_any_r_gain | 0.8 |
 | community_profile_cache_retention | 0.999 |
+| hospital_profile_cache_retention | 0.999 |
+| local_mechanism_persistence_enabled | 1 |
+| local_mechanism_persistence_virtual_profile_mass | 10 |
+| local_mechanism_persistence_max_sampling_probability | 0.1 |
+| debug_seed_hospital_cache_resistant_profiles | 0 |
 
 #### Microbiome Dynamics
 
@@ -2494,6 +2501,57 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | mdr_tb_early_antibiotic_era_multiplier | 0 |
 | mdr_tb_modern_era_multiplier | 1 |
 
+#### Gonorrhoea Acquisition Era Multipliers
+
+| Parameter | Value |
+| --- | ---: |
+| neisseria_gonorrhoeae_pre_1980_acquisition_multiplier | 10 |
+| neisseria_gonorrhoeae_pre_2000_acquisition_multiplier | 5 |
+| neisseria_gonorrhoeae_modern_acquisition_multiplier | 1 |
+
+#### Diagnostic Testing
+
+| Parameter | Value |
+| --- | ---: |
+| bacterial_testing_available_from_day | 5478 |
+| resistance_testing_available_from_day | 9131 |
+| test_delay_days | 3 |
+| resistance_test_result_delay_days | 2 |
+| test_r_error_probability | 0.02 |
+| test_r_error_value | 0.25 |
+| bacterial_testing_base_rate_per_day | 0.15 |
+| bacterial_testing_initial_adoption_rate | 0.1 |
+| bacterial_testing_max_temporal_multiplier | 1 |
+| bacterial_testing_hospital_multiplier | 8 |
+| resistance_testing_base_rate_per_day | 0.95 |
+| resistance_testing_initial_adoption_rate | 0.05 |
+| resistance_testing_max_temporal_multiplier | 1 |
+| resistance_testing_hospital_multiplier | 5 |
+| testing_immunosuppressed_multiplier | 2.5 |
+| testing_sepsis_multiplier | 4 |
+
+#### Additional Resistance and Treatment Controls
+
+| Parameter | Value |
+| --- | ---: |
+| microbiome_majority_threshold | 0.5 |
+| majority_r_evolution_rate_per_day_when_drug_present | 0.18 |
+| microbiome_clearance_probability_on_drug_treatment | 0.8 |
+| mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold | 2 |
+| mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier | 2.5 |
+| mdr_mycobacterium_tuberculosis_background_drug_effectiveness | 0.8 |
+| mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance | 0.9 |
+
+#### Run-Level Resistance Pathway Controls
+
+| Parameter | Value |
+| --- | ---: |
+| run_pathway_infection_de_novo_multiplier | 1 |
+| run_pathway_reversion_rate_multiplier | 1 |
+| run_pathway_hgt_multiplier | 1 |
+| run_pathway_microbiome_acquisition_multiplier | 1 |
+| run_pathway_ratchet_enabled | 1 |
+
 ### B.2 Drug Properties
 
 Pharmacokinetic and clinical properties for each of the 62 modelled antimicrobial agents. The introduction time step is measured in days from 1 January 1930.
@@ -2565,56 +2623,235 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | cefixime | cephalosporins_3_4 | 21535 | 10 | 0.125 | 2 | 2.8 | 5e-10 | 1.5 | 0.3 |
 | nalidixic_acid | fluoroquinolones | 12045 | 10 | 0.08 | 2 | 2 | 4e-9 | 1.5 | 0.3 |
 
+#### Non-Default Regional Drug Availability
+
+Regional availability defaults to 1.0. Only configured values that differ from that default are shown. The separate time-aware availability rules described in Section 6.6 are implementation rules rather than entries in this table.
+
+| Region | Drug | Availability multiplier |
+| --- | ---: | ---: |
+| south_america | cefepime | 0.8 |
+| south_america | ceftaroline | 0.1 |
+| south_america | teicoplanin | 0.3 |
+| south_america | linezolid | 0.5 |
+| south_america | tedizolid | 0.1 |
+| africa | sulfanilamide | 0.1 |
+| africa | piperacillin | 0.1 |
+| africa | ticarcillin | 0.1 |
+| africa | cephalexin | 0.9 |
+| africa | cefazolin | 0.9 |
+| africa | cefuroxime | 0.7 |
+| africa | ceftriaxone | 0.6 |
+| africa | ceftazidime | 0.4 |
+| africa | cefepime | 0.6 |
+| africa | ceftaroline | 0 |
+| africa | ceftolozane_tazobactam | 0.1 |
+| africa | cefiderocol | 0.1 |
+| africa | meropenem | 0.6 |
+| africa | imipenem_c | 0.6 |
+| africa | ertapenem | 0.5 |
+| africa | aztreonam | 0.1 |
+| africa | erythromycin | 0.8 |
+| africa | azithromycin | 0.8 |
+| africa | clarithromycin | 0.1 |
+| africa | clindamycin | 0.1 |
+| africa | gentamicin | 0.8 |
+| africa | tobramycin | 0.4 |
+| africa | amikacin | 0.4 |
+| africa | ciprofloxacin | 0.7 |
+| africa | levofloxacin | 0.5 |
+| africa | moxifloxacin | 0.2 |
+| africa | ofloxacin | 0.1 |
+| africa | tetracycline | 0.9 |
+| africa | doxycycline | 0.9 |
+| africa | minocycline | 0.4 |
+| africa | tigecycline | 0.1 |
+| africa | vancomycin | 0.3 |
+| africa | teicoplanin | 0 |
+| africa | dalbavancin | 0.1 |
+| africa | linezolid | 0.1 |
+| africa | tedizolid | 0 |
+| africa | daptomycin | 0.1 |
+| africa | quinu_dalfo | 0.1 |
+| africa | trim_sulf | 0.9 |
+| africa | chloramphenicol | 0.8 |
+| africa | nitrofurantoin | 0.6 |
+| africa | fosfomycin | 0.1 |
+| africa | retapamulin | 0.2 |
+| africa | fusidic_a | 0.2 |
+| africa | metronidazole | 0.9 |
+| africa | fidaxomicin | 0.1 |
+| africa | furazolidone | 0.3 |
+| africa | rifampicin | 0.1 |
+| africa | amoxicillin_clavulanate | 0.1 |
+| africa | piperacillin_tazobactam | 0.1 |
+| africa | ampicillin_sulbactam | 0.1 |
+| africa | ticarcillin_clavulanate | 0.1 |
+| africa | ceftazidime_avibactam | 0.1 |
+| africa | meropenem_vaborbactam | 0.1 |
+| africa | colistin | 0.1 |
+| africa | flucloxacillin | 0.1 |
+| africa | aztreonam_avibactam | 0.1 |
+| africa | cefixime | 0.1 |
+| africa | nalidixic_acid | 0.1 |
+| asia | ceftaroline | 0.3 |
+| asia | teicoplanin | 0.7 |
+| asia | tedizolid | 0.3 |
+| oceania | ceftaroline | 0.5 |
+| oceania | tedizolid | 0.5 |
+
 ### B.3 Bacteria Properties
 
 Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species.
 
 See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection dynamics](#42-infection-dynamics), [§4.3 Sepsis](#43-sepsis), [§4.4 Natural clearance and microbiome dynamics](#44-natural-clearance-and-microbiome-dynamics), [§8.1 Carriage compartments](#81-carriage-compartments).
 
-| Bacteria | Acq log-odds | Init level | Δ level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate | Comm dilution | Hosp prune % |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| acinetobacter_baumannii | -17.7 | 0.01 | 0.55 | 5 | 0.1 | 8 | 0.0075 | 0.5 | 1 | -5.1 | 4e-4 | 0.03 | 75 |
-| citrobacter_spp. | -16.3 | 0.01 | 0.5 | 5 | 0.08 | 9.8 | 0.0045 | 0.5 | 1 | -8.6 | 4e-4 | 0.22 | 65 |
-| enterobacter_spp. | -16.8 | 0.01 | 0.5 | 5 | 0.07 | 10.6 | 0.0045 | 0.5 | 1 | -6 | 4e-4 | 0.15 | 75 |
-| enterococcus_faecalis | -17.1 | 0.01 | 0.48 | 5 | 0.008 | 11 | 0.0075 | 0.5 | 1 | -5.2 | 4e-4 | 0.4 | 55 |
-| enterococcus_faecium | -17.6 | 0.01 | 0.48 | 5 | 0.06 | 12.1 | 0.0075 | 0.5 | 1 | -4.2 | 4e-4 | 0.35 | 65 |
-| escherichia_coli | -11.6 | 0.01 | 0.5 | 5 | 0.005 | 6.5 | 0.025 | 0.5 | 1 | -10.1 | 4e-4 | 0.75 | 50 |
-| klebsiella_pneumoniae | -14.7 | 0.01 | 0.52 | 5 | 0.03 | 7.4 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 | 0.3 | 75 |
-| morganella_spp. | -17.2 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.1 | 4e-4 | 0.2 | 65 |
-| proteus_spp. | -16.1 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | 0.0045 | 0.5 | 1 | -6.1 | 4e-4 | 0.2 | 65 |
-| serratia_spp. | -17.3 | 0.01 | 0.48 | 5 | 0.1 | 10 | 0.0045 | 0.5 | 1 | -7.3 | 4e-4 | 0.2 | 65 |
-| p_stuartii | -17.5 | 0.01 | 0.5 | 5 | 0.09 | 8.7 | 0.0045 | 0.75 | 1 | -12 | 4e-4 | 0.2 | 65 |
-| pseudomonas_aeruginosa | -16 | 0.01 | 0.55 | 5 | 0.12 | 7.7 | 0.0075 | 0.8 | 1 | -5 | 4e-4 | 0.03 | 75 |
-| stenotrophomonas_maltophilia | -19 | 0.01 | 0.45 | 5 | 0.06 | 7 | 0.0045 | 0.9 | 2.5 | -7.3 | 4e-4 | 0.03 | 75 |
-| staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 7.1 | 0.015 | 0.5 | 1 | -9.7 | 4e-4 | 0.65 | 65 |
-| staphylococcus_epidermidis | -16 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | 0.0045 | 1 | 3 | -7.3 | 4e-4 | 0.25 | 65 |
-| streptococcus_pneumoniae | -12.25 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -10.2 | 4e-4 | 0.7 | 50 |
-| salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -8 | 0.0045 | 0.5 | 1 | -8.4 | 4e-4 | 0.95 | 20 |
-| salmonella_enterica_serovar_paratyphi_a | -16.8 | 0.01 | 0.45 | 5 | 0.15 | -1 | 0.0045 | 0.5 | 1 | -8.3 | 4e-4 | 0.75 | 20 |
-| invasive_non-typhoidal_salmonella_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -8.5 | 4e-4 | 0.07 | 65 |
-| shigella_spp. | -12.6 | 0.01 | 0.55 | 5 | 0.15 | -0.8 | 0.0045 | 0.5 | 1 | -14.1 | 4e-4 | 0.72 | 25 |
-| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 3 | 0.0045 | 0.5 | 1 | -23.3 | 4e-4 | 1 | 50 |
-| streptococcus_pyogenes | -14.4 | 0.01 | 0.7 | 5 | 0.08 | 8 | 0.015 | 0.5 | 1 | -5.6 | 4e-4 | 0.75 | 50 |
-| streptococcus_agalactiae | -15.9 | 0.01 | 0.52 | 5 | 0.06 | 10.2 | 0.015 | 0.5 | 1 | -5.7 | 4e-4 | 0.6 | 50 |
-| haemophilus_influenzae | -17.4 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | 0.015 | 0.5 | 1 | -8.5 | 4e-4 | 0.65 | 50 |
-| chlamydia_trachomatis | -12.8 | 0.01 | 0.25 | 5 | 0.2 | 4.2 | 0.007 | 0.8 | 1 | -18.3 | 4e-4 | 1 | 50 |
-| mycoplasma_genitalium | -12.1 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | 0.0045 | 0.9 | 5 | -12 | 4e-4 | 1 | 50 |
-| vibrio_cholerae | -18.65 | 0.01 | 0.7 | 5 | 0.15 | 0.3 | 0.025 | 0.5 | 1 | -7 | 4e-4 | 0.03 | 50 |
-| neisseria_meningitidis | -18.5 | 0.01 | 0.65 | 5 | 0.05 | 10.9 | 0.01 | 3 | 1 | -7.2 | 4e-4 | 1 | 50 |
-| listeria_monocytogenes | -19 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | 0.0045 | 0.5 | 1 | -7.3 | 4e-4 | 0.07 | 50 |
-| clostridioides_difficile | -15.15 | 0.01 | 0.55 | 5 | 0.02 | 6 | 0.005 | 0.5 | 1 | -9.8 | 4e-4 | 0.18 | 55 |
-| bacteroides_fragilis | -15.1 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | 0.0045 | 1.2 | 2 | -12 | 4e-4 | 0.65 | 50 |
-| campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -20.2 | 4e-4 | 0.9 | 25 |
-| enterobacter_cloacae | -18 | 0.01 | 0.5 | 5 | 0.04 | 11.3 | 0.0045 | 0.5 | 1 | -5.2 | 4e-4 | 0.05 | 75 |
-| yersinia_enterocolitica | -16.6 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | 0.0045 | 0.5 | 1 | -8.8 | 4e-4 | 0.07 | 50 |
-| moraxella_catarrhalis | -14.6 | 0.01 | 0.55 | 5 | 0.05 | 10.4 | 0.0045 | 2 | 1 | -10.4 | 4e-4 | 0.6 | 50 |
-| treponema_pallidum | -12.7 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | 0.0045 | 0.6 | 1 | -10.3 | 4e-4 | 1 | 50 |
-| bordetella_pertussis | -12.85 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -500 | 4e-4 | 1 | 50 |
-| helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -500 | 4e-4 | 0.8 | 50 |
-| mdr_mycobacterium_tuberculosis | -16.5 | 0.01 | 0.15 | 5 | 0.0015 | -2 | 6e-4 | 2 | 1 | -38 | 4e-4 | 1 | 50 |
-| mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 0.1 | 0.015 | 0.5 | 1 | -12 | 4e-4 | 1 | 50 |
-| legionella_pneumophila | -15.5 | 0.01 | 0.55 | 5 | 0.01 | -3 | 0.0085 | 0.5 | 1 | -12 | 4e-4 | 0.03 | 50 |
-| burkholderia_cepacia_complex | -20 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | 0.0075 | 0.5 | 1 | -12 | 4e-4 | 0.03 | 75 |
+#### Acquisition, Growth, and Carriage
+
+| Bacteria | Acq log-odds | Vaccinated log-odds | Carriage-present log-odds | Hospital-acquired log-odds | Init level | Delta level/day | Max level | Carriage clearance/day | Carriage vs infection log-odds | Separate carriage state |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acinetobacter_baumannii | -17.7 | -2 | 0.5 | 5.6 | 0.01 | 0.55 | 5 | 0.1 | 8 | yes |
+| citrobacter_spp. | -16.3 | -2 | 0.5 | 4.6 | 0.01 | 0.5 | 5 | 0.08 | 9.8 | yes |
+| enterobacter_spp. | -16.8 | -2 | 0.5 | 5.2 | 0.01 | 0.5 | 5 | 0.07 | 10.6 | yes |
+| enterococcus_faecalis | -15.1 | -2 | 0.5 | 4.3 | 0.01 | 0.48 | 5 | 0.008 | 11 | yes |
+| enterococcus_faecium | -15.5 | -2 | 0.5 | 5.1 | 0.01 | 0.48 | 5 | 0.06 | 12.1 | yes |
+| escherichia_coli | -11.6 | -2 | 0.5 | 4 | 0.01 | 0.5 | 5 | 0.005 | 6.5 | yes |
+| klebsiella_pneumoniae | -14.7 | -2 | 0.5 | 5 | 0.01 | 0.52 | 5 | 0.03 | 7.4 | yes |
+| morganella_spp. | -17.2 | -2 | 0.5 | 5 | 0.01 | 0.48 | 5 | 0.1 | 10 | yes |
+| proteus_spp. | -16.1 | -2 | 0.5 | 4.4 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | yes |
+| serratia_spp. | -17.3 | -2 | 0.5 | 5 | 0.01 | 0.48 | 5 | 0.1 | 10 | yes |
+| p_stuartii | -17.5 | -2 | 0.5 | 6 | 0.01 | 0.5 | 5 | 0.09 | 8.7 | yes |
+| pseudomonas_aeruginosa | -16 | -2 | 0.5 | 4.6 | 0.01 | 0.55 | 5 | 0.12 | 7.7 | yes |
+| stenotrophomonas_maltophilia | -18 | -2 | 0.5 | 6 | 0.01 | 0.45 | 5 | 0.06 | 7 | yes |
+| staphylococcus_aureus | -12.9 | -2 | 0.5 | 4.5 | 0.01 | 0.6 | 5 | 0.05 | 7.1 | yes |
+| staphylococcus_epidermidis | -16.7 | -2 | 0.5 | 6.5 | 0.01 | 0.35 | 4 | 0.015 | 13.5 | yes |
+| streptococcus_pneumoniae | -12.25 | -2 | 0.5 | 3.5 | 0.01 | 0.6 | 5 | 0.05 | 7 | yes |
+| salmonella_enterica_serovar_typhi | -17.3 | -2 | 0.5 | 3 | 0.01 | 0.45 | 5 | 0.003 | -8 | yes |
+| salmonella_enterica_serovar_paratyphi_a | -16.8 | -2 | 0.5 | 2.5 | 0.01 | 0.45 | 5 | 0.15 | -1 | yes |
+| invasive_non-typhoidal_salmonella_spp. | -17.8 | -2 | 0.5 | 3.5 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | yes |
+| shigella_spp. | -12.6 | -2 | 0.5 | 2 | 0.01 | 0.55 | 5 | 0.15 | -0.8 | yes |
+| neisseria_gonorrhoeae | -13.5 | -2 | 0.5 | -8 | 0.01 | 0.55 | 5 | 0.2 | 3 | yes |
+| streptococcus_pyogenes | -14.4 | -2 | 0.5 | 3.5 | 0.01 | 0.7 | 5 | 0.08 | 8 | yes |
+| streptococcus_agalactiae | -15.9 | -2 | 0.5 | 4.5 | 0.01 | 0.52 | 5 | 0.06 | 10.2 | yes |
+| haemophilus_influenzae | -18.4 | -2 | 0.5 | 3 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | yes |
+| chlamydia_trachomatis | -12.8 | -2 | 0.5 | -8.5 | 0.01 | 0.25 | 5 | 0.2 | 4.2 | yes |
+| mycoplasma_genitalium | -12.1 | -2 | 0.5 | -8 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | yes |
+| vibrio_cholerae | -18.65 | -2 | 0.5 | 2 | 0.01 | 0.7 | 5 | 0.15 | 0.3 | yes |
+| neisseria_meningitidis | -18.5 | -2 | 0.5 | 4.2 | 0.01 | 0.65 | 5 | 0.05 | 10.9 | yes |
+| listeria_monocytogenes | -19 | -2 | 0.5 | 2 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | yes |
+| clostridioides_difficile | -15.15 | -2 | 0.5 | 5.3 | 0.01 | 0.55 | 5 | 0.02 | 6 | yes |
+| bacteroides_fragilis | -15.1 | -2 | 0.5 | 4.5 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | yes |
+| campylobacter_jejuni | -13 | -2 | 0.5 | -7.5 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | yes |
+| enterobacter_cloacae | -17.3 | -2 | 0.5 | 6.8 | 0.01 | 0.5 | 5 | 0.04 | 11.3 | yes |
+| yersinia_enterocolitica | -16.6 | -2 | 0.5 | 2 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | yes |
+| moraxella_catarrhalis | -14.6 | -2 | 0.5 | 3.6 | 0.01 | 0.55 | 5 | 0.05 | 10.4 | yes |
+| treponema_pallidum | -12.7 | -2 | 0.5 | -9 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | yes |
+| bordetella_pertussis | -12.15 | -2 | 0.5 | 3 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | yes |
+| helicobacter_pylori | -13.5 | -2 | 0.5 | 0 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | no |
+| mdr_mycobacterium_tuberculosis | -16.5 | -2 | 0.5 | 2 | 0.01 | 0.15 | 5 | 0.0015 | -2 | yes |
+| mycoplasma_pneumoniae | -12 | -2 | 0.5 | 2.5 | 0.01 | 0.35 | 5 | 0.01 | 0.1 | yes |
+| legionella_pneumophila | -15.5 | -2 | 0.5 | 3.7 | 0.01 | 0.55 | 5 | 0.01 | -3 | yes |
+| burkholderia_cepacia_complex | -17.7 | -2 | 0.5 | 5.5 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | yes |
+
+#### Symptoms and Treatment Tracking
+
+| Bacteria | Symptom base log-odds | Symptom threshold | Symptom delay (days) | Symptom log-odds/level | Drug cessation probability | Treatment recognition year | Failure: no immediate second line |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acinetobacter_baumannii | -1.73 | 0.5 | 1 | 0.5 | 0.0075 | none | 0 |
+| citrobacter_spp. | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| enterobacter_spp. | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| enterococcus_faecalis | -1.73 | 0.5 | 1 | 0.5 | 0.0075 | none | 0 |
+| enterococcus_faecium | -1.73 | 0.5 | 1 | 0.5 | 0.0075 | none | 0 |
+| escherichia_coli | -1.73 | 0.5 | 1 | 0.5 | 0.025 | none | 0 |
+| klebsiella_pneumoniae | -1.73 | 0.5 | 1 | 0.5 | 0.0075 | none | 0 |
+| morganella_spp. | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| proteus_spp. | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| serratia_spp. | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| p_stuartii | 0.2 | 0.75 | 1 | 0.5 | 0.0045 | none | 0 |
+| pseudomonas_aeruginosa | -1.4 | 0.8 | 1 | 0.5 | 0.0075 | none | 0 |
+| stenotrophomonas_maltophilia | -0.6 | 0.9 | 2.5 | 0.5 | 0.0045 | none | 0 |
+| staphylococcus_aureus | 0.4 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| staphylococcus_epidermidis | -1.4 | 1 | 3 | 0.5 | 0.0045 | none | 0 |
+| streptococcus_pneumoniae | 1.4 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| salmonella_enterica_serovar_typhi | -0.4 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| salmonella_enterica_serovar_paratyphi_a | -0.4 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| invasive_non-typhoidal_salmonella_spp. | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| shigella_spp. | 0.4 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| neisseria_gonorrhoeae | -1.1 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| streptococcus_pyogenes | 0.85 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| streptococcus_agalactiae | -1.73 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| haemophilus_influenzae | -1.73 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| chlamydia_trachomatis | -3.5 | 0.8 | 1 | 0.5 | 0.007 | none | 0 |
+| mycoplasma_genitalium | -2 | 0.9 | 5 | 0.5 | 0.0045 | none | 0 |
+| vibrio_cholerae | 0 | 0.5 | 1 | 0.5 | 0.025 | none | 0 |
+| neisseria_meningitidis | -1.1 | 3 | 1 | 0.5 | 0.01 | none | 0 |
+| listeria_monocytogenes | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| clostridioides_difficile | -1.73 | 0.5 | 1 | 0.5 | 0.005 | none | 0 |
+| bacteroides_fragilis | -0.2 | 1.2 | 2 | 0.5 | 0.0045 | none | 0 |
+| campylobacter_jejuni | 0 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| enterobacter_cloacae | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| yersinia_enterocolitica | -1.73 | 0.5 | 1 | 0.5 | 0.0045 | none | 0 |
+| moraxella_catarrhalis | -2.9 | 2 | 1 | 0.5 | 0.0045 | none | 0 |
+| treponema_pallidum | -2.4 | 0.6 | 1 | 0.5 | 0.0045 | none | 0 |
+| bordetella_pertussis | -0.6 | 0.5 | 1 | 0.5 | 0.0075 | none | 0 |
+| helicobacter_pylori | -2 | 1.5 | 30 | 0.5 | 0.005 | none | 0.8 |
+| mdr_mycobacterium_tuberculosis | -6.9 | 2 | 1 | 0.5 | 6e-4 | none | 0 |
+| mycoplasma_pneumoniae | -1.73 | 0.5 | 1 | 0.5 | 0.015 | none | 0 |
+| legionella_pneumophila | -1.73 | 0.5 | 1 | 0.5 | 0.0085 | none | 0 |
+| burkholderia_cepacia_complex | -1.73 | 0.5 | 1 | 0.5 | 0.0075 | none | 0 |
+
+#### Clinical Outcomes and Resistance Ecology
+
+| Bacteria | Sepsis base log-odds | Sepsis log-odds/level | Sepsis log-odds/day | Non-sepsis death log-odds | Sepsis-death override | Mechanismless reversion/day | Community human-profile probability | Hospital susceptible prune % | Community mechanism-reversion multiplier |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acinetobacter_baumannii | -5.1 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 0.3 | 75 | 3 |
+| citrobacter_spp. | -8.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| enterobacter_spp. | -6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| enterococcus_faecalis | -5.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.4 | 55 | 0.1 |
+| enterococcus_faecium | -4.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 3 |
+| escherichia_coli | -10.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
+| klebsiella_pneumoniae | -7.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
+| morganella_spp. | -7.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| proteus_spp. | -6.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| serratia_spp. | -7.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
+| p_stuartii | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| pseudomonas_aeruginosa | -5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| stenotrophomonas_maltophilia | -7.3 | 0.08 | 0.012 | -4 | 0 | 4e-4 | 0.3 | 75 | 3 |
+| staphylococcus_aureus | -8.8 | 0.93 | 0.005 | 0 | 0.41 | 4e-4 | 0.8 | 65 | 0.1 |
+| staphylococcus_epidermidis | -7.3 | 0.04 | 0.005 | -6 | 0 | 4e-4 | 0.5 | 65 | 0.1 |
+| streptococcus_pneumoniae | -9.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 50 | 0.1 |
+| salmonella_enterica_serovar_typhi | -8.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 20 | 0.1 |
+| salmonella_enterica_serovar_paratyphi_a | -8.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 20 | 0.1 |
+| invasive_non-typhoidal_salmonella_spp. | -8.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
+| shigella_spp. | -20.5 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 0.72 | 25 | 0.1 |
+| neisseria_gonorrhoeae | -23.3 | 0.93 | 0.005 | -2.5 | 0 | 4e-4 | 1 | 50 | 0.01 |
+| streptococcus_pyogenes | -6 | 0.93 | 0.005 | 3 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
+| streptococcus_agalactiae | -6.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
+| haemophilus_influenzae | -8.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
+| chlamydia_trachomatis | -18.3 | 0.93 | 0.005 | -5 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mycoplasma_genitalium | -12 | 0.93 | 0.005 | -4.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| vibrio_cholerae | -7 | 0.93 | 0.005 | 2.5 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| neisseria_meningitidis | -7.2 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 1 | 50 | 0.1 |
+| listeria_monocytogenes | -7.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| clostridioides_difficile | -9.8 | 0.93 | 0.005 | 2 | 0 | 4e-4 | 0.3 | 55 | 0.1 |
+| bacteroides_fragilis | -12 | 0.93 | 0.005 | 1.5 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
+| campylobacter_jejuni | -20.2 | 0.93 | 0.005 | -0.5 | 0 | 4e-4 | 0.9 | 25 | 0.1 |
+| enterobacter_cloacae | -6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| yersinia_enterocolitica | -8.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| moraxella_catarrhalis | -12.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
+| treponema_pallidum | -10.3 | 0.93 | 0.005 | 3.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| bordetella_pertussis | -500 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| helicobacter_pylori | -500 | 0.93 | 0.005 | 1.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mdr_mycobacterium_tuberculosis | -38 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mycoplasma_pneumoniae | -12 | 0.93 | 0.005 | -0.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| legionella_pneumophila | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| burkholderia_cepacia_complex | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+
+#### Bacterium-Specific Testing Availability Years
+
+Only explicit bacterium-specific overrides are shown; all other organisms use the general bacterial-testing availability date in B.1.
+
+| Parameter | Year |
+| --- | ---: |
 
 ### B.4 Drug–Bacteria Potency Matrix
 
@@ -2643,6 +2880,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | acinetobacter_baumannii | imipenem_c | 0.8 | 40 |
 | acinetobacter_baumannii | ertapenem | 0.1 | 0.5 |
 | acinetobacter_baumannii | aztreonam | 0.1 | 0.003 |
+| acinetobacter_baumannii | erythromycin | 0 | 1 |
+| acinetobacter_baumannii | azithromycin | 0 | 1 |
+| acinetobacter_baumannii | clarithromycin | 0 | 1 |
+| acinetobacter_baumannii | clindamycin | 0 | 1 |
 | acinetobacter_baumannii | gentamicin | 0.75 | 10 |
 | acinetobacter_baumannii | tobramycin | 0.7 | 10 |
 | acinetobacter_baumannii | amikacin | 0.8 | 15 |
@@ -2654,6 +2895,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | acinetobacter_baumannii | doxycycline | 0.15 | 0.25 |
 | acinetobacter_baumannii | minocycline | 0.55 | 0.25 |
 | acinetobacter_baumannii | tigecycline | 0.55 | 1 |
+| acinetobacter_baumannii | vancomycin | 0 | 1 |
+| acinetobacter_baumannii | teicoplanin | 0 | 1 |
 | acinetobacter_baumannii | dalbavancin | 0 | 0.5 |
 | acinetobacter_baumannii | linezolid | 0 | 0.5 |
 | acinetobacter_baumannii | tedizolid | 0 | 0.5 |
@@ -2663,6 +2906,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | acinetobacter_baumannii | chloramphenicol | 0.15 | 1 |
 | acinetobacter_baumannii | nitrofurantoin | 0.1 | 1 |
 | acinetobacter_baumannii | fosfomycin | 0.4 | 1 |
+| acinetobacter_baumannii | retapamulin | 0 | 1 |
+| acinetobacter_baumannii | fusidic_a | 0 | 1 |
+| acinetobacter_baumannii | metronidazole | 0 | 1 |
 | acinetobacter_baumannii | fidaxomicin | 0.1 | 1 |
 | acinetobacter_baumannii | furazolidone | 0.1 | 1 |
 | acinetobacter_baumannii | rifampicin | 0.6 | 4 |
@@ -2758,6 +3004,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterobacter_spp. | imipenem_c | 0.95 | 30 |
 | enterobacter_spp. | ertapenem | 0.9 | 30 |
 | enterobacter_spp. | aztreonam | 0.8 | 0.003 |
+| enterobacter_spp. | erythromycin | 0 | 1 |
+| enterobacter_spp. | azithromycin | 0 | 1 |
+| enterobacter_spp. | clarithromycin | 0 | 1 |
+| enterobacter_spp. | clindamycin | 0 | 1 |
 | enterobacter_spp. | gentamicin | 0.85 | 10 |
 | enterobacter_spp. | tobramycin | 0.8 | 1 |
 | enterobacter_spp. | amikacin | 0.9 | 8 |
@@ -2769,6 +3019,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterobacter_spp. | doxycycline | 0.85 | 0.25 |
 | enterobacter_spp. | minocycline | 0.85 | 0.25 |
 | enterobacter_spp. | tigecycline | 0.55 | 1 |
+| enterobacter_spp. | vancomycin | 0 | 1 |
+| enterobacter_spp. | teicoplanin | 0 | 1 |
 | enterobacter_spp. | dalbavancin | 0 | 0.5 |
 | enterobacter_spp. | linezolid | 0 | 0.5 |
 | enterobacter_spp. | tedizolid | 0 | 0.5 |
@@ -2778,6 +3030,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterobacter_spp. | chloramphenicol | 0.8 | 1 |
 | enterobacter_spp. | nitrofurantoin | 0.7 | 1 |
 | enterobacter_spp. | fosfomycin | 0.5 | 1 |
+| enterobacter_spp. | retapamulin | 0 | 1 |
+| enterobacter_spp. | fusidic_a | 0 | 1 |
+| enterobacter_spp. | metronidazole | 0 | 1 |
 | enterobacter_spp. | fidaxomicin | 0.1 | 1 |
 | enterobacter_spp. | furazolidone | 0.1 | 1 |
 | enterobacter_spp. | rifampicin | 0.6 | 1 |
@@ -2829,7 +3084,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecalis | vancomycin | 0.95 | 4 |
 | enterococcus_faecalis | teicoplanin | 0.9 | 5 |
 | enterococcus_faecalis | dalbavancin | 0.9 | 0.5 |
-| enterococcus_faecalis | linezolid | 0.9 | 2 |
+| enterococcus_faecalis | linezolid | 0.9 | 4 |
 | enterococcus_faecalis | tedizolid | 0.9 | 0.5 |
 | enterococcus_faecalis | daptomycin | 0.8 | 3 |
 | enterococcus_faecalis | quinu_dalfo | 0.1 | 0.5 |
@@ -2891,7 +3146,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecium | vancomycin | 0.9 | 5 |
 | enterococcus_faecium | teicoplanin | 0.85 | 5 |
 | enterococcus_faecium | dalbavancin | 0.85 | 0.5 |
-| enterococcus_faecium | linezolid | 0.9 | 3 |
+| enterococcus_faecium | linezolid | 0.9 | 5 |
 | enterococcus_faecium | tedizolid | 0.9 | 0.5 |
 | enterococcus_faecium | daptomycin | 0.8 | 4 |
 | enterococcus_faecium | quinu_dalfo | 0.7 | 0.5 |
@@ -2935,6 +3190,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | escherichia_coli | imipenem_c | 0.95 | 40 |
 | escherichia_coli | ertapenem | 0.95 | 50 |
 | escherichia_coli | aztreonam | 0.9 | 0.003 |
+| escherichia_coli | erythromycin | 0 | 1 |
+| escherichia_coli | azithromycin | 0 | 1 |
+| escherichia_coli | clarithromycin | 0 | 1 |
+| escherichia_coli | clindamycin | 0 | 1 |
 | escherichia_coli | gentamicin | 0.9 | 20 |
 | escherichia_coli | tobramycin | 0.85 | 8 |
 | escherichia_coli | amikacin | 0.9 | 12 |
@@ -2946,6 +3205,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | escherichia_coli | doxycycline | 0.8 | 2.5 |
 | escherichia_coli | minocycline | 0.85 | 0.25 |
 | escherichia_coli | tigecycline | 0.6 | 1 |
+| escherichia_coli | vancomycin | 0 | 1 |
+| escherichia_coli | teicoplanin | 0 | 1 |
 | escherichia_coli | dalbavancin | 0 | 0.5 |
 | escherichia_coli | linezolid | 0 | 0.5 |
 | escherichia_coli | tedizolid | 0 | 0.5 |
@@ -2955,6 +3216,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | escherichia_coli | chloramphenicol | 0.85 | 1 |
 | escherichia_coli | nitrofurantoin | 0.95 | 40 |
 | escherichia_coli | fosfomycin | 0.9 | 20 |
+| escherichia_coli | retapamulin | 0 | 1 |
+| escherichia_coli | fusidic_a | 0 | 1 |
+| escherichia_coli | metronidazole | 0 | 1 |
 | escherichia_coli | fidaxomicin | 0.1 | 1 |
 | escherichia_coli | furazolidone | 0.1 | 1 |
 | escherichia_coli | rifampicin | 0.7 | 1 |
@@ -2988,6 +3252,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | klebsiella_pneumoniae | imipenem_c | 0.95 | 40 |
 | klebsiella_pneumoniae | ertapenem | 0.94 | 50 |
 | klebsiella_pneumoniae | aztreonam | 0.85 | 0.005 |
+| klebsiella_pneumoniae | erythromycin | 0 | 1 |
+| klebsiella_pneumoniae | azithromycin | 0 | 1 |
+| klebsiella_pneumoniae | clarithromycin | 0 | 1 |
+| klebsiella_pneumoniae | clindamycin | 0 | 1 |
 | klebsiella_pneumoniae | gentamicin | 0.9 | 15 |
 | klebsiella_pneumoniae | tobramycin | 0.85 | 8 |
 | klebsiella_pneumoniae | amikacin | 0.9 | 12 |
@@ -2999,6 +3267,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | klebsiella_pneumoniae | doxycycline | 0.8 | 0.25 |
 | klebsiella_pneumoniae | minocycline | 0.85 | 0.25 |
 | klebsiella_pneumoniae | tigecycline | 0.6 | 1 |
+| klebsiella_pneumoniae | vancomycin | 0 | 1 |
+| klebsiella_pneumoniae | teicoplanin | 0 | 1 |
 | klebsiella_pneumoniae | dalbavancin | 0 | 0.5 |
 | klebsiella_pneumoniae | linezolid | 0 | 0.5 |
 | klebsiella_pneumoniae | tedizolid | 0 | 0.5 |
@@ -3008,6 +3278,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | klebsiella_pneumoniae | chloramphenicol | 0.85 | 1 |
 | klebsiella_pneumoniae | nitrofurantoin | 0.05 | 25 |
 | klebsiella_pneumoniae | fosfomycin | 0.55 | 10 |
+| klebsiella_pneumoniae | retapamulin | 0 | 1 |
+| klebsiella_pneumoniae | fusidic_a | 0 | 1 |
+| klebsiella_pneumoniae | metronidazole | 0 | 1 |
 | klebsiella_pneumoniae | fidaxomicin | 0.1 | 1 |
 | klebsiella_pneumoniae | furazolidone | 0.1 | 1 |
 | klebsiella_pneumoniae | rifampicin | 0.6 | 1 |
@@ -3103,6 +3376,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | proteus_spp. | imipenem_c | 0.95 | 0.5 |
 | proteus_spp. | ertapenem | 0.95 | 30 |
 | proteus_spp. | aztreonam | 0.9 | 0.003 |
+| proteus_spp. | erythromycin | 0 | 1 |
+| proteus_spp. | azithromycin | 0 | 1 |
+| proteus_spp. | clarithromycin | 0 | 1 |
+| proteus_spp. | clindamycin | 0 | 1 |
 | proteus_spp. | gentamicin | 0.8 | 10 |
 | proteus_spp. | tobramycin | 0.75 | 1 |
 | proteus_spp. | amikacin | 0.85 | 1 |
@@ -3114,6 +3391,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | proteus_spp. | doxycycline | 0.1 | 0.25 |
 | proteus_spp. | minocycline | 0.85 | 0.25 |
 | proteus_spp. | tigecycline | 0.1 | 1 |
+| proteus_spp. | vancomycin | 0 | 1 |
+| proteus_spp. | teicoplanin | 0 | 1 |
 | proteus_spp. | dalbavancin | 0 | 0.5 |
 | proteus_spp. | linezolid | 0 | 0.5 |
 | proteus_spp. | tedizolid | 0 | 0.5 |
@@ -3123,6 +3402,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | proteus_spp. | chloramphenicol | 0.85 | 1 |
 | proteus_spp. | nitrofurantoin | 0.05 | 0.05 |
 | proteus_spp. | fosfomycin | 0.6 | 1 |
+| proteus_spp. | retapamulin | 0 | 1 |
+| proteus_spp. | fusidic_a | 0 | 1 |
+| proteus_spp. | metronidazole | 0 | 1 |
 | proteus_spp. | fidaxomicin | 0.1 | 1 |
 | proteus_spp. | furazolidone | 0.1 | 1 |
 | proteus_spp. | rifampicin | 0.7 | 1 |
@@ -3280,6 +3562,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | pseudomonas_aeruginosa | imipenem_c | 0.85 | 30 |
 | pseudomonas_aeruginosa | ertapenem | 0.1 | 0.5 |
 | pseudomonas_aeruginosa | aztreonam | 0.8 | 0.05 |
+| pseudomonas_aeruginosa | erythromycin | 0 | 1 |
+| pseudomonas_aeruginosa | azithromycin | 0 | 1 |
+| pseudomonas_aeruginosa | clarithromycin | 0 | 1 |
+| pseudomonas_aeruginosa | clindamycin | 0 | 1 |
 | pseudomonas_aeruginosa | gentamicin | 0.85 | 12 |
 | pseudomonas_aeruginosa | tobramycin | 0.9 | 15 |
 | pseudomonas_aeruginosa | amikacin | 0.9 | 15 |
@@ -3291,6 +3577,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | pseudomonas_aeruginosa | doxycycline | 0.1 | 0.25 |
 | pseudomonas_aeruginosa | minocycline | 0.1 | 0.25 |
 | pseudomonas_aeruginosa | tigecycline | 0.1 | 1 |
+| pseudomonas_aeruginosa | vancomycin | 0 | 1 |
+| pseudomonas_aeruginosa | teicoplanin | 0 | 1 |
 | pseudomonas_aeruginosa | dalbavancin | 0 | 0.5 |
 | pseudomonas_aeruginosa | linezolid | 0 | 0.5 |
 | pseudomonas_aeruginosa | tedizolid | 0 | 0.5 |
@@ -3300,6 +3588,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | pseudomonas_aeruginosa | chloramphenicol | 0.1 | 1 |
 | pseudomonas_aeruginosa | nitrofurantoin | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | fosfomycin | 0.6 | 0.05 |
+| pseudomonas_aeruginosa | retapamulin | 0 | 1 |
+| pseudomonas_aeruginosa | fusidic_a | 0 | 1 |
+| pseudomonas_aeruginosa | metronidazole | 0 | 1 |
 | pseudomonas_aeruginosa | fidaxomicin | 0.1 | 1 |
 | pseudomonas_aeruginosa | furazolidone | 0.05 | 1 |
 | pseudomonas_aeruginosa | rifampicin | 0.1 | 1 |
@@ -3348,6 +3639,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | stenotrophomonas_maltophilia | doxycycline | 0.85 | 4.5 |
 | stenotrophomonas_maltophilia | minocycline | 0.95 | 6 |
 | stenotrophomonas_maltophilia | tigecycline | 0.1 | 1 |
+| stenotrophomonas_maltophilia | vancomycin | 0 | 1 |
 | stenotrophomonas_maltophilia | teicoplanin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | dalbavancin | 0.05 | 0.5 |
 | stenotrophomonas_maltophilia | linezolid | 0.05 | 0.5 |
@@ -3356,6 +3648,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | stenotrophomonas_maltophilia | quinu_dalfo | 0.05 | 0.5 |
 | stenotrophomonas_maltophilia | trim_sulf | 1 | 5 |
 | stenotrophomonas_maltophilia | chloramphenicol | 0.4 | 1 |
+| stenotrophomonas_maltophilia | nitrofurantoin | 0 | 1 |
 | stenotrophomonas_maltophilia | fosfomycin | 0.2 | 1 |
 | stenotrophomonas_maltophilia | retapamulin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | fusidic_a | 0.05 | 1 |
@@ -3411,7 +3704,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | staphylococcus_aureus | vancomycin | 0.95 | 5 |
 | staphylococcus_aureus | teicoplanin | 0.9 | 4 |
 | staphylococcus_aureus | dalbavancin | 0.9 | 0.5 |
-| staphylococcus_aureus | linezolid | 0.9 | 5 |
+| staphylococcus_aureus | linezolid | 0.9 | 7 |
 | staphylococcus_aureus | tedizolid | 0.9 | 0.5 |
 | staphylococcus_aureus | daptomycin | 0.95 | 4 |
 | staphylococcus_aureus | quinu_dalfo | 0.85 | 0.5 |
@@ -3582,6 +3875,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_typhi | erythromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | azithromycin | 0.1 | 8 |
 | salmonella_enterica_serovar_typhi | clarithromycin | 0.1 | 1 |
+| salmonella_enterica_serovar_typhi | clindamycin | 0 | 1 |
 | salmonella_enterica_serovar_typhi | gentamicin | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | tobramycin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | amikacin | 0.9 | 1 |
@@ -3593,6 +3887,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_typhi | doxycycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_typhi | minocycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_typhi | tigecycline | 0.7 | 1 |
+| salmonella_enterica_serovar_typhi | vancomycin | 0 | 1 |
+| salmonella_enterica_serovar_typhi | teicoplanin | 0 | 1 |
 | salmonella_enterica_serovar_typhi | dalbavancin | 0 | 0.5 |
 | salmonella_enterica_serovar_typhi | linezolid | 0 | 0.5 |
 | salmonella_enterica_serovar_typhi | tedizolid | 0 | 0.5 |
@@ -3602,6 +3898,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_typhi | chloramphenicol | 0.85 | 2 |
 | salmonella_enterica_serovar_typhi | nitrofurantoin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | fosfomycin | 0.1 | 1 |
+| salmonella_enterica_serovar_typhi | retapamulin | 0 | 1 |
+| salmonella_enterica_serovar_typhi | fusidic_a | 0 | 1 |
+| salmonella_enterica_serovar_typhi | metronidazole | 0 | 1 |
 | salmonella_enterica_serovar_typhi | fidaxomicin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | furazolidone | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | rifampicin | 0.7 | 1 |
@@ -3638,6 +3937,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_paratyphi_a | erythromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | azithromycin | 0.1 | 8 |
 | salmonella_enterica_serovar_paratyphi_a | clarithromycin | 0.1 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | clindamycin | 0 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | gentamicin | 0.85 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | tobramycin | 0.8 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | amikacin | 0.9 | 1 |
@@ -3649,6 +3949,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_paratyphi_a | doxycycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_paratyphi_a | minocycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_paratyphi_a | tigecycline | 0.7 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | vancomycin | 0 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | teicoplanin | 0 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | dalbavancin | 0 | 0.5 |
 | salmonella_enterica_serovar_paratyphi_a | linezolid | 0 | 0.5 |
 | salmonella_enterica_serovar_paratyphi_a | tedizolid | 0 | 0.5 |
@@ -3658,6 +3960,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_paratyphi_a | chloramphenicol | 0.85 | 2 |
 | salmonella_enterica_serovar_paratyphi_a | nitrofurantoin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | fosfomycin | 0.1 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | retapamulin | 0 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | fusidic_a | 0 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | metronidazole | 0 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | fidaxomicin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | furazolidone | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | rifampicin | 0.7 | 1 |
@@ -3719,6 +4024,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | invasive_non-typhoidal_salmonella_spp. | fosfomycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | retapamulin | 0.05 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | fusidic_a | 0.05 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | metronidazole | 0 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | fidaxomicin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | furazolidone | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | rifampicin | 0.7 | 1 |
@@ -3755,6 +4061,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | shigella_spp. | erythromycin | 0.7 | 1 |
 | shigella_spp. | azithromycin | 0.85 | 10 |
 | shigella_spp. | clarithromycin | 0.75 | 1 |
+| shigella_spp. | clindamycin | 0 | 1 |
 | shigella_spp. | gentamicin | 0.8 | 1 |
 | shigella_spp. | tobramycin | 0.75 | 1 |
 | shigella_spp. | amikacin | 0.85 | 1 |
@@ -3766,6 +4073,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | shigella_spp. | doxycycline | 0.85 | 0.25 |
 | shigella_spp. | minocycline | 0.85 | 0.25 |
 | shigella_spp. | tigecycline | 0.7 | 1 |
+| shigella_spp. | vancomycin | 0 | 1 |
+| shigella_spp. | teicoplanin | 0 | 1 |
 | shigella_spp. | dalbavancin | 0 | 0.5 |
 | shigella_spp. | linezolid | 0 | 0.5 |
 | shigella_spp. | tedizolid | 0 | 0.5 |
@@ -3775,6 +4084,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | shigella_spp. | chloramphenicol | 0.85 | 1 |
 | shigella_spp. | nitrofurantoin | 0.1 | 1 |
 | shigella_spp. | fosfomycin | 0.1 | 1 |
+| shigella_spp. | retapamulin | 0 | 1 |
+| shigella_spp. | fusidic_a | 0 | 1 |
+| shigella_spp. | metronidazole | 0 | 1 |
 | shigella_spp. | fidaxomicin | 0.1 | 1 |
 | shigella_spp. | furazolidone | 0.1 | 1 |
 | shigella_spp. | rifampicin | 0.7 | 1 |
@@ -3811,6 +4123,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | erythromycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | azithromycin | 0.7 | 12 |
 | neisseria_gonorrhoeae | clarithromycin | 0.7 | 1 |
+| neisseria_gonorrhoeae | clindamycin | 0 | 1 |
 | neisseria_gonorrhoeae | gentamicin | 0.7 | 2 |
 | neisseria_gonorrhoeae | tobramycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | amikacin | 0.7 | 1 |
@@ -3822,6 +4135,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | doxycycline | 0.9 | 0.25 |
 | neisseria_gonorrhoeae | minocycline | 0.85 | 0.25 |
 | neisseria_gonorrhoeae | tigecycline | 0.1 | 1 |
+| neisseria_gonorrhoeae | vancomycin | 0 | 1 |
+| neisseria_gonorrhoeae | teicoplanin | 0 | 1 |
 | neisseria_gonorrhoeae | dalbavancin | 0 | 0.5 |
 | neisseria_gonorrhoeae | linezolid | 0 | 0.5 |
 | neisseria_gonorrhoeae | tedizolid | 0 | 0.5 |
@@ -3831,6 +4146,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | chloramphenicol | 0.8 | 1 |
 | neisseria_gonorrhoeae | nitrofurantoin | 0.1 | 1 |
 | neisseria_gonorrhoeae | fosfomycin | 0.1 | 1 |
+| neisseria_gonorrhoeae | retapamulin | 0 | 1 |
+| neisseria_gonorrhoeae | fusidic_a | 0 | 1 |
+| neisseria_gonorrhoeae | metronidazole | 0 | 1 |
 | neisseria_gonorrhoeae | fidaxomicin | 0.1 | 1 |
 | neisseria_gonorrhoeae | furazolidone | 0.1 | 1 |
 | neisseria_gonorrhoeae | rifampicin | 0.7 | 1 |
@@ -3991,6 +4309,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | haemophilus_influenzae | erythromycin | 0.7 | 6 |
 | haemophilus_influenzae | azithromycin | 0.9 | 7 |
 | haemophilus_influenzae | clarithromycin | 0.85 | 7 |
+| haemophilus_influenzae | clindamycin | 0 | 1 |
 | haemophilus_influenzae | gentamicin | 0.7 | 1 |
 | haemophilus_influenzae | tobramycin | 0.7 | 1 |
 | haemophilus_influenzae | amikacin | 0.7 | 1 |
@@ -4002,6 +4321,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | haemophilus_influenzae | doxycycline | 0.85 | 0.25 |
 | haemophilus_influenzae | minocycline | 0.85 | 0.25 |
 | haemophilus_influenzae | tigecycline | 0.5 | 1 |
+| haemophilus_influenzae | vancomycin | 0 | 1 |
+| haemophilus_influenzae | teicoplanin | 0 | 1 |
 | haemophilus_influenzae | dalbavancin | 0 | 0.5 |
 | haemophilus_influenzae | linezolid | 0 | 0.5 |
 | haemophilus_influenzae | tedizolid | 0 | 0.5 |
@@ -4011,6 +4332,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | haemophilus_influenzae | chloramphenicol | 0.8 | 1 |
 | haemophilus_influenzae | nitrofurantoin | 0.1 | 1 |
 | haemophilus_influenzae | fosfomycin | 0.1 | 1 |
+| haemophilus_influenzae | retapamulin | 0 | 1 |
+| haemophilus_influenzae | fusidic_a | 0 | 1 |
+| haemophilus_influenzae | metronidazole | 0 | 1 |
 | haemophilus_influenzae | fidaxomicin | 0.1 | 1 |
 | haemophilus_influenzae | furazolidone | 0.1 | 1 |
 | haemophilus_influenzae | rifampicin | 0.7 | 1 |
@@ -4026,6 +4350,11 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | haemophilus_influenzae | cefixime | 0.8 | 0.2 |
 | haemophilus_influenzae | nalidixic_acid | 0.3 | 0 |
 | chlamydia_trachomatis | sulfanilamide | 0.1 | 0.02 |
+| chlamydia_trachomatis | penicillin_g | 0 | 1 |
+| chlamydia_trachomatis | ampicillin | 0 | 1 |
+| chlamydia_trachomatis | amoxicillin | 0 | 1 |
+| chlamydia_trachomatis | piperacillin | 0 | 1 |
+| chlamydia_trachomatis | ticarcillin | 0 | 1 |
 | chlamydia_trachomatis | cephalexin | 0 | 0.3 |
 | chlamydia_trachomatis | cefazolin | 0 | 0.3 |
 | chlamydia_trachomatis | cefuroxime | 0 | 0.3 |
@@ -4071,6 +4400,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | chlamydia_trachomatis | fidaxomicin | 0.1 | 1 |
 | chlamydia_trachomatis | furazolidone | 0.1 | 1 |
 | chlamydia_trachomatis | rifampicin | 0.1 | 1 |
+| chlamydia_trachomatis | amoxicillin_clavulanate | 0 | 1 |
+| chlamydia_trachomatis | piperacillin_tazobactam | 0 | 1 |
+| chlamydia_trachomatis | ampicillin_sulbactam | 0 | 1 |
+| chlamydia_trachomatis | ticarcillin_clavulanate | 0 | 1 |
 | chlamydia_trachomatis | ceftazidime_avibactam | 0 | 0.5 |
 | chlamydia_trachomatis | meropenem_vaborbactam | 0 | 0.5 |
 | chlamydia_trachomatis | colistin | 0.1 | 0.5 |
@@ -4079,6 +4412,11 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | chlamydia_trachomatis | cefixime | 0.01 | 0.2 |
 | chlamydia_trachomatis | nalidixic_acid | 0 | 0 |
 | mycoplasma_genitalium | sulfanilamide | 0.05 | 0.02 |
+| mycoplasma_genitalium | penicillin_g | 0 | 1 |
+| mycoplasma_genitalium | ampicillin | 0 | 1 |
+| mycoplasma_genitalium | amoxicillin | 0 | 1 |
+| mycoplasma_genitalium | piperacillin | 0 | 1 |
+| mycoplasma_genitalium | ticarcillin | 0 | 1 |
 | mycoplasma_genitalium | cephalexin | 0 | 0.3 |
 | mycoplasma_genitalium | cefazolin | 0 | 0.3 |
 | mycoplasma_genitalium | cefuroxime | 0 | 0.3 |
@@ -4124,6 +4462,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_genitalium | fidaxomicin | 0.1 | 1 |
 | mycoplasma_genitalium | furazolidone | 0.05 | 1 |
 | mycoplasma_genitalium | rifampicin | 0.1 | 1 |
+| mycoplasma_genitalium | amoxicillin_clavulanate | 0 | 1 |
+| mycoplasma_genitalium | piperacillin_tazobactam | 0 | 1 |
+| mycoplasma_genitalium | ampicillin_sulbactam | 0 | 1 |
+| mycoplasma_genitalium | ticarcillin_clavulanate | 0 | 1 |
 | mycoplasma_genitalium | ceftazidime_avibactam | 0 | 0.5 |
 | mycoplasma_genitalium | meropenem_vaborbactam | 0 | 0.5 |
 | mycoplasma_genitalium | colistin | 0.05 | 0.5 |
@@ -4382,6 +4724,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bacteroides_fragilis | sulfanilamide | 0.05 | 0.02 |
 | bacteroides_fragilis | penicillin_g | 0.1 | 1 |
 | bacteroides_fragilis | ampicillin | 0.2 | 1 |
+| bacteroides_fragilis | amoxicillin | 0 | 1 |
+| bacteroides_fragilis | piperacillin | 0 | 1 |
+| bacteroides_fragilis | ticarcillin | 0 | 1 |
 | bacteroides_fragilis | cephalexin | 0.05 | 0.3 |
 | bacteroides_fragilis | cefazolin | 0.05 | 0.3 |
 | bacteroides_fragilis | cefuroxime | 0.2 | 0.3 |
@@ -4395,8 +4740,13 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bacteroides_fragilis | imipenem_c | 0.85 | 0.5 |
 | bacteroides_fragilis | ertapenem | 0.8 | 0.5 |
 | bacteroides_fragilis | aztreonam | 0 | 0.003 |
+| bacteroides_fragilis | erythromycin | 0 | 1 |
+| bacteroides_fragilis | azithromycin | 0 | 1 |
+| bacteroides_fragilis | clarithromycin | 0 | 1 |
 | bacteroides_fragilis | clindamycin | 0.6 | 1 |
 | bacteroides_fragilis | gentamicin | 0.05 | 1 |
+| bacteroides_fragilis | tobramycin | 0 | 1 |
+| bacteroides_fragilis | amikacin | 0 | 1 |
 | bacteroides_fragilis | ciprofloxacin | 0.25 | 1 |
 | bacteroides_fragilis | levofloxacin | 0.35 | 1 |
 | bacteroides_fragilis | moxifloxacin | 0.5 | 1 |
@@ -4410,6 +4760,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bacteroides_fragilis | dalbavancin | 0.05 | 0.5 |
 | bacteroides_fragilis | linezolid | 0.05 | 0.5 |
 | bacteroides_fragilis | tedizolid | 0.05 | 0.5 |
+| bacteroides_fragilis | daptomycin | 0 | 1 |
 | bacteroides_fragilis | quinu_dalfo | 0.05 | 0.5 |
 | bacteroides_fragilis | trim_sulf | 0.3 | 0.04 |
 | bacteroides_fragilis | chloramphenicol | 0.7 | 1 |
@@ -4885,6 +5236,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | imipenem_c | 0.2 | 0.5 |
 | mdr_mycobacterium_tuberculosis | ertapenem | 0.2 | 0.5 |
 | mdr_mycobacterium_tuberculosis | aztreonam | 0.2 | 0.003 |
+| mdr_mycobacterium_tuberculosis | erythromycin | 0 | 1 |
+| mdr_mycobacterium_tuberculosis | azithromycin | 0 | 1 |
+| mdr_mycobacterium_tuberculosis | clarithromycin | 0 | 1 |
+| mdr_mycobacterium_tuberculosis | clindamycin | 0 | 1 |
 | mdr_mycobacterium_tuberculosis | gentamicin | 0.15 | 1 |
 | mdr_mycobacterium_tuberculosis | tobramycin | 0.15 | 1 |
 | mdr_mycobacterium_tuberculosis | amikacin | 0.3 | 1 |
@@ -4904,6 +5259,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | daptomycin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | quinu_dalfo | 0.1 | 0.5 |
 | mdr_mycobacterium_tuberculosis | trim_sulf | 0 | 0.04 |
+| mdr_mycobacterium_tuberculosis | chloramphenicol | 0 | 1 |
 | mdr_mycobacterium_tuberculosis | nitrofurantoin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | fosfomycin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | retapamulin | 0.1 | 1 |
@@ -4927,6 +5283,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_pneumoniae | penicillin_g | 0 | 0.001 |
 | mycoplasma_pneumoniae | ampicillin | 0 | 0.001 |
 | mycoplasma_pneumoniae | amoxicillin | 0 | 0.001 |
+| mycoplasma_pneumoniae | piperacillin | 0 | 1 |
+| mycoplasma_pneumoniae | ticarcillin | 0 | 1 |
 | mycoplasma_pneumoniae | cephalexin | 0 | 0.3 |
 | mycoplasma_pneumoniae | cefazolin | 0 | 0.3 |
 | mycoplasma_pneumoniae | cefuroxime | 0 | 0.3 |
@@ -4972,6 +5330,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_pneumoniae | fidaxomicin | 0.1 | 1 |
 | mycoplasma_pneumoniae | furazolidone | 0.05 | 1 |
 | mycoplasma_pneumoniae | rifampicin | 0.05 | 1 |
+| mycoplasma_pneumoniae | amoxicillin_clavulanate | 0 | 1 |
+| mycoplasma_pneumoniae | piperacillin_tazobactam | 0 | 1 |
+| mycoplasma_pneumoniae | ampicillin_sulbactam | 0 | 1 |
+| mycoplasma_pneumoniae | ticarcillin_clavulanate | 0 | 1 |
 | mycoplasma_pneumoniae | ceftazidime_avibactam | 0 | 0.5 |
 | mycoplasma_pneumoniae | meropenem_vaborbactam | 0 | 0.5 |
 | mycoplasma_pneumoniae | colistin | 0.05 | 0.5 |
@@ -5060,6 +5422,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | imipenem_c | 0.8 | 0.5 |
 | burkholderia_cepacia_complex | ertapenem | 0.1 | 0.5 |
 | burkholderia_cepacia_complex | aztreonam | 0.1 | 0.003 |
+| burkholderia_cepacia_complex | erythromycin | 0 | 1 |
+| burkholderia_cepacia_complex | azithromycin | 0 | 1 |
+| burkholderia_cepacia_complex | clarithromycin | 0 | 1 |
+| burkholderia_cepacia_complex | clindamycin | 0 | 1 |
 | burkholderia_cepacia_complex | gentamicin | 0.05 | 1 |
 | burkholderia_cepacia_complex | tobramycin | 0.05 | 1 |
 | burkholderia_cepacia_complex | amikacin | 0.1 | 1 |
@@ -5071,6 +5437,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | doxycycline | 0.65 | 0.25 |
 | burkholderia_cepacia_complex | minocycline | 0.7 | 0.25 |
 | burkholderia_cepacia_complex | tigecycline | 0.1 | 1 |
+| burkholderia_cepacia_complex | vancomycin | 0 | 1 |
+| burkholderia_cepacia_complex | teicoplanin | 0 | 1 |
 | burkholderia_cepacia_complex | dalbavancin | 0 | 0.5 |
 | burkholderia_cepacia_complex | linezolid | 0 | 0.5 |
 | burkholderia_cepacia_complex | tedizolid | 0 | 0.5 |
@@ -5080,6 +5448,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | chloramphenicol | 0.7 | 1 |
 | burkholderia_cepacia_complex | nitrofurantoin | 0.1 | 1 |
 | burkholderia_cepacia_complex | fosfomycin | 0.2 | 1 |
+| burkholderia_cepacia_complex | retapamulin | 0 | 1 |
+| burkholderia_cepacia_complex | fusidic_a | 0 | 1 |
+| burkholderia_cepacia_complex | metronidazole | 0 | 1 |
 | burkholderia_cepacia_complex | fidaxomicin | 0.1 | 1 |
 | burkholderia_cepacia_complex | furazolidone | 0.1 | 1 |
 | burkholderia_cepacia_complex | rifampicin | 0.5 | 1 |
@@ -5094,6 +5465,129 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | aztreonam_avibactam | 0.6 | 0.003 |
 | burkholderia_cepacia_complex | cefixime | 0.1 | 0.2 |
 | burkholderia_cepacia_complex | nalidixic_acid | 0 | 0 |
+
+#### Time-Varying Drug-Initiation Overrides
+
+These values replace the base initiation multiplier before the year encoded in the parameter name. For overlapping cut-offs, the earliest cut-off later than the current simulation year is used.
+
+| Parameter | Multiplier |
+| --- | ---: |
+| drug_amikacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2000 | 5 |
+| drug_amikacin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2000 | 5 |
+| drug_amikacin_for_bacteria_shigella_spp._initiation_multiplier_before_1990 | 3 |
+| drug_amoxicillin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987 | 25 |
+| drug_ampicillin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987 | 25 |
+| drug_ampicillin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2000 | 6 |
+| drug_ampicillin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2000 | 6 |
+| drug_ampicillin_for_bacteria_shigella_spp._initiation_multiplier_before_2000 | 7 |
+| drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010 | 3 |
+| drug_azithromycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2010 | 2 |
+| drug_azithromycin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2010 | 2 |
+| drug_azithromycin_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 6 |
+| drug_azithromycin_for_bacteria_treponema_pallidum_initiation_multiplier_before_2010 | 3.5 |
+| drug_ceftriaxone_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007 | 2 |
+| drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_1990 | 1 |
+| drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2010 | 3 |
+| drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_1990 | 1 |
+| drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2010 | 3 |
+| drug_ceftriaxone_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 2 |
+| drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_1975 | 20 |
+| drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_1990 | 14 |
+| drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2010 | 2 |
+| drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_1975 | 20 |
+| drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_1990 | 14 |
+| drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2010 | 2 |
+| drug_chloramphenicol_for_bacteria_shigella_spp._initiation_multiplier_before_1975 | 14 |
+| drug_chloramphenicol_for_bacteria_shigella_spp._initiation_multiplier_before_1985 | 3 |
+| drug_chloramphenicol_for_bacteria_shigella_spp._initiation_multiplier_before_2000 | 2 |
+| drug_chloramphenicol_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1970 | 8 |
+| drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010 | 10 |
+| drug_ciprofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_1991 | 0.5 |
+| drug_ciprofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2007 | 2 |
+| drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987 | 0.5 |
+| drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007 | 120 |
+| drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2010 | 14 |
+| drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2010 | 14 |
+| drug_ciprofloxacin_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 14 |
+| drug_ciprofloxacin_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_2000 | 10 |
+| drug_clarithromycin_for_bacteria_treponema_pallidum_initiation_multiplier_before_2010 | 1.5 |
+| drug_clindamycin_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_2000 | 6 |
+| drug_doxycycline_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2000 | 6 |
+| drug_doxycycline_for_bacteria_escherichia_coli_initiation_multiplier_before_2000 | 6 |
+| drug_doxycycline_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_1991 | 8 |
+| drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987 | 80 |
+| drug_doxycycline_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2000 | 5 |
+| drug_doxycycline_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2000 | 5 |
+| drug_doxycycline_for_bacteria_shigella_spp._initiation_multiplier_before_1990 | 7 |
+| drug_doxycycline_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 3 |
+| drug_doxycycline_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_2000 | 4 |
+| drug_erythromycin_for_bacteria_shigella_spp._initiation_multiplier_before_2000 | 8 |
+| drug_erythromycin_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_2000 | 8 |
+| drug_erythromycin_for_bacteria_treponema_pallidum_initiation_multiplier_before_2010 | 3 |
+| drug_gentamicin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_1990 | 8 |
+| drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_1990 | 8 |
+| drug_gentamicin_for_bacteria_shigella_spp._initiation_multiplier_before_1963 | 8 |
+| drug_gentamicin_for_bacteria_shigella_spp._initiation_multiplier_before_1985 | 6 |
+| drug_gentamicin_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1963 | 5 |
+| drug_gentamicin_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1985 | 25 |
+| drug_levofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2000 | 0.5 |
+| drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2010 | 4 |
+| drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2010 | 4 |
+| drug_levofloxacin_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 5 |
+| drug_metronidazole_for_bacteria_clostridioides_difficile_initiation_multiplier_before_2017 | 12 |
+| drug_moxifloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2005 | 0.75 |
+| drug_nalidixic_acid_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_1990 | 8 |
+| drug_nalidixic_acid_for_bacteria_escherichia_coli_initiation_multiplier_before_1990 | 7 |
+| drug_nalidixic_acid_for_bacteria_invasive_non-typhoidal_salmonella_spp._initiation_multiplier_before_1990 | 8 |
+| drug_nalidixic_acid_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_1990 | 8 |
+| drug_nalidixic_acid_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_1990 | 8 |
+| drug_nalidixic_acid_for_bacteria_shigella_spp._initiation_multiplier_before_1990 | 12 |
+| drug_ofloxacin_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2010 | 6 |
+| drug_ofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_1991 | 0.5 |
+| drug_ofloxacin_for_bacteria_mycoplasma_genitalium_initiation_multiplier_before_2007 | 4 |
+| drug_ofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007 | 70 |
+| drug_ofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2010 | 7 |
+| drug_ofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2010 | 7 |
+| drug_ofloxacin_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 8 |
+| drug_penicillin_g_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987 | 35 |
+| drug_rifampicin_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_2000 | 5 |
+| drug_sulfanilamide_for_bacteria_escherichia_coli_initiation_multiplier_before_1965 | 10 |
+| drug_sulfanilamide_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1945 | 200 |
+| drug_sulfanilamide_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1965 | 120 |
+| drug_sulfanilamide_for_bacteria_shigella_spp._initiation_multiplier_before_1955 | 14 |
+| drug_sulfanilamide_for_bacteria_shigella_spp._initiation_multiplier_before_1968 | 5 |
+| drug_sulfanilamide_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1950 | 14 |
+| drug_sulfanilamide_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1965 | 5 |
+| drug_sulfanilamide_for_bacteria_streptococcus_pneumoniae_initiation_multiplier_before_1945 | 14 |
+| drug_sulfanilamide_for_bacteria_streptococcus_pneumoniae_initiation_multiplier_before_1965 | 8 |
+| drug_tetracycline_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2000 | 8 |
+| drug_tetracycline_for_bacteria_escherichia_coli_initiation_multiplier_before_1960 | 12 |
+| drug_tetracycline_for_bacteria_escherichia_coli_initiation_multiplier_before_2000 | 6 |
+| drug_tetracycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987 | 80 |
+| drug_tetracycline_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2000 | 6 |
+| drug_tetracycline_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2000 | 6 |
+| drug_tetracycline_for_bacteria_shigella_spp._initiation_multiplier_before_1990 | 9 |
+| drug_tetracycline_for_bacteria_shigella_spp._initiation_multiplier_before_2010 | 3 |
+| drug_tetracycline_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1975 | 10 |
+| drug_tetracycline_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_1990 | 3 |
+| drug_trim_sulf_for_bacteria_campylobacter_jejuni_initiation_multiplier_before_2000 | 7 |
+| drug_trim_sulf_for_bacteria_escherichia_coli_initiation_multiplier_before_2000 | 8 |
+| drug_trim_sulf_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1990 | 150 |
+| drug_trim_sulf_for_bacteria_salmonella_enterica_serovar_paratyphi_a_initiation_multiplier_before_2000 | 7 |
+| drug_trim_sulf_for_bacteria_salmonella_enterica_serovar_typhi_initiation_multiplier_before_2000 | 7 |
+| drug_trim_sulf_for_bacteria_shigella_spp._initiation_multiplier_before_2000 | 7 |
+| drug_trim_sulf_for_bacteria_staphylococcus_aureus_initiation_multiplier_before_2000 | 2.5 |
+| drug_trim_sulf_for_bacteria_streptococcus_pneumoniae_initiation_multiplier_before_2000 | 9 |
+| drug_vancomycin_for_bacteria_clostridioides_difficile_initiation_multiplier_before_2017 | 4 |
+| drug_vancomycin_for_bacteria_enterococcus_faecalis_initiation_multiplier_before_1985 | 0.3 |
+| drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier_before_1985 | 0.3 |
+
+#### Additional Clinical-Preference Multipliers
+
+These directly read bacterium-drug multipliers default to 1.0. Only explicit overrides are shown.
+
+| Parameter | Multiplier |
+| --- | ---: |
 
 ### B.5 Regional Parameters
 
@@ -5532,13 +6026,144 @@ See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Co
 | oceania | infant | 0.1 |
 | oceania | elderly | 0.3 |
 
+#### Explicit Bacterium–Region–Age Overrides
+
+Only explicitly configured three-way overrides are shown. Every unlisted combination inherits the corresponding region-age value above.
+
+| Bacteria | Region | Age category | Log-odds |
+| --- | ---: | ---: | ---: |
+| salmonella_enterica_serovar_typhi | north_america | young_adult | 0.5 |
+| salmonella_enterica_serovar_typhi | north_america | middle_age | 0.3 |
+| haemophilus_influenzae | north_america | infant | 1.2 |
+| haemophilus_influenzae | north_america | preschool | 0.5 |
+| haemophilus_influenzae | north_america | school | 0.1 |
+| vibrio_cholerae | north_america | young_adult | -1.2 |
+| vibrio_cholerae | north_america | middle_age | -1 |
+| neisseria_meningitidis | north_america | infant | 1.4 |
+| neisseria_meningitidis | north_america | young_adult | 0.5 |
+| salmonella_enterica_serovar_typhi | africa | infant | 2.5 |
+| salmonella_enterica_serovar_typhi | africa | preschool | 2.2 |
+| salmonella_enterica_serovar_typhi | africa | school | 1.8 |
+| salmonella_enterica_serovar_typhi | africa | young_adult | 1.2 |
+| salmonella_enterica_serovar_typhi | africa | middle_age | 1 |
+| salmonella_enterica_serovar_typhi | africa | elderly | 1.5 |
+| shigella_spp. | africa | infant | 3 |
+| shigella_spp. | africa | preschool | 3.5 |
+| shigella_spp. | africa | school | 2.8 |
+| shigella_spp. | africa | young_adult | 1 |
+| shigella_spp. | africa | middle_age | 0.8 |
+| shigella_spp. | africa | elderly | 1.2 |
+| haemophilus_influenzae | africa | infant | 3.5 |
+| haemophilus_influenzae | africa | preschool | 2.5 |
+| haemophilus_influenzae | africa | school | 1.5 |
+| vibrio_cholerae | africa | infant | 2.8 |
+| vibrio_cholerae | africa | preschool | 2.5 |
+| vibrio_cholerae | africa | school | 2 |
+| vibrio_cholerae | africa | young_adult | 1.2 |
+| vibrio_cholerae | africa | middle_age | 1 |
+| vibrio_cholerae | africa | elderly | 2 |
+| neisseria_meningitidis | africa | infant | 2.5 |
+| neisseria_meningitidis | africa | preschool | 1 |
+| neisseria_meningitidis | africa | school | 1.5 |
+| neisseria_meningitidis | africa | young_adult | 1.9 |
+| neisseria_meningitidis | africa | middle_age | 0.3 |
+| neisseria_meningitidis | africa | elderly | 0.6 |
+| salmonella_enterica_serovar_typhi | asia | infant | 3 |
+| salmonella_enterica_serovar_typhi | asia | preschool | 2.8 |
+| salmonella_enterica_serovar_typhi | asia | school | 2.5 |
+| salmonella_enterica_serovar_typhi | asia | young_adult | 1.8 |
+| salmonella_enterica_serovar_typhi | asia | middle_age | 1.5 |
+| salmonella_enterica_serovar_typhi | asia | elderly | 2 |
+| shigella_spp. | asia | infant | 2.5 |
+| shigella_spp. | asia | preschool | 3 |
+| shigella_spp. | asia | school | 2.2 |
+| shigella_spp. | asia | young_adult | 0.8 |
+| shigella_spp. | asia | middle_age | 0.5 |
+| shigella_spp. | asia | elderly | 0.8 |
+| haemophilus_influenzae | asia | infant | 3 |
+| haemophilus_influenzae | asia | preschool | 2 |
+| haemophilus_influenzae | asia | school | 1.2 |
+| vibrio_cholerae | asia | infant | 3.2 |
+| vibrio_cholerae | asia | preschool | 2.8 |
+| vibrio_cholerae | asia | school | 2.2 |
+| vibrio_cholerae | asia | young_adult | 1.5 |
+| vibrio_cholerae | asia | middle_age | 1.3 |
+| vibrio_cholerae | asia | elderly | 2.2 |
+| salmonella_enterica_serovar_typhi | europe | young_adult | 0.8 |
+| salmonella_enterica_serovar_typhi | europe | middle_age | 0.6 |
+| shigella_spp. | europe | infant | -0.5 |
+| shigella_spp. | europe | preschool | 0.2 |
+| shigella_spp. | europe | school | -0.2 |
+| shigella_spp. | europe | young_adult | 0.5 |
+| shigella_spp. | europe | middle_age | 0.3 |
+| haemophilus_influenzae | europe | infant | 1.5 |
+| haemophilus_influenzae | europe | preschool | 0.8 |
+| haemophilus_influenzae | europe | school | 0.3 |
+| vibrio_cholerae | europe | young_adult | -1 |
+| vibrio_cholerae | europe | middle_age | -0.8 |
+| neisseria_meningitidis | europe | infant | 1.2 |
+| neisseria_meningitidis | europe | young_adult | 0.6 |
+
+#### Sepsis-Onset Age Log-Odds
+
+| Parameter | Log-odds |
+| --- | ---: |
+| sepsis_age_log_odds_baseline | 0 |
+| sepsis_age_log_odds_neonatal | 1.1 |
+| sepsis_age_log_odds_pediatric | 0.18 |
+| sepsis_age_log_odds_young_adult | 0 |
+| sepsis_age_log_odds_elderly | 0.69 |
+
+#### Bacterium-Specific Sepsis-Age Overrides
+
+Only explicit overrides are shown; all other combinations contribute 0.
+
+| Parameter | Log-odds |
+| --- | ---: |
+| acinetobacter_baumannii_elderly_sepsis_log_odds | 0.405 |
+| enterococcus_faecalis_neonatal_sepsis_log_odds | 0 |
+| enterococcus_faecium_elderly_sepsis_log_odds | 0.336 |
+| escherichia_coli_elderly_sepsis_log_odds | 0.223 |
+| escherichia_coli_neonatal_sepsis_log_odds | 0.511 |
+| haemophilus_influenzae_pediatric_sepsis_log_odds | 0.734 |
+| klebsiella_pneumoniae_elderly_sepsis_log_odds | 0.405 |
+| listeria_monocytogenes_neonatal_sepsis_log_odds | 0.693 |
+| neisseria_meningitidis_pediatric_sepsis_log_odds | 0.511 |
+| neisseria_meningitidis_young_adult_sepsis_log_odds | 0.336 |
+| pseudomonas_aeruginosa_elderly_sepsis_log_odds | 0.56 |
+| staphylococcus_aureus_elderly_sepsis_log_odds | 0.47 |
+| staphylococcus_aureus_neonatal_sepsis_log_odds | 0.288 |
+| staphylococcus_aureus_pediatric_sepsis_log_odds | 0.511 |
+| staphylococcus_aureus_young_adult_sepsis_log_odds | 0.588 |
+| streptococcus_agalactiae_neonatal_sepsis_log_odds | 0.981 |
+| streptococcus_pneumoniae_elderly_sepsis_log_odds | 0.693 |
+| streptococcus_pneumoniae_pediatric_sepsis_log_odds | 0.916 |
+
 ### B.7 Syndrome Parameters
 
 Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.
 
 See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.4 Drug penetration by syndrome](#64-drug-penetration-by-syndrome).
 
-#### Syndrome Empiric Drug Scores
+#### Syndrome-Level Clinical Scalars
+
+| Syndrome | Sepsis log-odds | Initiation multiplier | Non-sepsis death log-odds | Growth multiplier |
+| --- | ---: | ---: | ---: | ---: |
+| none | 0 | 1 | 0 | 1 |
+| uti | -2 | 6 | 0 | 1 |
+| skin_soft_tissue | -1 | 6 | 0 | 1.1 |
+| respiratory | 0 | 10 | 0 | 1.2 |
+| bloodstream | 1.5 | 16 | 0 | 1.4 |
+| intra_abdominal | 0.8 | 10 | 0 | 1.15 |
+| cns_meningitis | 1.2 | 14 | 0 | 1.3 |
+| gastrointestinal | -0.5 | 8 | 0 | 1.1 |
+| genital_sti | -1.5 | 12 | 0 | 0.9 |
+| bone_joint | 0.5 | 4 | 0 | 0.85 |
+| other | 0 | 4 | 0 | 1 |
+
+#### Non-Default Syndrome Empiric Drug Scores
+
+The resolved default for every unlisted syndrome-drug pair is 0.01.
 
 | Syndrome | Drug | Empiric score |
 | --- | ---: | ---: |
@@ -5559,14 +6184,14 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | uti | ciprofloxacin | 0.9 |
 | uti | levofloxacin | 0.8 |
 | uti | vancomycin | 0.3 |
-| uti | linezolid | 0.1 |
+| uti | linezolid | 0.3 |
 | uti | trim_sulf | 0.6 |
 | uti | nitrofurantoin | 140 |
-| uti | fosfomycin | 110 |
-| uti | amoxicillin_clavulanate | 8.8 |
+| uti | fosfomycin | 120 |
+| uti | amoxicillin_clavulanate | 7 |
 | uti | piperacillin_tazobactam | 6 |
-| uti | ceftazidime_avibactam | 12 |
-| uti | meropenem_vaborbactam | 18 |
+| uti | ceftazidime_avibactam | 10 |
+| uti | meropenem_vaborbactam | 15 |
 | uti | colistin | 0.4 |
 | uti | aztreonam_avibactam | 1 |
 | uti | cefixime | 6.2 |
@@ -5582,8 +6207,8 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | skin_soft_tissue | minocycline | 1.5 |
 | skin_soft_tissue | vancomycin | 90 |
 | skin_soft_tissue | dalbavancin | 75 |
-| skin_soft_tissue | linezolid | 90 |
-| skin_soft_tissue | tedizolid | 75 |
+| skin_soft_tissue | linezolid | 100 |
+| skin_soft_tissue | tedizolid | 85 |
 | skin_soft_tissue | daptomycin | 80 |
 | skin_soft_tissue | quinu_dalfo | 8 |
 | skin_soft_tissue | trim_sulf | 0.5 |
@@ -5609,9 +6234,9 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | respiratory | doxycycline | 3 |
 | respiratory | minocycline | 1.5 |
 | respiratory | vancomycin | 8 |
-| respiratory | linezolid | 7 |
-| respiratory | amoxicillin_clavulanate | 10 |
-| respiratory | piperacillin_tazobactam | 9 |
+| respiratory | linezolid | 9 |
+| respiratory | amoxicillin_clavulanate | 8 |
+| respiratory | piperacillin_tazobactam | 8 |
 | respiratory | cefixime | 5.7 |
 | bloodstream | penicillin_g | 4.5 |
 | bloodstream | ampicillin | 4.5 |
@@ -5633,8 +6258,8 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | bloodstream | levofloxacin | 1.8 |
 | bloodstream | vancomycin | 150 |
 | bloodstream | dalbavancin | 110 |
-| bloodstream | linezolid | 140 |
-| bloodstream | tedizolid | 110 |
+| bloodstream | linezolid | 150 |
+| bloodstream | tedizolid | 120 |
 | bloodstream | daptomycin | 140 |
 | bloodstream | quinu_dalfo | 8.5 |
 | bloodstream | rifampicin | 0.5 |
@@ -5677,7 +6302,7 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | cns_meningitis | meropenem | 270 |
 | cns_meningitis | imipenem_c | 210 |
 | cns_meningitis | vancomycin | 90 |
-| cns_meningitis | linezolid | 80 |
+| cns_meningitis | linezolid | 90 |
 | cns_meningitis | chloramphenicol | 2 |
 | cns_meningitis | rifampicin | 1 |
 | cns_meningitis | piperacillin_tazobactam | 1 |
@@ -5728,8 +6353,8 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | bone_joint | levofloxacin | 2.3 |
 | bone_joint | vancomycin | 150 |
 | bone_joint | dalbavancin | 110 |
-| bone_joint | linezolid | 140 |
-| bone_joint | tedizolid | 110 |
+| bone_joint | linezolid | 150 |
+| bone_joint | tedizolid | 130 |
 | bone_joint | daptomycin | 140 |
 | bone_joint | trim_sulf | 0.5 |
 | bone_joint | rifampicin | 6 |
@@ -5745,12 +6370,40 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | other | azithromycin | 0.5 |
 | other | ciprofloxacin | 2.3 |
 | other | vancomycin | 150 |
-| other | linezolid | 140 |
+| other | linezolid | 150 |
 | other | daptomycin | 140 |
 | other | piperacillin_tazobactam | 12 |
 | other | aztreonam_avibactam | 2 |
 
-#### Syndrome Drug Penetration
+#### Time-Varying Syndrome Empiric-Score Overrides
+
+These values replace the base syndrome score before the year encoded in the parameter name.
+
+| Parameter | Empiric score |
+| --- | ---: |
+| syndrome_8_empiric_drug_amoxicillin_score_before_1987 | 25 |
+| syndrome_8_empiric_drug_ampicillin_score_before_1987 | 25 |
+| syndrome_8_empiric_drug_azithromycin_score_before_2020 | 12 |
+| syndrome_8_empiric_drug_cefixime_score_before_2007 | 3 |
+| syndrome_8_empiric_drug_ceftriaxone_score_before_2007 | 2 |
+| syndrome_8_empiric_drug_chloramphenicol_score_before_1970 | 20 |
+| syndrome_8_empiric_drug_ciprofloxacin_score_before_2007 | 200 |
+| syndrome_8_empiric_drug_ciprofloxacin_score_before_2012 | 35 |
+| syndrome_8_empiric_drug_doxycycline_score_before_1987 | 120 |
+| syndrome_8_empiric_drug_doxycycline_score_before_2020 | 25 |
+| syndrome_8_empiric_drug_ofloxacin_score_before_2007 | 120 |
+| syndrome_8_empiric_drug_ofloxacin_score_before_2012 | 20 |
+| syndrome_8_empiric_drug_penicillin_g_score_before_1987 | 35 |
+| syndrome_8_empiric_drug_sulfanilamide_score_before_1945 | 200 |
+| syndrome_8_empiric_drug_sulfanilamide_score_before_1965 | 160 |
+| syndrome_8_empiric_drug_tetracycline_score_before_1987 | 120 |
+| syndrome_8_empiric_drug_tetracycline_score_before_2000 | 20 |
+| syndrome_8_empiric_drug_trim_sulf_score_before_1990 | 220 |
+| syndrome_8_empiric_drug_trim_sulf_score_before_2000 | 40 |
+
+#### Non-Default Syndrome Drug Penetration
+
+The resolved default for every unlisted syndrome-drug pair is 1.0.
 
 | Syndrome | Drug | Penetration factor |
 | --- | ---: | ---: |
@@ -6209,18 +6862,41 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 
 ### B.8 Clearance Parameters
 
-Infection clearance model parameters. The clearance hazard is a logistic function of base log-odds, per-bacteria adjustments, age effects, immunodeficiency, bacteria level, and treatment duration.
+Infection clearance model parameters. The clearance hazard is a logistic function of base log-odds, per-bacteria adjustments, age effects, immunodeficiency, bacteria level, and infection duration.
 
 See: [§4.4 Natural clearance and microbiome dynamics](#44-natural-clearance-and-microbiome-dynamics).
 
 | Parameter | Value |
 | --- | ---: |
+| default_clearance_delay_days | 3 |
 | base_clearance_log_odds | -4.2 |
 | immunodeficient_log_odds_adjustment | -0.69 |
+| clearance_level_log_odds_per_unit | -0.3 |
+| adaptive_recruit_slope_per_infection_day (implementation constant) | 0.25 |
+
+`default_clearance_delay_days` and any bacterium-specific `*_clearance_delay_days` values are loaded for compatibility but are not consulted by the current clearance hazard. Eligibility is instead immediate after acquisition, and infection duration enters through the fixed +0.25 log-odds/day term.
+
+#### Clearance Age Adjustments
+
+| Age category | Log-odds adjustment |
+| --- | ---: |
+| infant | 0 |
+| preschool | 0 |
+| school | 0 |
+| young_adult | 0 |
+| middle_age | 0 |
+| elderly | 0 |
 
 #### Per-Bacteria Clearance Adjustments
 
 | Bacteria | Log-odds adjustment |
+| --- | ---: |
+
+#### Configured Per-Bacterium Clearance Delays
+
+Only explicit overrides are shown. As noted above, these loaded values are currently inactive in the executable hazard.
+
+| Parameter | Days |
 | --- | ---: |
 
 ### B.9 Immunodeficiency, Sex, and Vaccination Parameters
@@ -6316,7 +6992,7 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 
 #### Mechanism Enhancement Multipliers by Drug Class
 
-Raw class enhancement values loaded for each mechanism. These values are applied only to bacterium-drug pairs admitted by the executable host and drug-specific applicability gates in `rules::mechanism_applies_to_drug`; non-applicable fallback values shown here are inert. Only non-zero raw entries are shown.
+Raw class enhancement values loaded for each mechanism. These values are applied only to bacterium-drug pairs admitted by the executable host and drug-specific applicability gates in `rules::mechanism_applies_to_drug`; non-applicable fallback values shown here are inert. The resolved default for every unlisted mechanism-class pair is 0.
 
 | Mechanism | Drug class | Enhancement multiplier |
 | --- | ---: | ---: |
@@ -7706,840 +8382,2117 @@ Raw class enhancement values loaded for each mechanism. These values are applied
 
 #### Bacteria–Mechanism Emergence Rates
 
-De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero entries shown.
+Resolved de novo emergence rate and executable pathway status for every bacteria–mechanism pair. A zero rate does not necessarily exclude the host: transferable mechanisms can remain HGT-only, while non-transferable eligible mechanisms can still be inherited in an existing complete profile.
 
-| Bacteria | Mechanism | Emergence rate/day |
-| --- | ---: | ---: |
-| acinetobacter_baumannii | enzyme_esbl_ctx_m | 3e-4 |
-| acinetobacter_baumannii | enzyme_esbl_tem | 3e-4 |
-| acinetobacter_baumannii | enzyme_esbl_shv | 3e-4 |
-| acinetobacter_baumannii | enzyme_kpc | 3e-4 |
-| acinetobacter_baumannii | enzyme_ndm_vim | 3e-4 |
-| acinetobacter_baumannii | enzyme_oxa_48 | 3e-4 |
-| acinetobacter_baumannii | enzyme_ampc_cmy | 3e-4 |
-| acinetobacter_baumannii | enzyme_ampc_dha | 3e-4 |
-| acinetobacter_baumannii | mutation_ampc_derepression | 3e-4 |
-| acinetobacter_baumannii | mutation_gyra_primary | 0.005 |
-| acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.003 |
-| acinetobacter_baumannii | protection_qnr | 0.003 |
-| acinetobacter_baumannii | enzyme_16s_rrmt | 0.001 |
-| acinetobacter_baumannii | enzyme_cat | 1e-6 |
-| acinetobacter_baumannii | modification_mcr_1 | 0.01 |
-| acinetobacter_baumannii | mutation_polymyxin_regulatory | 0.01 |
-| acinetobacter_baumannii | global_efflux_pump | 0.003 |
-| acinetobacter_baumannii | mutation_folate_pathway | 0.5 |
-| acinetobacter_baumannii | enzyme_fos | 3e-4 |
-| acinetobacter_baumannii | mutation_rpo_b | 30 |
-| acinetobacter_baumannii | protection_tet_m | 5e-6 |
-| acinetobacter_baumannii | enzyme_aac_aph | 0.001 |
-| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 3e-4 |
-| acinetobacter_baumannii | efflux_tet_abc | 5e-6 |
-| acinetobacter_baumannii | mutation_pbp_mosaic | 3e-4 |
-| acinetobacter_baumannii | mutation_siderophore_uptake | 2e-4 |
-| citrobacter_spp. | enzyme_esbl_ctx_m | 2e-4 |
-| citrobacter_spp. | enzyme_esbl_tem | 2e-4 |
-| citrobacter_spp. | enzyme_esbl_shv | 2e-4 |
-| citrobacter_spp. | enzyme_kpc | 9e-7 |
-| citrobacter_spp. | enzyme_ndm_vim | 9e-7 |
-| citrobacter_spp. | enzyme_oxa_48 | 9e-7 |
-| citrobacter_spp. | mutation_ampc_derepression | 2e-4 |
-| citrobacter_spp. | mutation_gyra_primary | 0.01 |
-| citrobacter_spp. | mutation_gyra_parc_secondary | 0.01 |
-| citrobacter_spp. | protection_qnr | 0.01 |
-| citrobacter_spp. | enzyme_16s_rrmt | 3e-4 |
-| citrobacter_spp. | enzyme_cat | 0.09 |
-| citrobacter_spp. | efflux_acrab_tolc | 0.006 |
-| citrobacter_spp. | modification_mcr_1 | 0.04 |
-| citrobacter_spp. | global_efflux_pump | 0.006 |
-| citrobacter_spp. | mutation_folate_pathway | 0.002 |
-| citrobacter_spp. | mutation_nitroreductase | 0.01 |
-| citrobacter_spp. | enzyme_fos | 0.2 |
-| citrobacter_spp. | mutation_rpo_b | 5e-5 |
-| citrobacter_spp. | protection_tet_m | 0.01 |
-| citrobacter_spp. | enzyme_aac_aph | 3e-4 |
-| citrobacter_spp. | efflux_tet_abc | 0.01 |
-| citrobacter_spp. | mutation_pbp_mosaic | 2e-4 |
-| citrobacter_spp. | mutation_siderophore_uptake | 1e-4 |
-| enterobacter_spp. | enzyme_esbl_ctx_m | 3e-4 |
-| enterobacter_spp. | enzyme_esbl_tem | 3e-4 |
-| enterobacter_spp. | enzyme_esbl_shv | 3e-4 |
-| enterobacter_spp. | enzyme_kpc | 1e-5 |
-| enterobacter_spp. | enzyme_ndm_vim | 1e-5 |
-| enterobacter_spp. | enzyme_oxa_48 | 1e-5 |
-| enterobacter_spp. | mutation_ampc_derepression | 2e-5 |
-| enterobacter_spp. | mutation_gyra_primary | 0.005 |
-| enterobacter_spp. | mutation_gyra_parc_secondary | 0.005 |
-| enterobacter_spp. | protection_qnr | 0.005 |
-| enterobacter_spp. | enzyme_16s_rrmt | 0.01 |
-| enterobacter_spp. | enzyme_cat | 0.01 |
-| enterobacter_spp. | efflux_acrab_tolc | 0.005 |
-| enterobacter_spp. | modification_mcr_1 | 0.01 |
-| enterobacter_spp. | mutation_polymyxin_regulatory | 0.01 |
-| enterobacter_spp. | global_efflux_pump | 0.005 |
-| enterobacter_spp. | mutation_folate_pathway | 0.05 |
-| enterobacter_spp. | mutation_nitroreductase | 0.03 |
-| enterobacter_spp. | enzyme_fos | 1 |
-| enterobacter_spp. | mutation_rpo_b | 1e-6 |
-| enterobacter_spp. | protection_tet_m | 1e-4 |
-| enterobacter_spp. | enzyme_aac_aph | 0.01 |
-| enterobacter_spp. | efflux_tet_abc | 1e-4 |
-| enterobacter_spp. | mutation_pbp_mosaic | 2e-4 |
-| enterobacter_spp. | mutation_siderophore_uptake | 3e-4 |
-| enterococcus_faecalis | target_site_pbp2a_meca | 1e-5 |
-| enterococcus_faecalis | target_site_van_a | 0.01 |
-| enterococcus_faecalis | target_site_van_b | 0.005 |
-| enterococcus_faecalis | mutation_gyra_primary | 1 |
-| enterococcus_faecalis | mutation_gyra_parc_secondary | 1 |
-| enterococcus_faecalis | target_site_erm_b | 0.5 |
-| enterococcus_faecalis | target_site_cfr | 0.05 |
-| enterococcus_faecalis | enzyme_cat | 1 |
-| enterococcus_faecalis | global_efflux_pump | 0.5 |
-| enterococcus_faecalis | mutation_folate_pathway | 0.01 |
-| enterococcus_faecalis | mutation_nitroreductase | 0.1 |
-| enterococcus_faecalis | mutation_liafsr_cls | 0.1 |
-| enterococcus_faecalis | mutation_rpo_b | 0.001 |
-| enterococcus_faecalis | protection_fus_b | 1e-4 |
-| enterococcus_faecalis | protection_tet_m | 0.1 |
-| enterococcus_faecalis | enzyme_aac_aph | 5e-6 |
-| enterococcus_faecalis | mutation_23s_rrna | 0.5 |
-| enterococcus_faecalis | mutation_23s_rrna_oxazolidinone | 0.001 |
-| enterococcus_faecalis | mutation_pbp_mosaic | 0.001 |
-| enterococcus_faecium | target_site_pbp2a_meca | 3e-4 |
-| enterococcus_faecium | target_site_van_a | 0.05 |
-| enterococcus_faecium | target_site_van_b | 0.05 |
-| enterococcus_faecium | mutation_gyra_primary | 1 |
-| enterococcus_faecium | mutation_gyra_parc_secondary | 1 |
-| enterococcus_faecium | target_site_erm_b | 0.5 |
-| enterococcus_faecium | target_site_cfr | 0.3 |
-| enterococcus_faecium | enzyme_cat | 0.5 |
-| enterococcus_faecium | global_efflux_pump | 1 |
-| enterococcus_faecium | mutation_folate_pathway | 0.005 |
-| enterococcus_faecium | mutation_nitroreductase | 1 |
-| enterococcus_faecium | enzyme_fos | 30 |
-| enterococcus_faecium | mutation_liafsr_cls | 0.3 |
-| enterococcus_faecium | mutation_rpo_b | 0.01 |
-| enterococcus_faecium | protection_fus_b | 0.005 |
-| enterococcus_faecium | protection_tet_m | 0.5 |
-| enterococcus_faecium | enzyme_aac_aph | 0.005 |
-| enterococcus_faecium | mutation_23s_rrna | 0.5 |
-| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 5e-4 |
-| enterococcus_faecium | mutation_pbp_mosaic | 0.001 |
-| enterococcus_faecium | efflux_mtr_cde | 0.001 |
-| escherichia_coli | enzyme_esbl_ctx_m | 0.007 |
-| escherichia_coli | enzyme_esbl_tem | 0.007 |
-| escherichia_coli | enzyme_esbl_shv | 0.007 |
-| escherichia_coli | enzyme_kpc | 2e-7 |
-| escherichia_coli | enzyme_ndm_vim | 2e-7 |
-| escherichia_coli | enzyme_oxa_48 | 2e-7 |
-| escherichia_coli | enzyme_ampc_cmy | 3e-6 |
-| escherichia_coli | enzyme_ampc_dha | 3e-6 |
-| escherichia_coli | mutation_ampc_derepression | 3e-6 |
-| escherichia_coli | mutation_gyra_primary | 1 |
-| escherichia_coli | mutation_gyra_parc_secondary | 1 |
-| escherichia_coli | protection_qnr | 1 |
-| escherichia_coli | enzyme_16s_rrmt | 0.05 |
-| escherichia_coli | enzyme_cat | 3e-6 |
-| escherichia_coli | efflux_acrab_tolc | 0.3 |
-| escherichia_coli | modification_mcr_1 | 1e-4 |
-| escherichia_coli | global_efflux_pump | 0.3 |
-| escherichia_coli | mutation_folate_pathway | 3 |
-| escherichia_coli | mutation_nitroreductase | 0.3 |
-| escherichia_coli | enzyme_fos | 2 |
-| escherichia_coli | mutation_rpo_b | 30 |
-| escherichia_coli | protection_tet_m | 0.3 |
-| escherichia_coli | enzyme_aac_aph | 0.1 |
-| escherichia_coli | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-6 |
-| escherichia_coli | mutation_23s_rrna | 0.01 |
-| escherichia_coli | efflux_tet_abc | 0.3 |
-| escherichia_coli | mutation_pbp_mosaic | 3e-6 |
-| escherichia_coli | mutation_siderophore_uptake | 1e-4 |
-| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-5 |
-| klebsiella_pneumoniae | enzyme_esbl_tem | 1e-5 |
-| klebsiella_pneumoniae | enzyme_esbl_shv | 1e-5 |
-| klebsiella_pneumoniae | enzyme_kpc | 3e-6 |
-| klebsiella_pneumoniae | enzyme_ndm_vim | 3e-6 |
-| klebsiella_pneumoniae | enzyme_oxa_48 | 3e-6 |
-| klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-5 |
-| klebsiella_pneumoniae | enzyme_ampc_dha | 1e-5 |
-| klebsiella_pneumoniae | mutation_gyra_primary | 0.2 |
-| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.2 |
-| klebsiella_pneumoniae | protection_qnr | 0.2 |
-| klebsiella_pneumoniae | enzyme_16s_rrmt | 5e-4 |
-| klebsiella_pneumoniae | enzyme_cat | 3e-6 |
-| klebsiella_pneumoniae | efflux_acrab_tolc | 0.1 |
-| klebsiella_pneumoniae | porin_loss_ompk35_36 | 3e-6 |
-| klebsiella_pneumoniae | modification_mcr_1 | 1 |
-| klebsiella_pneumoniae | mutation_polymyxin_regulatory | 1 |
-| klebsiella_pneumoniae | global_efflux_pump | 0.1 |
-| klebsiella_pneumoniae | mutation_folate_pathway | 0.001 |
-| klebsiella_pneumoniae | mutation_nitroreductase | 1 |
-| klebsiella_pneumoniae | enzyme_fos | 10 |
-| klebsiella_pneumoniae | mutation_rpo_b | 30 |
-| klebsiella_pneumoniae | protection_tet_m | 0.03 |
-| klebsiella_pneumoniae | enzyme_aac_aph | 5e-4 |
-| klebsiella_pneumoniae | efflux_tet_abc | 0.03 |
-| klebsiella_pneumoniae | mutation_siderophore_uptake | 1e-4 |
-| morganella_spp. | enzyme_esbl_ctx_m | 0.001 |
-| morganella_spp. | enzyme_esbl_tem | 0.001 |
-| morganella_spp. | enzyme_esbl_shv | 0.001 |
-| morganella_spp. | enzyme_kpc | 1e-4 |
-| morganella_spp. | enzyme_ndm_vim | 1e-4 |
-| morganella_spp. | enzyme_oxa_48 | 3e-4 |
-| morganella_spp. | mutation_ampc_derepression | 1e-4 |
-| morganella_spp. | mutation_gyra_primary | 0.04 |
-| morganella_spp. | mutation_gyra_parc_secondary | 0.04 |
-| morganella_spp. | protection_qnr | 0.04 |
-| morganella_spp. | enzyme_16s_rrmt | 0.006 |
-| morganella_spp. | enzyme_cat | 0.3 |
-| morganella_spp. | efflux_acrab_tolc | 0.04 |
-| morganella_spp. | modification_mcr_1 | 0.09 |
-| morganella_spp. | mutation_polymyxin_regulatory | 0.09 |
-| morganella_spp. | global_efflux_pump | 0.04 |
-| morganella_spp. | mutation_folate_pathway | 0.01 |
-| morganella_spp. | mutation_nitroreductase | 0.3 |
-| morganella_spp. | enzyme_fos | 0.2 |
-| morganella_spp. | mutation_rpo_b | 0.05 |
-| morganella_spp. | protection_tet_m | 0.01 |
-| morganella_spp. | enzyme_aac_aph | 0.006 |
-| morganella_spp. | efflux_tet_abc | 0.01 |
-| morganella_spp. | mutation_pbp_mosaic | 1e-4 |
-| morganella_spp. | mutation_siderophore_uptake | 1e-4 |
-| proteus_spp. | enzyme_esbl_ctx_m | 1e-6 |
-| proteus_spp. | enzyme_esbl_tem | 1e-6 |
-| proteus_spp. | enzyme_esbl_shv | 1e-6 |
-| proteus_spp. | enzyme_kpc | 1e-7 |
-| proteus_spp. | enzyme_ndm_vim | 1e-7 |
-| proteus_spp. | enzyme_oxa_48 | 1e-7 |
-| proteus_spp. | enzyme_ampc_cmy | 1e-6 |
-| proteus_spp. | enzyme_ampc_dha | 1e-6 |
-| proteus_spp. | mutation_gyra_primary | 0.1 |
-| proteus_spp. | mutation_gyra_parc_secondary | 0.1 |
-| proteus_spp. | protection_qnr | 0.1 |
-| proteus_spp. | enzyme_16s_rrmt | 0.03 |
-| proteus_spp. | enzyme_cat | 0.03 |
-| proteus_spp. | efflux_acrab_tolc | 0.1 |
-| proteus_spp. | modification_mcr_1 | 0.01 |
-| proteus_spp. | global_efflux_pump | 0.1 |
-| proteus_spp. | mutation_folate_pathway | 0.005 |
-| proteus_spp. | mutation_nitroreductase | 0.1 |
-| proteus_spp. | enzyme_fos | 0.2 |
-| proteus_spp. | mutation_rpo_b | 3e-5 |
-| proteus_spp. | protection_tet_m | 0.1 |
-| proteus_spp. | enzyme_aac_aph | 0.03 |
-| proteus_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-5 |
-| proteus_spp. | efflux_tet_abc | 0.1 |
-| proteus_spp. | mutation_siderophore_uptake | 3e-4 |
-| serratia_spp. | enzyme_esbl_ctx_m | 0.001 |
-| serratia_spp. | enzyme_esbl_tem | 0.001 |
-| serratia_spp. | enzyme_esbl_shv | 0.001 |
-| serratia_spp. | enzyme_kpc | 1e-4 |
-| serratia_spp. | enzyme_ndm_vim | 1e-4 |
-| serratia_spp. | enzyme_oxa_48 | 1e-4 |
-| serratia_spp. | mutation_ampc_derepression | 0.001 |
-| serratia_spp. | mutation_gyra_primary | 0.1 |
-| serratia_spp. | mutation_gyra_parc_secondary | 0.1 |
-| serratia_spp. | protection_qnr | 0.1 |
-| serratia_spp. | enzyme_16s_rrmt | 0.03 |
-| serratia_spp. | enzyme_cat | 0.1 |
-| serratia_spp. | efflux_acrab_tolc | 0.1 |
-| serratia_spp. | modification_mcr_1 | 0.01 |
-| serratia_spp. | global_efflux_pump | 0.1 |
-| serratia_spp. | mutation_folate_pathway | 0.1 |
-| serratia_spp. | mutation_nitroreductase | 0.01 |
-| serratia_spp. | enzyme_fos | 0.2 |
-| serratia_spp. | mutation_rpo_b | 1e-4 |
-| serratia_spp. | protection_tet_m | 0.03 |
-| serratia_spp. | enzyme_aac_aph | 0.03 |
-| serratia_spp. | efflux_tet_abc | 0.02 |
-| serratia_spp. | mutation_pbp_mosaic | 0.001 |
-| serratia_spp. | mutation_siderophore_uptake | 3e-4 |
-| p_stuartii | enzyme_esbl_ctx_m | 0.002 |
-| p_stuartii | enzyme_esbl_tem | 0.002 |
-| p_stuartii | enzyme_esbl_shv | 0.002 |
-| p_stuartii | enzyme_kpc | 3e-4 |
-| p_stuartii | enzyme_ndm_vim | 3e-4 |
-| p_stuartii | enzyme_oxa_48 | 3e-4 |
-| p_stuartii | mutation_ampc_derepression | 0.002 |
-| p_stuartii | mutation_gyra_primary | 0.001 |
-| p_stuartii | mutation_gyra_parc_secondary | 0.001 |
-| p_stuartii | protection_qnr | 0.001 |
-| p_stuartii | enzyme_16s_rrmt | 0.01 |
-| p_stuartii | enzyme_cat | 9e-5 |
-| p_stuartii | efflux_acrab_tolc | 6e-4 |
-| p_stuartii | modification_mcr_1 | 2e-6 |
-| p_stuartii | mutation_polymyxin_regulatory | 3e-4 |
-| p_stuartii | global_efflux_pump | 6e-4 |
-| p_stuartii | mutation_folate_pathway | 0.5 |
-| p_stuartii | mutation_nitroreductase | 0.001 |
-| p_stuartii | enzyme_fos | 0.02 |
-| p_stuartii | mutation_rpo_b | 30 |
-| p_stuartii | protection_tet_m | 2e-6 |
-| p_stuartii | enzyme_aac_aph | 0.01 |
-| p_stuartii | efflux_tet_abc | 6e-6 |
-| p_stuartii | mutation_siderophore_uptake | 1e-4 |
-| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 5e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_tem | 5e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_shv | 5e-5 |
-| pseudomonas_aeruginosa | enzyme_kpc | 1e-4 |
-| pseudomonas_aeruginosa | enzyme_ndm_vim | 1e-4 |
-| pseudomonas_aeruginosa | enzyme_oxa_48 | 1e-4 |
-| pseudomonas_aeruginosa | enzyme_ampc_cmy | 5e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_dha | 5e-5 |
-| pseudomonas_aeruginosa | mutation_ampc_derepression | 5e-5 |
-| pseudomonas_aeruginosa | mutation_gyra_primary | 0.03 |
-| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.03 |
-| pseudomonas_aeruginosa | protection_qnr | 0.03 |
-| pseudomonas_aeruginosa | enzyme_16s_rrmt | 3e-7 |
-| pseudomonas_aeruginosa | enzyme_cat | 1e-4 |
-| pseudomonas_aeruginosa | efflux_mexxy_oprm | 0.01 |
-| pseudomonas_aeruginosa | porin_loss_oprd | 3e-4 |
-| pseudomonas_aeruginosa | modification_mcr_1 | 1e-4 |
-| pseudomonas_aeruginosa | mutation_polymyxin_regulatory | 1e-4 |
-| pseudomonas_aeruginosa | global_efflux_pump | 0.02 |
-| pseudomonas_aeruginosa | mutation_folate_pathway | 0.005 |
-| pseudomonas_aeruginosa | mutation_nitroreductase | 5e-5 |
-| pseudomonas_aeruginosa | enzyme_fos | 0.005 |
-| pseudomonas_aeruginosa | mutation_rpo_b | 0.001 |
-| pseudomonas_aeruginosa | protection_tet_m | 0.002 |
-| pseudomonas_aeruginosa | enzyme_aac_aph | 3e-7 |
-| pseudomonas_aeruginosa | efflux_tet_abc | 3e-5 |
-| pseudomonas_aeruginosa | mutation_pbp_mosaic | 5e-5 |
-| pseudomonas_aeruginosa | mutation_siderophore_uptake | 2e-4 |
-| stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 0.5 |
-| stenotrophomonas_maltophilia | enzyme_esbl_tem | 0.5 |
-| stenotrophomonas_maltophilia | enzyme_esbl_shv | 0.5 |
-| stenotrophomonas_maltophilia | enzyme_kpc | 2 |
-| stenotrophomonas_maltophilia | enzyme_ndm_vim | 2 |
-| stenotrophomonas_maltophilia | enzyme_oxa_48 | 2 |
-| stenotrophomonas_maltophilia | enzyme_ampc_cmy | 2 |
-| stenotrophomonas_maltophilia | enzyme_ampc_dha | 2 |
-| stenotrophomonas_maltophilia | mutation_gyra_primary | 0.1 |
-| stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 0.1 |
-| stenotrophomonas_maltophilia | protection_qnr | 0.1 |
-| stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.1 |
-| stenotrophomonas_maltophilia | enzyme_cat | 1 |
-| stenotrophomonas_maltophilia | modification_mcr_1 | 0.1 |
-| stenotrophomonas_maltophilia | global_efflux_pump | 0.02 |
-| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.001 |
-| stenotrophomonas_maltophilia | mutation_nitroreductase | 0.1 |
-| stenotrophomonas_maltophilia | enzyme_fos | 30 |
-| stenotrophomonas_maltophilia | mutation_rpo_b | 2e-4 |
-| stenotrophomonas_maltophilia | protection_tet_m | 0.003 |
-| stenotrophomonas_maltophilia | enzyme_aac_aph | 0.1 |
-| stenotrophomonas_maltophilia | efflux_tet_abc | 0.009 |
-| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 2e-4 |
-| staphylococcus_aureus | target_site_pbp2a_meca | 3e-5 |
-| staphylococcus_aureus | target_site_van_a | 3e-6 |
-| staphylococcus_aureus | target_site_van_b | 3e-6 |
-| staphylococcus_aureus | mutation_gyra_primary | 30 |
-| staphylococcus_aureus | mutation_gyra_parc_secondary | 30 |
-| staphylococcus_aureus | target_site_erm_b | 30 |
-| staphylococcus_aureus | target_site_cfr | 0.1 |
-| staphylococcus_aureus | enzyme_cat | 0.005 |
-| staphylococcus_aureus | global_efflux_pump | 0.3 |
-| staphylococcus_aureus | mutation_folate_pathway | 30 |
-| staphylococcus_aureus | mutation_nitroreductase | 0.001 |
-| staphylococcus_aureus | enzyme_fos | 0.001 |
-| staphylococcus_aureus | mutation_mpr_f | 5e-4 |
-| staphylococcus_aureus | mutation_rpo_b | 30 |
-| staphylococcus_aureus | protection_fus_b | 30 |
-| staphylococcus_aureus | protection_tet_m | 0.3 |
-| staphylococcus_aureus | enzyme_aac_aph | 0.1 |
-| staphylococcus_aureus | enzyme_bla_z | 2e-4 |
-| staphylococcus_aureus | mutation_23s_rrna | 30 |
-| staphylococcus_aureus | mutation_23s_rrna_oxazolidinone | 3e-5 |
-| staphylococcus_epidermidis | target_site_pbp2a_meca | 2e-4 |
-| staphylococcus_epidermidis | target_site_van_a | 5e-9 |
-| staphylococcus_epidermidis | target_site_van_b | 5e-9 |
-| staphylococcus_epidermidis | mutation_gyra_primary | 0.003 |
-| staphylococcus_epidermidis | mutation_gyra_parc_secondary | 0.003 |
-| staphylococcus_epidermidis | target_site_erm_b | 6e-4 |
-| staphylococcus_epidermidis | target_site_cfr | 2e-6 |
-| staphylococcus_epidermidis | enzyme_cat | 2e-4 |
-| staphylococcus_epidermidis | global_efflux_pump | 0.001 |
-| staphylococcus_epidermidis | mutation_folate_pathway | 0.009 |
-| staphylococcus_epidermidis | mutation_mpr_f | 5e-7 |
-| staphylococcus_epidermidis | mutation_rpo_b | 3e-4 |
-| staphylococcus_epidermidis | protection_fus_b | 0.04 |
-| staphylococcus_epidermidis | protection_tet_m | 6e-6 |
-| staphylococcus_epidermidis | enzyme_aac_aph | 1e-4 |
-| staphylococcus_epidermidis | enzyme_bla_z | 2e-4 |
-| staphylococcus_epidermidis | mutation_23s_rrna | 3e-4 |
-| staphylococcus_epidermidis | mutation_23s_rrna_oxazolidinone | 5e-5 |
-| streptococcus_pneumoniae | mutation_gyra_primary | 1 |
-| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 1 |
-| streptococcus_pneumoniae | target_site_erm_b | 30 |
-| streptococcus_pneumoniae | enzyme_cat | 30 |
-| streptococcus_pneumoniae | global_efflux_pump | 1 |
-| streptococcus_pneumoniae | mutation_folate_pathway | 3e-4 |
-| streptococcus_pneumoniae | mutation_rpo_b | 30 |
-| streptococcus_pneumoniae | protection_tet_m | 0.05 |
-| streptococcus_pneumoniae | mutation_23s_rrna | 30 |
-| streptococcus_pneumoniae | mutation_pbp_mosaic | 5e-7 |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 3e-4 |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 3e-4 |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 3e-4 |
-| salmonella_enterica_serovar_typhi | enzyme_kpc | 1e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_ndm_vim | 1e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 1e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 3e-4 |
-| salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 3e-4 |
-| salmonella_enterica_serovar_typhi | mutation_gyra_primary | 3 |
-| salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 3 |
-| salmonella_enterica_serovar_typhi | protection_qnr | 3 |
-| salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 1 |
-| salmonella_enterica_serovar_typhi | enzyme_cat | 3 |
-| salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 3 |
-| salmonella_enterica_serovar_typhi | modification_mcr_1 | 30 |
-| salmonella_enterica_serovar_typhi | mutation_polymyxin_regulatory | 30 |
-| salmonella_enterica_serovar_typhi | global_efflux_pump | 3 |
-| salmonella_enterica_serovar_typhi | mutation_folate_pathway | 3 |
-| salmonella_enterica_serovar_typhi | mutation_nitroreductase | 1e-5 |
-| salmonella_enterica_serovar_typhi | enzyme_fos | 3e-5 |
-| salmonella_enterica_serovar_typhi | mutation_rpo_b | 30 |
-| salmonella_enterica_serovar_typhi | protection_tet_m | 3 |
-| salmonella_enterica_serovar_typhi | enzyme_aac_aph | 1 |
-| salmonella_enterica_serovar_typhi | efflux_tet_abc | 3 |
-| salmonella_enterica_serovar_typhi | mutation_siderophore_uptake | 1e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 1e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 1e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 1e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 3e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 3e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 3e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 6e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 6e-5 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 2 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.9 |
-| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.9 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 30 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.9 |
-| salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 30 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_polymyxin_regulatory | 30 |
-| salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.9 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.05 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 3e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_fos | 1e-4 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 30 |
-| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.3 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.5 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.3 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 6e-5 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_siderophore_uptake | 1e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 1e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 1e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 1e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 1e-6 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 1e-6 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 1e-6 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 1e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 1e-5 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.5 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.5 |
-| invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 3e-6 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 0.3 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.002 |
-| invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 30 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_polymyxin_regulatory | 30 |
-| invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.002 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 5e-10 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_fos | 3e-4 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 30 |
-| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.001 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 1e-6 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-4 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.002 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_siderophore_uptake | 1e-4 |
-| shigella_spp. | enzyme_esbl_ctx_m | 0.015 |
-| shigella_spp. | enzyme_esbl_tem | 0.015 |
-| shigella_spp. | enzyme_esbl_shv | 0.01 |
-| shigella_spp. | enzyme_kpc | 1e-5 |
-| shigella_spp. | enzyme_ndm_vim | 1e-5 |
-| shigella_spp. | enzyme_oxa_48 | 1e-5 |
-| shigella_spp. | enzyme_ampc_cmy | 0.003 |
-| shigella_spp. | enzyme_ampc_dha | 0.003 |
-| shigella_spp. | mutation_gyra_primary | 30 |
-| shigella_spp. | mutation_gyra_parc_secondary | 30 |
-| shigella_spp. | protection_qnr | 30 |
-| shigella_spp. | enzyme_16s_rrmt | 30 |
-| shigella_spp. | target_site_erm_b | 30 |
-| shigella_spp. | enzyme_cat | 30 |
-| shigella_spp. | efflux_acrab_tolc | 10 |
-| shigella_spp. | modification_mcr_1 | 30 |
-| shigella_spp. | mutation_polymyxin_regulatory | 30 |
-| shigella_spp. | global_efflux_pump | 10 |
-| shigella_spp. | mutation_folate_pathway | 1 |
-| shigella_spp. | mutation_nitroreductase | 0.3 |
-| shigella_spp. | mutation_rpo_b | 30 |
-| shigella_spp. | protection_tet_m | 1 |
-| shigella_spp. | enzyme_aac_aph | 30 |
-| shigella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.3 |
-| shigella_spp. | enzyme_mph_a | 3 |
-| shigella_spp. | mutation_23s_rrna | 30 |
-| shigella_spp. | efflux_tet_abc | 1 |
-| shigella_spp. | mutation_siderophore_uptake | 1e-4 |
-| neisseria_gonorrhoeae | mutation_gyra_primary | 3 |
-| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 3 |
-| neisseria_gonorrhoeae | protection_qnr | 3 |
-| neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.01 |
-| neisseria_gonorrhoeae | target_site_erm_b | 0.05 |
-| neisseria_gonorrhoeae | target_site_cfr | 0.001 |
-| neisseria_gonorrhoeae | enzyme_cat | 0.5 |
-| neisseria_gonorrhoeae | efflux_acrab_tolc | 3 |
-| neisseria_gonorrhoeae | modification_mcr_1 | 0.005 |
-| neisseria_gonorrhoeae | global_efflux_pump | 3 |
-| neisseria_gonorrhoeae | mutation_folate_pathway | 1 |
-| neisseria_gonorrhoeae | mutation_nitroreductase | 0.03 |
-| neisseria_gonorrhoeae | enzyme_fos | 3e-4 |
-| neisseria_gonorrhoeae | mutation_rpo_b | 30 |
-| neisseria_gonorrhoeae | protection_tet_m | 1 |
-| neisseria_gonorrhoeae | enzyme_aac_aph | 0.01 |
-| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.3 |
-| neisseria_gonorrhoeae | mutation_23s_rrna | 0.1 |
-| neisseria_gonorrhoeae | efflux_tet_abc | 1 |
-| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.01 |
-| neisseria_gonorrhoeae | efflux_mtr_cde | 0.1 |
-| streptococcus_pyogenes | mutation_gyra_primary | 1e-4 |
-| streptococcus_pyogenes | mutation_gyra_parc_secondary | 1e-4 |
-| streptococcus_pyogenes | target_site_erm_b | 3e-5 |
-| streptococcus_pyogenes | target_site_cfr | 6e-5 |
-| streptococcus_pyogenes | enzyme_cat | 2e-4 |
-| streptococcus_pyogenes | global_efflux_pump | 2e-4 |
-| streptococcus_pyogenes | mutation_folate_pathway | 0.006 |
-| streptococcus_pyogenes | mutation_mpr_f | 3e-5 |
-| streptococcus_pyogenes | mutation_rpo_b | 3e-4 |
-| streptococcus_pyogenes | protection_fus_b | 3e-4 |
-| streptococcus_pyogenes | protection_tet_m | 6e-7 |
-| streptococcus_pyogenes | mutation_23s_rrna | 2e-5 |
-| streptococcus_agalactiae | target_site_pbp2a_meca | 3e-8 |
-| streptococcus_agalactiae | target_site_van_a | 3e-6 |
-| streptococcus_agalactiae | target_site_van_b | 3e-6 |
-| streptococcus_agalactiae | mutation_gyra_primary | 1e-4 |
-| streptococcus_agalactiae | mutation_gyra_parc_secondary | 1e-4 |
-| streptococcus_agalactiae | target_site_erm_b | 0.003 |
-| streptococcus_agalactiae | target_site_cfr | 0.003 |
-| streptococcus_agalactiae | enzyme_cat | 1e-4 |
-| streptococcus_agalactiae | global_efflux_pump | 9e-4 |
-| streptococcus_agalactiae | mutation_folate_pathway | 0.002 |
-| streptococcus_agalactiae | mutation_mpr_f | 1e-4 |
-| streptococcus_agalactiae | mutation_rpo_b | 1e-4 |
-| streptococcus_agalactiae | protection_fus_b | 1e-4 |
-| streptococcus_agalactiae | protection_tet_m | 0.006 |
-| streptococcus_agalactiae | mutation_23s_rrna | 0.003 |
-| streptococcus_agalactiae | mutation_pbp_mosaic | 1e-8 |
-| haemophilus_influenzae | enzyme_esbl_ctx_m | 1e-5 |
-| haemophilus_influenzae | enzyme_esbl_shv | 1e-5 |
-| haemophilus_influenzae | enzyme_kpc | 1e-6 |
-| haemophilus_influenzae | enzyme_ndm_vim | 1e-6 |
-| haemophilus_influenzae | enzyme_oxa_48 | 2e-6 |
-| haemophilus_influenzae | enzyme_ampc_cmy | 1e-5 |
-| haemophilus_influenzae | enzyme_ampc_dha | 1e-5 |
-| haemophilus_influenzae | mutation_gyra_primary | 1 |
-| haemophilus_influenzae | mutation_gyra_parc_secondary | 1 |
-| haemophilus_influenzae | protection_qnr | 1 |
-| haemophilus_influenzae | enzyme_16s_rrmt | 30 |
-| haemophilus_influenzae | target_site_erm_b | 30 |
-| haemophilus_influenzae | target_site_cfr | 0.1 |
-| haemophilus_influenzae | enzyme_cat | 0.005 |
-| haemophilus_influenzae | efflux_acrab_tolc | 0.4 |
-| haemophilus_influenzae | modification_mcr_1 | 5e-5 |
-| haemophilus_influenzae | global_efflux_pump | 0.4 |
-| haemophilus_influenzae | mutation_folate_pathway | 30 |
-| haemophilus_influenzae | mutation_nitroreductase | 5e-4 |
-| haemophilus_influenzae | mutation_rpo_b | 30 |
-| haemophilus_influenzae | protection_tet_m | 2 |
-| haemophilus_influenzae | enzyme_aac_aph | 30 |
-| haemophilus_influenzae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.003 |
-| haemophilus_influenzae | mutation_23s_rrna | 30 |
-| haemophilus_influenzae | mutation_pbp_mosaic | 2e-5 |
-| haemophilus_influenzae | efflux_mtr_cde | 3e-6 |
-| chlamydia_trachomatis | mutation_gyra_primary | 0.02 |
-| chlamydia_trachomatis | mutation_gyra_parc_secondary | 0.02 |
-| chlamydia_trachomatis | target_site_erm_b | 0.02 |
-| chlamydia_trachomatis | target_site_cfr | 2 |
-| chlamydia_trachomatis | enzyme_cat | 0.002 |
-| chlamydia_trachomatis | global_efflux_pump | 0.02 |
-| chlamydia_trachomatis | mutation_folate_pathway | 0.02 |
-| chlamydia_trachomatis | mutation_nitroreductase | 0.02 |
-| chlamydia_trachomatis | mutation_rpo_b | 0.02 |
-| chlamydia_trachomatis | protection_tet_m | 0.02 |
-| chlamydia_trachomatis | mutation_23s_rrna | 0.02 |
-| mycoplasma_genitalium | mutation_gyra_primary | 1 |
-| mycoplasma_genitalium | mutation_gyra_parc_secondary | 1 |
-| mycoplasma_genitalium | target_site_erm_b | 3 |
-| mycoplasma_genitalium | global_efflux_pump | 1 |
-| mycoplasma_genitalium | mutation_nitroreductase | 0.05 |
-| mycoplasma_genitalium | protection_tet_m | 0.3 |
-| mycoplasma_genitalium | mutation_23s_rrna | 10 |
-| vibrio_cholerae | enzyme_esbl_ctx_m | 2e-7 |
-| vibrio_cholerae | enzyme_esbl_tem | 2e-7 |
-| vibrio_cholerae | enzyme_esbl_shv | 2e-7 |
-| vibrio_cholerae | enzyme_kpc | 2e-7 |
-| vibrio_cholerae | enzyme_ndm_vim | 2e-7 |
-| vibrio_cholerae | enzyme_oxa_48 | 2e-7 |
-| vibrio_cholerae | enzyme_ampc_cmy | 2e-7 |
-| vibrio_cholerae | enzyme_ampc_dha | 2e-7 |
-| vibrio_cholerae | mutation_ampc_derepression | 2e-7 |
-| vibrio_cholerae | mutation_gyra_primary | 0.06 |
-| vibrio_cholerae | mutation_gyra_parc_secondary | 0.06 |
-| vibrio_cholerae | protection_qnr | 0.06 |
-| vibrio_cholerae | enzyme_16s_rrmt | 0.002 |
-| vibrio_cholerae | enzyme_cat | 6e-4 |
-| vibrio_cholerae | efflux_acrab_tolc | 0.06 |
-| vibrio_cholerae | modification_mcr_1 | 0.002 |
-| vibrio_cholerae | mutation_polymyxin_regulatory | 0.002 |
-| vibrio_cholerae | global_efflux_pump | 0.06 |
-| vibrio_cholerae | mutation_folate_pathway | 0.002 |
-| vibrio_cholerae | mutation_nitroreductase | 1e-4 |
-| vibrio_cholerae | enzyme_fos | 1e-4 |
-| vibrio_cholerae | mutation_rpo_b | 1e-4 |
-| vibrio_cholerae | protection_tet_m | 1e-4 |
-| vibrio_cholerae | enzyme_aac_aph | 0.002 |
-| vibrio_cholerae | mutation_23s_rrna | 0.2 |
-| vibrio_cholerae | efflux_tet_abc | 1e-4 |
-| vibrio_cholerae | efflux_mtr_cde | 2e-7 |
-| neisseria_meningitidis | mutation_gyra_primary | 1e-4 |
-| neisseria_meningitidis | mutation_gyra_parc_secondary | 5e-5 |
-| neisseria_meningitidis | protection_qnr | 1.5e-4 |
-| neisseria_meningitidis | enzyme_16s_rrmt | 1e-6 |
-| neisseria_meningitidis | target_site_erm_b | 6e-6 |
-| neisseria_meningitidis | target_site_cfr | 1e-5 |
-| neisseria_meningitidis | enzyme_cat | 2e-5 |
-| neisseria_meningitidis | efflux_acrab_tolc | 3e-7 |
-| neisseria_meningitidis | modification_mcr_1 | 5e-6 |
-| neisseria_meningitidis | global_efflux_pump | 3e-7 |
-| neisseria_meningitidis | mutation_folate_pathway | 4e-4 |
-| neisseria_meningitidis | mutation_nitroreductase | 5e-6 |
-| neisseria_meningitidis | mutation_rpo_b | 0.03 |
-| neisseria_meningitidis | protection_tet_m | 3e-7 |
-| neisseria_meningitidis | mutation_23s_rrna | 6e-6 |
-| neisseria_meningitidis | efflux_tet_abc | 3e-7 |
-| neisseria_meningitidis | mutation_pbp_mosaic | 3e-7 |
-| listeria_monocytogenes | target_site_van_a | 0.3 |
-| listeria_monocytogenes | target_site_van_b | 0.3 |
-| listeria_monocytogenes | mutation_gyra_primary | 0.03 |
-| listeria_monocytogenes | mutation_gyra_parc_secondary | 0.03 |
-| listeria_monocytogenes | target_site_erm_b | 0.15 |
-| listeria_monocytogenes | target_site_cfr | 0.3 |
-| listeria_monocytogenes | enzyme_cat | 0.005 |
-| listeria_monocytogenes | global_efflux_pump | 0.03 |
-| listeria_monocytogenes | mutation_folate_pathway | 0.05 |
-| listeria_monocytogenes | mutation_mpr_f | 0.3 |
-| listeria_monocytogenes | mutation_rpo_b | 0.002 |
-| listeria_monocytogenes | protection_fus_b | 0.3 |
-| listeria_monocytogenes | protection_tet_m | 0.03 |
-| clostridioides_difficile | mutation_gyra_primary | 0.1 |
-| clostridioides_difficile | mutation_gyra_parc_secondary | 0.1 |
-| clostridioides_difficile | enzyme_16s_rrmt | 0.05 |
-| clostridioides_difficile | target_site_erm_b | 0.002 |
-| clostridioides_difficile | target_site_cfr | 0.02 |
-| clostridioides_difficile | enzyme_cat | 0.05 |
-| clostridioides_difficile | global_efflux_pump | 2e-5 |
-| clostridioides_difficile | mutation_folate_pathway | 0.5 |
-| clostridioides_difficile | mutation_nitroreductase | 0.001 |
-| clostridioides_difficile | mutation_rpo_b | 1 |
-| clostridioides_difficile | protection_tet_m | 6e-6 |
-| clostridioides_difficile | mutation_23s_rrna | 0.003 |
-| bacteroides_fragilis | enzyme_esbl_ctx_m | 2 |
-| bacteroides_fragilis | enzyme_esbl_tem | 2 |
-| bacteroides_fragilis | enzyme_esbl_shv | 2 |
-| bacteroides_fragilis | enzyme_kpc | 3e-5 |
-| bacteroides_fragilis | enzyme_ndm_vim | 3e-5 |
-| bacteroides_fragilis | enzyme_oxa_48 | 3e-5 |
-| bacteroides_fragilis | enzyme_ampc_cmy | 0.003 |
-| bacteroides_fragilis | enzyme_ampc_dha | 0.003 |
-| bacteroides_fragilis | mutation_gyra_primary | 0.2 |
-| bacteroides_fragilis | mutation_gyra_parc_secondary | 1 |
-| bacteroides_fragilis | protection_qnr | 0.3 |
-| bacteroides_fragilis | enzyme_16s_rrmt | 0.1 |
-| bacteroides_fragilis | target_site_erm_b | 1 |
-| bacteroides_fragilis | target_site_cfr | 0.9 |
-| bacteroides_fragilis | enzyme_cat | 1e-9 |
-| bacteroides_fragilis | efflux_acrab_tolc | 0.03 |
-| bacteroides_fragilis | modification_mcr_1 | 5e-5 |
-| bacteroides_fragilis | global_efflux_pump | 0.03 |
-| bacteroides_fragilis | mutation_folate_pathway | 30 |
-| bacteroides_fragilis | mutation_nitroreductase | 2e-4 |
-| bacteroides_fragilis | mutation_rpo_b | 1e-4 |
-| bacteroides_fragilis | protection_tet_m | 0.001 |
-| bacteroides_fragilis | mutation_pbp_mosaic | 0.003 |
-| campylobacter_jejuni | mutation_gyra_primary | 30 |
-| campylobacter_jejuni | mutation_gyra_parc_secondary | 30 |
-| campylobacter_jejuni | target_site_erm_b | 0.01 |
-| campylobacter_jejuni | target_site_cfr | 0.003 |
-| campylobacter_jejuni | enzyme_cat | 0.001 |
-| campylobacter_jejuni | global_efflux_pump | 1 |
-| campylobacter_jejuni | mutation_folate_pathway | 0.3 |
-| campylobacter_jejuni | mutation_rpo_b | 0.3 |
-| campylobacter_jejuni | protection_tet_m | 1 |
-| campylobacter_jejuni | mutation_23s_rrna | 0.01 |
-| campylobacter_jejuni | efflux_tet_abc | 3 |
-| enterobacter_cloacae | enzyme_esbl_ctx_m | 4e-4 |
-| enterobacter_cloacae | enzyme_esbl_tem | 4e-4 |
-| enterobacter_cloacae | enzyme_esbl_shv | 4e-4 |
-| enterobacter_cloacae | enzyme_kpc | 5e-6 |
-| enterobacter_cloacae | enzyme_ndm_vim | 5e-6 |
-| enterobacter_cloacae | enzyme_oxa_48 | 5e-6 |
-| enterobacter_cloacae | mutation_ampc_derepression | 5e-6 |
-| enterobacter_cloacae | mutation_gyra_primary | 0.006 |
-| enterobacter_cloacae | mutation_gyra_parc_secondary | 0.006 |
-| enterobacter_cloacae | protection_qnr | 0.006 |
-| enterobacter_cloacae | enzyme_16s_rrmt | 0.001 |
-| enterobacter_cloacae | enzyme_cat | 0.2 |
-| enterobacter_cloacae | efflux_acrab_tolc | 0.002 |
-| enterobacter_cloacae | modification_mcr_1 | 0.006 |
-| enterobacter_cloacae | mutation_polymyxin_regulatory | 0.006 |
-| enterobacter_cloacae | global_efflux_pump | 0.002 |
-| enterobacter_cloacae | mutation_folate_pathway | 0.003 |
-| enterobacter_cloacae | mutation_nitroreductase | 0.009 |
-| enterobacter_cloacae | enzyme_fos | 0.09 |
-| enterobacter_cloacae | mutation_rpo_b | 2e-4 |
-| enterobacter_cloacae | protection_tet_m | 0.002 |
-| enterobacter_cloacae | enzyme_aac_aph | 0.001 |
-| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-5 |
-| enterobacter_cloacae | enzyme_mph_a | 2e-6 |
-| enterobacter_cloacae | efflux_tet_abc | 0.01 |
-| enterobacter_cloacae | mutation_pbp_mosaic | 1e-5 |
-| enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 |
-| yersinia_enterocolitica | enzyme_esbl_ctx_m | 5e-4 |
-| yersinia_enterocolitica | enzyme_esbl_tem | 5e-4 |
-| yersinia_enterocolitica | enzyme_esbl_shv | 5e-4 |
-| yersinia_enterocolitica | enzyme_kpc | 3e-5 |
-| yersinia_enterocolitica | enzyme_ndm_vim | 3e-5 |
-| yersinia_enterocolitica | enzyme_oxa_48 | 6e-5 |
-| yersinia_enterocolitica | enzyme_ampc_cmy | 5e-4 |
-| yersinia_enterocolitica | enzyme_ampc_dha | 5e-4 |
-| yersinia_enterocolitica | mutation_gyra_primary | 0.03 |
-| yersinia_enterocolitica | mutation_gyra_parc_secondary | 0.03 |
-| yersinia_enterocolitica | protection_qnr | 0.02 |
-| yersinia_enterocolitica | enzyme_16s_rrmt | 0.01 |
-| yersinia_enterocolitica | enzyme_cat | 0.03 |
-| yersinia_enterocolitica | efflux_acrab_tolc | 0.03 |
-| yersinia_enterocolitica | modification_mcr_1 | 0.2 |
-| yersinia_enterocolitica | global_efflux_pump | 0.03 |
-| yersinia_enterocolitica | mutation_folate_pathway | 0.1 |
-| yersinia_enterocolitica | mutation_nitroreductase | 0.0025 |
-| yersinia_enterocolitica | enzyme_fos | 0.01 |
-| yersinia_enterocolitica | mutation_rpo_b | 0.003 |
-| yersinia_enterocolitica | protection_tet_m | 0.02 |
-| yersinia_enterocolitica | enzyme_aac_aph | 0.01 |
-| yersinia_enterocolitica | efflux_tet_abc | 0.02 |
-| yersinia_enterocolitica | mutation_siderophore_uptake | 3e-4 |
-| moraxella_catarrhalis | enzyme_esbl_ctx_m | 9e-8 |
-| moraxella_catarrhalis | enzyme_esbl_tem | 9e-8 |
-| moraxella_catarrhalis | enzyme_esbl_shv | 9e-8 |
-| moraxella_catarrhalis | enzyme_ampc_cmy | 3e-12 |
-| moraxella_catarrhalis | enzyme_ampc_dha | 3e-12 |
-| moraxella_catarrhalis | mutation_gyra_primary | 0.003 |
-| moraxella_catarrhalis | mutation_gyra_parc_secondary | 0.003 |
-| moraxella_catarrhalis | protection_qnr | 0.003 |
-| moraxella_catarrhalis | enzyme_16s_rrmt | 1e-5 |
-| moraxella_catarrhalis | target_site_erm_b | 0.03 |
-| moraxella_catarrhalis | target_site_cfr | 3e-4 |
-| moraxella_catarrhalis | enzyme_cat | 1e-4 |
-| moraxella_catarrhalis | efflux_acrab_tolc | 0.005 |
-| moraxella_catarrhalis | modification_mcr_1 | 1e-5 |
-| moraxella_catarrhalis | global_efflux_pump | 0.005 |
-| moraxella_catarrhalis | mutation_folate_pathway | 0.3 |
-| moraxella_catarrhalis | mutation_nitroreductase | 1e-5 |
-| moraxella_catarrhalis | mutation_rpo_b | 3e-5 |
-| moraxella_catarrhalis | protection_tet_m | 0.05 |
-| moraxella_catarrhalis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.1 |
-| moraxella_catarrhalis | mutation_pbp_mosaic | 3e-12 |
-| moraxella_catarrhalis | efflux_mtr_cde | 5e-11 |
-| treponema_pallidum | mutation_gyra_primary | 0.001 |
-| treponema_pallidum | mutation_gyra_parc_secondary | 0.001 |
-| treponema_pallidum | enzyme_cat | 0.005 |
-| treponema_pallidum | global_efflux_pump | 0.001 |
-| treponema_pallidum | mutation_folate_pathway | 0.001 |
-| treponema_pallidum | mutation_rpo_b | 0.001 |
-| treponema_pallidum | protection_tet_m | 0.001 |
-| treponema_pallidum | mutation_23s_rrna | 30 |
-| bordetella_pertussis | enzyme_esbl_ctx_m | 3e-4 |
-| bordetella_pertussis | enzyme_esbl_tem | 3e-4 |
-| bordetella_pertussis | enzyme_esbl_shv | 3e-4 |
-| bordetella_pertussis | enzyme_ampc_cmy | 3e-4 |
-| bordetella_pertussis | enzyme_ampc_dha | 3e-4 |
-| bordetella_pertussis | mutation_gyra_primary | 0.02 |
-| bordetella_pertussis | mutation_gyra_parc_secondary | 0.02 |
-| bordetella_pertussis | enzyme_16s_rrmt | 3 |
-| bordetella_pertussis | target_site_cfr | 0.003 |
-| bordetella_pertussis | enzyme_cat | 1e-5 |
-| bordetella_pertussis | efflux_acrab_tolc | 0.008 |
-| bordetella_pertussis | global_efflux_pump | 0.008 |
-| bordetella_pertussis | mutation_folate_pathway | 9 |
-| bordetella_pertussis | mutation_nitroreductase | 2e-4 |
-| bordetella_pertussis | mutation_rpo_b | 0.007 |
-| bordetella_pertussis | protection_tet_m | 2e-6 |
-| bordetella_pertussis | mutation_23s_rrna | 0.001 |
-| bordetella_pertussis | efflux_mtr_cde | 0.001 |
-| helicobacter_pylori | mutation_gyra_primary | 30 |
-| helicobacter_pylori | mutation_gyra_parc_secondary | 30 |
-| helicobacter_pylori | enzyme_cat | 30 |
-| helicobacter_pylori | global_efflux_pump | 30 |
-| helicobacter_pylori | mutation_folate_pathway | 0.005 |
-| helicobacter_pylori | mutation_nitroreductase | 30 |
-| helicobacter_pylori | mutation_rpo_b | 0.05 |
-| helicobacter_pylori | mutation_23s_rrna | 30 |
-| helicobacter_pylori | mutation_pbp_mosaic | 0.3 |
-| helicobacter_pylori | mutation_16s_rrna_tetracycline | 30 |
-| mycoplasma_pneumoniae | mutation_gyra_primary | 3e-8 |
-| mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-8 |
-| mycoplasma_pneumoniae | target_site_erm_b | 0.003 |
-| mycoplasma_pneumoniae | target_site_cfr | 3e-10 |
-| mycoplasma_pneumoniae | enzyme_cat | 3e-10 |
-| mycoplasma_pneumoniae | global_efflux_pump | 1.5e-8 |
-| mycoplasma_pneumoniae | mutation_folate_pathway | 3e-10 |
-| mycoplasma_pneumoniae | mutation_nitroreductase | 3e-10 |
-| mycoplasma_pneumoniae | mutation_rpo_b | 3e-9 |
-| mycoplasma_pneumoniae | protection_tet_m | 3e-8 |
-| mycoplasma_pneumoniae | mutation_23s_rrna | 0.003 |
-| mycoplasma_pneumoniae | mutation_pbp_mosaic | 1e-4 |
-| legionella_pneumophila | enzyme_esbl_ctx_m | 3e-8 |
-| legionella_pneumophila | enzyme_esbl_tem | 3e-8 |
-| legionella_pneumophila | enzyme_esbl_shv | 3e-8 |
-| legionella_pneumophila | enzyme_ampc_cmy | 3e-8 |
-| legionella_pneumophila | enzyme_ampc_dha | 3e-8 |
-| legionella_pneumophila | mutation_gyra_primary | 3e-6 |
-| legionella_pneumophila | mutation_gyra_parc_secondary | 3e-6 |
-| legionella_pneumophila | protection_qnr | 1e-8 |
-| legionella_pneumophila | enzyme_16s_rrmt | 3e-8 |
-| legionella_pneumophila | target_site_erm_b | 3e-6 |
-| legionella_pneumophila | target_site_cfr | 3e-8 |
-| legionella_pneumophila | enzyme_cat | 3e-7 |
-| legionella_pneumophila | efflux_acrab_tolc | 3e-8 |
-| legionella_pneumophila | modification_mcr_1 | 3e-8 |
-| legionella_pneumophila | global_efflux_pump | 3e-6 |
-| legionella_pneumophila | mutation_folate_pathway | 3e-7 |
-| legionella_pneumophila | mutation_nitroreductase | 3e-8 |
-| legionella_pneumophila | mutation_rpo_b | 3e-7 |
-| legionella_pneumophila | protection_tet_m | 3e-6 |
-| legionella_pneumophila | mutation_23s_rrna | 5e-12 |
-| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 0.003 |
-| burkholderia_cepacia_complex | enzyme_esbl_tem | 0.003 |
-| burkholderia_cepacia_complex | enzyme_esbl_shv | 0.003 |
-| burkholderia_cepacia_complex | enzyme_kpc | 6e-4 |
-| burkholderia_cepacia_complex | enzyme_ndm_vim | 6e-4 |
-| burkholderia_cepacia_complex | enzyme_oxa_48 | 6e-4 |
-| burkholderia_cepacia_complex | enzyme_ampc_cmy | 0.003 |
-| burkholderia_cepacia_complex | enzyme_ampc_dha | 0.003 |
-| burkholderia_cepacia_complex | mutation_gyra_primary | 0.3 |
-| burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 0.9 |
-| burkholderia_cepacia_complex | protection_qnr | 0.9 |
-| burkholderia_cepacia_complex | enzyme_16s_rrmt | 10 |
-| burkholderia_cepacia_complex | enzyme_cat | 0.03 |
-| burkholderia_cepacia_complex | modification_mcr_1 | 0.03 |
-| burkholderia_cepacia_complex | global_efflux_pump | 0.1 |
-| burkholderia_cepacia_complex | mutation_folate_pathway | 0.02 |
-| burkholderia_cepacia_complex | enzyme_fos | 0.03 |
-| burkholderia_cepacia_complex | mutation_rpo_b | 0.01 |
-| burkholderia_cepacia_complex | protection_tet_m | 3e-4 |
-| burkholderia_cepacia_complex | enzyme_aac_aph | 10 |
-| burkholderia_cepacia_complex | efflux_tet_abc | 3e-4 |
-| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 |
+| Bacteria | Mechanism | Emergence rate/day | Status |
+| --- | ---: | ---: | ---: |
+| acinetobacter_baumannii | enzyme_esbl_ctx_m | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_esbl_tem | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_esbl_shv | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_kpc | 4e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_ndm_vim | 4e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_oxa_48 | 4e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_ampc_cmy | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_ampc_dha | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_ampc_derepression | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | target_site_pbp2a_meca | 0 | excluded host |
+| acinetobacter_baumannii | target_site_van_a | 0 | excluded host |
+| acinetobacter_baumannii | target_site_van_b | 0 | excluded host |
+| acinetobacter_baumannii | mutation_gyra_primary | 0.7 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.7 | eligible; de novo enabled |
+| acinetobacter_baumannii | protection_qnr | 0.7 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_16s_rrmt | 0.005 | eligible; de novo enabled |
+| acinetobacter_baumannii | target_site_erm_b | 0 | excluded host |
+| acinetobacter_baumannii | target_site_cfr | 0 | excluded host |
+| acinetobacter_baumannii | enzyme_cat | 0.003 | eligible; de novo enabled |
+| acinetobacter_baumannii | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| acinetobacter_baumannii | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| acinetobacter_baumannii | porin_loss_ompk35_36 | 0 | excluded host |
+| acinetobacter_baumannii | porin_loss_oprd | 0 | excluded host |
+| acinetobacter_baumannii | modification_mcr_1 | 0.02 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_polymyxin_regulatory | 0.02 | eligible; de novo enabled |
+| acinetobacter_baumannii | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_folate_pathway | 10 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_nitroreductase | 0 | excluded host |
+| acinetobacter_baumannii | enzyme_fos | 3e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_mpr_f | 0 | excluded host |
+| acinetobacter_baumannii | mutation_liafsr_cls | 0 | excluded host |
+| acinetobacter_baumannii | mutation_rpo_b | 30 | eligible; de novo enabled |
+| acinetobacter_baumannii | protection_fus_b | 0 | excluded host |
+| acinetobacter_baumannii | protection_tet_m | 7e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_aac_aph | 0.005 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_bla_z | 0 | excluded host |
+| acinetobacter_baumannii | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| acinetobacter_baumannii | enzyme_mph_a | 0 | excluded host |
+| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 3e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_23s_rrna | 0 | excluded host |
+| acinetobacter_baumannii | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| acinetobacter_baumannii | efflux_tet_abc | 3e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_pbp_mosaic | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | efflux_mtr_cde | 0 | excluded host |
+| acinetobacter_baumannii | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| acinetobacter_baumannii | mutation_siderophore_uptake | 2e-4 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_esbl_ctx_m | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_esbl_tem | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_esbl_shv | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_kpc | 1e-4 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| citrobacter_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
+| citrobacter_spp. | mutation_ampc_derepression | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| citrobacter_spp. | target_site_van_a | 0 | excluded host |
+| citrobacter_spp. | target_site_van_b | 0 | excluded host |
+| citrobacter_spp. | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| citrobacter_spp. | protection_qnr | 30 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
+| citrobacter_spp. | target_site_erm_b | 0 | excluded host |
+| citrobacter_spp. | target_site_cfr | 0 | excluded host |
+| citrobacter_spp. | enzyme_cat | 3 | eligible; de novo enabled |
+| citrobacter_spp. | efflux_acrab_tolc | 30 | eligible; de novo enabled |
+| citrobacter_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| citrobacter_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| citrobacter_spp. | porin_loss_oprd | 0 | excluded host |
+| citrobacter_spp. | modification_mcr_1 | 30 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| citrobacter_spp. | global_efflux_pump | 30 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_folate_pathway | 0.1 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_nitroreductase | 1 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_fos | 30 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_mpr_f | 0 | excluded host |
+| citrobacter_spp. | mutation_liafsr_cls | 0 | excluded host |
+| citrobacter_spp. | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| citrobacter_spp. | protection_fus_b | 0 | excluded host |
+| citrobacter_spp. | protection_tet_m | 0.5 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_bla_z | 0 | excluded host |
+| citrobacter_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| citrobacter_spp. | enzyme_mph_a | 0 | eligible; HGT only |
+| citrobacter_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| citrobacter_spp. | mutation_23s_rrna | 0 | excluded host |
+| citrobacter_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| citrobacter_spp. | efflux_tet_abc | 0.5 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_pbp_mosaic | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | efflux_mtr_cde | 0 | excluded host |
+| citrobacter_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| citrobacter_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_esbl_ctx_m | 0.02 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_esbl_tem | 0.02 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_esbl_shv | 0.02 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_kpc | 1e-4 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| enterobacter_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
+| enterobacter_spp. | mutation_ampc_derepression | 0.01 | eligible; de novo enabled |
+| enterobacter_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| enterobacter_spp. | target_site_van_a | 0 | excluded host |
+| enterobacter_spp. | target_site_van_b | 0 | excluded host |
+| enterobacter_spp. | mutation_gyra_primary | 0.5 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_gyra_parc_secondary | 0.5 | eligible; de novo enabled |
+| enterobacter_spp. | protection_qnr | 0.5 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
+| enterobacter_spp. | target_site_erm_b | 0 | excluded host |
+| enterobacter_spp. | target_site_cfr | 0 | excluded host |
+| enterobacter_spp. | enzyme_cat | 1 | eligible; de novo enabled |
+| enterobacter_spp. | efflux_acrab_tolc | 0.1 | eligible; de novo enabled |
+| enterobacter_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| enterobacter_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| enterobacter_spp. | porin_loss_oprd | 0 | excluded host |
+| enterobacter_spp. | modification_mcr_1 | 2 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_polymyxin_regulatory | 2 | eligible; de novo enabled |
+| enterobacter_spp. | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_fos | 30 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_mpr_f | 0 | excluded host |
+| enterobacter_spp. | mutation_liafsr_cls | 0 | excluded host |
+| enterobacter_spp. | mutation_rpo_b | 3e-4 | eligible; de novo enabled |
+| enterobacter_spp. | protection_fus_b | 0 | excluded host |
+| enterobacter_spp. | protection_tet_m | 0.003 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_bla_z | 0 | excluded host |
+| enterobacter_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| enterobacter_spp. | enzyme_mph_a | 0 | eligible; HGT only |
+| enterobacter_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| enterobacter_spp. | mutation_23s_rrna | 0 | excluded host |
+| enterobacter_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| enterobacter_spp. | efflux_tet_abc | 0.003 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_pbp_mosaic | 0.01 | eligible; de novo enabled |
+| enterobacter_spp. | efflux_mtr_cde | 0 | excluded host |
+| enterobacter_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| enterobacter_spp. | mutation_siderophore_uptake | 3e-4 | eligible; de novo enabled |
+| enterococcus_faecalis | enzyme_esbl_ctx_m | 0 | excluded host |
+| enterococcus_faecalis | enzyme_esbl_tem | 0 | excluded host |
+| enterococcus_faecalis | enzyme_esbl_shv | 0 | excluded host |
+| enterococcus_faecalis | enzyme_kpc | 0 | excluded host |
+| enterococcus_faecalis | enzyme_ndm_vim | 0 | excluded host |
+| enterococcus_faecalis | enzyme_oxa_48 | 0 | excluded host |
+| enterococcus_faecalis | enzyme_ampc_cmy | 0 | excluded host |
+| enterococcus_faecalis | enzyme_ampc_dha | 0 | excluded host |
+| enterococcus_faecalis | mutation_ampc_derepression | 0 | excluded host |
+| enterococcus_faecalis | target_site_pbp2a_meca | 1e-5 | excluded host |
+| enterococcus_faecalis | target_site_van_a | 0.01 | eligible; de novo enabled |
+| enterococcus_faecalis | target_site_van_b | 0.005 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| enterococcus_faecalis | protection_qnr | 0 | excluded host |
+| enterococcus_faecalis | enzyme_16s_rrmt | 0 | excluded host |
+| enterococcus_faecalis | target_site_erm_b | 30 | eligible; de novo enabled |
+| enterococcus_faecalis | target_site_cfr | 1 | eligible; de novo enabled |
+| enterococcus_faecalis | enzyme_cat | 30 | eligible; de novo enabled |
+| enterococcus_faecalis | efflux_acrab_tolc | 0 | excluded host |
+| enterococcus_faecalis | efflux_mexxy_oprm | 0 | excluded host |
+| enterococcus_faecalis | porin_loss_ompk35_36 | 0 | excluded host |
+| enterococcus_faecalis | porin_loss_oprd | 0 | excluded host |
+| enterococcus_faecalis | modification_mcr_1 | 0 | excluded host |
+| enterococcus_faecalis | mutation_polymyxin_regulatory | 0 | excluded host |
+| enterococcus_faecalis | global_efflux_pump | 0.5 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_folate_pathway | 0.01 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| enterococcus_faecalis | enzyme_fos | 0 | eligible; HGT only |
+| enterococcus_faecalis | mutation_mpr_f | 0 | excluded host |
+| enterococcus_faecalis | mutation_liafsr_cls | 2 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| enterococcus_faecalis | protection_fus_b | 1e-4 | excluded host |
+| enterococcus_faecalis | protection_tet_m | 0.3 | eligible; de novo enabled |
+| enterococcus_faecalis | enzyme_aac_aph | 5e-5 | eligible; de novo enabled |
+| enterococcus_faecalis | enzyme_bla_z | 0 | excluded host |
+| enterococcus_faecalis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| enterococcus_faecalis | enzyme_mph_a | 0 | excluded host |
+| enterococcus_faecalis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| enterococcus_faecalis | mutation_23s_rrna | 10 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_23s_rrna_oxazolidinone | 0.01 | eligible; de novo enabled |
+| enterococcus_faecalis | efflux_tet_abc | 0 | excluded host |
+| enterococcus_faecalis | mutation_pbp_mosaic | 0.003 | eligible; de novo enabled |
+| enterococcus_faecalis | efflux_mtr_cde | 0 | excluded host |
+| enterococcus_faecalis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| enterococcus_faecalis | mutation_siderophore_uptake | 0 | excluded host |
+| enterococcus_faecium | enzyme_esbl_ctx_m | 0 | excluded host |
+| enterococcus_faecium | enzyme_esbl_tem | 0 | excluded host |
+| enterococcus_faecium | enzyme_esbl_shv | 0 | excluded host |
+| enterococcus_faecium | enzyme_kpc | 0 | excluded host |
+| enterococcus_faecium | enzyme_ndm_vim | 0 | excluded host |
+| enterococcus_faecium | enzyme_oxa_48 | 0 | excluded host |
+| enterococcus_faecium | enzyme_ampc_cmy | 0 | excluded host |
+| enterococcus_faecium | enzyme_ampc_dha | 0 | excluded host |
+| enterococcus_faecium | mutation_ampc_derepression | 0 | excluded host |
+| enterococcus_faecium | target_site_pbp2a_meca | 3e-4 | excluded host |
+| enterococcus_faecium | target_site_van_a | 1 | eligible; de novo enabled |
+| enterococcus_faecium | target_site_van_b | 1 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| enterococcus_faecium | protection_qnr | 0 | excluded host |
+| enterococcus_faecium | enzyme_16s_rrmt | 0 | excluded host |
+| enterococcus_faecium | target_site_erm_b | 30 | eligible; de novo enabled |
+| enterococcus_faecium | target_site_cfr | 10 | eligible; de novo enabled |
+| enterococcus_faecium | enzyme_cat | 30 | eligible; de novo enabled |
+| enterococcus_faecium | efflux_acrab_tolc | 0 | excluded host |
+| enterococcus_faecium | efflux_mexxy_oprm | 0 | excluded host |
+| enterococcus_faecium | porin_loss_ompk35_36 | 0 | excluded host |
+| enterococcus_faecium | porin_loss_oprd | 0 | excluded host |
+| enterococcus_faecium | modification_mcr_1 | 0 | excluded host |
+| enterococcus_faecium | mutation_polymyxin_regulatory | 0 | excluded host |
+| enterococcus_faecium | global_efflux_pump | 30 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_folate_pathway | 0.005 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_nitroreductase | 3 | eligible; de novo enabled |
+| enterococcus_faecium | enzyme_fos | 30 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_mpr_f | 0 | excluded host |
+| enterococcus_faecium | mutation_liafsr_cls | 30 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_rpo_b | 0.01 | eligible; de novo enabled |
+| enterococcus_faecium | protection_fus_b | 0.005 | excluded host |
+| enterococcus_faecium | protection_tet_m | 30 | eligible; de novo enabled |
+| enterococcus_faecium | enzyme_aac_aph | 0.005 | eligible; de novo enabled |
+| enterococcus_faecium | enzyme_bla_z | 0 | excluded host |
+| enterococcus_faecium | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| enterococcus_faecium | enzyme_mph_a | 0 | excluded host |
+| enterococcus_faecium | enzyme_oxa_acinetobacter | 0 | excluded host |
+| enterococcus_faecium | mutation_23s_rrna | 30 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 0.01 | eligible; de novo enabled |
+| enterococcus_faecium | efflux_tet_abc | 0 | excluded host |
+| enterococcus_faecium | mutation_pbp_mosaic | 0.001 | eligible; de novo enabled |
+| enterococcus_faecium | efflux_mtr_cde | 0.001 | excluded host |
+| enterococcus_faecium | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| enterococcus_faecium | mutation_siderophore_uptake | 0 | excluded host |
+| escherichia_coli | enzyme_esbl_ctx_m | 0.007 | eligible; de novo enabled |
+| escherichia_coli | enzyme_esbl_tem | 0.007 | eligible; de novo enabled |
+| escherichia_coli | enzyme_esbl_shv | 0.007 | eligible; de novo enabled |
+| escherichia_coli | enzyme_kpc | 2e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_ndm_vim | 2e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_oxa_48 | 2e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_ampc_cmy | 3e-6 | eligible; de novo enabled |
+| escherichia_coli | enzyme_ampc_dha | 3e-6 | eligible; de novo enabled |
+| escherichia_coli | mutation_ampc_derepression | 3e-6 | eligible; de novo enabled |
+| escherichia_coli | target_site_pbp2a_meca | 0 | excluded host |
+| escherichia_coli | target_site_van_a | 0 | excluded host |
+| escherichia_coli | target_site_van_b | 0 | excluded host |
+| escherichia_coli | mutation_gyra_primary | 1 | eligible; de novo enabled |
+| escherichia_coli | mutation_gyra_parc_secondary | 1 | eligible; de novo enabled |
+| escherichia_coli | protection_qnr | 1 | eligible; de novo enabled |
+| escherichia_coli | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
+| escherichia_coli | target_site_erm_b | 0 | excluded host |
+| escherichia_coli | target_site_cfr | 0 | excluded host |
+| escherichia_coli | enzyme_cat | 3e-7 | eligible; de novo enabled |
+| escherichia_coli | efflux_acrab_tolc | 0.3 | eligible; de novo enabled |
+| escherichia_coli | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| escherichia_coli | porin_loss_ompk35_36 | 0 | excluded host |
+| escherichia_coli | porin_loss_oprd | 0 | excluded host |
+| escherichia_coli | modification_mcr_1 | 1e-4 | eligible; de novo enabled |
+| escherichia_coli | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| escherichia_coli | global_efflux_pump | 0.3 | eligible; de novo enabled |
+| escherichia_coli | mutation_folate_pathway | 1 | eligible; de novo enabled |
+| escherichia_coli | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| escherichia_coli | enzyme_fos | 2 | eligible; de novo enabled |
+| escherichia_coli | mutation_mpr_f | 0 | excluded host |
+| escherichia_coli | mutation_liafsr_cls | 0 | excluded host |
+| escherichia_coli | mutation_rpo_b | 30 | eligible; de novo enabled |
+| escherichia_coli | protection_fus_b | 0 | excluded host |
+| escherichia_coli | protection_tet_m | 0.15 | eligible; de novo enabled |
+| escherichia_coli | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| escherichia_coli | enzyme_bla_z | 0 | excluded host |
+| escherichia_coli | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-6 | eligible; de novo enabled |
+| escherichia_coli | enzyme_mph_a | 0 | eligible; HGT only |
+| escherichia_coli | enzyme_oxa_acinetobacter | 0 | excluded host |
+| escherichia_coli | mutation_23s_rrna | 0.01 | excluded host |
+| escherichia_coli | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| escherichia_coli | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| escherichia_coli | mutation_pbp_mosaic | 3e-6 | eligible; de novo enabled |
+| escherichia_coli | efflux_mtr_cde | 0 | excluded host |
+| escherichia_coli | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| escherichia_coli | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 3.5e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_esbl_tem | 3.5e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_esbl_shv | 3.5e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_kpc | 1e-6 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-6 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-6 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_ampc_cmy | 2e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_ampc_dha | 2e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| klebsiella_pneumoniae | target_site_pbp2a_meca | 0 | excluded host |
+| klebsiella_pneumoniae | target_site_van_a | 0 | excluded host |
+| klebsiella_pneumoniae | target_site_van_b | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
+| klebsiella_pneumoniae | protection_qnr | 0.3 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_16s_rrmt | 5e-4 | eligible; de novo enabled |
+| klebsiella_pneumoniae | target_site_erm_b | 0 | excluded host |
+| klebsiella_pneumoniae | target_site_cfr | 0 | excluded host |
+| klebsiella_pneumoniae | enzyme_cat | 2e-6 | eligible; de novo enabled |
+| klebsiella_pneumoniae | efflux_acrab_tolc | 0.1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| klebsiella_pneumoniae | porin_loss_ompk35_36 | 3e-6 | eligible; de novo enabled |
+| klebsiella_pneumoniae | porin_loss_oprd | 0 | excluded host |
+| klebsiella_pneumoniae | modification_mcr_1 | 1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_polymyxin_regulatory | 1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_folate_pathway | 0.25 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_nitroreductase | 1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_fos | 30 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_mpr_f | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_liafsr_cls | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_rpo_b | 30 | eligible; de novo enabled |
+| klebsiella_pneumoniae | protection_fus_b | 0 | excluded host |
+| klebsiella_pneumoniae | protection_tet_m | 0.05 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_aac_aph | 5e-4 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_bla_z | 0 | excluded host |
+| klebsiella_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| klebsiella_pneumoniae | enzyme_mph_a | 0 | eligible; HGT only |
+| klebsiella_pneumoniae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_23s_rrna | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| klebsiella_pneumoniae | efflux_tet_abc | 0.05 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| klebsiella_pneumoniae | efflux_mtr_cde | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| klebsiella_pneumoniae | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| morganella_spp. | enzyme_esbl_ctx_m | 0.01 | eligible; de novo enabled |
+| morganella_spp. | enzyme_esbl_tem | 0.01 | eligible; de novo enabled |
+| morganella_spp. | enzyme_esbl_shv | 0.01 | eligible; de novo enabled |
+| morganella_spp. | enzyme_kpc | 0.001 | eligible; de novo enabled |
+| morganella_spp. | enzyme_ndm_vim | 0.001 | eligible; de novo enabled |
+| morganella_spp. | enzyme_oxa_48 | 0.001 | eligible; de novo enabled |
+| morganella_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| morganella_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
+| morganella_spp. | mutation_ampc_derepression | 0.001 | eligible; de novo enabled |
+| morganella_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| morganella_spp. | target_site_van_a | 0 | excluded host |
+| morganella_spp. | target_site_van_b | 0 | excluded host |
+| morganella_spp. | mutation_gyra_primary | 0.8 | eligible; de novo enabled |
+| morganella_spp. | mutation_gyra_parc_secondary | 0.8 | eligible; de novo enabled |
+| morganella_spp. | protection_qnr | 0.8 | eligible; de novo enabled |
+| morganella_spp. | enzyme_16s_rrmt | 0.06 | eligible; de novo enabled |
+| morganella_spp. | target_site_erm_b | 0 | excluded host |
+| morganella_spp. | target_site_cfr | 0 | excluded host |
+| morganella_spp. | enzyme_cat | 5 | eligible; de novo enabled |
+| morganella_spp. | efflux_acrab_tolc | 0.8 | eligible; de novo enabled |
+| morganella_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| morganella_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| morganella_spp. | porin_loss_oprd | 0 | excluded host |
+| morganella_spp. | modification_mcr_1 | 10 | eligible; de novo enabled |
+| morganella_spp. | mutation_polymyxin_regulatory | 10 | eligible; de novo enabled |
+| morganella_spp. | global_efflux_pump | 0.8 | eligible; de novo enabled |
+| morganella_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| morganella_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| morganella_spp. | enzyme_fos | 0.2 | eligible; de novo enabled |
+| morganella_spp. | mutation_mpr_f | 0 | excluded host |
+| morganella_spp. | mutation_liafsr_cls | 0 | excluded host |
+| morganella_spp. | mutation_rpo_b | 0.1 | eligible; de novo enabled |
+| morganella_spp. | protection_fus_b | 0 | excluded host |
+| morganella_spp. | protection_tet_m | 0.01 | eligible; de novo enabled |
+| morganella_spp. | enzyme_aac_aph | 0.06 | eligible; de novo enabled |
+| morganella_spp. | enzyme_bla_z | 0 | excluded host |
+| morganella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| morganella_spp. | enzyme_mph_a | 0 | eligible; HGT only |
+| morganella_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| morganella_spp. | mutation_23s_rrna | 0 | excluded host |
+| morganella_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| morganella_spp. | efflux_tet_abc | 0.01 | eligible; de novo enabled |
+| morganella_spp. | mutation_pbp_mosaic | 0.001 | eligible; de novo enabled |
+| morganella_spp. | efflux_mtr_cde | 0 | excluded host |
+| morganella_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| morganella_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| proteus_spp. | enzyme_esbl_ctx_m | 0.001 | eligible; de novo enabled |
+| proteus_spp. | enzyme_esbl_tem | 0.001 | eligible; de novo enabled |
+| proteus_spp. | enzyme_esbl_shv | 0.001 | eligible; de novo enabled |
+| proteus_spp. | enzyme_kpc | 3e-5 | eligible; de novo enabled |
+| proteus_spp. | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
+| proteus_spp. | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
+| proteus_spp. | enzyme_ampc_cmy | 0.001 | eligible; de novo enabled |
+| proteus_spp. | enzyme_ampc_dha | 0.001 | eligible; de novo enabled |
+| proteus_spp. | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| proteus_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| proteus_spp. | target_site_van_a | 0 | excluded host |
+| proteus_spp. | target_site_van_b | 0 | excluded host |
+| proteus_spp. | mutation_gyra_primary | 10 | eligible; de novo enabled |
+| proteus_spp. | mutation_gyra_parc_secondary | 10 | eligible; de novo enabled |
+| proteus_spp. | protection_qnr | 10 | eligible; de novo enabled |
+| proteus_spp. | enzyme_16s_rrmt | 3 | eligible; de novo enabled |
+| proteus_spp. | target_site_erm_b | 0 | excluded host |
+| proteus_spp. | target_site_cfr | 0 | excluded host |
+| proteus_spp. | enzyme_cat | 3 | eligible; de novo enabled |
+| proteus_spp. | efflux_acrab_tolc | 10 | eligible; de novo enabled |
+| proteus_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| proteus_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| proteus_spp. | porin_loss_oprd | 0 | excluded host |
+| proteus_spp. | modification_mcr_1 | 0.01 | eligible; de novo enabled |
+| proteus_spp. | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| proteus_spp. | global_efflux_pump | 10 | eligible; de novo enabled |
+| proteus_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| proteus_spp. | mutation_nitroreductase | 0.1 | eligible; de novo enabled |
+| proteus_spp. | enzyme_fos | 0.6 | eligible; de novo enabled |
+| proteus_spp. | mutation_mpr_f | 0 | excluded host |
+| proteus_spp. | mutation_liafsr_cls | 0 | excluded host |
+| proteus_spp. | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| proteus_spp. | protection_fus_b | 0 | excluded host |
+| proteus_spp. | protection_tet_m | 0.1 | eligible; de novo enabled |
+| proteus_spp. | enzyme_aac_aph | 3 | eligible; de novo enabled |
+| proteus_spp. | enzyme_bla_z | 0 | excluded host |
+| proteus_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.01 | eligible; de novo enabled |
+| proteus_spp. | enzyme_mph_a | 0 | eligible; HGT only |
+| proteus_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| proteus_spp. | mutation_23s_rrna | 0 | excluded host |
+| proteus_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| proteus_spp. | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| proteus_spp. | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| proteus_spp. | efflux_mtr_cde | 0 | excluded host |
+| proteus_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| proteus_spp. | mutation_siderophore_uptake | 3e-4 | eligible; de novo enabled |
+| serratia_spp. | enzyme_esbl_ctx_m | 0.005 | eligible; de novo enabled |
+| serratia_spp. | enzyme_esbl_tem | 0.005 | eligible; de novo enabled |
+| serratia_spp. | enzyme_esbl_shv | 0.005 | eligible; de novo enabled |
+| serratia_spp. | enzyme_kpc | 5e-4 | eligible; de novo enabled |
+| serratia_spp. | enzyme_ndm_vim | 5e-4 | eligible; de novo enabled |
+| serratia_spp. | enzyme_oxa_48 | 5e-4 | eligible; de novo enabled |
+| serratia_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| serratia_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
+| serratia_spp. | mutation_ampc_derepression | 0.005 | eligible; de novo enabled |
+| serratia_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| serratia_spp. | target_site_van_a | 0 | excluded host |
+| serratia_spp. | target_site_van_b | 0 | excluded host |
+| serratia_spp. | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
+| serratia_spp. | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
+| serratia_spp. | protection_qnr | 0.3 | eligible; de novo enabled |
+| serratia_spp. | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
+| serratia_spp. | target_site_erm_b | 0 | excluded host |
+| serratia_spp. | target_site_cfr | 0 | excluded host |
+| serratia_spp. | enzyme_cat | 1 | eligible; de novo enabled |
+| serratia_spp. | efflux_acrab_tolc | 0.3 | eligible; de novo enabled |
+| serratia_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| serratia_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| serratia_spp. | porin_loss_oprd | 0 | excluded host |
+| serratia_spp. | modification_mcr_1 | 0.01 | eligible; de novo enabled |
+| serratia_spp. | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| serratia_spp. | global_efflux_pump | 0.3 | eligible; de novo enabled |
+| serratia_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| serratia_spp. | mutation_nitroreductase | 0.01 | eligible; de novo enabled |
+| serratia_spp. | enzyme_fos | 2 | eligible; de novo enabled |
+| serratia_spp. | mutation_mpr_f | 0 | excluded host |
+| serratia_spp. | mutation_liafsr_cls | 0 | excluded host |
+| serratia_spp. | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| serratia_spp. | protection_fus_b | 0 | excluded host |
+| serratia_spp. | protection_tet_m | 0.1 | eligible; de novo enabled |
+| serratia_spp. | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| serratia_spp. | enzyme_bla_z | 0 | excluded host |
+| serratia_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| serratia_spp. | enzyme_mph_a | 0 | eligible; HGT only |
+| serratia_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| serratia_spp. | mutation_23s_rrna | 0 | excluded host |
+| serratia_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| serratia_spp. | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| serratia_spp. | mutation_pbp_mosaic | 0.005 | eligible; de novo enabled |
+| serratia_spp. | efflux_mtr_cde | 0 | excluded host |
+| serratia_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| serratia_spp. | mutation_siderophore_uptake | 3e-4 | eligible; de novo enabled |
+| p_stuartii | enzyme_esbl_ctx_m | 0.02 | eligible; de novo enabled |
+| p_stuartii | enzyme_esbl_tem | 0.02 | eligible; de novo enabled |
+| p_stuartii | enzyme_esbl_shv | 0.02 | eligible; de novo enabled |
+| p_stuartii | enzyme_kpc | 0.002 | eligible; de novo enabled |
+| p_stuartii | enzyme_ndm_vim | 0.002 | eligible; de novo enabled |
+| p_stuartii | enzyme_oxa_48 | 0.002 | eligible; de novo enabled |
+| p_stuartii | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| p_stuartii | enzyme_ampc_dha | 0 | eligible; HGT only |
+| p_stuartii | mutation_ampc_derepression | 0.02 | eligible; de novo enabled |
+| p_stuartii | target_site_pbp2a_meca | 0 | excluded host |
+| p_stuartii | target_site_van_a | 0 | excluded host |
+| p_stuartii | target_site_van_b | 0 | excluded host |
+| p_stuartii | mutation_gyra_primary | 0.02 | eligible; de novo enabled |
+| p_stuartii | mutation_gyra_parc_secondary | 0.02 | eligible; de novo enabled |
+| p_stuartii | protection_qnr | 0.02 | eligible; de novo enabled |
+| p_stuartii | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
+| p_stuartii | target_site_erm_b | 0 | excluded host |
+| p_stuartii | target_site_cfr | 0 | excluded host |
+| p_stuartii | enzyme_cat | 9e-5 | eligible; de novo enabled |
+| p_stuartii | efflux_acrab_tolc | 6e-4 | eligible; de novo enabled |
+| p_stuartii | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| p_stuartii | porin_loss_ompk35_36 | 0 | excluded host |
+| p_stuartii | porin_loss_oprd | 0 | excluded host |
+| p_stuartii | modification_mcr_1 | 2e-6 | eligible; de novo enabled |
+| p_stuartii | mutation_polymyxin_regulatory | 3e-4 | eligible; de novo enabled |
+| p_stuartii | global_efflux_pump | 6e-4 | eligible; de novo enabled |
+| p_stuartii | mutation_folate_pathway | 30 | eligible; de novo enabled |
+| p_stuartii | mutation_nitroreductase | 0.001 | eligible; de novo enabled |
+| p_stuartii | enzyme_fos | 0.2 | eligible; de novo enabled |
+| p_stuartii | mutation_mpr_f | 0 | excluded host |
+| p_stuartii | mutation_liafsr_cls | 0 | excluded host |
+| p_stuartii | mutation_rpo_b | 30 | eligible; de novo enabled |
+| p_stuartii | protection_fus_b | 0 | excluded host |
+| p_stuartii | protection_tet_m | 2e-6 | eligible; de novo enabled |
+| p_stuartii | enzyme_aac_aph | 0.05 | eligible; de novo enabled |
+| p_stuartii | enzyme_bla_z | 0 | excluded host |
+| p_stuartii | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| p_stuartii | enzyme_mph_a | 0 | eligible; HGT only |
+| p_stuartii | enzyme_oxa_acinetobacter | 0 | excluded host |
+| p_stuartii | mutation_23s_rrna | 0 | excluded host |
+| p_stuartii | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| p_stuartii | efflux_tet_abc | 6e-6 | eligible; de novo enabled |
+| p_stuartii | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| p_stuartii | efflux_mtr_cde | 0 | excluded host |
+| p_stuartii | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| p_stuartii | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_tem | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_shv | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_kpc | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ampc_cmy | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ampc_dha | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_ampc_derepression | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | target_site_pbp2a_meca | 0 | excluded host |
+| pseudomonas_aeruginosa | target_site_van_a | 0 | excluded host |
+| pseudomonas_aeruginosa | target_site_van_b | 0 | excluded host |
+| pseudomonas_aeruginosa | mutation_gyra_primary | 0.06 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.06 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | protection_qnr | 0.06 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_16s_rrmt | 3e-7 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | target_site_erm_b | 0 | excluded host |
+| pseudomonas_aeruginosa | target_site_cfr | 0 | excluded host |
+| pseudomonas_aeruginosa | enzyme_cat | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| pseudomonas_aeruginosa | efflux_mexxy_oprm | 0.06 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | porin_loss_ompk35_36 | 0 | excluded host |
+| pseudomonas_aeruginosa | porin_loss_oprd | 3e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | modification_mcr_1 | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_polymyxin_regulatory | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | global_efflux_pump | 0.06 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_folate_pathway | 0.005 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_nitroreductase | 5e-5 | excluded host |
+| pseudomonas_aeruginosa | enzyme_fos | 0.005 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_mpr_f | 0 | excluded host |
+| pseudomonas_aeruginosa | mutation_liafsr_cls | 0 | excluded host |
+| pseudomonas_aeruginosa | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | protection_fus_b | 0 | excluded host |
+| pseudomonas_aeruginosa | protection_tet_m | 0.002 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_aac_aph | 3e-7 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_bla_z | 0 | excluded host |
+| pseudomonas_aeruginosa | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| pseudomonas_aeruginosa | enzyme_mph_a | 0 | excluded host |
+| pseudomonas_aeruginosa | enzyme_oxa_acinetobacter | 0 | eligible; HGT only |
+| pseudomonas_aeruginosa | mutation_23s_rrna | 0 | excluded host |
+| pseudomonas_aeruginosa | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| pseudomonas_aeruginosa | efflux_tet_abc | 3e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_pbp_mosaic | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | efflux_mtr_cde | 0 | excluded host |
+| pseudomonas_aeruginosa | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| pseudomonas_aeruginosa | mutation_siderophore_uptake | 2e-4 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 2 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_esbl_tem | 2 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_esbl_shv | 2 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_kpc | 5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_ndm_vim | 5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_oxa_48 | 5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_ampc_cmy | 5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_ampc_dha | 5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| stenotrophomonas_maltophilia | target_site_pbp2a_meca | 0 | excluded host |
+| stenotrophomonas_maltophilia | target_site_van_a | 0 | excluded host |
+| stenotrophomonas_maltophilia | target_site_van_b | 0 | excluded host |
+| stenotrophomonas_maltophilia | mutation_gyra_primary | 0.5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 0.5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | protection_qnr | 0.5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | target_site_erm_b | 0 | excluded host |
+| stenotrophomonas_maltophilia | target_site_cfr | 0 | excluded host |
+| stenotrophomonas_maltophilia | enzyme_cat | 1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| stenotrophomonas_maltophilia | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| stenotrophomonas_maltophilia | porin_loss_ompk35_36 | 0 | excluded host |
+| stenotrophomonas_maltophilia | porin_loss_oprd | 0 | excluded host |
+| stenotrophomonas_maltophilia | modification_mcr_1 | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| stenotrophomonas_maltophilia | global_efflux_pump | 0.02 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.01 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_nitroreductase | 0.1 | excluded host |
+| stenotrophomonas_maltophilia | enzyme_fos | 30 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_mpr_f | 0 | excluded host |
+| stenotrophomonas_maltophilia | mutation_liafsr_cls | 0 | excluded host |
+| stenotrophomonas_maltophilia | mutation_rpo_b | 2e-4 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | protection_fus_b | 0 | excluded host |
+| stenotrophomonas_maltophilia | protection_tet_m | 0.02 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_bla_z | 0 | excluded host |
+| stenotrophomonas_maltophilia | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| stenotrophomonas_maltophilia | enzyme_mph_a | 0 | excluded host |
+| stenotrophomonas_maltophilia | enzyme_oxa_acinetobacter | 0 | eligible; HGT only |
+| stenotrophomonas_maltophilia | mutation_23s_rrna | 0 | excluded host |
+| stenotrophomonas_maltophilia | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| stenotrophomonas_maltophilia | efflux_tet_abc | 0.05 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| stenotrophomonas_maltophilia | efflux_mtr_cde | 0 | excluded host |
+| stenotrophomonas_maltophilia | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 0.001 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_esbl_ctx_m | 0 | excluded host |
+| staphylococcus_aureus | enzyme_esbl_tem | 0 | excluded host |
+| staphylococcus_aureus | enzyme_esbl_shv | 0 | excluded host |
+| staphylococcus_aureus | enzyme_kpc | 0 | excluded host |
+| staphylococcus_aureus | enzyme_ndm_vim | 0 | excluded host |
+| staphylococcus_aureus | enzyme_oxa_48 | 0 | excluded host |
+| staphylococcus_aureus | enzyme_ampc_cmy | 0 | excluded host |
+| staphylococcus_aureus | enzyme_ampc_dha | 0 | excluded host |
+| staphylococcus_aureus | mutation_ampc_derepression | 0 | excluded host |
+| staphylococcus_aureus | target_site_pbp2a_meca | 3e-5 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_van_a | 3e-6 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_van_b | 3e-6 | eligible; de novo enabled |
+| staphylococcus_aureus | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | protection_qnr | 0 | excluded host |
+| staphylococcus_aureus | enzyme_16s_rrmt | 0 | excluded host |
+| staphylococcus_aureus | target_site_erm_b | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_cfr | 0.5 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_cat | 0.01 | eligible; de novo enabled |
+| staphylococcus_aureus | efflux_acrab_tolc | 0 | excluded host |
+| staphylococcus_aureus | efflux_mexxy_oprm | 0 | excluded host |
+| staphylococcus_aureus | porin_loss_ompk35_36 | 0 | excluded host |
+| staphylococcus_aureus | porin_loss_oprd | 0 | excluded host |
+| staphylococcus_aureus | modification_mcr_1 | 0 | excluded host |
+| staphylococcus_aureus | mutation_polymyxin_regulatory | 0 | excluded host |
+| staphylococcus_aureus | global_efflux_pump | 0.3 | eligible; de novo enabled |
+| staphylococcus_aureus | mutation_folate_pathway | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | mutation_nitroreductase | 0.001 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_fos | 0.001 | eligible; de novo enabled |
+| staphylococcus_aureus | mutation_mpr_f | 5e-4 | eligible; de novo enabled |
+| staphylococcus_aureus | mutation_liafsr_cls | 0 | excluded host |
+| staphylococcus_aureus | mutation_rpo_b | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | protection_fus_b | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | protection_tet_m | 0.3 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_bla_z | 2e-4 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| staphylococcus_aureus | enzyme_mph_a | 0 | excluded host |
+| staphylococcus_aureus | enzyme_oxa_acinetobacter | 0 | excluded host |
+| staphylococcus_aureus | mutation_23s_rrna | 30 | excluded host |
+| staphylococcus_aureus | mutation_23s_rrna_oxazolidinone | 3e-5 | eligible; de novo enabled |
+| staphylococcus_aureus | efflux_tet_abc | 0 | excluded host |
+| staphylococcus_aureus | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| staphylococcus_aureus | efflux_mtr_cde | 0 | excluded host |
+| staphylococcus_aureus | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| staphylococcus_aureus | mutation_siderophore_uptake | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_esbl_ctx_m | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_esbl_tem | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_esbl_shv | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_kpc | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_ndm_vim | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_oxa_48 | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_ampc_cmy | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_ampc_dha | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_ampc_derepression | 0 | excluded host |
+| staphylococcus_epidermidis | target_site_pbp2a_meca | 3e-4 | eligible; de novo enabled |
+| staphylococcus_epidermidis | target_site_van_a | 5e-9 | eligible; de novo enabled |
+| staphylococcus_epidermidis | target_site_van_b | 5e-9 | eligible; de novo enabled |
+| staphylococcus_epidermidis | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| staphylococcus_epidermidis | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
+| staphylococcus_epidermidis | protection_qnr | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_16s_rrmt | 0 | excluded host |
+| staphylococcus_epidermidis | target_site_erm_b | 0.003 | eligible; de novo enabled |
+| staphylococcus_epidermidis | target_site_cfr | 2e-6 | eligible; de novo enabled |
+| staphylococcus_epidermidis | enzyme_cat | 2e-4 | eligible; de novo enabled |
+| staphylococcus_epidermidis | efflux_acrab_tolc | 0 | excluded host |
+| staphylococcus_epidermidis | efflux_mexxy_oprm | 0 | excluded host |
+| staphylococcus_epidermidis | porin_loss_ompk35_36 | 0 | excluded host |
+| staphylococcus_epidermidis | porin_loss_oprd | 0 | excluded host |
+| staphylococcus_epidermidis | modification_mcr_1 | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_polymyxin_regulatory | 0 | excluded host |
+| staphylococcus_epidermidis | global_efflux_pump | 0.001 | eligible; de novo enabled |
+| staphylococcus_epidermidis | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| staphylococcus_epidermidis | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
+| staphylococcus_epidermidis | enzyme_fos | 0 | eligible; HGT only |
+| staphylococcus_epidermidis | mutation_mpr_f | 5e-7 | eligible; de novo enabled |
+| staphylococcus_epidermidis | mutation_liafsr_cls | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_rpo_b | 0.01 | eligible; de novo enabled |
+| staphylococcus_epidermidis | protection_fus_b | 5 | eligible; de novo enabled |
+| staphylococcus_epidermidis | protection_tet_m | 6e-6 | eligible; de novo enabled |
+| staphylococcus_epidermidis | enzyme_aac_aph | 0.01 | eligible; de novo enabled |
+| staphylococcus_epidermidis | enzyme_bla_z | 0.002 | eligible; de novo enabled |
+| staphylococcus_epidermidis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_mph_a | 0 | excluded host |
+| staphylococcus_epidermidis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_23s_rrna | 3e-4 | excluded host |
+| staphylococcus_epidermidis | mutation_23s_rrna_oxazolidinone | 5e-5 | eligible; de novo enabled |
+| staphylococcus_epidermidis | efflux_tet_abc | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| staphylococcus_epidermidis | efflux_mtr_cde | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| staphylococcus_epidermidis | mutation_siderophore_uptake | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_esbl_ctx_m | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_esbl_tem | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_esbl_shv | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_kpc | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_ndm_vim | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_oxa_48 | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_ampc_cmy | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_ampc_dha | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_ampc_derepression | 0 | excluded host |
+| streptococcus_pneumoniae | target_site_pbp2a_meca | 0 | excluded host |
+| streptococcus_pneumoniae | target_site_van_a | 0 | eligible; HGT only |
+| streptococcus_pneumoniae | target_site_van_b | 0 | eligible; HGT only |
+| streptococcus_pneumoniae | mutation_gyra_primary | 3 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
+| streptococcus_pneumoniae | protection_qnr | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_16s_rrmt | 0 | excluded host |
+| streptococcus_pneumoniae | target_site_erm_b | 30 | eligible; de novo enabled |
+| streptococcus_pneumoniae | target_site_cfr | 0 | eligible; HGT only |
+| streptococcus_pneumoniae | enzyme_cat | 30 | eligible; de novo enabled |
+| streptococcus_pneumoniae | efflux_acrab_tolc | 0 | excluded host |
+| streptococcus_pneumoniae | efflux_mexxy_oprm | 0 | excluded host |
+| streptococcus_pneumoniae | porin_loss_ompk35_36 | 0 | excluded host |
+| streptococcus_pneumoniae | porin_loss_oprd | 0 | excluded host |
+| streptococcus_pneumoniae | modification_mcr_1 | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_polymyxin_regulatory | 0 | excluded host |
+| streptococcus_pneumoniae | global_efflux_pump | 3 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_folate_pathway | 0.003 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
+| streptococcus_pneumoniae | enzyme_fos | 0 | eligible; HGT only |
+| streptococcus_pneumoniae | mutation_mpr_f | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_liafsr_cls | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_rpo_b | 30 | eligible; de novo enabled |
+| streptococcus_pneumoniae | protection_fus_b | 0 | excluded host |
+| streptococcus_pneumoniae | protection_tet_m | 0.4 | eligible; de novo enabled |
+| streptococcus_pneumoniae | enzyme_aac_aph | 0 | eligible; HGT only |
+| streptococcus_pneumoniae | enzyme_bla_z | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_mph_a | 0 | excluded host |
+| streptococcus_pneumoniae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_23s_rrna | 30 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
+| streptococcus_pneumoniae | efflux_tet_abc | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_pbp_mosaic | 5e-7 | eligible; de novo enabled |
+| streptococcus_pneumoniae | efflux_mtr_cde | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| streptococcus_pneumoniae | mutation_siderophore_uptake | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 1.5e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 1.5e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 1.5e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_kpc | 1e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_ndm_vim | 1e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 1e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 1.5e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 1.5e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| salmonella_enterica_serovar_typhi | target_site_pbp2a_meca | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | target_site_van_a | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | target_site_van_b | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_gyra_primary | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | protection_qnr | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 0.2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | target_site_erm_b | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | target_site_cfr | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | enzyme_cat | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| salmonella_enterica_serovar_typhi | porin_loss_ompk35_36 | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | porin_loss_oprd | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | modification_mcr_1 | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_polymyxin_regulatory | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | global_efflux_pump | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_nitroreductase | 1e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_fos | 3e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_mpr_f | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_liafsr_cls | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_rpo_b | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | protection_fus_b | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | protection_tet_m | 2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_aac_aph | 0.2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_bla_z | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| salmonella_enterica_serovar_typhi | enzyme_mph_a | 0 | eligible; HGT only |
+| salmonella_enterica_serovar_typhi | enzyme_oxa_acinetobacter | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_23s_rrna | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | efflux_tet_abc | 2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| salmonella_enterica_serovar_typhi | efflux_mtr_cde | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| salmonella_enterica_serovar_typhi | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 0.005 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 0.005 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 0.005 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 3e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 3e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 3e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 0.002 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 0.002 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| salmonella_enterica_serovar_paratyphi_a | target_site_pbp2a_meca | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | target_site_van_a | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | target_site_van_b | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 20 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 10 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 10 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | target_site_erm_b | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | target_site_cfr | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 10 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| salmonella_enterica_serovar_paratyphi_a | porin_loss_ompk35_36 | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | porin_loss_oprd | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_polymyxin_regulatory | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 10 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.05 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 3e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_fos | 1e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_mpr_f | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_liafsr_cls | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 30 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | protection_fus_b | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_bla_z | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_mph_a | 0 | eligible; HGT only |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_acinetobacter | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_23s_rrna | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 6e-5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | efflux_mtr_cde | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| salmonella_enterica_serovar_paratyphi_a | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 0.025 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 0.025 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 0.025 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 2e-5 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 2e-5 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 2e-5 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 0.001 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 0.001 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| invasive_non-typhoidal_salmonella_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | target_site_van_a | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | target_site_van_b | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | protection_qnr | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 2e-4 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | target_site_erm_b | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | target_site_cfr | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.1 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| invasive_non-typhoidal_salmonella_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | porin_loss_oprd | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_polymyxin_regulatory | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 5e-10 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 5e-4 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_fos | 3e-4 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_mpr_f | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_liafsr_cls | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 30 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | protection_fus_b | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.001 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 1e-4 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_bla_z | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.005 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_mph_a | 0 | eligible; HGT only |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_23s_rrna | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.002 | eligible; de novo enabled |
+| invasive_non-typhoidal_salmonella_spp. | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| invasive_non-typhoidal_salmonella_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| shigella_spp. | enzyme_esbl_ctx_m | 0.002 | eligible; de novo enabled |
+| shigella_spp. | enzyme_esbl_tem | 0.002 | eligible; de novo enabled |
+| shigella_spp. | enzyme_esbl_shv | 0.002 | eligible; de novo enabled |
+| shigella_spp. | enzyme_kpc | 1e-5 | eligible; de novo enabled |
+| shigella_spp. | enzyme_ndm_vim | 1e-5 | eligible; de novo enabled |
+| shigella_spp. | enzyme_oxa_48 | 1e-5 | eligible; de novo enabled |
+| shigella_spp. | enzyme_ampc_cmy | 0.0015 | eligible; de novo enabled |
+| shigella_spp. | enzyme_ampc_dha | 0.0015 | eligible; de novo enabled |
+| shigella_spp. | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| shigella_spp. | target_site_pbp2a_meca | 0 | excluded host |
+| shigella_spp. | target_site_van_a | 0 | excluded host |
+| shigella_spp. | target_site_van_b | 0 | excluded host |
+| shigella_spp. | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| shigella_spp. | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| shigella_spp. | protection_qnr | 30 | eligible; de novo enabled |
+| shigella_spp. | enzyme_16s_rrmt | 30 | eligible; de novo enabled |
+| shigella_spp. | target_site_erm_b | 30 | excluded host |
+| shigella_spp. | target_site_cfr | 0 | excluded host |
+| shigella_spp. | enzyme_cat | 30 | eligible; de novo enabled |
+| shigella_spp. | efflux_acrab_tolc | 30 | eligible; de novo enabled |
+| shigella_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| shigella_spp. | porin_loss_ompk35_36 | 0 | excluded host |
+| shigella_spp. | porin_loss_oprd | 0 | excluded host |
+| shigella_spp. | modification_mcr_1 | 30 | eligible; de novo enabled |
+| shigella_spp. | mutation_polymyxin_regulatory | 30 | eligible; de novo enabled |
+| shigella_spp. | global_efflux_pump | 30 | eligible; de novo enabled |
+| shigella_spp. | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| shigella_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| shigella_spp. | enzyme_fos | 0 | eligible; HGT only |
+| shigella_spp. | mutation_mpr_f | 0 | excluded host |
+| shigella_spp. | mutation_liafsr_cls | 0 | excluded host |
+| shigella_spp. | mutation_rpo_b | 30 | eligible; de novo enabled |
+| shigella_spp. | protection_fus_b | 0 | excluded host |
+| shigella_spp. | protection_tet_m | 1 | eligible; de novo enabled |
+| shigella_spp. | enzyme_aac_aph | 30 | eligible; de novo enabled |
+| shigella_spp. | enzyme_bla_z | 0 | excluded host |
+| shigella_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.15 | eligible; de novo enabled |
+| shigella_spp. | enzyme_mph_a | 3 | eligible; de novo enabled |
+| shigella_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
+| shigella_spp. | mutation_23s_rrna | 30 | excluded host |
+| shigella_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| shigella_spp. | efflux_tet_abc | 1 | eligible; de novo enabled |
+| shigella_spp. | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| shigella_spp. | efflux_mtr_cde | 0 | excluded host |
+| shigella_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| shigella_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_esbl_ctx_m | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_esbl_tem | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_esbl_shv | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_kpc | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_ndm_vim | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_oxa_48 | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | enzyme_ampc_dha | 0 | eligible; HGT only |
+| neisseria_gonorrhoeae | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| neisseria_gonorrhoeae | target_site_pbp2a_meca | 0 | excluded host |
+| neisseria_gonorrhoeae | target_site_van_a | 0 | excluded host |
+| neisseria_gonorrhoeae | target_site_van_b | 0 | excluded host |
+| neisseria_gonorrhoeae | mutation_gyra_primary | 3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | protection_qnr | 3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.01 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | target_site_erm_b | 0.05 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | target_site_cfr | 0.001 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_cat | 0.3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_acrab_tolc | 3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| neisseria_gonorrhoeae | porin_loss_ompk35_36 | 0 | excluded host |
+| neisseria_gonorrhoeae | porin_loss_oprd | 0 | excluded host |
+| neisseria_gonorrhoeae | modification_mcr_1 | 0.005 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| neisseria_gonorrhoeae | global_efflux_pump | 3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_folate_pathway | 0.8 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_nitroreductase | 0.03 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_fos | 3e-4 | excluded host |
+| neisseria_gonorrhoeae | mutation_mpr_f | 0 | excluded host |
+| neisseria_gonorrhoeae | mutation_liafsr_cls | 0 | excluded host |
+| neisseria_gonorrhoeae | mutation_rpo_b | 30 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | protection_fus_b | 0 | excluded host |
+| neisseria_gonorrhoeae | protection_tet_m | 0.8 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_aac_aph | 0.01 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_bla_z | 0 | excluded host |
+| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.2 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_mph_a | 0 | excluded host |
+| neisseria_gonorrhoeae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| neisseria_gonorrhoeae | mutation_23s_rrna | 0.1 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| neisseria_gonorrhoeae | efflux_tet_abc | 0.8 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.005 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_mtr_cde | 0.05 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| neisseria_gonorrhoeae | mutation_siderophore_uptake | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_esbl_ctx_m | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_esbl_tem | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_esbl_shv | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_kpc | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_ndm_vim | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_oxa_48 | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_ampc_cmy | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_ampc_dha | 0 | excluded host |
+| streptococcus_pyogenes | mutation_ampc_derepression | 0 | excluded host |
+| streptococcus_pyogenes | target_site_pbp2a_meca | 0 | excluded host |
+| streptococcus_pyogenes | target_site_van_a | 0 | eligible; HGT only |
+| streptococcus_pyogenes | target_site_van_b | 0 | eligible; HGT only |
+| streptococcus_pyogenes | mutation_gyra_primary | 0.01 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_gyra_parc_secondary | 0.01 | eligible; de novo enabled |
+| streptococcus_pyogenes | protection_qnr | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_16s_rrmt | 0 | excluded host |
+| streptococcus_pyogenes | target_site_erm_b | 0.005 | eligible; de novo enabled |
+| streptococcus_pyogenes | target_site_cfr | 0.02 | eligible; de novo enabled |
+| streptococcus_pyogenes | enzyme_cat | 0.002 | eligible; de novo enabled |
+| streptococcus_pyogenes | efflux_acrab_tolc | 0 | excluded host |
+| streptococcus_pyogenes | efflux_mexxy_oprm | 0 | excluded host |
+| streptococcus_pyogenes | porin_loss_ompk35_36 | 0 | excluded host |
+| streptococcus_pyogenes | porin_loss_oprd | 0 | excluded host |
+| streptococcus_pyogenes | modification_mcr_1 | 0 | excluded host |
+| streptococcus_pyogenes | mutation_polymyxin_regulatory | 0 | excluded host |
+| streptococcus_pyogenes | global_efflux_pump | 0.02 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_folate_pathway | 0.2 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
+| streptococcus_pyogenes | enzyme_fos | 0 | eligible; HGT only |
+| streptococcus_pyogenes | mutation_mpr_f | 0.001 | excluded host |
+| streptococcus_pyogenes | mutation_liafsr_cls | 0 | excluded host |
+| streptococcus_pyogenes | mutation_rpo_b | 0.003 | eligible; de novo enabled |
+| streptococcus_pyogenes | protection_fus_b | 0.01 | excluded host |
+| streptococcus_pyogenes | protection_tet_m | 3e-4 | eligible; de novo enabled |
+| streptococcus_pyogenes | enzyme_aac_aph | 0 | eligible; HGT only |
+| streptococcus_pyogenes | enzyme_bla_z | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_mph_a | 0 | excluded host |
+| streptococcus_pyogenes | enzyme_oxa_acinetobacter | 0 | excluded host |
+| streptococcus_pyogenes | mutation_23s_rrna | 0.01 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
+| streptococcus_pyogenes | efflux_tet_abc | 0 | excluded host |
+| streptococcus_pyogenes | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| streptococcus_pyogenes | efflux_mtr_cde | 0 | excluded host |
+| streptococcus_pyogenes | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| streptococcus_pyogenes | mutation_siderophore_uptake | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_esbl_ctx_m | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_esbl_tem | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_esbl_shv | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_kpc | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_ndm_vim | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_oxa_48 | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_ampc_cmy | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_ampc_dha | 0 | excluded host |
+| streptococcus_agalactiae | mutation_ampc_derepression | 0 | excluded host |
+| streptococcus_agalactiae | target_site_pbp2a_meca | 1e-5 | excluded host |
+| streptococcus_agalactiae | target_site_van_a | 0.001 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_van_b | 0.001 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_gyra_primary | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_gyra_parc_secondary | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | protection_qnr | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_16s_rrmt | 0 | excluded host |
+| streptococcus_agalactiae | target_site_erm_b | 3 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_cfr | 3 | eligible; de novo enabled |
+| streptococcus_agalactiae | enzyme_cat | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | efflux_acrab_tolc | 0 | excluded host |
+| streptococcus_agalactiae | efflux_mexxy_oprm | 0 | excluded host |
+| streptococcus_agalactiae | porin_loss_ompk35_36 | 0 | excluded host |
+| streptococcus_agalactiae | porin_loss_oprd | 0 | excluded host |
+| streptococcus_agalactiae | modification_mcr_1 | 0 | excluded host |
+| streptococcus_agalactiae | mutation_polymyxin_regulatory | 0 | excluded host |
+| streptococcus_agalactiae | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
+| streptococcus_agalactiae | enzyme_fos | 0 | eligible; HGT only |
+| streptococcus_agalactiae | mutation_mpr_f | 0.03 | excluded host |
+| streptococcus_agalactiae | mutation_liafsr_cls | 0 | excluded host |
+| streptococcus_agalactiae | mutation_rpo_b | 0.003 | eligible; de novo enabled |
+| streptococcus_agalactiae | protection_fus_b | 0.03 | excluded host |
+| streptococcus_agalactiae | protection_tet_m | 5 | eligible; de novo enabled |
+| streptococcus_agalactiae | enzyme_aac_aph | 0 | eligible; HGT only |
+| streptococcus_agalactiae | enzyme_bla_z | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_mph_a | 0 | excluded host |
+| streptococcus_agalactiae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| streptococcus_agalactiae | mutation_23s_rrna | 5 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
+| streptococcus_agalactiae | efflux_tet_abc | 0 | excluded host |
+| streptococcus_agalactiae | mutation_pbp_mosaic | 3e-6 | eligible; de novo enabled |
+| streptococcus_agalactiae | efflux_mtr_cde | 0 | excluded host |
+| streptococcus_agalactiae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| streptococcus_agalactiae | mutation_siderophore_uptake | 0 | excluded host |
+| haemophilus_influenzae | enzyme_esbl_ctx_m | 4e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_esbl_tem | 0 | eligible; HGT only |
+| haemophilus_influenzae | enzyme_esbl_shv | 4e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_kpc | 1.5e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_ndm_vim | 1.5e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_oxa_48 | 1.5e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_ampc_cmy | 4e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_ampc_dha | 4e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| haemophilus_influenzae | target_site_pbp2a_meca | 0 | excluded host |
+| haemophilus_influenzae | target_site_van_a | 0 | excluded host |
+| haemophilus_influenzae | target_site_van_b | 0 | excluded host |
+| haemophilus_influenzae | mutation_gyra_primary | 3 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
+| haemophilus_influenzae | protection_qnr | 3 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_16s_rrmt | 30 | eligible; de novo enabled |
+| haemophilus_influenzae | target_site_erm_b | 30 | eligible; de novo enabled |
+| haemophilus_influenzae | target_site_cfr | 0.1 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_cat | 1 | eligible; de novo enabled |
+| haemophilus_influenzae | efflux_acrab_tolc | 0.4 | eligible; de novo enabled |
+| haemophilus_influenzae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| haemophilus_influenzae | porin_loss_ompk35_36 | 0 | excluded host |
+| haemophilus_influenzae | porin_loss_oprd | 0 | excluded host |
+| haemophilus_influenzae | modification_mcr_1 | 5e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| haemophilus_influenzae | global_efflux_pump | 0.4 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_folate_pathway | 30 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_nitroreductase | 5e-4 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_fos | 0 | excluded host |
+| haemophilus_influenzae | mutation_mpr_f | 0 | excluded host |
+| haemophilus_influenzae | mutation_liafsr_cls | 0 | excluded host |
+| haemophilus_influenzae | mutation_rpo_b | 30 | eligible; de novo enabled |
+| haemophilus_influenzae | protection_fus_b | 0 | excluded host |
+| haemophilus_influenzae | protection_tet_m | 10 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_aac_aph | 30 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_bla_z | 0 | excluded host |
+| haemophilus_influenzae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.01 | eligible; de novo enabled |
+| haemophilus_influenzae | enzyme_mph_a | 0 | excluded host |
+| haemophilus_influenzae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| haemophilus_influenzae | mutation_23s_rrna | 30 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| haemophilus_influenzae | efflux_tet_abc | 0 | eligible; HGT only |
+| haemophilus_influenzae | mutation_pbp_mosaic | 4e-4 | eligible; de novo enabled |
+| haemophilus_influenzae | efflux_mtr_cde | 1.5e-5 | eligible; de novo enabled |
+| haemophilus_influenzae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| haemophilus_influenzae | mutation_siderophore_uptake | 0 | excluded host |
+| chlamydia_trachomatis | enzyme_esbl_ctx_m | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_esbl_tem | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_esbl_shv | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_kpc | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_ndm_vim | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_oxa_48 | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_ampc_dha | 0 | eligible; HGT only |
+| chlamydia_trachomatis | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| chlamydia_trachomatis | target_site_pbp2a_meca | 0 | excluded host |
+| chlamydia_trachomatis | target_site_van_a | 0 | excluded host |
+| chlamydia_trachomatis | target_site_van_b | 0 | excluded host |
+| chlamydia_trachomatis | mutation_gyra_primary | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | mutation_gyra_parc_secondary | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | protection_qnr | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_16s_rrmt | 0 | eligible; HGT only |
+| chlamydia_trachomatis | target_site_erm_b | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | target_site_cfr | 2 | eligible; de novo enabled |
+| chlamydia_trachomatis | enzyme_cat | 0.002 | eligible; de novo enabled |
+| chlamydia_trachomatis | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| chlamydia_trachomatis | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| chlamydia_trachomatis | porin_loss_ompk35_36 | 0 | excluded host |
+| chlamydia_trachomatis | porin_loss_oprd | 0 | excluded host |
+| chlamydia_trachomatis | modification_mcr_1 | 0 | eligible; HGT only |
+| chlamydia_trachomatis | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| chlamydia_trachomatis | global_efflux_pump | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | mutation_folate_pathway | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | mutation_nitroreductase | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | enzyme_fos | 0 | excluded host |
+| chlamydia_trachomatis | mutation_mpr_f | 0 | excluded host |
+| chlamydia_trachomatis | mutation_liafsr_cls | 0 | excluded host |
+| chlamydia_trachomatis | mutation_rpo_b | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | protection_fus_b | 0 | excluded host |
+| chlamydia_trachomatis | protection_tet_m | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | enzyme_aac_aph | 0 | eligible; HGT only |
+| chlamydia_trachomatis | enzyme_bla_z | 0 | excluded host |
+| chlamydia_trachomatis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| chlamydia_trachomatis | enzyme_mph_a | 0 | excluded host |
+| chlamydia_trachomatis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| chlamydia_trachomatis | mutation_23s_rrna | 0.02 | eligible; de novo enabled |
+| chlamydia_trachomatis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| chlamydia_trachomatis | efflux_tet_abc | 0 | eligible; HGT only |
+| chlamydia_trachomatis | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| chlamydia_trachomatis | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
+| chlamydia_trachomatis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| chlamydia_trachomatis | mutation_siderophore_uptake | 0 | excluded host |
+| mycoplasma_genitalium | enzyme_esbl_ctx_m | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_esbl_tem | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_esbl_shv | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_kpc | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_ndm_vim | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_oxa_48 | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_ampc_dha | 0 | eligible; HGT only |
+| mycoplasma_genitalium | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | target_site_pbp2a_meca | 0 | excluded host |
+| mycoplasma_genitalium | target_site_van_a | 0 | excluded host |
+| mycoplasma_genitalium | target_site_van_b | 0 | excluded host |
+| mycoplasma_genitalium | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
+| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
+| mycoplasma_genitalium | protection_qnr | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_16s_rrmt | 0 | eligible; HGT only |
+| mycoplasma_genitalium | target_site_erm_b | 3 | eligible; de novo enabled |
+| mycoplasma_genitalium | target_site_cfr | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_cat | 0 | eligible; HGT only |
+| mycoplasma_genitalium | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | porin_loss_ompk35_36 | 0 | excluded host |
+| mycoplasma_genitalium | porin_loss_oprd | 0 | excluded host |
+| mycoplasma_genitalium | modification_mcr_1 | 0 | eligible; HGT only |
+| mycoplasma_genitalium | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | global_efflux_pump | 0.3 | eligible; de novo enabled |
+| mycoplasma_genitalium | mutation_folate_pathway | 0 | eligible; HGT only |
+| mycoplasma_genitalium | mutation_nitroreductase | 0.05 | eligible; de novo enabled |
+| mycoplasma_genitalium | enzyme_fos | 0 | excluded host |
+| mycoplasma_genitalium | mutation_mpr_f | 0 | excluded host |
+| mycoplasma_genitalium | mutation_liafsr_cls | 0 | excluded host |
+| mycoplasma_genitalium | mutation_rpo_b | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | protection_fus_b | 0 | excluded host |
+| mycoplasma_genitalium | protection_tet_m | 0.05 | eligible; de novo enabled |
+| mycoplasma_genitalium | enzyme_aac_aph | 0 | eligible; HGT only |
+| mycoplasma_genitalium | enzyme_bla_z | 0 | excluded host |
+| mycoplasma_genitalium | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| mycoplasma_genitalium | enzyme_mph_a | 0 | excluded host |
+| mycoplasma_genitalium | enzyme_oxa_acinetobacter | 0 | excluded host |
+| mycoplasma_genitalium | mutation_23s_rrna | 10 | eligible; de novo enabled |
+| mycoplasma_genitalium | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| mycoplasma_genitalium | efflux_tet_abc | 0 | eligible; HGT only |
+| mycoplasma_genitalium | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
+| mycoplasma_genitalium | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| mycoplasma_genitalium | mutation_siderophore_uptake | 0 | excluded host |
+| vibrio_cholerae | enzyme_esbl_ctx_m | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_esbl_tem | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_esbl_shv | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_kpc | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_ndm_vim | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_oxa_48 | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_ampc_cmy | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_ampc_dha | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_ampc_derepression | 3e-4 | eligible; de novo enabled |
+| vibrio_cholerae | target_site_pbp2a_meca | 0 | excluded host |
+| vibrio_cholerae | target_site_van_a | 0 | excluded host |
+| vibrio_cholerae | target_site_van_b | 0 | excluded host |
+| vibrio_cholerae | mutation_gyra_primary | 10 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_gyra_parc_secondary | 10 | eligible; de novo enabled |
+| vibrio_cholerae | protection_qnr | 10 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_16s_rrmt | 0.3 | eligible; de novo enabled |
+| vibrio_cholerae | target_site_erm_b | 0 | excluded host |
+| vibrio_cholerae | target_site_cfr | 0 | excluded host |
+| vibrio_cholerae | enzyme_cat | 0.15 | eligible; de novo enabled |
+| vibrio_cholerae | efflux_acrab_tolc | 10 | eligible; de novo enabled |
+| vibrio_cholerae | efflux_mexxy_oprm | 10 | eligible; de novo enabled |
+| vibrio_cholerae | porin_loss_ompk35_36 | 0 | excluded host |
+| vibrio_cholerae | porin_loss_oprd | 0 | excluded host |
+| vibrio_cholerae | modification_mcr_1 | 1 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_polymyxin_regulatory | 1 | eligible; de novo enabled |
+| vibrio_cholerae | global_efflux_pump | 10 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_folate_pathway | 1 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_nitroreductase | 0.1 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_fos | 0.1 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_mpr_f | 0 | excluded host |
+| vibrio_cholerae | mutation_liafsr_cls | 0 | excluded host |
+| vibrio_cholerae | mutation_rpo_b | 0.1 | eligible; de novo enabled |
+| vibrio_cholerae | protection_fus_b | 0 | excluded host |
+| vibrio_cholerae | protection_tet_m | 0.1 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_aac_aph | 1 | eligible; de novo enabled |
+| vibrio_cholerae | enzyme_bla_z | 0 | excluded host |
+| vibrio_cholerae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| vibrio_cholerae | enzyme_mph_a | 0 | eligible; HGT only |
+| vibrio_cholerae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| vibrio_cholerae | mutation_23s_rrna | 30 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| vibrio_cholerae | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| vibrio_cholerae | efflux_mtr_cde | 3e-5 | eligible; de novo enabled |
+| vibrio_cholerae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| vibrio_cholerae | mutation_siderophore_uptake | 0 | excluded host |
+| neisseria_meningitidis | enzyme_esbl_ctx_m | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_esbl_tem | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_esbl_shv | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_kpc | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_ndm_vim | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_oxa_48 | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_ampc_dha | 0 | eligible; HGT only |
+| neisseria_meningitidis | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| neisseria_meningitidis | target_site_pbp2a_meca | 0 | excluded host |
+| neisseria_meningitidis | target_site_van_a | 0 | excluded host |
+| neisseria_meningitidis | target_site_van_b | 0 | excluded host |
+| neisseria_meningitidis | mutation_gyra_primary | 0.003 | eligible; de novo enabled |
+| neisseria_meningitidis | mutation_gyra_parc_secondary | 0.003 | eligible; de novo enabled |
+| neisseria_meningitidis | protection_qnr | 0.003 | eligible; de novo enabled |
+| neisseria_meningitidis | enzyme_16s_rrmt | 1e-4 | eligible; de novo enabled |
+| neisseria_meningitidis | target_site_erm_b | 3e-4 | eligible; de novo enabled |
+| neisseria_meningitidis | target_site_cfr | 1e-4 | eligible; de novo enabled |
+| neisseria_meningitidis | enzyme_cat | 0.001 | eligible; de novo enabled |
+| neisseria_meningitidis | efflux_acrab_tolc | 3e-6 | eligible; de novo enabled |
+| neisseria_meningitidis | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| neisseria_meningitidis | porin_loss_ompk35_36 | 0 | excluded host |
+| neisseria_meningitidis | porin_loss_oprd | 0 | excluded host |
+| neisseria_meningitidis | modification_mcr_1 | 3e-5 | eligible; de novo enabled |
+| neisseria_meningitidis | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| neisseria_meningitidis | global_efflux_pump | 3e-6 | eligible; de novo enabled |
+| neisseria_meningitidis | mutation_folate_pathway | 0.01 | eligible; de novo enabled |
+| neisseria_meningitidis | mutation_nitroreductase | 3e-5 | eligible; de novo enabled |
+| neisseria_meningitidis | enzyme_fos | 0 | excluded host |
+| neisseria_meningitidis | mutation_mpr_f | 0 | excluded host |
+| neisseria_meningitidis | mutation_liafsr_cls | 0 | excluded host |
+| neisseria_meningitidis | mutation_rpo_b | 0.5 | eligible; de novo enabled |
+| neisseria_meningitidis | protection_fus_b | 0 | excluded host |
+| neisseria_meningitidis | protection_tet_m | 3e-5 | eligible; de novo enabled |
+| neisseria_meningitidis | enzyme_aac_aph | 0 | eligible; HGT only |
+| neisseria_meningitidis | enzyme_bla_z | 0 | excluded host |
+| neisseria_meningitidis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| neisseria_meningitidis | enzyme_mph_a | 0 | excluded host |
+| neisseria_meningitidis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| neisseria_meningitidis | mutation_23s_rrna | 3e-4 | eligible; de novo enabled |
+| neisseria_meningitidis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| neisseria_meningitidis | efflux_tet_abc | 3e-5 | eligible; de novo enabled |
+| neisseria_meningitidis | mutation_pbp_mosaic | 3e-5 | eligible; de novo enabled |
+| neisseria_meningitidis | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
+| neisseria_meningitidis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| neisseria_meningitidis | mutation_siderophore_uptake | 0 | excluded host |
+| listeria_monocytogenes | enzyme_esbl_ctx_m | 0 | excluded host |
+| listeria_monocytogenes | enzyme_esbl_tem | 0 | excluded host |
+| listeria_monocytogenes | enzyme_esbl_shv | 0 | excluded host |
+| listeria_monocytogenes | enzyme_kpc | 0 | excluded host |
+| listeria_monocytogenes | enzyme_ndm_vim | 0 | excluded host |
+| listeria_monocytogenes | enzyme_oxa_48 | 0 | excluded host |
+| listeria_monocytogenes | enzyme_ampc_cmy | 0 | excluded host |
+| listeria_monocytogenes | enzyme_ampc_dha | 0 | excluded host |
+| listeria_monocytogenes | mutation_ampc_derepression | 0 | excluded host |
+| listeria_monocytogenes | target_site_pbp2a_meca | 0 | excluded host |
+| listeria_monocytogenes | target_site_van_a | 3 | eligible; de novo enabled |
+| listeria_monocytogenes | target_site_van_b | 3 | eligible; de novo enabled |
+| listeria_monocytogenes | mutation_gyra_primary | 1.5 | eligible; de novo enabled |
+| listeria_monocytogenes | mutation_gyra_parc_secondary | 1.5 | eligible; de novo enabled |
+| listeria_monocytogenes | protection_qnr | 0 | excluded host |
+| listeria_monocytogenes | enzyme_16s_rrmt | 0 | excluded host |
+| listeria_monocytogenes | target_site_erm_b | 3 | eligible; de novo enabled |
+| listeria_monocytogenes | target_site_cfr | 3 | eligible; de novo enabled |
+| listeria_monocytogenes | enzyme_cat | 0.1 | eligible; de novo enabled |
+| listeria_monocytogenes | efflux_acrab_tolc | 0 | excluded host |
+| listeria_monocytogenes | efflux_mexxy_oprm | 0 | excluded host |
+| listeria_monocytogenes | porin_loss_ompk35_36 | 0 | excluded host |
+| listeria_monocytogenes | porin_loss_oprd | 0 | excluded host |
+| listeria_monocytogenes | modification_mcr_1 | 0 | excluded host |
+| listeria_monocytogenes | mutation_polymyxin_regulatory | 0 | excluded host |
+| listeria_monocytogenes | global_efflux_pump | 1.5 | eligible; de novo enabled |
+| listeria_monocytogenes | mutation_folate_pathway | 1.5 | eligible; de novo enabled |
+| listeria_monocytogenes | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
+| listeria_monocytogenes | enzyme_fos | 0 | eligible; HGT only |
+| listeria_monocytogenes | mutation_mpr_f | 2 | excluded host |
+| listeria_monocytogenes | mutation_liafsr_cls | 0 | excluded host |
+| listeria_monocytogenes | mutation_rpo_b | 0.05 | eligible; de novo enabled |
+| listeria_monocytogenes | protection_fus_b | 2 | excluded host |
+| listeria_monocytogenes | protection_tet_m | 0.2 | eligible; de novo enabled |
+| listeria_monocytogenes | enzyme_aac_aph | 0 | eligible; HGT only |
+| listeria_monocytogenes | enzyme_bla_z | 0 | excluded host |
+| listeria_monocytogenes | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| listeria_monocytogenes | enzyme_mph_a | 0 | excluded host |
+| listeria_monocytogenes | enzyme_oxa_acinetobacter | 0 | excluded host |
+| listeria_monocytogenes | mutation_23s_rrna | 0 | eligible; no de novo or HGT |
+| listeria_monocytogenes | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
+| listeria_monocytogenes | efflux_tet_abc | 0 | excluded host |
+| listeria_monocytogenes | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| listeria_monocytogenes | efflux_mtr_cde | 0 | excluded host |
+| listeria_monocytogenes | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| listeria_monocytogenes | mutation_siderophore_uptake | 0 | excluded host |
+| clostridioides_difficile | enzyme_esbl_ctx_m | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_esbl_tem | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_esbl_shv | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_kpc | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_ndm_vim | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_oxa_48 | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_ampc_dha | 0 | eligible; HGT only |
+| clostridioides_difficile | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| clostridioides_difficile | target_site_pbp2a_meca | 0 | excluded host |
+| clostridioides_difficile | target_site_van_a | 0 | excluded host |
+| clostridioides_difficile | target_site_van_b | 0 | excluded host |
+| clostridioides_difficile | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| clostridioides_difficile | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
+| clostridioides_difficile | protection_qnr | 0 | eligible; HGT only |
+| clostridioides_difficile | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
+| clostridioides_difficile | target_site_erm_b | 0.002 | eligible; de novo enabled |
+| clostridioides_difficile | target_site_cfr | 0.02 | eligible; de novo enabled |
+| clostridioides_difficile | enzyme_cat | 0.05 | eligible; de novo enabled |
+| clostridioides_difficile | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| clostridioides_difficile | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| clostridioides_difficile | porin_loss_ompk35_36 | 0 | excluded host |
+| clostridioides_difficile | porin_loss_oprd | 0 | excluded host |
+| clostridioides_difficile | modification_mcr_1 | 0 | eligible; HGT only |
+| clostridioides_difficile | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| clostridioides_difficile | global_efflux_pump | 2e-5 | eligible; de novo enabled |
+| clostridioides_difficile | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| clostridioides_difficile | mutation_nitroreductase | 0.001 | eligible; de novo enabled |
+| clostridioides_difficile | enzyme_fos | 0 | excluded host |
+| clostridioides_difficile | mutation_mpr_f | 0 | excluded host |
+| clostridioides_difficile | mutation_liafsr_cls | 0 | excluded host |
+| clostridioides_difficile | mutation_rpo_b | 1 | eligible; de novo enabled |
+| clostridioides_difficile | protection_fus_b | 0 | excluded host |
+| clostridioides_difficile | protection_tet_m | 6e-6 | eligible; de novo enabled |
+| clostridioides_difficile | enzyme_aac_aph | 0 | excluded host |
+| clostridioides_difficile | enzyme_bla_z | 0 | excluded host |
+| clostridioides_difficile | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| clostridioides_difficile | enzyme_mph_a | 0 | excluded host |
+| clostridioides_difficile | enzyme_oxa_acinetobacter | 0 | excluded host |
+| clostridioides_difficile | mutation_23s_rrna | 0.003 | excluded host |
+| clostridioides_difficile | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| clostridioides_difficile | efflux_tet_abc | 0 | excluded host |
+| clostridioides_difficile | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| clostridioides_difficile | efflux_mtr_cde | 0 | excluded host |
+| clostridioides_difficile | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| clostridioides_difficile | mutation_siderophore_uptake | 0 | excluded host |
+| bacteroides_fragilis | enzyme_esbl_ctx_m | 30 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_esbl_tem | 30 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_esbl_shv | 30 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_kpc | 3e-5 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_ampc_cmy | 0.01 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_ampc_dha | 0.01 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| bacteroides_fragilis | target_site_pbp2a_meca | 0 | excluded host |
+| bacteroides_fragilis | target_site_van_a | 0 | excluded host |
+| bacteroides_fragilis | target_site_van_b | 0 | excluded host |
+| bacteroides_fragilis | mutation_gyra_primary | 0.5 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_gyra_parc_secondary | 2 | eligible; de novo enabled |
+| bacteroides_fragilis | protection_qnr | 1 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
+| bacteroides_fragilis | target_site_erm_b | 30 | eligible; de novo enabled |
+| bacteroides_fragilis | target_site_cfr | 30 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_cat | 1e-9 | eligible; de novo enabled |
+| bacteroides_fragilis | efflux_acrab_tolc | 0.03 | eligible; de novo enabled |
+| bacteroides_fragilis | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| bacteroides_fragilis | porin_loss_ompk35_36 | 0 | excluded host |
+| bacteroides_fragilis | porin_loss_oprd | 0 | excluded host |
+| bacteroides_fragilis | modification_mcr_1 | 5e-5 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| bacteroides_fragilis | global_efflux_pump | 0.03 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_folate_pathway | 30 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_nitroreductase | 0.001 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_fos | 0 | excluded host |
+| bacteroides_fragilis | mutation_mpr_f | 0 | excluded host |
+| bacteroides_fragilis | mutation_liafsr_cls | 0 | excluded host |
+| bacteroides_fragilis | mutation_rpo_b | 1e-4 | eligible; de novo enabled |
+| bacteroides_fragilis | protection_fus_b | 0 | excluded host |
+| bacteroides_fragilis | protection_tet_m | 0.005 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_aac_aph | 0 | excluded host |
+| bacteroides_fragilis | enzyme_bla_z | 0 | excluded host |
+| bacteroides_fragilis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| bacteroides_fragilis | enzyme_mph_a | 0 | excluded host |
+| bacteroides_fragilis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| bacteroides_fragilis | mutation_23s_rrna | 0 | excluded host |
+| bacteroides_fragilis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| bacteroides_fragilis | efflux_tet_abc | 0 | excluded host |
+| bacteroides_fragilis | mutation_pbp_mosaic | 0.01 | eligible; de novo enabled |
+| bacteroides_fragilis | efflux_mtr_cde | 0 | excluded host |
+| bacteroides_fragilis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| bacteroides_fragilis | mutation_siderophore_uptake | 0 | excluded host |
+| campylobacter_jejuni | enzyme_esbl_ctx_m | 0 | excluded host |
+| campylobacter_jejuni | enzyme_esbl_tem | 0 | excluded host |
+| campylobacter_jejuni | enzyme_esbl_shv | 0 | excluded host |
+| campylobacter_jejuni | enzyme_kpc | 0 | excluded host |
+| campylobacter_jejuni | enzyme_ndm_vim | 0 | excluded host |
+| campylobacter_jejuni | enzyme_oxa_48 | 0 | excluded host |
+| campylobacter_jejuni | enzyme_ampc_cmy | 0 | excluded host |
+| campylobacter_jejuni | enzyme_ampc_dha | 0 | excluded host |
+| campylobacter_jejuni | mutation_ampc_derepression | 0 | excluded host |
+| campylobacter_jejuni | target_site_pbp2a_meca | 0 | excluded host |
+| campylobacter_jejuni | target_site_van_a | 0 | excluded host |
+| campylobacter_jejuni | target_site_van_b | 0 | excluded host |
+| campylobacter_jejuni | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| campylobacter_jejuni | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| campylobacter_jejuni | protection_qnr | 0 | excluded host |
+| campylobacter_jejuni | enzyme_16s_rrmt | 0 | excluded host |
+| campylobacter_jejuni | target_site_erm_b | 0.01 | eligible; de novo enabled |
+| campylobacter_jejuni | target_site_cfr | 0.003 | eligible; de novo enabled |
+| campylobacter_jejuni | enzyme_cat | 0.001 | eligible; de novo enabled |
+| campylobacter_jejuni | efflux_acrab_tolc | 0 | excluded host |
+| campylobacter_jejuni | efflux_mexxy_oprm | 0 | excluded host |
+| campylobacter_jejuni | porin_loss_ompk35_36 | 0 | excluded host |
+| campylobacter_jejuni | porin_loss_oprd | 0 | excluded host |
+| campylobacter_jejuni | modification_mcr_1 | 0 | excluded host |
+| campylobacter_jejuni | mutation_polymyxin_regulatory | 0 | excluded host |
+| campylobacter_jejuni | global_efflux_pump | 3 | eligible; de novo enabled |
+| campylobacter_jejuni | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| campylobacter_jejuni | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
+| campylobacter_jejuni | enzyme_fos | 0 | excluded host |
+| campylobacter_jejuni | mutation_mpr_f | 0 | excluded host |
+| campylobacter_jejuni | mutation_liafsr_cls | 0 | excluded host |
+| campylobacter_jejuni | mutation_rpo_b | 0.3 | eligible; de novo enabled |
+| campylobacter_jejuni | protection_fus_b | 0 | excluded host |
+| campylobacter_jejuni | protection_tet_m | 0.8 | eligible; de novo enabled |
+| campylobacter_jejuni | enzyme_aac_aph | 0 | excluded host |
+| campylobacter_jejuni | enzyme_bla_z | 0 | excluded host |
+| campylobacter_jejuni | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| campylobacter_jejuni | enzyme_mph_a | 0 | excluded host |
+| campylobacter_jejuni | enzyme_oxa_acinetobacter | 0 | excluded host |
+| campylobacter_jejuni | mutation_23s_rrna | 0.01 | eligible; de novo enabled |
+| campylobacter_jejuni | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| campylobacter_jejuni | efflux_tet_abc | 2.5 | excluded host |
+| campylobacter_jejuni | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| campylobacter_jejuni | efflux_mtr_cde | 0 | excluded host |
+| campylobacter_jejuni | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| campylobacter_jejuni | mutation_siderophore_uptake | 0 | excluded host |
+| enterobacter_cloacae | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_kpc | 3e-5 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| enterobacter_cloacae | enzyme_ampc_dha | 0 | eligible; HGT only |
+| enterobacter_cloacae | mutation_ampc_derepression | 1e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | target_site_pbp2a_meca | 0 | excluded host |
+| enterobacter_cloacae | target_site_van_a | 0 | excluded host |
+| enterobacter_cloacae | target_site_van_b | 0 | excluded host |
+| enterobacter_cloacae | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
+| enterobacter_cloacae | protection_qnr | 0.1 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_16s_rrmt | 0.02 | eligible; de novo enabled |
+| enterobacter_cloacae | target_site_erm_b | 0 | excluded host |
+| enterobacter_cloacae | target_site_cfr | 0 | excluded host |
+| enterobacter_cloacae | enzyme_cat | 0.5 | eligible; de novo enabled |
+| enterobacter_cloacae | efflux_acrab_tolc | 0.01 | eligible; de novo enabled |
+| enterobacter_cloacae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| enterobacter_cloacae | porin_loss_ompk35_36 | 0 | excluded host |
+| enterobacter_cloacae | porin_loss_oprd | 0 | excluded host |
+| enterobacter_cloacae | modification_mcr_1 | 0.1 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_polymyxin_regulatory | 0.1 | eligible; de novo enabled |
+| enterobacter_cloacae | global_efflux_pump | 0.01 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_folate_pathway | 0.03 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_nitroreductase | 0.2 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_fos | 2 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_mpr_f | 0 | excluded host |
+| enterobacter_cloacae | mutation_liafsr_cls | 0 | excluded host |
+| enterobacter_cloacae | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| enterobacter_cloacae | protection_fus_b | 0 | excluded host |
+| enterobacter_cloacae | protection_tet_m | 0.002 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_aac_aph | 0.02 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_bla_z | 0 | excluded host |
+| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-5 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_mph_a | 2e-6 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| enterobacter_cloacae | mutation_23s_rrna | 0 | excluded host |
+| enterobacter_cloacae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| enterobacter_cloacae | efflux_tet_abc | 0.01 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_pbp_mosaic | 1e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | efflux_mtr_cde | 0 | excluded host |
+| enterobacter_cloacae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_esbl_ctx_m | 0.015 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_esbl_tem | 0.015 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_esbl_shv | 0.015 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_kpc | 3e-4 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_ndm_vim | 3e-4 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_oxa_48 | 3e-4 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_ampc_cmy | 0.015 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_ampc_dha | 0.015 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| yersinia_enterocolitica | target_site_pbp2a_meca | 0 | excluded host |
+| yersinia_enterocolitica | target_site_van_a | 0 | excluded host |
+| yersinia_enterocolitica | target_site_van_b | 0 | excluded host |
+| yersinia_enterocolitica | mutation_gyra_primary | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_gyra_parc_secondary | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | protection_qnr | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_16s_rrmt | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | target_site_erm_b | 0 | excluded host |
+| yersinia_enterocolitica | target_site_cfr | 0 | excluded host |
+| yersinia_enterocolitica | enzyme_cat | 0.1 | eligible; de novo enabled |
+| yersinia_enterocolitica | efflux_acrab_tolc | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| yersinia_enterocolitica | porin_loss_ompk35_36 | 0 | excluded host |
+| yersinia_enterocolitica | porin_loss_oprd | 0 | excluded host |
+| yersinia_enterocolitica | modification_mcr_1 | 1 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| yersinia_enterocolitica | global_efflux_pump | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_nitroreductase | 0.01 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_fos | 0.05 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_mpr_f | 0 | excluded host |
+| yersinia_enterocolitica | mutation_liafsr_cls | 0 | excluded host |
+| yersinia_enterocolitica | mutation_rpo_b | 0.01 | eligible; de novo enabled |
+| yersinia_enterocolitica | protection_fus_b | 0 | excluded host |
+| yersinia_enterocolitica | protection_tet_m | 0.1 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_aac_aph | 0.2 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_bla_z | 0 | excluded host |
+| yersinia_enterocolitica | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
+| yersinia_enterocolitica | enzyme_mph_a | 0 | eligible; HGT only |
+| yersinia_enterocolitica | enzyme_oxa_acinetobacter | 0 | excluded host |
+| yersinia_enterocolitica | mutation_23s_rrna | 0 | excluded host |
+| yersinia_enterocolitica | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| yersinia_enterocolitica | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| yersinia_enterocolitica | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| yersinia_enterocolitica | efflux_mtr_cde | 0 | excluded host |
+| yersinia_enterocolitica | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| yersinia_enterocolitica | mutation_siderophore_uptake | 3e-4 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_esbl_ctx_m | 3e-7 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_esbl_tem | 3e-7 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_esbl_shv | 3e-7 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_kpc | 0 | eligible; HGT only |
+| moraxella_catarrhalis | enzyme_ndm_vim | 0 | eligible; HGT only |
+| moraxella_catarrhalis | enzyme_oxa_48 | 0 | eligible; HGT only |
+| moraxella_catarrhalis | enzyme_ampc_cmy | 5e-11 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_ampc_dha | 5e-11 | eligible; de novo enabled |
+| moraxella_catarrhalis | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| moraxella_catarrhalis | target_site_pbp2a_meca | 0 | excluded host |
+| moraxella_catarrhalis | target_site_van_a | 0 | excluded host |
+| moraxella_catarrhalis | target_site_van_b | 0 | excluded host |
+| moraxella_catarrhalis | mutation_gyra_primary | 0.01 | eligible; de novo enabled |
+| moraxella_catarrhalis | mutation_gyra_parc_secondary | 0.01 | eligible; de novo enabled |
+| moraxella_catarrhalis | protection_qnr | 0.01 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_16s_rrmt | 5e-5 | eligible; de novo enabled |
+| moraxella_catarrhalis | target_site_erm_b | 0.1 | eligible; de novo enabled |
+| moraxella_catarrhalis | target_site_cfr | 0.001 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_cat | 5e-4 | eligible; de novo enabled |
+| moraxella_catarrhalis | efflux_acrab_tolc | 0.01 | eligible; de novo enabled |
+| moraxella_catarrhalis | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| moraxella_catarrhalis | porin_loss_ompk35_36 | 0 | excluded host |
+| moraxella_catarrhalis | porin_loss_oprd | 0 | excluded host |
+| moraxella_catarrhalis | modification_mcr_1 | 5e-5 | eligible; de novo enabled |
+| moraxella_catarrhalis | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| moraxella_catarrhalis | global_efflux_pump | 0.01 | eligible; de novo enabled |
+| moraxella_catarrhalis | mutation_folate_pathway | 1 | eligible; de novo enabled |
+| moraxella_catarrhalis | mutation_nitroreductase | 5e-5 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_fos | 0 | excluded host |
+| moraxella_catarrhalis | mutation_mpr_f | 0 | excluded host |
+| moraxella_catarrhalis | mutation_liafsr_cls | 0 | excluded host |
+| moraxella_catarrhalis | mutation_rpo_b | 1e-4 | eligible; de novo enabled |
+| moraxella_catarrhalis | protection_fus_b | 0 | excluded host |
+| moraxella_catarrhalis | protection_tet_m | 1 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_aac_aph | 0 | eligible; HGT only |
+| moraxella_catarrhalis | enzyme_bla_z | 0 | excluded host |
+| moraxella_catarrhalis | enzyme_narrow_spectrum_gram_negative_penicillinase | 1 | eligible; de novo enabled |
+| moraxella_catarrhalis | enzyme_mph_a | 0 | excluded host |
+| moraxella_catarrhalis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| moraxella_catarrhalis | mutation_23s_rrna | 0 | eligible; no de novo or HGT |
+| moraxella_catarrhalis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| moraxella_catarrhalis | efflux_tet_abc | 0 | eligible; HGT only |
+| moraxella_catarrhalis | mutation_pbp_mosaic | 2e-11 | eligible; de novo enabled |
+| moraxella_catarrhalis | efflux_mtr_cde | 5e-10 | eligible; de novo enabled |
+| moraxella_catarrhalis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| moraxella_catarrhalis | mutation_siderophore_uptake | 0 | excluded host |
+| treponema_pallidum | enzyme_esbl_ctx_m | 0 | excluded host |
+| treponema_pallidum | enzyme_esbl_tem | 0 | excluded host |
+| treponema_pallidum | enzyme_esbl_shv | 0 | excluded host |
+| treponema_pallidum | enzyme_kpc | 0 | excluded host |
+| treponema_pallidum | enzyme_ndm_vim | 0 | excluded host |
+| treponema_pallidum | enzyme_oxa_48 | 0 | excluded host |
+| treponema_pallidum | enzyme_ampc_cmy | 0 | excluded host |
+| treponema_pallidum | enzyme_ampc_dha | 0 | excluded host |
+| treponema_pallidum | mutation_ampc_derepression | 0 | excluded host |
+| treponema_pallidum | target_site_pbp2a_meca | 0 | excluded host |
+| treponema_pallidum | target_site_van_a | 0 | excluded host |
+| treponema_pallidum | target_site_van_b | 0 | excluded host |
+| treponema_pallidum | mutation_gyra_primary | 0.001 | eligible; de novo enabled |
+| treponema_pallidum | mutation_gyra_parc_secondary | 0.001 | eligible; de novo enabled |
+| treponema_pallidum | protection_qnr | 0 | excluded host |
+| treponema_pallidum | enzyme_16s_rrmt | 0 | excluded host |
+| treponema_pallidum | target_site_erm_b | 0 | excluded host |
+| treponema_pallidum | target_site_cfr | 0 | excluded host |
+| treponema_pallidum | enzyme_cat | 0.005 | eligible; de novo enabled |
+| treponema_pallidum | efflux_acrab_tolc | 0 | excluded host |
+| treponema_pallidum | efflux_mexxy_oprm | 0 | excluded host |
+| treponema_pallidum | porin_loss_ompk35_36 | 0 | excluded host |
+| treponema_pallidum | porin_loss_oprd | 0 | excluded host |
+| treponema_pallidum | modification_mcr_1 | 0 | excluded host |
+| treponema_pallidum | mutation_polymyxin_regulatory | 0 | excluded host |
+| treponema_pallidum | global_efflux_pump | 0.001 | eligible; de novo enabled |
+| treponema_pallidum | mutation_folate_pathway | 0.001 | eligible; de novo enabled |
+| treponema_pallidum | mutation_nitroreductase | 0 | excluded host |
+| treponema_pallidum | enzyme_fos | 0 | excluded host |
+| treponema_pallidum | mutation_mpr_f | 0 | excluded host |
+| treponema_pallidum | mutation_liafsr_cls | 0 | excluded host |
+| treponema_pallidum | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| treponema_pallidum | protection_fus_b | 0 | excluded host |
+| treponema_pallidum | protection_tet_m | 5e-4 | eligible; de novo enabled |
+| treponema_pallidum | enzyme_aac_aph | 0 | excluded host |
+| treponema_pallidum | enzyme_bla_z | 0 | excluded host |
+| treponema_pallidum | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| treponema_pallidum | enzyme_mph_a | 0 | excluded host |
+| treponema_pallidum | enzyme_oxa_acinetobacter | 0 | excluded host |
+| treponema_pallidum | mutation_23s_rrna | 30 | excluded host |
+| treponema_pallidum | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| treponema_pallidum | efflux_tet_abc | 0 | excluded host |
+| treponema_pallidum | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| treponema_pallidum | efflux_mtr_cde | 0 | excluded host |
+| treponema_pallidum | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| treponema_pallidum | mutation_siderophore_uptake | 0 | excluded host |
+| bordetella_pertussis | enzyme_esbl_ctx_m | 3e-4 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_esbl_tem | 3e-4 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_esbl_shv | 3e-4 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_kpc | 0 | eligible; HGT only |
+| bordetella_pertussis | enzyme_ndm_vim | 0 | eligible; HGT only |
+| bordetella_pertussis | enzyme_oxa_48 | 0 | eligible; HGT only |
+| bordetella_pertussis | enzyme_ampc_cmy | 3e-4 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_ampc_dha | 3e-4 | eligible; de novo enabled |
+| bordetella_pertussis | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| bordetella_pertussis | target_site_pbp2a_meca | 0 | excluded host |
+| bordetella_pertussis | target_site_van_a | 0 | excluded host |
+| bordetella_pertussis | target_site_van_b | 0 | excluded host |
+| bordetella_pertussis | mutation_gyra_primary | 0.05 | eligible; de novo enabled |
+| bordetella_pertussis | mutation_gyra_parc_secondary | 0.05 | eligible; de novo enabled |
+| bordetella_pertussis | protection_qnr | 0 | eligible; HGT only |
+| bordetella_pertussis | enzyme_16s_rrmt | 30 | eligible; de novo enabled |
+| bordetella_pertussis | target_site_erm_b | 0 | eligible; HGT only |
+| bordetella_pertussis | target_site_cfr | 0.003 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_cat | 1e-5 | eligible; de novo enabled |
+| bordetella_pertussis | efflux_acrab_tolc | 0.008 | eligible; de novo enabled |
+| bordetella_pertussis | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| bordetella_pertussis | porin_loss_ompk35_36 | 0 | excluded host |
+| bordetella_pertussis | porin_loss_oprd | 0 | excluded host |
+| bordetella_pertussis | modification_mcr_1 | 0 | eligible; HGT only |
+| bordetella_pertussis | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| bordetella_pertussis | global_efflux_pump | 0.008 | eligible; de novo enabled |
+| bordetella_pertussis | mutation_folate_pathway | 30 | eligible; de novo enabled |
+| bordetella_pertussis | mutation_nitroreductase | 2e-4 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_fos | 0 | excluded host |
+| bordetella_pertussis | mutation_mpr_f | 0 | excluded host |
+| bordetella_pertussis | mutation_liafsr_cls | 0 | excluded host |
+| bordetella_pertussis | mutation_rpo_b | 0.007 | eligible; de novo enabled |
+| bordetella_pertussis | protection_fus_b | 0 | excluded host |
+| bordetella_pertussis | protection_tet_m | 2e-6 | eligible; de novo enabled |
+| bordetella_pertussis | enzyme_aac_aph | 0 | eligible; HGT only |
+| bordetella_pertussis | enzyme_bla_z | 0 | excluded host |
+| bordetella_pertussis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| bordetella_pertussis | enzyme_mph_a | 0 | excluded host |
+| bordetella_pertussis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| bordetella_pertussis | mutation_23s_rrna | 0.001 | eligible; de novo enabled |
+| bordetella_pertussis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| bordetella_pertussis | efflux_tet_abc | 0 | eligible; HGT only |
+| bordetella_pertussis | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| bordetella_pertussis | efflux_mtr_cde | 0.001 | eligible; de novo enabled |
+| bordetella_pertussis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| bordetella_pertussis | mutation_siderophore_uptake | 0 | excluded host |
+| helicobacter_pylori | enzyme_esbl_ctx_m | 0 | excluded host |
+| helicobacter_pylori | enzyme_esbl_tem | 0 | excluded host |
+| helicobacter_pylori | enzyme_esbl_shv | 0 | excluded host |
+| helicobacter_pylori | enzyme_kpc | 0 | excluded host |
+| helicobacter_pylori | enzyme_ndm_vim | 0 | excluded host |
+| helicobacter_pylori | enzyme_oxa_48 | 0 | excluded host |
+| helicobacter_pylori | enzyme_ampc_cmy | 0 | excluded host |
+| helicobacter_pylori | enzyme_ampc_dha | 0 | excluded host |
+| helicobacter_pylori | mutation_ampc_derepression | 0 | excluded host |
+| helicobacter_pylori | target_site_pbp2a_meca | 0 | excluded host |
+| helicobacter_pylori | target_site_van_a | 0 | excluded host |
+| helicobacter_pylori | target_site_van_b | 0 | excluded host |
+| helicobacter_pylori | mutation_gyra_primary | 30 | eligible; de novo enabled |
+| helicobacter_pylori | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| helicobacter_pylori | protection_qnr | 0 | excluded host |
+| helicobacter_pylori | enzyme_16s_rrmt | 0 | excluded host |
+| helicobacter_pylori | target_site_erm_b | 0 | excluded host |
+| helicobacter_pylori | target_site_cfr | 0 | excluded host |
+| helicobacter_pylori | enzyme_cat | 30 | eligible; de novo enabled |
+| helicobacter_pylori | efflux_acrab_tolc | 0 | excluded host |
+| helicobacter_pylori | efflux_mexxy_oprm | 0 | excluded host |
+| helicobacter_pylori | porin_loss_ompk35_36 | 0 | excluded host |
+| helicobacter_pylori | porin_loss_oprd | 0 | excluded host |
+| helicobacter_pylori | modification_mcr_1 | 0 | excluded host |
+| helicobacter_pylori | mutation_polymyxin_regulatory | 0 | excluded host |
+| helicobacter_pylori | global_efflux_pump | 30 | eligible; de novo enabled |
+| helicobacter_pylori | mutation_folate_pathway | 0.005 | eligible; de novo enabled |
+| helicobacter_pylori | mutation_nitroreductase | 30 | eligible; de novo enabled |
+| helicobacter_pylori | enzyme_fos | 0 | excluded host |
+| helicobacter_pylori | mutation_mpr_f | 0 | excluded host |
+| helicobacter_pylori | mutation_liafsr_cls | 0 | excluded host |
+| helicobacter_pylori | mutation_rpo_b | 0.05 | eligible; de novo enabled |
+| helicobacter_pylori | protection_fus_b | 0 | excluded host |
+| helicobacter_pylori | protection_tet_m | 0 | excluded host |
+| helicobacter_pylori | enzyme_aac_aph | 0 | excluded host |
+| helicobacter_pylori | enzyme_bla_z | 0 | excluded host |
+| helicobacter_pylori | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| helicobacter_pylori | enzyme_mph_a | 0 | excluded host |
+| helicobacter_pylori | enzyme_oxa_acinetobacter | 0 | excluded host |
+| helicobacter_pylori | mutation_23s_rrna | 30 | eligible; de novo enabled |
+| helicobacter_pylori | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| helicobacter_pylori | efflux_tet_abc | 0 | excluded host |
+| helicobacter_pylori | mutation_pbp_mosaic | 0.3 | eligible; de novo enabled |
+| helicobacter_pylori | efflux_mtr_cde | 0 | excluded host |
+| helicobacter_pylori | mutation_16s_rrna_tetracycline | 30 | eligible; de novo enabled |
+| helicobacter_pylori | mutation_siderophore_uptake | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_esbl_ctx_m | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_esbl_tem | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_esbl_shv | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_kpc | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_ndm_vim | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_oxa_48 | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_ampc_cmy | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_ampc_dha | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_ampc_derepression | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | target_site_pbp2a_meca | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | target_site_van_a | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | target_site_van_b | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_gyra_primary | 0 | eligible; no de novo or HGT |
+| mdr_mycobacterium_tuberculosis | mutation_gyra_parc_secondary | 0 | eligible; no de novo or HGT |
+| mdr_mycobacterium_tuberculosis | protection_qnr | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_16s_rrmt | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | target_site_erm_b | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | target_site_cfr | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_cat | 0 | eligible; HGT only |
+| mdr_mycobacterium_tuberculosis | efflux_acrab_tolc | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | efflux_mexxy_oprm | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | porin_loss_ompk35_36 | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | porin_loss_oprd | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | modification_mcr_1 | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_polymyxin_regulatory | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | global_efflux_pump | 0 | eligible; no de novo or HGT |
+| mdr_mycobacterium_tuberculosis | mutation_folate_pathway | 0 | eligible; HGT only |
+| mdr_mycobacterium_tuberculosis | mutation_nitroreductase | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_fos | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_mpr_f | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_liafsr_cls | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_rpo_b | 0 | eligible; no de novo or HGT |
+| mdr_mycobacterium_tuberculosis | protection_fus_b | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | protection_tet_m | 0 | eligible; HGT only |
+| mdr_mycobacterium_tuberculosis | enzyme_aac_aph | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_bla_z | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_mph_a | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | enzyme_oxa_acinetobacter | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_23s_rrna | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | efflux_tet_abc | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| mdr_mycobacterium_tuberculosis | efflux_mtr_cde | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| mdr_mycobacterium_tuberculosis | mutation_siderophore_uptake | 0 | excluded host |
+| mycoplasma_pneumoniae | enzyme_esbl_ctx_m | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_esbl_tem | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_esbl_shv | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_kpc | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_ndm_vim | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_oxa_48 | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_ampc_cmy | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_ampc_dha | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| mycoplasma_pneumoniae | target_site_pbp2a_meca | 0 | excluded host |
+| mycoplasma_pneumoniae | target_site_van_a | 0 | excluded host |
+| mycoplasma_pneumoniae | target_site_van_b | 0 | excluded host |
+| mycoplasma_pneumoniae | mutation_gyra_primary | 3e-8 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-8 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | protection_qnr | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_16s_rrmt | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | target_site_erm_b | 0.003 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | target_site_cfr | 3e-10 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | enzyme_cat | 3e-10 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| mycoplasma_pneumoniae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| mycoplasma_pneumoniae | porin_loss_ompk35_36 | 0 | excluded host |
+| mycoplasma_pneumoniae | porin_loss_oprd | 0 | excluded host |
+| mycoplasma_pneumoniae | modification_mcr_1 | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| mycoplasma_pneumoniae | global_efflux_pump | 1.5e-8 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | mutation_folate_pathway | 3e-10 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | mutation_nitroreductase | 3e-10 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | enzyme_fos | 0 | excluded host |
+| mycoplasma_pneumoniae | mutation_mpr_f | 0 | excluded host |
+| mycoplasma_pneumoniae | mutation_liafsr_cls | 0 | excluded host |
+| mycoplasma_pneumoniae | mutation_rpo_b | 3e-9 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | protection_fus_b | 0 | excluded host |
+| mycoplasma_pneumoniae | protection_tet_m | 3e-8 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | enzyme_aac_aph | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | enzyme_bla_z | 0 | excluded host |
+| mycoplasma_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| mycoplasma_pneumoniae | enzyme_mph_a | 0 | excluded host |
+| mycoplasma_pneumoniae | enzyme_oxa_acinetobacter | 0 | excluded host |
+| mycoplasma_pneumoniae | mutation_23s_rrna | 0.003 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| mycoplasma_pneumoniae | efflux_tet_abc | 0 | eligible; HGT only |
+| mycoplasma_pneumoniae | mutation_pbp_mosaic | 1e-4 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
+| mycoplasma_pneumoniae | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| mycoplasma_pneumoniae | mutation_siderophore_uptake | 0 | excluded host |
+| legionella_pneumophila | enzyme_esbl_ctx_m | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_esbl_tem | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_esbl_shv | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_kpc | 0 | eligible; HGT only |
+| legionella_pneumophila | enzyme_ndm_vim | 0 | eligible; HGT only |
+| legionella_pneumophila | enzyme_oxa_48 | 0 | eligible; HGT only |
+| legionella_pneumophila | enzyme_ampc_cmy | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_ampc_dha | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| legionella_pneumophila | target_site_pbp2a_meca | 0 | excluded host |
+| legionella_pneumophila | target_site_van_a | 0 | excluded host |
+| legionella_pneumophila | target_site_van_b | 0 | excluded host |
+| legionella_pneumophila | mutation_gyra_primary | 3e-6 | eligible; de novo enabled |
+| legionella_pneumophila | mutation_gyra_parc_secondary | 3e-6 | eligible; de novo enabled |
+| legionella_pneumophila | protection_qnr | 1e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_16s_rrmt | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | target_site_erm_b | 3e-6 | eligible; de novo enabled |
+| legionella_pneumophila | target_site_cfr | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_cat | 3e-7 | eligible; de novo enabled |
+| legionella_pneumophila | efflux_acrab_tolc | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| legionella_pneumophila | porin_loss_ompk35_36 | 0 | excluded host |
+| legionella_pneumophila | porin_loss_oprd | 0 | excluded host |
+| legionella_pneumophila | modification_mcr_1 | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| legionella_pneumophila | global_efflux_pump | 3e-6 | eligible; de novo enabled |
+| legionella_pneumophila | mutation_folate_pathway | 3e-7 | eligible; de novo enabled |
+| legionella_pneumophila | mutation_nitroreductase | 3e-8 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_fos | 0 | excluded host |
+| legionella_pneumophila | mutation_mpr_f | 0 | excluded host |
+| legionella_pneumophila | mutation_liafsr_cls | 0 | excluded host |
+| legionella_pneumophila | mutation_rpo_b | 3e-7 | eligible; de novo enabled |
+| legionella_pneumophila | protection_fus_b | 0 | excluded host |
+| legionella_pneumophila | protection_tet_m | 3e-6 | eligible; de novo enabled |
+| legionella_pneumophila | enzyme_aac_aph | 0 | eligible; HGT only |
+| legionella_pneumophila | enzyme_bla_z | 0 | excluded host |
+| legionella_pneumophila | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| legionella_pneumophila | enzyme_mph_a | 0 | excluded host |
+| legionella_pneumophila | enzyme_oxa_acinetobacter | 0 | excluded host |
+| legionella_pneumophila | mutation_23s_rrna | 5e-12 | eligible; de novo enabled |
+| legionella_pneumophila | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| legionella_pneumophila | efflux_tet_abc | 0 | eligible; HGT only |
+| legionella_pneumophila | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| legionella_pneumophila | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
+| legionella_pneumophila | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| legionella_pneumophila | mutation_siderophore_uptake | 0 | excluded host |
+| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_kpc | 6e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ndm_vim | 6e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_oxa_48 | 6e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ampc_cmy | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ampc_dha | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
+| burkholderia_cepacia_complex | target_site_pbp2a_meca | 0 | excluded host |
+| burkholderia_cepacia_complex | target_site_van_a | 0 | excluded host |
+| burkholderia_cepacia_complex | target_site_van_b | 0 | excluded host |
+| burkholderia_cepacia_complex | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 0.9 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | protection_qnr | 0.9 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_16s_rrmt | 10 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | target_site_erm_b | 0 | excluded host |
+| burkholderia_cepacia_complex | target_site_cfr | 0 | excluded host |
+| burkholderia_cepacia_complex | enzyme_cat | 0.001 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
+| burkholderia_cepacia_complex | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
+| burkholderia_cepacia_complex | porin_loss_ompk35_36 | 0 | excluded host |
+| burkholderia_cepacia_complex | porin_loss_oprd | 0 | excluded host |
+| burkholderia_cepacia_complex | modification_mcr_1 | 0.03 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
+| burkholderia_cepacia_complex | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_folate_pathway | 0.02 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_nitroreductase | 0 | excluded host |
+| burkholderia_cepacia_complex | enzyme_fos | 0.03 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_mpr_f | 0 | excluded host |
+| burkholderia_cepacia_complex | mutation_liafsr_cls | 0 | excluded host |
+| burkholderia_cepacia_complex | mutation_rpo_b | 0.01 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | protection_fus_b | 0 | excluded host |
+| burkholderia_cepacia_complex | protection_tet_m | 1e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_aac_aph | 10 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_bla_z | 0 | excluded host |
+| burkholderia_cepacia_complex | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
+| burkholderia_cepacia_complex | enzyme_mph_a | 0 | excluded host |
+| burkholderia_cepacia_complex | enzyme_oxa_acinetobacter | 0 | eligible; HGT only |
+| burkholderia_cepacia_complex | mutation_23s_rrna | 0 | excluded host |
+| burkholderia_cepacia_complex | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
+| burkholderia_cepacia_complex | efflux_tet_abc | 1e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
+| burkholderia_cepacia_complex | efflux_mtr_cde | 0 | excluded host |
+| burkholderia_cepacia_complex | mutation_16s_rrna_tetracycline | 0 | excluded host |
+| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+
+#### Environmental and Exogenous Mechanism Floors
+
+All unspecified bacteria–mechanism floors resolve to 0. The table lists every explicit base or `_before_YYYY` override, including explicit zeroes that mark the start of an era sequence.
+
+| Parameter | Assignment probability |
+| --- | ---: |
+| bacteria_campylobacter_jejuni_mechanism_enzyme_cat_environmental_floor | 0.06 |
+| bacteria_campylobacter_jejuni_mechanism_enzyme_cat_environmental_floor_before_1970 | 0 |
+| bacteria_campylobacter_jejuni_mechanism_enzyme_cat_environmental_floor_before_1990 | 0.03 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_23s_rrna_environmental_floor | 0.08 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_23s_rrna_environmental_floor_before_1980 | 0 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_23s_rrna_environmental_floor_before_2000 | 0.03 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_environmental_floor | 0.55 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_environmental_floor_before_1963 | 0 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_environmental_floor_before_1987 | 0.01 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_environmental_floor_before_1995 | 0.12 |
+| bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_environmental_floor_before_2005 | 0.35 |
+| bacteria_campylobacter_jejuni_mechanism_protection_tet_m_environmental_floor | 0.5 |
+| bacteria_campylobacter_jejuni_mechanism_protection_tet_m_environmental_floor_before_1955 | 0 |
+| bacteria_campylobacter_jejuni_mechanism_protection_tet_m_environmental_floor_before_1970 | 0.06 |
+| bacteria_campylobacter_jejuni_mechanism_protection_tet_m_environmental_floor_before_1990 | 0.3 |
+| bacteria_citrobacter_spp._mechanism_mutation_rpo_b_environmental_floor | 0.08 |
+| bacteria_citrobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_citrobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.02 |
+| bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.03 |
+| bacteria_enterobacter_spp._mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_enterobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_enterobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.03 |
+| bacteria_escherichia_coli_mechanism_efflux_tet_abc_environmental_floor | 0.35 |
+| bacteria_escherichia_coli_mechanism_efflux_tet_abc_environmental_floor_before_1955 | 0 |
+| bacteria_escherichia_coli_mechanism_efflux_tet_abc_environmental_floor_before_1970 | 0.05 |
+| bacteria_escherichia_coli_mechanism_efflux_tet_abc_environmental_floor_before_1990 | 0.17 |
+| bacteria_escherichia_coli_mechanism_enzyme_aac_aph_environmental_floor | 0.12 |
+| bacteria_escherichia_coli_mechanism_enzyme_aac_aph_environmental_floor_before_1960 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_aac_aph_environmental_floor_before_1975 | 0.01 |
+| bacteria_escherichia_coli_mechanism_enzyme_aac_aph_environmental_floor_before_1995 | 0.06 |
+| bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_environmental_floor | 0.06 |
+| bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_environmental_floor_before_1990 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_environmental_floor_before_2005 | 0.02 |
+| bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_environmental_floor | 0.03 |
+| bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_environmental_floor_before_1990 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_environmental_floor_before_2000 | 0.01 |
+| bacteria_escherichia_coli_mechanism_enzyme_cat_environmental_floor | 0.1 |
+| bacteria_escherichia_coli_mechanism_enzyme_cat_environmental_floor_before_1950 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_cat_environmental_floor_before_1970 | 0.02 |
+| bacteria_escherichia_coli_mechanism_enzyme_cat_environmental_floor_before_1990 | 0.06 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_environmental_floor | 0.12 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_environmental_floor_before_1985 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_environmental_floor_before_2000 | 0.01 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_environmental_floor_before_2010 | 0.05 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_environmental_floor | 0.05 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_environmental_floor_before_1985 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_environmental_floor_before_2000 | 0.02 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_environmental_floor | 0.08 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_environmental_floor_before_1985 | 0 |
+| bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_environmental_floor_before_2000 | 0.03 |
+| bacteria_escherichia_coli_mechanism_modification_mcr_1_environmental_floor | 0.05 |
+| bacteria_escherichia_coli_mechanism_modification_mcr_1_environmental_floor_before_2012 | 0 |
+| bacteria_escherichia_coli_mechanism_modification_mcr_1_environmental_floor_before_2016 | 0.01 |
+| bacteria_escherichia_coli_mechanism_mutation_folate_pathway_environmental_floor | 0.25 |
+| bacteria_escherichia_coli_mechanism_mutation_folate_pathway_environmental_floor_before_1945 | 0 |
+| bacteria_escherichia_coli_mechanism_mutation_folate_pathway_environmental_floor_before_1965 | 0.04 |
+| bacteria_escherichia_coli_mechanism_mutation_folate_pathway_environmental_floor_before_1985 | 0.14 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_environmental_floor | 0.1 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_environmental_floor_before_1987 | 0 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_environmental_floor_before_1995 | 0.01 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_environmental_floor_before_2005 | 0.04 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_primary_environmental_floor | 0.35 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_primary_environmental_floor_before_1963 | 0 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_primary_environmental_floor_before_1987 | 0.01 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_primary_environmental_floor_before_1995 | 0.08 |
+| bacteria_escherichia_coli_mechanism_mutation_gyra_primary_environmental_floor_before_2005 | 0.2 |
+| bacteria_escherichia_coli_mechanism_mutation_rpo_b_environmental_floor | 0.08 |
+| bacteria_escherichia_coli_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_escherichia_coli_mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.03 |
+| bacteria_escherichia_coli_mechanism_protection_tet_m_environmental_floor | 0.5 |
+| bacteria_escherichia_coli_mechanism_protection_tet_m_environmental_floor_before_1955 | 0 |
+| bacteria_escherichia_coli_mechanism_protection_tet_m_environmental_floor_before_1970 | 0.08 |
+| bacteria_escherichia_coli_mechanism_protection_tet_m_environmental_floor_before_1990 | 0.28 |
+| bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_environmental_floor | 0.05 |
+| bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_environmental_floor | 0.18 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_environmental_floor_before_1960 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_environmental_floor_before_1975 | 0.02 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_environmental_floor_before_1995 | 0.08 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_environmental_floor | 0.12 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_environmental_floor_before_1950 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_environmental_floor_before_1970 | 0.02 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_environmental_floor_before_1990 | 0.08 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_environmental_floor | 0.05 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_environmental_floor_before_2000 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_environmental_floor_before_2010 | 0.01 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_environmental_floor | 0.22 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_environmental_floor_before_1945 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_environmental_floor_before_1965 | 0.02 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_environmental_floor_before_1990 | 0.1 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_environmental_floor | 0.2 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_1963 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_1993 | 0.02 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_2005 | 0.1 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.02 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_environmental_floor | 0.25 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_environmental_floor_before_1955 | 0 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_environmental_floor_before_1970 | 0.03 |
+| bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_environmental_floor_before_1990 | 0.12 |
+| bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.03 |
+| bacteria_listeria_monocytogenes_mechanism_mutation_rpo_b_environmental_floor | 0.04 |
+| bacteria_listeria_monocytogenes_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_environmental_floor | 0.04 |
+| bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_morganella_spp._mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_morganella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_morganella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.02 |
+| bacteria_proteus_spp._mechanism_mutation_rpo_b_environmental_floor | 0.08 |
+| bacteria_proteus_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_proteus_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.02 |
+| bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.02 |
+| bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.02 |
+| bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor | 0.1 |
+| bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.03 |
+| bacteria_shigella_spp._mechanism_efflux_tet_abc_environmental_floor | 0.22 |
+| bacteria_shigella_spp._mechanism_efflux_tet_abc_environmental_floor_before_1955 | 0 |
+| bacteria_shigella_spp._mechanism_efflux_tet_abc_environmental_floor_before_1975 | 0.06 |
+| bacteria_shigella_spp._mechanism_efflux_tet_abc_environmental_floor_before_1995 | 0.15 |
+| bacteria_shigella_spp._mechanism_enzyme_aac_aph_environmental_floor | 0.22 |
+| bacteria_shigella_spp._mechanism_enzyme_aac_aph_environmental_floor_before_1943 | 0 |
+| bacteria_shigella_spp._mechanism_enzyme_aac_aph_environmental_floor_before_1975 | 0.04 |
+| bacteria_shigella_spp._mechanism_enzyme_aac_aph_environmental_floor_before_1995 | 0.14 |
+| bacteria_shigella_spp._mechanism_enzyme_cat_environmental_floor | 0.28 |
+| bacteria_shigella_spp._mechanism_enzyme_cat_environmental_floor_before_1950 | 0 |
+| bacteria_shigella_spp._mechanism_enzyme_cat_environmental_floor_before_1975 | 0.08 |
+| bacteria_shigella_spp._mechanism_enzyme_cat_environmental_floor_before_1995 | 0.2 |
+| bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor | 0.22 |
+| bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor_before_1991 | 0 |
+| bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor_before_2005 | 0.02 |
+| bacteria_shigella_spp._mechanism_enzyme_mph_a_environmental_floor_before_2015 | 0.1 |
+| bacteria_shigella_spp._mechanism_mutation_folate_pathway_environmental_floor | 0.26 |
+| bacteria_shigella_spp._mechanism_mutation_folate_pathway_environmental_floor_before_1938 | 0 |
+| bacteria_shigella_spp._mechanism_mutation_folate_pathway_environmental_floor_before_1975 | 0.08 |
+| bacteria_shigella_spp._mechanism_mutation_folate_pathway_environmental_floor_before_1995 | 0.18 |
+| bacteria_shigella_spp._mechanism_mutation_gyra_primary_environmental_floor | 0.45 |
+| bacteria_shigella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_1963 | 0 |
+| bacteria_shigella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_1990 | 0.02 |
+| bacteria_shigella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_2000 | 0.1 |
+| bacteria_shigella_spp._mechanism_mutation_gyra_primary_environmental_floor_before_2010 | 0.3 |
+| bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_environmental_floor | 0.16 |
+| bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_environmental_floor_before_1945 | 0 |
+| bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_environmental_floor_before_1990 | 0.01 |
+| bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_environmental_floor_before_2010 | 0.06 |
+| bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor | 0.12 |
+| bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985 | 0.04 |
+| bacteria_shigella_spp._mechanism_protection_tet_m_environmental_floor | 0.22 |
+| bacteria_shigella_spp._mechanism_protection_tet_m_environmental_floor_before_1955 | 0 |
+| bacteria_shigella_spp._mechanism_protection_tet_m_environmental_floor_before_1975 | 0.06 |
+| bacteria_shigella_spp._mechanism_protection_tet_m_environmental_floor_before_1995 | 0.15 |
+| bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor | 0.06 |
+| bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1975 | 0.01 |
+| bacteria_vibrio_cholerae_mechanism_mutation_rpo_b_environmental_floor | 0.04 |
+| bacteria_vibrio_cholerae_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
+| bacteria_yersinia_enterocolitica_mechanism_mutation_rpo_b_environmental_floor | 0.04 |
+| bacteria_yersinia_enterocolitica_mechanism_mutation_rpo_b_environmental_floor_before_1968 | 0 |
 
 ### B.11 Horizontal Gene Transfer Matrix
 

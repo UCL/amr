@@ -6831,6 +6831,10 @@ lazy_static! {
         // VERY SLOW PROGRESSORS (chronic infections)
         map.insert("helicobacter_pylori_base_bacteria_level_change".to_string(), 0.2);          // Chronic colonizer, years to decades
 
+
+
+        // ^^^^ drug selection
+
         // Bacterium-drug initiation multipliers modify identified-pathogen
         // treatment scores. Larger values make a drug more likely to be chosen.
 
@@ -6929,12 +6933,6 @@ lazy_static! {
         map.insert(format!("drug_{}_for_bacteria_mycoplasma_pneumoniae_initiation_multiplier", drug), 0.001);
         map.insert(format!("drug_{}_for_bacteria_legionella_pneumophila_initiation_multiplier", drug), 0.001);
         }
-
-        // Macrolides should not be used for Enterococcus (no macrolide activity; zero potency)
-        map.insert("drug_erythromycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 0.01);
-        map.insert("drug_erythromycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 0.01);
-        map.insert("drug_azithromycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 0.01);
-        map.insert("drug_azithromycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 0.01);
 
         // MDR-TB burden progression.
         map.insert("mdr_mycobacterium_tuberculosis_base_bacteria_level_change".to_string(), 0.15); // Very slow replication and chronic progression
@@ -7464,8 +7462,8 @@ lazy_static! {
         map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.15);
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.8);
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -16.2);
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.7);
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -15.1);
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.6);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
@@ -7527,8 +7525,8 @@ lazy_static! {
         map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
         map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
         map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.45); // 0.30 Human and environmental reservoirs
-        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.35); // Human gut and environmental reservoirs
-        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.40); // Human gut and environmental reservoirs
+        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.80); // Human gut and environmental reservoirs
+        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.80); // Human gut and environmental reservoirs
         map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.50); // 0.25 Human skin and healthcare reservoirs
 
         // Endogenous flora and high-carriage human commensals.
@@ -7581,8 +7579,8 @@ lazy_static! {
     map.insert("shigella_spp._hospital_resistance_prune_susceptible_percent".to_string(), 25.0);
     // Moderate prune tier: organisms with real hospital enrichment, but substantial community ecology.
     map.insert("staphylococcus_aureus_hospital_resistance_prune_susceptible_percent".to_string(), 65.0);
-    map.insert("enterococcus_faecium_hospital_resistance_prune_susceptible_percent".to_string(), 65.0);
-    map.insert("enterococcus_faecalis_hospital_resistance_prune_susceptible_percent".to_string(), 55.0);
+    map.insert("enterococcus_faecium_hospital_resistance_prune_susceptible_percent".to_string(), 75.0);
+    map.insert("enterococcus_faecalis_hospital_resistance_prune_susceptible_percent".to_string(), 75.0);
     map.insert("clostridioides_difficile_hospital_resistance_prune_susceptible_percent".to_string(), 55.0);
 
     // Community mechanism-reversion multipliers. Outside hospital, this factor
@@ -7590,7 +7588,7 @@ lazy_static! {
     // is not under selection by an active drug. The hospital factor is 1.0.
     map.insert("acinetobacter_baumannii_community_mechanism_reversion_multiplier".to_string(),   3.0); // 200
     map.insert("stenotrophomonas_maltophilia_community_mechanism_reversion_multiplier".to_string(),   3.0); // 200
-    map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(),   3.0); // 200
+    map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(),   1.5); // 200
     // A value below 1 slows community reversion for N. gonorrhoeae.
     map.insert("neisseria_gonorrhoeae_community_mechanism_reversion_multiplier".to_string(), 0.01);
 
@@ -7611,17 +7609,17 @@ lazy_static! {
         map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 5.0);
         map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 5.2);
         map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 6.8);
-        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 5.1);
+        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 5.3);
         map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 5.0);
         map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 4.6);
         map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 5.0);
         map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 4.4);
-        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 4.3);
+        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 5.3);
 
         // Moderate hospital-acquisition effects.
         map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 4.5);
         map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 4.0);
-        map.insert("bacteroides_fragilis_log_odds_hospital_acquired".to_string(), 4.5);
+        map.insert("bacteroides_fragilis_log_odds_hospital_acquired".to_string(), 5.0);
 
         // Lower hospital-acquisition effects.
         map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 3.5);
@@ -7923,8 +7921,8 @@ lazy_static! {
 
     // Bacteria-specific microbiome clearance probabilities (per day)
     map.insert("escherichia_coli_microbiome_clearance_probability_per_day".to_string(), 0.005); // Persistent gut commensal; years-long colonization
-    map.insert("enterococcus_faecalis_microbiome_clearance_probability_per_day".to_string(), 0.008); // Persistent gut flora; rarely cleared
-    map.insert("enterococcus_faecium_microbiome_clearance_probability_per_day".to_string(), 0.06);
+    map.insert("enterococcus_faecalis_microbiome_clearance_probability_per_day".to_string(), 0.003); // Persistent gut flora; rarely cleared
+    map.insert("enterococcus_faecium_microbiome_clearance_probability_per_day".to_string(), 0.008);
     map.insert("klebsiella_pneumoniae_microbiome_clearance_probability_per_day".to_string(), 0.03);
     map.insert("staphylococcus_aureus_microbiome_clearance_probability_per_day".to_string(), 0.05); // Nasal carriage persists weeks-months
     map.insert("enterobacter_spp._microbiome_clearance_probability_per_day".to_string(), 0.07);
@@ -9599,7 +9597,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   1.0            ); // classes: glyc and lipoglyc
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   1.0           ); // classes: glyc
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   30.0           ); // classes: macrolides and lincosamides
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(), 10.0               ); // classes: oxa, lin, chl, pleuro
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(), 30.0               ); // classes: oxa, lin, chl, pleuro
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   30.0       ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   30.0            ) ; // classes: fq
         map.insert("bacteria_enterococcus_faecium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0

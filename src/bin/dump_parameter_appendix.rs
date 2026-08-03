@@ -1,12 +1,14 @@
 /// Generates the Appendix B markdown for MODEL_DESCRIPTION.md.
 ///
-/// Prints structured, thematically organized parameter tables derived from the
+/// Prints structured, thematically organised parameter tables derived from the
 /// live Rust configuration as resolved Markdown tables.
 use amr_project::config::{
-    get_drug_class, get_drug_introduction_time_step, PARAMETERS, PARAMETER_STORE,
+    get_drug_class, get_drug_introduction_time_step, BacteriumMechanismStatus, PARAMETERS,
+    PARAMETER_STORE,
 };
 use amr_project::simulation::population::{
-    DrugClass, Region, ResistanceMechanism, AGE_CATEGORY_SEQUENCE, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    bacterium_has_separate_microbiome_compartment, DrugClass, Region, ResistanceMechanism,
+    AGE_CATEGORY_SEQUENCE, BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 
 const REGION_NAMES: [&str; 6] = [
@@ -65,6 +67,42 @@ fn format_value(v: f64) -> String {
     }
 }
 
+fn bool_value(value: bool) -> f64 {
+    if value {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+fn mechanism_status_label(status: BacteriumMechanismStatus) -> &'static str {
+    match status {
+        BacteriumMechanismStatus::ExcludedHost => "excluded host",
+        BacteriumMechanismStatus::EligibleNoDeNovo => "eligible; no de novo or HGT",
+        BacteriumMechanismStatus::HgtOnly => "eligible; HGT only",
+        BacteriumMechanismStatus::DeNovo => "eligible; de novo enabled",
+    }
+}
+
+fn configured_value(key: &str, fallback: f64) -> f64 {
+    PARAMETERS.get(key).copied().unwrap_or(fallback)
+}
+
+fn configured_rows_matching<F>(predicate: F) -> Vec<Vec<String>>
+where
+    F: Fn(&str) -> bool,
+{
+    let mut entries: Vec<(&String, &f64)> = PARAMETERS
+        .iter()
+        .filter(|(key, _)| predicate(key))
+        .collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    entries
+        .into_iter()
+        .map(|(key, value)| vec![key.clone(), format_value(*value)])
+        .collect()
+}
+
 /// Print a Markdown table from a header row and data rows.
 fn md_table(headers: &[&str], rows: &[Vec<String>]) {
     // Header
@@ -117,10 +155,13 @@ fn print_heading() {
     println!();
     println!(
         "This appendix is auto-generated from the live Rust configuration. \
-              Parameters are organized thematically into resolved tables \
+              Parameters are organised thematically into resolved tables \
               derived from the internal data structures. All values shown are \
               the effective defaults before any run-level pathway sensitivity \
-              multipliers are applied."
+              multipliers are applied. Where a family has a uniform fallback, the fallback \
+              is stated and only explicit exceptions are listed. Dynamically parsed era \
+              overrides and environmental floors are included. Raw compatibility keys that \
+              are loaded nowhere in the executable rules are intentionally excluded."
     );
     println!();
 }
@@ -244,6 +285,10 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         "Treatment Failure and Restart",
         &[
             (
+                "treatment_failure_enabled",
+                bool_value(g.treatment_failure_enabled),
+            ),
+            (
                 "treatment_failure_assessment_day",
                 g.treatment_failure_assessment_day as f64,
             ),
@@ -252,17 +297,25 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
                 "drug_failure_memory_days",
                 g.drug_failure_memory_days as f64,
             ),
+            (
+                "restart_window_enabled",
+                bool_value(g.restart_window_enabled),
+            ),
             ("restart_window_days", g.restart_window_days as f64),
             (
                 "restart_bacteria_level_threshold",
                 g.restart_bacteria_level_threshold,
             ),
             ("restart_window_probability", g.restart_window_probability),
+            (
+                "drug_evaluation_days_post_infection",
+                g.drug_evaluation_days_post_infection as f64,
+            ),
         ],
     );
 
     print_scalar_group(
-        "Hospitalization",
+        "Hospitalisation",
         &[
             (
                 "hospitalization_base_log_odds",
@@ -327,6 +380,26 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
             (
                 "community_profile_cache_retention",
                 g.community_profile_cache_retention,
+            ),
+            (
+                "hospital_profile_cache_retention",
+                g.hospital_profile_cache_retention,
+            ),
+            (
+                "local_mechanism_persistence_enabled",
+                bool_value(g.local_mechanism_persistence_enabled),
+            ),
+            (
+                "local_mechanism_persistence_virtual_profile_mass",
+                g.local_mechanism_persistence_virtual_profile_mass,
+            ),
+            (
+                "local_mechanism_persistence_max_sampling_probability",
+                g.local_mechanism_persistence_max_sampling_probability,
+            ),
+            (
+                "debug_seed_hospital_cache_resistant_profiles",
+                bool_value(g.debug_seed_hospital_cache_resistant_profiles),
             ),
         ],
     );
@@ -751,6 +824,163 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
             ),
         ],
     );
+
+    print_scalar_group(
+        "Gonorrhoea Acquisition Era Multipliers",
+        &[
+            (
+                "neisseria_gonorrhoeae_pre_1980_acquisition_multiplier",
+                g.neisseria_gonorrhoeae_pre_1980_acquisition_multiplier,
+            ),
+            (
+                "neisseria_gonorrhoeae_pre_2000_acquisition_multiplier",
+                g.neisseria_gonorrhoeae_pre_2000_acquisition_multiplier,
+            ),
+            (
+                "neisseria_gonorrhoeae_modern_acquisition_multiplier",
+                g.neisseria_gonorrhoeae_modern_acquisition_multiplier,
+            ),
+        ],
+    );
+
+    print_scalar_group(
+        "Diagnostic Testing",
+        &[
+            (
+                "bacterial_testing_available_from_day",
+                configured_value("bacterial_testing_available_from_day", 5478.0),
+            ),
+            (
+                "resistance_testing_available_from_day",
+                configured_value("resistance_testing_available_from_day", 9131.0),
+            ),
+            ("test_delay_days", configured_value("test_delay_days", 3.0)),
+            (
+                "resistance_test_result_delay_days",
+                configured_value("resistance_test_result_delay_days", 2.0),
+            ),
+            (
+                "test_r_error_probability",
+                configured_value("test_r_error_probability", 0.02),
+            ),
+            (
+                "test_r_error_value",
+                configured_value("test_r_error_value", 0.25),
+            ),
+            (
+                "bacterial_testing_base_rate_per_day",
+                configured_value("bacterial_testing_base_rate_per_day", 0.15),
+            ),
+            (
+                "bacterial_testing_initial_adoption_rate",
+                configured_value("bacterial_testing_initial_adoption_rate", 0.1),
+            ),
+            (
+                "bacterial_testing_max_temporal_multiplier",
+                configured_value("bacterial_testing_max_temporal_multiplier", 1.0),
+            ),
+            (
+                "bacterial_testing_hospital_multiplier",
+                configured_value("bacterial_testing_hospital_multiplier", 8.0),
+            ),
+            (
+                "resistance_testing_base_rate_per_day",
+                configured_value("resistance_testing_base_rate_per_day", 0.95),
+            ),
+            (
+                "resistance_testing_initial_adoption_rate",
+                configured_value("resistance_testing_initial_adoption_rate", 0.05),
+            ),
+            (
+                "resistance_testing_max_temporal_multiplier",
+                configured_value("resistance_testing_max_temporal_multiplier", 1.0),
+            ),
+            (
+                "resistance_testing_hospital_multiplier",
+                configured_value("resistance_testing_hospital_multiplier", 5.0),
+            ),
+            (
+                "testing_immunosuppressed_multiplier",
+                configured_value("testing_immunosuppressed_multiplier", 2.5),
+            ),
+            (
+                "testing_sepsis_multiplier",
+                configured_value("testing_sepsis_multiplier", 4.0),
+            ),
+        ],
+    );
+
+    print_scalar_group(
+        "Additional Resistance and Treatment Controls",
+        &[
+            (
+                "microbiome_majority_threshold",
+                configured_value("microbiome_majority_threshold", 0.1),
+            ),
+            (
+                "majority_r_evolution_rate_per_day_when_drug_present",
+                configured_value("majority_r_evolution_rate_per_day_when_drug_present", 0.0),
+            ),
+            (
+                "microbiome_clearance_probability_on_drug_treatment",
+                configured_value("microbiome_clearance_probability_on_drug_treatment", 0.8),
+            ),
+            (
+                "mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold",
+                configured_value(
+                    "mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold",
+                    2.0,
+                ),
+            ),
+            (
+                "mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier",
+                configured_value(
+                    "mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier",
+                    2.5,
+                ),
+            ),
+            (
+                "mdr_mycobacterium_tuberculosis_background_drug_effectiveness",
+                configured_value(
+                    "mdr_mycobacterium_tuberculosis_background_drug_effectiveness",
+                    0.8,
+                ),
+            ),
+            (
+                "mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance",
+                configured_value(
+                    "mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance",
+                    0.9,
+                ),
+            ),
+        ],
+    );
+
+    print_scalar_group(
+        "Run-Level Resistance Pathway Controls",
+        &[
+            (
+                "run_pathway_infection_de_novo_multiplier",
+                configured_value("run_pathway_infection_de_novo_multiplier", 1.0),
+            ),
+            (
+                "run_pathway_reversion_rate_multiplier",
+                configured_value("run_pathway_reversion_rate_multiplier", 1.0),
+            ),
+            (
+                "run_pathway_hgt_multiplier",
+                configured_value("run_pathway_hgt_multiplier", 1.0),
+            ),
+            (
+                "run_pathway_microbiome_acquisition_multiplier",
+                configured_value("run_pathway_microbiome_acquisition_multiplier", 1.0),
+            ),
+            (
+                "run_pathway_ratchet_enabled",
+                configured_value("run_pathway_ratchet_enabled", 1.0),
+            ),
+        ],
+    );
 }
 
 fn print_scalar_group(title: &str, items: &[(&str, f64)]) {
@@ -819,6 +1049,30 @@ fn print_drug_properties(store: &amr_project::config::ParameterStore) {
         ]);
     }
     md_table(headers, &rows);
+
+    println!("#### Non-Default Regional Drug Availability");
+    println!();
+    println!(
+        "Regional availability defaults to 1.0. Only configured values that differ from that \
+              default are shown. The separate time-aware availability rules described in \
+              Section 6.6 are implementation rules rather than entries in this table."
+    );
+    println!();
+    let mut rows = Vec::new();
+    for region in REGION_NAMES {
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let key = format!("{}_drug_{}_availability", region, drug);
+            let value = configured_value(&key, 1.0);
+            if (value - 1.0).abs() > 1e-12 {
+                rows.push(vec![
+                    region.to_string(),
+                    drug.to_string(),
+                    format_value(value),
+                ]);
+            }
+        }
+    }
+    md_table(&["Region", "Drug", "Availability multiplier"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -840,47 +1094,121 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
               [§3.1 Community acquisition](#31-community-acquisition), \
               [§4.2 Infection dynamics](#42-infection-dynamics), \
               [§4.3 Sepsis](#43-sepsis), \
-              [§4.4 Natural clearance](#44-natural-clearance), \
+              [§4.4 Natural clearance and microbiome dynamics](#44-natural-clearance-and-microbiome-dynamics), \
               [§8.1 Carriage compartments](#81-carriage-compartments)."
     );
     println!();
 
+    println!("#### Acquisition, Growth, and Carriage");
+    println!();
     let headers = &[
         "Bacteria",
         "Acq log-odds",
+        "Vaccinated log-odds",
+        "Carriage-present log-odds",
+        "Hospital-acquired log-odds",
         "Init level",
-        "Δ level/day",
+        "Delta level/day",
         "Max level",
-        "Microb clr/day",
-        "Microb vs inf",
-        "Drug cess prob",
-        "Sx threshold",
-        "Sx delay (d)",
-        "Sepsis log-odds",
-        "Mech-less rev rate",
-        "Comm dilution",
-        "Hosp prune %",
+        "Carriage clearance/day",
+        "Carriage vs infection log-odds",
+        "Separate carriage state",
     ];
     let mut rows = Vec::new();
     for (idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         rows.push(vec![
             bacteria.to_string(),
             format_value(b.acquisition_log_odds_baseline[idx]),
+            format_value(b.log_odds_vaccinated[idx]),
+            format_value(b.log_odds_microbiome_present[idx]),
+            format_value(b.log_odds_hospital_acquired[idx]),
             format_value(b.initial_infection_level[idx]),
             format_value(b.base_bacteria_level_change[idx]),
             format_value(b.max_level[idx]),
             format_value(b.microbiome_clearance_probability_per_day[idx]),
             format_value(b.microbiome_vs_infection_log_odds[idx]),
-            format_value(b.drug_cessation_probability[idx]),
-            format_value(b.symptom_onset_threshold_level[idx]),
-            format_value(b.symptom_onset_delay_days[idx]),
-            format_value(b.sepsis_baseline_log_odds[idx]),
-            format_value(b.mechanismless_resistance_reversion_rate[idx]),
-            format_value(b.community_resistance_dilution_factor[idx]),
-            format_value(b.hospital_resistance_prune_susceptible_percent[idx]),
+            if bacterium_has_separate_microbiome_compartment(idx) {
+                "yes".to_string()
+            } else {
+                "no".to_string()
+            },
         ]);
     }
     md_table(headers, &rows);
+
+    println!("#### Symptoms and Treatment Tracking");
+    println!();
+    let headers = &[
+        "Bacteria",
+        "Symptom base log-odds",
+        "Symptom threshold",
+        "Symptom delay (days)",
+        "Symptom log-odds/level",
+        "Drug cessation probability",
+        "Treatment recognition year",
+        "Failure: no immediate second line",
+    ];
+    let mut rows = Vec::new();
+    for (idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+        rows.push(vec![
+            bacteria.to_string(),
+            format_value(b.symptom_onset_base_log_odds[idx]),
+            format_value(b.symptom_onset_threshold_level[idx]),
+            format_value(b.symptom_onset_delay_days[idx]),
+            format_value(b.symptom_onset_log_odds_per_level_unit[idx]),
+            format_value(b.drug_cessation_probability[idx]),
+            b.treatment_recognition_year[idx]
+                .map(format_value)
+                .unwrap_or_else(|| "none".to_string()),
+            format_value(b.treatment_failure_no_second_line_probability[idx]),
+        ]);
+    }
+    md_table(headers, &rows);
+
+    println!("#### Clinical Outcomes and Resistance Ecology");
+    println!();
+    let headers = &[
+        "Bacteria",
+        "Sepsis base log-odds",
+        "Sepsis log-odds/level",
+        "Sepsis log-odds/day",
+        "Non-sepsis death log-odds",
+        "Sepsis-death override",
+        "Mechanismless reversion/day",
+        "Community human-profile probability",
+        "Hospital susceptible prune %",
+        "Community mechanism-reversion multiplier",
+    ];
+    let mut rows = Vec::new();
+    for (idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+        rows.push(vec![
+            bacteria.to_string(),
+            format_value(b.sepsis_baseline_log_odds[idx]),
+            format_value(b.sepsis_log_odds_infection_level[idx]),
+            format_value(b.sepsis_log_odds_infection_duration[idx]),
+            format_value(b.infection_non_sepsis_mortality_log_odds[idx]),
+            format_value(b.sepsis_death_log_odds_override[idx]),
+            format_value(b.mechanismless_resistance_reversion_rate[idx]),
+            format_value(b.community_resistance_dilution_factor[idx]),
+            format_value(b.hospital_resistance_prune_susceptible_percent[idx]),
+            format_value(b.community_mechanism_reversion_multiplier[idx]),
+        ]);
+    }
+    md_table(headers, &rows);
+
+    println!("#### Bacterium-Specific Testing Availability Years");
+    println!();
+    println!(
+        "Only explicit bacterium-specific overrides are shown; all other organisms use the \
+              general bacterial-testing availability date in B.1."
+    );
+    println!();
+    let rows = configured_rows_matching(|key| {
+        BACTERIA_LIST
+            .iter()
+            .any(|bacteria| key == format!("{}_test_availability_year", bacteria))
+    });
+    md_table(&["Parameter", "Year"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -912,17 +1240,36 @@ fn print_drug_bacteria_matrix(store: &amr_project::config::ParameterStore) {
         for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             let potency = store.drug_bacteria.potency(b_idx, d_idx);
             let init_mult = store.drug_bacteria.initiation_multiplier(b_idx, d_idx);
-            if potency.abs() > 1e-12 || (init_mult - 1.0).abs() > 1e-12 {
-                rows.push(vec![
-                    bacteria.to_string(),
-                    drug.to_string(),
-                    format_value(potency),
-                    format_value(init_mult),
-                ]);
-            }
+            rows.push(vec![
+                bacteria.to_string(),
+                drug.to_string(),
+                format_value(potency),
+                format_value(init_mult),
+            ]);
         }
     }
     md_table(headers, &rows);
+
+    println!("#### Time-Varying Drug-Initiation Overrides");
+    println!();
+    println!(
+        "These values replace the base initiation multiplier before the year encoded in the \
+              parameter name. For overlapping cut-offs, the earliest cut-off later than the \
+              current simulation year is used."
+    );
+    println!();
+    let rows = configured_rows_matching(|key| key.contains("_initiation_multiplier_before_"));
+    md_table(&["Parameter", "Multiplier"], &rows);
+
+    println!("#### Additional Clinical-Preference Multipliers");
+    println!();
+    println!(
+        "These directly read bacterium-drug multipliers default to 1.0. Only explicit \
+              overrides are shown."
+    );
+    println!();
+    let rows = configured_rows_matching(|key| key.ends_with("_clinical_preference_multiplier"));
+    md_table(&["Parameter", "Multiplier"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1084,6 +1431,69 @@ fn print_age_dependent_parameters(store: &amr_project::config::ParameterStore) {
         }
     }
     md_table(&["Region", "Age category", "Log-odds"], &rows);
+
+    println!("#### Explicit Bacterium–Region–Age Overrides");
+    println!();
+    println!(
+        "Only explicitly configured three-way overrides are shown. Every unlisted combination \
+              inherits the corresponding region-age value above."
+    );
+    println!();
+    let mut rows = Vec::new();
+    for &region in REGION_VARIANTS.iter() {
+        let region = region_name(region);
+        for &bacteria in BACTERIA_LIST.iter() {
+            for category in AGE_CATEGORY_SEQUENCE {
+                let key = format!("{}_{}_log_odds_{}", bacteria, region, category.label());
+                if let Some(value) = PARAMETERS.get(&key) {
+                    rows.push(vec![
+                        bacteria.to_string(),
+                        region.to_string(),
+                        category.label().to_string(),
+                        format_value(*value),
+                    ]);
+                }
+            }
+        }
+    }
+    md_table(&["Bacteria", "Region", "Age category", "Log-odds"], &rows);
+
+    println!("#### Sepsis-Onset Age Log-Odds");
+    println!();
+    let rows = vec![
+        vec![
+            "sepsis_age_log_odds_baseline".to_string(),
+            format_value(configured_value("sepsis_age_log_odds_baseline", 0.0)),
+        ],
+        vec![
+            "sepsis_age_log_odds_neonatal".to_string(),
+            format_value(configured_value("sepsis_age_log_odds_neonatal", 0.0)),
+        ],
+        vec![
+            "sepsis_age_log_odds_pediatric".to_string(),
+            format_value(configured_value("sepsis_age_log_odds_pediatric", 0.0)),
+        ],
+        vec![
+            "sepsis_age_log_odds_young_adult".to_string(),
+            format_value(configured_value("sepsis_age_log_odds_young_adult", 0.0)),
+        ],
+        vec![
+            "sepsis_age_log_odds_elderly".to_string(),
+            format_value(configured_value("sepsis_age_log_odds_elderly", 0.0)),
+        ],
+    ];
+    md_table(&["Parameter", "Log-odds"], &rows);
+
+    println!("#### Bacterium-Specific Sepsis-Age Overrides");
+    println!();
+    println!("Only explicit overrides are shown; all other combinations contribute 0.");
+    println!();
+    let rows = configured_rows_matching(|key| {
+        ["neonatal", "pediatric", "young_adult", "elderly"]
+            .iter()
+            .any(|age| key.ends_with(&format!("_{}_sepsis_log_odds", age)))
+    });
+    md_table(&["Parameter", "Log-odds"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1108,8 +1518,33 @@ fn print_syndrome_parameters(store: &amr_project::config::ParameterStore) {
     );
     println!();
 
+    println!("#### Syndrome-Level Clinical Scalars");
+    println!();
+    let mut rows = Vec::new();
+    for syndrome_id in 0..=10 {
+        rows.push(vec![
+            SYNDROME_NAMES[syndrome_id].to_string(),
+            format_value(store.syndrome.sepsis_log_odds(syndrome_id)),
+            format_value(store.syndrome.initiation_multiplier(syndrome_id)),
+            format_value(store.syndrome.non_sepsis_mortality_log_odds(syndrome_id)),
+            format_value(store.syndrome.bacteria_growth_multiplier(syndrome_id)),
+        ]);
+    }
+    md_table(
+        &[
+            "Syndrome",
+            "Sepsis log-odds",
+            "Initiation multiplier",
+            "Non-sepsis death log-odds",
+            "Growth multiplier",
+        ],
+        &rows,
+    );
+
     // Empiric drug scores
-    println!("#### Syndrome Empiric Drug Scores");
+    println!("#### Non-Default Syndrome Empiric Drug Scores");
+    println!();
+    println!("The resolved default for every unlisted syndrome-drug pair is 0.01.");
     println!();
     let mut rows = Vec::new();
     for syndrome_id in 1..=10 {
@@ -1126,8 +1561,22 @@ fn print_syndrome_parameters(store: &amr_project::config::ParameterStore) {
     }
     md_table(&["Syndrome", "Drug", "Empiric score"], &rows);
 
+    println!("#### Time-Varying Syndrome Empiric-Score Overrides");
+    println!();
+    println!(
+        "These values replace the base syndrome score before the year encoded in the \
+              parameter name."
+    );
+    println!();
+    let rows = configured_rows_matching(|key| {
+        key.starts_with("syndrome_") && key.contains("_score_before_")
+    });
+    md_table(&["Parameter", "Empiric score"], &rows);
+
     // Drug penetration
-    println!("#### Syndrome Drug Penetration");
+    println!("#### Non-Default Syndrome Drug Penetration");
+    println!();
+    println!("The resolved default for every unlisted syndrome-drug pair is 1.0.");
     println!();
     let mut rows = Vec::new();
     for syndrome_id in 1..=10 {
@@ -1155,13 +1604,19 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
     println!(
         "Infection clearance model parameters. The clearance hazard is a \
               logistic function of base log-odds, per-bacteria adjustments, \
-              age effects, immunodeficiency, bacteria level, and treatment duration."
+              age effects, immunodeficiency, bacteria level, and infection duration."
     );
     println!();
-    println!("See: [§4.4 Natural clearance](#44-natural-clearance).");
+    println!(
+        "See: [§4.4 Natural clearance and microbiome dynamics](#44-natural-clearance-and-microbiome-dynamics)."
+    );
     println!();
 
     let rows = vec![
+        vec![
+            "default_clearance_delay_days".to_string(),
+            format_value(configured_value("default_clearance_delay_days", 3.0)),
+        ],
         vec![
             "base_clearance_log_odds".to_string(),
             format_value(store.clearance.base_log_odds()),
@@ -1170,8 +1625,36 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
             "immunodeficient_log_odds_adjustment".to_string(),
             format_value(store.clearance.immunodeficient_log_odds_adjustment()),
         ],
+        vec![
+            "clearance_level_log_odds_per_unit".to_string(),
+            format_value(configured_value("clearance_level_log_odds_per_unit", -0.3)),
+        ],
+        vec![
+            "adaptive_recruit_slope_per_infection_day (implementation constant)".to_string(),
+            format_value(0.25),
+        ],
     ];
     md_table(&["Parameter", "Value"], &rows);
+
+    println!(
+        "`default_clearance_delay_days` and any bacterium-specific `*_clearance_delay_days` \
+         values are loaded for compatibility but are not consulted by the current clearance \
+         hazard. Eligibility is instead immediate after acquisition, and infection duration \
+         enters through the fixed +0.25 log-odds/day term."
+    );
+    println!();
+
+    println!("#### Clearance Age Adjustments");
+    println!();
+    let mut rows = Vec::new();
+    for category in AGE_CATEGORY_SEQUENCE {
+        let key = format!("clearance_age_log_odds_{}", category.label());
+        rows.push(vec![
+            category.label().to_string(),
+            format_value(configured_value(&key, 0.0)),
+        ]);
+    }
+    md_table(&["Age category", "Log-odds adjustment"], &rows);
 
     // Per-bacteria
     println!("#### Per-Bacteria Clearance Adjustments");
@@ -1184,6 +1667,18 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
         }
     }
     md_table(&["Bacteria", "Log-odds adjustment"], &rows);
+
+    println!("#### Configured Per-Bacterium Clearance Delays");
+    println!();
+    println!(
+        "Only explicit overrides are shown. As noted above, these loaded values are currently \
+              inactive in the executable hazard."
+    );
+    println!();
+    let rows = configured_rows_matching(|key| {
+        key.ends_with("_clearance_delay_days") && key != "default_clearance_delay_days"
+    });
+    md_table(&["Parameter", "Days"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1320,7 +1815,8 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
         "Raw class enhancement values loaded for each mechanism. These values are applied only \
               to bacterium-drug pairs admitted by the executable host and drug-specific \
               applicability gates in `rules::mechanism_applies_to_drug`; non-applicable fallback \
-              values shown here are inert. Only non-zero raw entries are shown."
+              values shown here are inert. The resolved default for every unlisted \
+              mechanism-class pair is 0."
     );
     println!();
     let mut rows = Vec::new();
@@ -1347,24 +1843,40 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
     println!("#### Bacteria–Mechanism Emergence Rates");
     println!();
     println!(
-        "De novo emergence rate per day for each bacteria–mechanism pair. \
-              Only non-zero entries shown."
+        "Resolved de novo emergence rate and executable pathway status for every \
+              bacteria–mechanism pair. A zero rate does not necessarily exclude the host: \
+              transferable mechanisms can remain HGT-only, while non-transferable eligible \
+              mechanisms can still be inherited in an existing complete profile."
     );
     println!();
     let mut rows = Vec::new();
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         for (m_idx, mechanism) in mechanisms.iter().enumerate() {
             let rate = store.bacteria_mechanism_emergence.rate(b_idx, m_idx);
-            if rate.abs() > 1e-20 {
-                rows.push(vec![
-                    bacteria.to_string(),
-                    mechanism.as_str().to_string(),
-                    format_value(rate),
-                ]);
-            }
+            let status = store.bacteria_mechanism_status.status(b_idx, m_idx);
+            rows.push(vec![
+                bacteria.to_string(),
+                mechanism.as_str().to_string(),
+                format_value(rate),
+                mechanism_status_label(status).to_string(),
+            ]);
         }
     }
-    md_table(&["Bacteria", "Mechanism", "Emergence rate/day"], &rows);
+    md_table(
+        &["Bacteria", "Mechanism", "Emergence rate/day", "Status"],
+        &rows,
+    );
+
+    println!("#### Environmental and Exogenous Mechanism Floors");
+    println!();
+    println!(
+        "All unspecified bacteria–mechanism floors resolve to 0. The table lists every \
+              explicit base or `_before_YYYY` override, including explicit zeroes that mark \
+              the start of an era sequence."
+    );
+    println!();
+    let rows = configured_rows_matching(|key| key.contains("_environmental_floor"));
+    md_table(&["Parameter", "Assignment probability"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

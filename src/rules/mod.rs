@@ -826,12 +826,31 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         TargetSitePbp2aMecA => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
-            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime"
-            | "ceftolozane_tazobactam" | "ceftazidime_avibactam" | "meropenem_vaborbactam"
-            | "aztreonam" | "aztreonam_avibactam"
-              | "meropenem" | "imipenem_c" | "ertapenem"
+            "penicillin_g"
+                | "ampicillin"
+                | "amoxicillin"
+                | "piperacillin"
+                | "ticarcillin"
+                | "flucloxacillin"
+                | "amoxicillin_clavulanate"
+                | "piperacillin_tazobactam"
+                | "ampicillin_sulbactam"
+                | "ticarcillin_clavulanate"
+                | "cephalexin"
+                | "cefazolin"
+                | "cefuroxime"
+                | "ceftriaxone"
+                | "ceftazidime"
+                | "cefixime"
+                | "cefepime"
+                | "ceftolozane_tazobactam"
+                | "ceftazidime_avibactam"
+                | "meropenem_vaborbactam"
+                | "aztreonam"
+                | "aztreonam_avibactam"
+                | "meropenem"
+                | "imipenem_c"
+                | "ertapenem"
         ),
 
         // Nalidixic acid selects the first-step gyrA route used by the historical
@@ -881,25 +900,36 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // The compressed AcrAB-TolC route covers the listed substrates.
         EffluxAcrabTolc => matches!(
             drug,
-            "tetracycline" | "doxycycline" | "minocycline"
-           | "tigecycline"
-           | "chloramphenicol" | "ciprofloxacin"
+            "tetracycline"
+                | "doxycycline"
+                | "minocycline"
+                | "tigecycline"
+                | "chloramphenicol"
+                | "ciprofloxacin"
         ),
 
         // The compressed MexXY-OprM route excludes tigecycline.
         EffluxMexxyOprm => matches!(
             drug,
-            "tetracycline" | "doxycycline" | "minocycline"
-           | "gentamicin" | "tobramycin" | "amikacin"
-           | "chloramphenicol" | "ciprofloxacin"
+            "tetracycline"
+                | "doxycycline"
+                | "minocycline"
+                | "gentamicin"
+                | "tobramycin"
+                | "amikacin"
+                | "chloramphenicol"
+                | "ciprofloxacin"
         ),
 
         // The global-efflux abstraction covers the listed substrates.
         GlobalEffluxPump => matches!(
             drug,
-            "tetracycline" | "doxycycline" | "minocycline"
-           | "tigecycline"
-           | "chloramphenicol" | "ciprofloxacin"
+            "tetracycline"
+                | "doxycycline"
+                | "minocycline"
+                | "tigecycline"
+                | "chloramphenicol"
+                | "ciprofloxacin"
         ),
 
         // Combined OmpK35/36 loss (Klebsiella): reduced beta-lactam permeability.
@@ -978,9 +1008,12 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // Compressed Acinetobacter OXA carbapenemase route.
         EnzymeOxaAcinetobacter => matches!(
             drug,
-            "meropenem" | "imipenem_c" | "ertapenem"
-            | "ceftazidime" | "cefepime"
-            | "ceftazidime_avibactam"
+            "meropenem"
+                | "imipenem_c"
+                | "ertapenem"
+                | "ceftazidime"
+                | "cefepime"
+                | "ceftazidime_avibactam"
         ),
 
         // This compressed 23S rRNA route is limited to the modelled macrolides.
@@ -2569,8 +2602,7 @@ pub(crate) fn apply_rules(
         if can_discharge && rng.gen::<f64>() < recovery_rate {
             individual.hospital_status = HospitalStatus::NotInHospital;
             individual.days_hospitalized = 0;
-        }
-        else if can_discharge && individual.days_hospitalized >= max_days_in_hospital {
+        } else if can_discharge && individual.days_hospitalized >= max_days_in_hospital {
             individual.hospital_status = HospitalStatus::NotInHospital;
             individual.days_hospitalized = 0;
         }
@@ -2901,8 +2933,8 @@ pub(crate) fn apply_rules(
                 // Drug-to-infection attribution is not stored, so cessation updates every
                 // infection currently tracked as being under treatment.
                 for bacteria_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[bacteria_idx] > 0.1 &&
-                       individual.bacteria_level_at_drug_start[bacteria_idx].is_some()
+                    if individual.level[bacteria_idx] > 0.1
+                        && individual.bacteria_level_at_drug_start[bacteria_idx].is_some()
                     {
                         individual.drug_stopped_with_infection_day[bacteria_idx] =
                             Some(time_step as i32);
@@ -3318,9 +3350,16 @@ pub(crate) fn apply_rules(
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
                             // Streptococcus agalactiae.
-                            ("streptococcus_agalactiae", "penicillin_g" | "ampicillin") => score *= 25.0,
-                            ("streptococcus_agalactiae", "cefazolin" | "cephalexin" | "ceftriaxone") => score *= 10.0,
-                            ("streptococcus_agalactiae", "vancomycin" | "clindamycin") => score *= 5.0,
+                            ("streptococcus_agalactiae", "penicillin_g" | "ampicillin") => {
+                                score *= 25.0
+                            }
+                            (
+                                "streptococcus_agalactiae",
+                                "cefazolin" | "cephalexin" | "ceftriaxone",
+                            ) => score *= 10.0,
+                            ("streptococcus_agalactiae", "vancomycin" | "clindamycin") => {
+                                score *= 5.0
+                            }
                             ("streptococcus_agalactiae", "tetracycline") => score *= 0.1,
 
                             // Pseudomonas aeruginosa.
@@ -3622,13 +3661,19 @@ pub(crate) fn apply_rules(
                                 "salmonella_enterica_serovar_typhi"
                                 | "salmonella_enterica_serovar_paratyphi_a"
                                 | "invasive_non-typhoidal_salmonella_spp.",
-                                "metronidazole" | "gentamicin" | "tobramycin" | "amikacin" | "cefazolin" | "cephalexin",
+                                "metronidazole" | "gentamicin" | "tobramycin" | "amikacin"
+                                | "cefazolin" | "cephalexin",
                             ) => score *= 0.05,
 
                             // Proteus spp.
-                            ("proteus_spp.", "ampicillin" | "amoxicillin" | "penicillin_g") => score *= 15.0,
+                            ("proteus_spp.", "ampicillin" | "amoxicillin" | "penicillin_g") => {
+                                score *= 15.0
+                            }
                             ("proteus_spp.", "ceftriaxone" | "cefepime") => score *= 10.0,
-                            ("proteus_spp.", "nitrofurantoin" | "doxycycline" | "minocycline" | "tetracycline") => score *= 0.1,
+                            (
+                                "proteus_spp.",
+                                "nitrofurantoin" | "doxycycline" | "minocycline" | "tetracycline",
+                            ) => score *= 0.1,
 
                             // Other modeled Enterobacterales.
                             (
@@ -3645,40 +3690,74 @@ pub(crate) fn apply_rules(
                             // targeted gonorrhoea selection in every era.
                             (
                                 "neisseria_gonorrhoeae",
-                                "vancomycin" | "teicoplanin" | "dalbavancin"
-                                | "linezolid" | "tedizolid"
-                                | "daptomycin" | "quinu_dalfo"
-                                | "retapamulin" | "fusidic_a"
-                                | "fidaxomicin"
-                                | "meropenem" | "imipenem_c" | "ertapenem",
+                                "vancomycin" | "teicoplanin" | "dalbavancin" | "linezolid"
+                                | "tedizolid" | "daptomycin" | "quinu_dalfo" | "retapamulin"
+                                | "fusidic_a" | "fidaxomicin" | "meropenem" | "imipenem_c"
+                                | "ertapenem",
                             ) => {
                                 score = 0.0;
                             }
 
                             // The model represents a compressed subset of MDR-TB regimen drugs.
-                            ("mdr_mycobacterium_tuberculosis", "levofloxacin" | "moxifloxacin") => score *= 30.0,
+                            ("mdr_mycobacterium_tuberculosis", "levofloxacin" | "moxifloxacin") => {
+                                score *= 30.0
+                            }
                             ("mdr_mycobacterium_tuberculosis", "linezolid") => score *= 25.0,
-                            ("mdr_mycobacterium_tuberculosis", "ciprofloxacin" | "ofloxacin") => score *= 8.0,
+                            ("mdr_mycobacterium_tuberculosis", "ciprofloxacin" | "ofloxacin") => {
+                                score *= 8.0
+                            }
                             ("mdr_mycobacterium_tuberculosis", "amikacin") => score *= 10.0,
-                            ("mdr_mycobacterium_tuberculosis", "gentamicin" | "tobramycin") => score *= 0.05,
+                            ("mdr_mycobacterium_tuberculosis", "gentamicin" | "tobramycin") => {
+                                score *= 0.05
+                            }
                             ("mdr_mycobacterium_tuberculosis", "rifampicin") => score *= 0.01,
                             // Exclude the model's zero-potency TB candidates.
                             (
                                 "mdr_mycobacterium_tuberculosis",
-                                "erythromycin" | "azithromycin" | "clarithromycin"
-                                | "clindamycin" | "tetracycline" | "doxycycline" | "minocycline"
-                                | "trim_sulf" | "chloramphenicol" | "nitrofurantoin" | "fosfomycin"
-                                | "metronidazole" | "fidaxomicin" | "furazolidone"
-                                | "retapamulin" | "fusidic_a" | "vancomycin" | "teicoplanin"
-                                | "dalbavancin" | "daptomycin" | "quinu_dalfo" | "colistin"
-                                | "aztreonam_avibactam" | "penicillin_g" | "ampicillin"
-                                | "amoxicillin" | "piperacillin" | "ticarcillin"
-                                | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone"
-                                | "ceftazidime" | "cefepime" | "ceftaroline" | "cefiderocol"
-                                | "amoxicillin_clavulanate" | "ampicillin_sulbactam"
-                                | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
-                                | "ceftazidime_avibactam" | "ceftolozane_tazobactam"
-                                | "flucloxacillin" | "cefixime",
+                                "erythromycin"
+                                | "azithromycin"
+                                | "clarithromycin"
+                                | "clindamycin"
+                                | "tetracycline"
+                                | "doxycycline"
+                                | "minocycline"
+                                | "trim_sulf"
+                                | "chloramphenicol"
+                                | "nitrofurantoin"
+                                | "fosfomycin"
+                                | "metronidazole"
+                                | "fidaxomicin"
+                                | "furazolidone"
+                                | "retapamulin"
+                                | "fusidic_a"
+                                | "vancomycin"
+                                | "teicoplanin"
+                                | "dalbavancin"
+                                | "daptomycin"
+                                | "quinu_dalfo"
+                                | "colistin"
+                                | "aztreonam_avibactam"
+                                | "penicillin_g"
+                                | "ampicillin"
+                                | "amoxicillin"
+                                | "piperacillin"
+                                | "ticarcillin"
+                                | "cephalexin"
+                                | "cefazolin"
+                                | "cefuroxime"
+                                | "ceftriaxone"
+                                | "ceftazidime"
+                                | "cefepime"
+                                | "ceftaroline"
+                                | "cefiderocol"
+                                | "amoxicillin_clavulanate"
+                                | "ampicillin_sulbactam"
+                                | "piperacillin_tazobactam"
+                                | "ticarcillin_clavulanate"
+                                | "ceftazidime_avibactam"
+                                | "ceftolozane_tazobactam"
+                                | "flucloxacillin"
+                                | "cefixime",
                             ) => {
                                 score = 0.0;
                             }
