@@ -7463,7 +7463,7 @@ lazy_static! {
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.8);
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -15.1);
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -15.5);
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.6);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
@@ -7609,7 +7609,7 @@ lazy_static! {
         map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 5.0);
         map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 5.2);
         map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 6.8);
-        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 5.3);
+        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 6.0);
         map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 5.0);
         map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 4.6);
         map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 5.0);
@@ -7878,7 +7878,7 @@ lazy_static! {
     // between carriage and infection; the two acquisition processes are separate.
     map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 6.5);
     map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 11.0);
-    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 12.1);
+    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 9.6);
     map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 7.4);
     map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 7.1);
     map.insert("staphylococcus_epidermidis_log_odds_microbiome_vs_infection".to_string(), 13.5);
@@ -9609,7 +9609,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005       ); // classes: sulf
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 3.0    ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.3    ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_fos_emergence_rate".to_string(), 30.0     ); // classes: other (fosfomycin)
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0    ); // Enterococcal daptomycin resistance handled by liaFSR/cls mechanism
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_liafsr_cls_emergence_rate".to_string(), 30.0 ); // classes: other (daptomycin); enterococcal cell-envelope remodeling
@@ -9622,7 +9622,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // tier 0 (EnzymeMphA: Enterobacterales + EntericPathogen only)
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 30.0                ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.01 ); // classes: oxa
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.003 ); // classes: oxa
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.001               ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: PBP5 mutations -> intrinsic ampicillin R
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.001           ); // configured classes: pen, mac, tet, chl; positive rate is currently blocked by the executable host gate
