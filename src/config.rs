@@ -7462,8 +7462,8 @@ lazy_static! {
         map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.15);
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.8);
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -15.1);
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.5);
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.1);
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.7);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.6);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
