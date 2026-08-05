@@ -41,6 +41,7 @@ a { color: #2980b9; }
 <th>Bacterium</th>
 <th>Infection target (%)</th>
 <th>Infection simulation, median (%)</th>
+<th>Infection simulation, 5th-95th (%)</th>
 <th>Simulation/target ratio</th>
 <th>Simulation minus target (percentage points)</th>
 <th>Calibration summary flag</th>
@@ -49,6 +50,7 @@ a { color: #2980b9; }
 <td>escherichia coli</td>
 <td>2.50</td>
 <td>2.60</td>
+<td>2.60-2.60</td>
 <td>1.04</td>
 <td>0.100</td>
 <td>—</td>
@@ -57,6 +59,7 @@ a { color: #2980b9; }
 <td>helicobacter pylori</td>
 <td>2.50</td>
 <td>2.10</td>
+<td>2.10-2.10</td>
 <td>0.84</td>
 <td>-0.400</td>
 <td>—</td>
@@ -65,6 +68,7 @@ a { color: #2980b9; }
 <td>shigella spp.</td>
 <td>2.40</td>
 <td>2.40</td>
+<td>2.40-2.40</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
@@ -73,6 +77,7 @@ a { color: #2980b9; }
 <td>streptococcus pneumoniae</td>
 <td>2.00</td>
 <td>2.10</td>
+<td>2.10-2.10</td>
 <td>1.05</td>
 <td>0.100</td>
 <td>—</td>
@@ -81,6 +86,7 @@ a { color: #2980b9; }
 <td>chlamydia trachomatis</td>
 <td>1.60</td>
 <td>1.70</td>
+<td>1.70-1.70</td>
 <td>1.06</td>
 <td>0.100</td>
 <td>—</td>
@@ -89,6 +95,7 @@ a { color: #2980b9; }
 <td>campylobacter jejuni</td>
 <td>1.20</td>
 <td>1.40</td>
+<td>1.40-1.40</td>
 <td>1.17</td>
 <td>0.200</td>
 <td>—</td>
@@ -97,6 +104,7 @@ a { color: #2980b9; }
 <td>neisseria gonorrhoeae</td>
 <td>1.00</td>
 <td>1.10</td>
+<td>1.00-1.10</td>
 <td>1.10</td>
 <td>0.100</td>
 <td>—</td>
@@ -105,6 +113,7 @@ a { color: #2980b9; }
 <td>staphylococcus aureus</td>
 <td>1.00</td>
 <td>1.00</td>
+<td>1.00-1.00</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
@@ -113,6 +122,7 @@ a { color: #2980b9; }
 <td>mycoplasma pneumoniae</td>
 <td>0.500</td>
 <td>0.510</td>
+<td>0.500-0.510</td>
 <td>1.02</td>
 <td>0.010</td>
 <td>—</td>
@@ -120,23 +130,26 @@ a { color: #2980b9; }
 <tr>
 <td>mycoplasma genitalium</td>
 <td>0.400</td>
-<td>0.420</td>
-<td>1.05</td>
-<td>0.020</td>
+<td>0.430</td>
+<td>0.420-0.430</td>
+<td>1.07</td>
+<td>0.030</td>
 <td>—</td>
 </tr>
 <tr>
 <td>streptococcus pyogenes</td>
 <td>0.200</td>
-<td>0.220</td>
-<td>1.10</td>
-<td>0.020</td>
+<td>0.210</td>
+<td>0.210-0.220</td>
+<td>1.05</td>
+<td>0.0100</td>
 <td>—</td>
 </tr>
 <tr>
 <td>bordetella pertussis</td>
 <td>0.200</td>
 <td>0.170</td>
+<td>0.170-0.170</td>
 <td>0.85</td>
 <td>-0.030</td>
 <td>—</td>
@@ -144,15 +157,17 @@ a { color: #2980b9; }
 <tr>
 <td>klebsiella pneumoniae</td>
 <td>0.150</td>
-<td>0.210</td>
-<td>1.40</td>
-<td>0.060</td>
+<td>0.240</td>
+<td>0.240-0.250</td>
+<td>1.60</td>
+<td>0.090</td>
 <td>—</td>
 </tr>
 <tr>
 <td>salmonella enterica serovar typhi</td>
 <td>0.110</td>
 <td>0.210</td>
+<td>0.210-0.210</td>
 <td>1.91</td>
 <td>0.100</td>
 <td>—</td>
@@ -160,15 +175,17 @@ a { color: #2980b9; }
 <tr>
 <td>treponema pallidum</td>
 <td>0.100</td>
-<td>0.110</td>
-<td>1.10</td>
-<td>0.0100</td>
+<td>0.100</td>
+<td>0.100-0.100</td>
+<td>1.00</td>
+<td>0</td>
 <td>—</td>
 </tr>
 <tr>
 <td>moraxella catarrhalis</td>
 <td>0.080</td>
 <td>0.090</td>
+<td>0.090-0.090</td>
 <td>1.12</td>
 <td>0.0100</td>
 <td>—</td>
@@ -177,6 +194,7 @@ a { color: #2980b9; }
 <td>haemophilus influenzae *</td>
 <td>0.080</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>0.12</td>
 <td>-0.070</td>
 <td>simulation >2x or <0.5x target in calibration summary</td>
@@ -185,6 +203,7 @@ a { color: #2980b9; }
 <td>salmonella enterica serovar paratyphi a</td>
 <td>0.060</td>
 <td>0.060</td>
+<td>0.060-0.060</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
@@ -193,14 +212,16 @@ a { color: #2980b9; }
 <td>vibrio cholerae</td>
 <td>0.050</td>
 <td>0.050</td>
+<td>0.050-0.050</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
 </tr>
 <tr>
-<td>invasive non-typhoidal salmonella spp.</td>
+<td>bacteroides fragilis</td>
 <td>0.040</td>
 <td>0.050</td>
+<td>0.050-0.050</td>
 <td>1.25</td>
 <td>0.010</td>
 <td>—</td>
@@ -209,14 +230,16 @@ a { color: #2980b9; }
 <td>pseudomonas aeruginosa</td>
 <td>0.040</td>
 <td>0.050</td>
+<td>0.050-0.050</td>
 <td>1.25</td>
 <td>0.010</td>
 <td>—</td>
 </tr>
 <tr>
-<td>bacteroides fragilis</td>
+<td>invasive non-typhoidal salmonella spp.</td>
 <td>0.040</td>
 <td>0.040</td>
+<td>0.040-0.040</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
@@ -225,6 +248,7 @@ a { color: #2980b9; }
 <td>streptococcus agalactiae</td>
 <td>0.030</td>
 <td>0.040</td>
+<td>0.040-0.040</td>
 <td>1.33</td>
 <td>0.010</td>
 <td>—</td>
@@ -232,15 +256,17 @@ a { color: #2980b9; }
 <tr>
 <td>proteus spp.</td>
 <td>0.030</td>
-<td>0.020</td>
-<td>0.67</td>
-<td>-0.0100</td>
+<td>0.030</td>
+<td>0.030-0.030</td>
+<td>1.00</td>
+<td>0</td>
 <td>—</td>
 </tr>
 <tr>
 <td>clostridioides difficile</td>
 <td>0.025</td>
 <td>0.030</td>
+<td>0.030-0.030</td>
 <td>1.20</td>
 <td>0.0050</td>
 <td>—</td>
@@ -249,6 +275,7 @@ a { color: #2980b9; }
 <td>enterococcus faecalis</td>
 <td>0.025</td>
 <td>0.020</td>
+<td>0.020-0.020</td>
 <td>0.80</td>
 <td>-0.0050</td>
 <td>—</td>
@@ -257,6 +284,7 @@ a { color: #2980b9; }
 <td>staphylococcus epidermidis</td>
 <td>0.020</td>
 <td>0.020</td>
+<td>0.020-0.020</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
@@ -265,6 +293,7 @@ a { color: #2980b9; }
 <td>acinetobacter baumannii</td>
 <td>0.015</td>
 <td>0.020</td>
+<td>0.020-0.020</td>
 <td>1.33</td>
 <td>0.0050</td>
 <td>—</td>
@@ -273,6 +302,7 @@ a { color: #2980b9; }
 <td>legionella pneumophila</td>
 <td>0.015</td>
 <td>0.020</td>
+<td>0.020-0.020</td>
 <td>1.33</td>
 <td>0.0050</td>
 <td>—</td>
@@ -281,6 +311,7 @@ a { color: #2980b9; }
 <td>enterococcus faecium</td>
 <td>0.015</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>0.67</td>
 <td>-0.0050</td>
 <td>—</td>
@@ -289,6 +320,7 @@ a { color: #2980b9; }
 <td>enterobacter spp.</td>
 <td>0.012</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>0.83</td>
 <td>-0.0020</td>
 <td>—</td>
@@ -297,6 +329,7 @@ a { color: #2980b9; }
 <td>enterobacter cloacae</td>
 <td>0.010</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>1.00</td>
 <td>0</td>
 <td>—</td>
@@ -305,6 +338,7 @@ a { color: #2980b9; }
 <td>citrobacter spp.</td>
 <td>0.0080</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>1.25</td>
 <td>0.0020</td>
 <td>—</td>
@@ -313,6 +347,7 @@ a { color: #2980b9; }
 <td>serratia spp.</td>
 <td>0.0060</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>1.67</td>
 <td>0.0040</td>
 <td>—</td>
@@ -321,6 +356,7 @@ a { color: #2980b9; }
 <td>neisseria meningitidis</td>
 <td>0.0060</td>
 <td>0</td>
+<td>0-0</td>
 <td>0.00</td>
 <td>-0.0060</td>
 <td>—</td>
@@ -329,14 +365,7 @@ a { color: #2980b9; }
 <td>mdr mycobacterium tuberculosis</td>
 <td>0.0050</td>
 <td>0.010</td>
-<td>2.00</td>
-<td>0.0050</td>
-<td>—</td>
-</tr>
-<tr>
-<td>yersinia enterocolitica</td>
-<td>0.0050</td>
-<td>0.010</td>
+<td>0.010-0.010</td>
 <td>2.00</td>
 <td>0.0050</td>
 <td>—</td>
@@ -345,6 +374,16 @@ a { color: #2980b9; }
 <td>morganella spp.</td>
 <td>0.0050</td>
 <td>0</td>
+<td>0-0</td>
+<td>0.00</td>
+<td>-0.0050</td>
+<td>—</td>
+</tr>
+<tr>
+<td>yersinia enterocolitica</td>
+<td>0.0050</td>
+<td>0</td>
+<td>0-0</td>
 <td>0.00</td>
 <td>-0.0050</td>
 <td>—</td>
@@ -353,6 +392,7 @@ a { color: #2980b9; }
 <td>Providencia stuartii</td>
 <td>0.0040</td>
 <td>0.010</td>
+<td>0.010-0.010</td>
 <td>2.50</td>
 <td>0.0060</td>
 <td>—</td>
@@ -361,6 +401,7 @@ a { color: #2980b9; }
 <td>stenotrophomonas maltophilia</td>
 <td>0.0030</td>
 <td>0</td>
+<td>0-0</td>
 <td>0.00</td>
 <td>-0.0030</td>
 <td>—</td>
@@ -369,6 +410,7 @@ a { color: #2980b9; }
 <td>burkholderia cepacia complex</td>
 <td>0.0020</td>
 <td>0</td>
+<td>0-0</td>
 <td>0.00</td>
 <td>-0.0020</td>
 <td>—</td>
@@ -377,10 +419,11 @@ a { color: #2980b9; }
 <td>listeria monocytogenes</td>
 <td>0.0004</td>
 <td>0</td>
+<td>0-0</td>
 <td>0.00</td>
 <td>-0.0004</td>
 <td>—</td>
 </tr>
 </tbody></table><ol class='footnotes'>
-<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 1,751,955; population scale factor: 4,680.4861; runs: 1 accepted calibration run.</li><li>Target and simulated active-infection incidence by bacterium from the Bacteria Burden Benchmarks infection table.</li><li>Data source: Bacteria Burden Benchmarks — Infections & Carriage in calibration_summary_*.txt. This figure displays Infection target (%) and Infection simulation (%) only.</li><li>The plotted values are calibration-summary active-infection percentages by bacterium. No new model-output CSV files are used.</li><li>Simulation points are from the supplied calibration summary.</li><li>Asterisks in bacterium labels are carried over from the calibration summary and indicate simulated infection rates greater than 2x or less than 0.5x the target.</li><li>The x-axis uses a symmetric log scale near zero because target infection percentages vary by several orders of magnitude across bacteria.</li>
+<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 5,817,540; population scale factor: 1,409.5304; runs: 2 accepted calibration runs.</li><li>Target and simulated active-infection incidence by bacterium from the Bacteria Burden Benchmarks infection table.</li><li>Data source: Bacteria Burden Benchmarks — Infections & Carriage in calibration_summary_*.txt. This figure displays Infection target (%) and Infection simulation (%) only.</li><li>The plotted values are calibration-summary active-infection percentages by bacterium. No new model-output CSV files are used.</li><li>Simulation points are medians across accepted calibration summaries; horizontal error bars show 5th-95th percentiles.</li><li>Asterisks in bacterium labels are carried over from the calibration summary and indicate simulated infection rates greater than 2x or less than 0.5x the target.</li><li>The x-axis uses a symmetric log scale near zero because target infection percentages vary by several orders of magnitude across bacteria.</li>
 </ol></body></html>

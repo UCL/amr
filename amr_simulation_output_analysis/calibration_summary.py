@@ -1514,7 +1514,15 @@ def _load_resistance_target_set(
             exclusions = str(row.get("score_exclusion_reason") or "").split(";")
             if "model_baseline_potency_below_0.15" in exclusions:
                 reasons.append("negligible potency (baseline potency < 0.15)")
-            if "model_resistance_phenotype_not_representable" in exclusions:
+            cell_status = str(row.get("cell_status") or "")
+            if (
+                "model_resistance_phenotype_not_representable" in exclusions
+                or cell_status
+                in {
+                    "active_target_model_unrepresentable",
+                    "inactive_model_unrepresentable",
+                }
+            ):
                 reasons.append("resistance phenotype not represented by model mechanisms")
             if "severity_benchmark_above_model_representable_maximum" in exclusions:
                 reasons.append("severity benchmark exceeds model-representable maximum")

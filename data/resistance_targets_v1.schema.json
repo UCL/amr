@@ -54,6 +54,7 @@
     "cell_status": {
       "enum": [
         "active_target",
+        "active_target_model_unrepresentable",
         "inactive_above_model_representable_maximum",
         "inactive_model_unrepresentable",
         "inactive_unpaired_legacy_benchmark",

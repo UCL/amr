@@ -115,6 +115,32 @@ class ResistanceWeightTests(unittest.TestCase):
 
 
 class ResistanceEligibilityTests(unittest.TestCase):
+    def test_active_structural_gap_contributes_to_prevalence_fit(self) -> None:
+        resistance_df = pd.DataFrame(
+            [
+                {
+                    "Bacteria": "Enterococcus faecium",
+                    "Drug": "quinu_dalfo",
+                    "Note": "resistance phenotype not represented by model mechanisms",
+                    RESISTANCE_SIM_COL: 0.0,
+                    RESISTANCE_TARGET_COL: 50.0,
+                    "Average resistant simulation": float("nan"),
+                    "Average resistant target": 70.0,
+                    RESISTANCE_TARGET_INCLUDED_COL: True,
+                    RESISTANCE_AVERAGE_TARGET_INCLUDED_COL: False,
+                }
+            ]
+        )
+
+        metrics, components = _calculate_resistance_fit_metrics(resistance_df)
+
+        self.assertEqual(metrics["infection_abs_delta"], 50.0)
+        infection = components.loc[
+            components["Component"].eq("Infection resistance")
+        ].iloc[0]
+        self.assertEqual(infection["Mean |Δ| (pp)"], 50.0)
+        self.assertEqual(infection["Combinations counted"], 1)
+
     def test_component_flags_control_scoring_independently(self) -> None:
         resistance_df = pd.DataFrame(
             [

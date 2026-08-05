@@ -251,7 +251,13 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
         counts = Counter((row["component"], row["cell_status"]) for row in self.rows)
         self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1238)
         self.assertEqual(
-            counts[(PREVALENCE_COMPONENT, "inactive_model_unrepresentable")], 56
+            counts[
+                (
+                    PREVALENCE_COMPONENT,
+                    "active_target_model_unrepresentable",
+                )
+            ],
+            56,
         )
         self.assertEqual(
             counts[(PREVALENCE_COMPONENT, "legacy_unclassified_missing")], 1268
@@ -283,7 +289,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             for row in self.rows
             if row["include_in_score"] == "true"
         )
-        self.assertEqual(included[PREVALENCE_COMPONENT], 1186)
+        self.assertEqual(included[PREVALENCE_COMPONENT], 1228)
         self.assertEqual(included[SEVERITY_COMPONENT], 1108)
 
         allowed_reasons = {
@@ -309,8 +315,19 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
         self.assertEqual(len(prevalence), 42 * 61)
         self.assertEqual(len(severity), 42 * 61)
-        self.assertEqual(int(prevalence["include_in_score"].sum()), 1186)
+        self.assertEqual(int(prevalence["include_in_score"].sum()), 1228)
         self.assertEqual(int(severity["include_in_score"].sum()), 1108)
+
+        structural_gap = prevalence.loc[
+            prevalence["Bacteria"].eq("Enterococcus faecium")
+            & prevalence["drug"].eq("quinu_dalfo")
+        ].iloc[0]
+        self.assertEqual(structural_gap["target"], 0.5)
+        self.assertTrue(structural_gap["include_in_score"])
+        self.assertIn(
+            "resistance phenotype not represented by model mechanisms",
+            structural_gap["reason"],
+        )
 
         excluded = prevalence.loc[
             prevalence["Bacteria"].eq("Providencia stuartii")
@@ -362,7 +379,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             & prevalence["drug"].eq("cefiderocol")
         ].iloc[0]
         self.assertEqual(unrepresentable["target"], 0.01)
-        self.assertFalse(unrepresentable["include_in_score"])
+        self.assertTrue(unrepresentable["include_in_score"])
         self.assertIn("phenotype not represented", unrepresentable["reason"])
 
         unpaired = severity.loc[

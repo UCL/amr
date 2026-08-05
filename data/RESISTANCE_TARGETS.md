@@ -32,14 +32,17 @@ table repeats the provenance class so mismatches can be rejected.
 
 Every bacterium-drug-component cell has a row, including cells represented by `.` in the legacy
 matrices. `include_in_score` records static v1 eligibility after the target, organism, rifampicin,
-baseline-potency, and phenotype-representability exclusions. Potency and resistance-mechanism
+and baseline-potency exclusions. Potency and resistance-mechanism
 checks are materialized from
 `model_potency_matrix.csv`, a deterministic projection of the typed Rust matrix that is checked
 against Rust in the test suite, and `model_resistance_reachability_matrix.csv`, a checked projection
 of whether any applicable mechanism has a positive phenotypic effect for each pair and the maximum
-`any_r` attainable if every such mechanism is present. A retained benchmark is not scored when the
-current mechanism architecture cannot represent resistance to it, or when a conditional-severity
-benchmark exceeds that structural maximum.
+`any_r` attainable if every such mechanism is present. A numeric prevalence benchmark remains in
+the score when the current mechanism architecture cannot represent resistance to it: the row is
+marked `active_target_model_unrepresentable`, and its zero simulated prevalence contributes to the
+reported fit as a structural model gap. A conditional-severity benchmark remains inactive when no
+positive phenotype can exist or when it exceeds the structural maximum, because mean `any_r`
+conditional on `any_r > 0` is then undefined or unattainable.
 Numeric severity values without a paired prevalence benchmark are retained for provenance but are
 also inactive, with status `inactive_unpaired_legacy_benchmark`.
 Unavailable simulation denominators can still exclude a row from a particular analysis.
@@ -59,6 +62,8 @@ cargo run --quiet --bin export_resistance_reachability_matrix -- data/model_resi
 python amr_simulation_output_analysis/build_resistance_targets_v1.py
 ```
 
-Any future numerical or semantic target change should create a new target-set version or explicitly
-document why v1 was amended. Generated parity tests must pass before the wide matrices can be
-retired as production inputs.
+Version 1 was amended during model development to count model-unrepresentable numeric prevalence
+benchmarks as fit penalties while preserving their explicit structural-gap status. Any future
+numerical or semantic target change should create a new target-set version or explicitly document
+why v1 was amended. Generated parity tests must pass before the wide matrices can be retired as
+production inputs.

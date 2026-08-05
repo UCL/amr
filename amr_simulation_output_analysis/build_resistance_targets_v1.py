@@ -270,6 +270,8 @@ def _static_score_exclusions(
     prevalence_token: str,
     potencies: Mapping[Tuple[str, str], Decimal],
     resistance_reachability: Mapping[Tuple[str, str], Tuple[bool, Decimal]],
+    *,
+    exclude_unrepresentable: bool,
 ) -> List[str]:
     reasons: List[str] = []
     bacterium_slug = _target_bacteria_slug(bacterium)
@@ -291,7 +293,7 @@ def _static_score_exclusions(
         raise ValueError(
             f"Rust resistance reachability projection lacks {bacterium_slug}/{drug}"
         )
-    if prevalence_token != "." and not reachability[0]:
+    if exclude_unrepresentable and prevalence_token != "." and not reachability[0]:
         reasons.append("model_resistance_phenotype_not_representable")
     return reasons
 
@@ -458,12 +460,16 @@ def build_resistance_targets_v1(
                 token,
                 potencies,
                 resistance_reachability,
+                exclude_unrepresentable=False,
             )
+            resistance_representable = resistance_reachability[
+                (_target_bacteria_slug(bacterium), drug)
+            ][0]
             status = "active_target"
             if token == ".":
                 status = "legacy_unclassified_missing"
-            elif "model_resistance_phenotype_not_representable" in exclusions:
-                status = "inactive_model_unrepresentable"
+            elif not resistance_representable:
+                status = "active_target_model_unrepresentable"
             rows.append(
                 _base_row(
                     component=PREVALENCE_COMPONENT,
@@ -504,6 +510,7 @@ def build_resistance_targets_v1(
                 prevalence_token,
                 potencies,
                 resistance_reachability,
+                exclude_unrepresentable=True,
             )
             if token != ".":
                 maximum_any_r = resistance_reachability[

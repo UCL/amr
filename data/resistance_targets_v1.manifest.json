@@ -21,12 +21,12 @@
       "sha256": "a6a7ac82bf91d0626d8a35dc3836015d96e526776f67566c4866038c808edbea"
     },
     "resistance_targets_v1.csv": {
-      "bytes": 1801661,
-      "sha256": "9f08e8976574662f724abd1032085e23d13e31bd701b34247e07cbef8ede59e6"
+      "bytes": 1799421,
+      "sha256": "2d100255d9d40e97bdb3a92a7aa239f4de3067579f1899295ef63fe75b733b81"
     },
     "resistance_targets_v1.schema.json": {
-      "bytes": 3816,
-      "sha256": "3ab3c991b0a6ef43f2e30e3097a730f1e5b4670140d4481245c7739a7952bfe2"
+      "bytes": 3863,
+      "sha256": "e2e25084b975442cb396f564e9e56076403a76e0d45ece601c96e3f1de8980a5"
     }
   },
   "hash_algorithm": "sha256",

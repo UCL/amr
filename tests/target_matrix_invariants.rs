@@ -220,6 +220,7 @@ fn model_informed_target_exclusions_match_the_typed_rust_matrices() {
     let bacteria_col = column("bacteria");
     let drug_col = column("drug");
     let value_col = column("value");
+    let status_col = column("cell_status");
     let included_col = column("include_in_score");
     let reason_col = column("score_exclusion_reason");
 
@@ -265,13 +266,12 @@ fn model_informed_target_exclusions_match_the_typed_rust_matrices() {
                             .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_idx])
                             > 0.0
                 });
-        let records_reachability_exclusion = record[reason_col]
-            .split(';')
-            .any(|reason| reason == "model_resistance_phenotype_not_representable");
+        let records_unrepresentable_status =
+            &record[status_col] == "active_target_model_unrepresentable";
         assert_eq!(
-            records_reachability_exclusion,
+            records_unrepresentable_status,
             has_value && !resistance_representable,
-            "resistance representability exclusion drift for {model_slug}/{drug}"
+            "resistance representability status drift for {model_slug}/{drug}"
         );
 
         if has_value && low_potency {
@@ -284,8 +284,7 @@ fn model_informed_target_exclusions_match_the_typed_rust_matrices() {
             && drug != "rifampicin"
             && !model_slug.contains("tuberculosis")
             && !model_slug.contains("listeria")
-            && !low_potency
-            && resistance_representable;
+            && !low_potency;
         assert_eq!(
             &record[included_col],
             if expected_included { "true" } else { "false" },
