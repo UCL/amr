@@ -112,6 +112,21 @@ counterfactual modes checkpoint immediately before the first 2022 timestep,
 retain the completed policy-0 trajectory, then restore that checkpoint and run
 the resistance-suppressed policy 2 through the end of 2025.
 
+To compare model-scope infection mortality between those two branches, set
+`SIMULATION_CSV` near the top of
+`amr_simulation_output_analysis/counterfactual_2025_death_rates.py`, then run:
+
+```powershell
+python amr_simulation_output_analysis/counterfactual_2025_death_rates.py
+```
+
+The script reports mean annual model-scope infection deaths, population-scaled
+to the same world-population target used by `calibration_summary.py`, over
+2022-2025 for policy 0 and policy 2. It also reports deaths per 100,000
+person-years. It accepts output from either `Full25Counterfactual` or
+`Partial25Counterfactual`. A CSV path supplied on the command line overrides
+`SIMULATION_CSV`.
+
 ### Reproducible Seeds
 
 The launcher generates and records a random `u64` seed unless fixed seeding is
