@@ -1,4 +1,9 @@
+import json
+import re
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -9,6 +14,12 @@ from amr_simulation_output_analysis.make_paper_tables import (
     _F6_PAPER_STEM,
     _F7_PAPER_GROUPS,
     _F7_PAPER_STEM,
+    _SF4_EXACT_MECHANISMS,
+    _SF4_STEM,
+    _SF4_TITLE,
+    _SF7_STEM,
+    _SF7_TITLE,
+    _T1_ROWS,
     _f6_include_bacterium,
     _figure_3_display_class_name,
     _figure_20_parse_table_row,
@@ -21,7 +32,276 @@ from amr_simulation_output_analysis.make_paper_tables import (
     _f2a_hospital_column_specs,
     _f2b_community_benchmark_table_from_frame,
     _f2b_community_column_specs,
+    _sf4_summarise,
+    _sf7_run_mean_table,
+    make_figure_12_resistance_mechanisms_by_bacterium,
+    make_figure_13_active_infection_incidence,
+    make_index,
+    make_t1,
 )
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _table_1_detail(feature: str) -> str:
+    matches = [detail for _, row_feature, detail in _T1_ROWS if row_feature == feature]
+    if len(matches) != 1:
+        raise AssertionError(f"expected one Table 1 row for {feature!r}, found {len(matches)}")
+    return matches[0]
+
+
+def _rust_string_array_count(source: str, name: str) -> int:
+    match = re.search(
+        rf"pub const {re.escape(name)}:.*?=\s*&?\[(.*?)\];",
+        source,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(f"missing Rust string array {name}")
+    return len(re.findall(r'"[^"\n]+"', match.group(1)))
+
+
+class Table1ContractTests(unittest.TestCase):
+    def test_current_launcher_population_and_horizons_are_reported(self) -> None:
+        main_source = (ROOT / "src" / "main.rs").read_text(encoding="utf-8")
+        targets = json.loads(
+            (ROOT / "data" / "calibration_targets.json").read_text(encoding="utf-8")
+        )
+
+        population_match = re.search(r"let population_size = ([\d_]+);", main_source)
+        calibration_steps_match = re.search(
+            r"CalibrationMode::Partial\s*\|\s*CalibrationMode::FullMinimal\s*\|\s*"
+            r"CalibrationMode::Full\s*=>\s*([\d_]+)",
+            main_source,
+        )
+        policy_steps_match = re.search(
+            r"CalibrationMode::None\s*=>\s*([\d_]+)",
+            main_source,
+        )
+        self.assertIsNotNone(population_match)
+        self.assertIsNotNone(calibration_steps_match)
+        self.assertIsNotNone(policy_steps_match)
+
+        population = int(population_match.group(1).replace("_", ""))
+        calibration_steps = int(calibration_steps_match.group(1).replace("_", ""))
+        policy_steps = int(policy_steps_match.group(1).replace("_", ""))
+        world_population = int(targets["population_scaling"]["world_population"])
+
+        population_detail = _table_1_detail("Population size")
+        horizon_detail = _table_1_detail("Simulation time-span")
+        self.assertIn(f"{population:,}", population_detail)
+        self.assertIn(f"{world_population / 1_000_000_000:.1f} billion", population_detail)
+        self.assertIn(f"{calibration_steps:,}", horizon_detail)
+        self.assertIn(f"{policy_steps:,}", horizon_detail)
+        self.assertIn("2027", horizon_detail)
+
+    def test_current_rust_roster_sizes_are_reported(self) -> None:
+        population_source = (
+            ROOT / "src" / "simulation" / "population.rs"
+        ).read_text(encoding="utf-8")
+        bacteria_count = _rust_string_array_count(population_source, "BACTERIA_LIST")
+        drug_count = _rust_string_array_count(population_source, "DRUG_SHORT_NAMES")
+
+        enum_body = population_source.split("pub enum ResistanceMechanism {", 1)[1].split(
+            "}", 1
+        )[0]
+        mechanism_count = len(
+            re.findall(r"^\s+([A-Z][A-Za-z0-9_]+),", enum_body, re.MULTILINE)
+        )
+        class_match = re.search(r"pub const NUM_CLASSES: usize = (\d+);", population_source)
+        self.assertIsNotNone(class_match)
+        class_count = int(class_match.group(1))
+
+        self.assertIn(str(bacteria_count), _table_1_detail("Bacteria modelled"))
+        self.assertIn(str(drug_count), _table_1_detail("Antibiotics modelled"))
+        self.assertIn(str(class_count), _table_1_detail("Antibiotics modelled"))
+        self.assertIn(str(mechanism_count), _table_1_detail("Resistance mechanisms"))
+        self.assertIn(
+            f"{drug_count} &times; {bacteria_count}",
+            _table_1_detail("Drug–bacteria potency matrix"),
+        )
+
+    def test_retired_table_1_claims_do_not_reappear(self) -> None:
+        rendered_rows = "\n".join(detail for _, _, detail in _T1_ROWS)
+        for retired_claim in (
+            "100,000 synthetic individuals",
+            "21 ordered mechanistic rules",
+            "61 drugs",
+            "31 antibiotic classes",
+            "40 distinct biochemical mechanisms",
+            "minimum inhibitory concentration (MIC) shifts",
+            "~1,461 simulated days",
+            "all bacteria remain fully susceptible",
+            "Both components are reported",
+        ):
+            self.assertNotIn(retired_claim, rendered_rows)
+
+    def test_generated_table_contains_current_contract(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            make_t1(output_dir)
+            html = (output_dir / "Tables" / "T1__model_summary.html").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertIn("10,000,000 simulated individuals", html)
+        self.assertIn("1930–2025 inclusive", html)
+        self.assertIn("62 &times; 42 matrix", html)
+        self.assertIn("Policy scenarios", html)
+
+
+class FigureNumberingContractTests(unittest.TestCase):
+    def test_promoted_figures_occupy_main_figure_12_and_13_slots(self) -> None:
+        self.assertEqual(
+            _SF4_TITLE,
+            "Figure 12. Modelled resistance mechanisms by bacterium, 2022\u20132025",
+        )
+        self.assertEqual(
+            _SF4_STEM,
+            "Figure_12__modelled_resistance_mechanisms_by_bacterium",
+        )
+        self.assertEqual(
+            _SF7_TITLE,
+            "Figure 13. Modelled annual infection incidence by bacterium, 2022\u20132025",
+        )
+        self.assertEqual(
+            _SF7_STEM,
+            "Figure_13__active_infection_incidence_by_bacterium",
+        )
+
+    def test_index_uses_promoted_links_without_retired_numbering(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            figures_dir = output_dir / "Figures"
+            figures_dir.mkdir(parents=True)
+            for stem in (_SF4_STEM, _SF7_STEM):
+                (figures_dir / f"{stem}.html").write_text("generated", encoding="utf-8")
+
+            make_index({"n_runs": 2}, output_dir)
+            html = (output_dir / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn(f"Figures/{_SF4_STEM}.html", html)
+        self.assertIn(f"Figures/{_SF7_STEM}.html", html)
+        self.assertLess(html.index(_SF4_TITLE), html.index(_SF7_TITLE))
+        for retired_text in (
+            "Supplementary Figure S7",
+            "Supplementary Figure SX",
+            "Figure_12__distribution_drug_use_by_bacteria",
+            "Figure_13__resistance_pathway_counterfactuals",
+        ):
+            self.assertNotIn(retired_text, html)
+
+    def test_main_build_generates_only_the_promoted_numbered_outputs(self) -> None:
+        source = (
+            ROOT / "amr_simulation_output_analysis" / "make_paper_tables.py"
+        ).read_text(encoding="utf-8")
+        main_body = source.split("def main(input_args: list[str]) -> None:", 1)[1]
+
+        self.assertIn("make_figure_12_resistance_mechanisms_by_bacterium", main_body)
+        self.assertIn("make_figure_13_active_infection_incidence", main_body)
+        self.assertIn(
+            "make_figure_13_active_infection_incidence(agg, out, runs=runs)",
+            main_body,
+        )
+        self.assertNotIn("make_figure_19_antibiotic_exposure_distribution", main_body)
+        self.assertNotIn("make_counterfactual_resistance_pathway_diagnostic", main_body)
+
+    def test_figure_13_is_simulation_only_and_has_no_embedded_table(self) -> None:
+        runs = []
+        for alpha, beta in ((1.0, 0.001), (2.0, 0.002), (9.0, 0.009)):
+            runs.append({
+                "bacteria_infections": pd.DataFrame({
+                    "Bacteria": ["alpha *", "beta"],
+                    "Infection target (%)": [3.0, 0.5],
+                    "Infection simulation (%)": [alpha, beta],
+                })
+            })
+        agg = {"n_runs": len(runs)}
+
+        mean_table = _sf7_run_mean_table(runs).set_index("_key")
+        self.assertAlmostEqual(float(mean_table.loc["alpha", "_simulation_mean"]), 4.0)
+        self.assertEqual(int(mean_table.loc["alpha", "_runs_contributing"]), 3)
+
+        with TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            make_figure_13_active_infection_incidence(agg, output_dir, runs=runs)
+            html = (output_dir / "Figures" / f"{_SF7_STEM}.html").read_text(
+                encoding="utf-8"
+            )
+            svg = (output_dir / "Figures" / f"{_SF7_STEM}.svg").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertNotIn("target", html.lower())
+        self.assertNotIn("<table>", html)
+        self.assertEqual(html.count("<li>"), 2)
+        self.assertIn("Annual infection acquisitions per 100 population", svg)
+        self.assertNotIn(_SF7_TITLE, svg)
+        self.assertIn("#8c1d40", svg)
+        self.assertNotIn("#5e102a", svg)
+        self.assertNotIn("horizontal", html.lower())
+        self.assertIn("arithmetic means across 3", html)
+        self.assertNotIn("median", html.lower())
+        self.assertNotIn("alpha *", svg.lower())
+
+    def test_figure_12_aggregates_run_values_with_arithmetic_mean(self) -> None:
+        rows: list[dict[str, object]] = []
+        for run_idx, value in enumerate((1.0, 2.0, 9.0)):
+            row: dict[str, object] = {
+                "bacterium_idx": 0,
+                "bacterium": "alpha",
+                "source": f"run-{run_idx}",
+                "run": run_idx,
+                "active_infection_days": 100.0 + value,
+                "new_active_infections": 10.0 + value,
+                "new_active_infections_available": True,
+                "any_mechanism_days": value,
+                "any_mechanism_percent": value,
+            }
+            for mechanism in _SF4_EXACT_MECHANISMS:
+                row[f"{mechanism['slug']}_days"] = value
+                row[f"{mechanism['slug']}_percent"] = value
+            rows.append(row)
+
+        summary = _sf4_summarise(rows)
+        self.assertEqual(int(summary.loc[0, "n_runs"]), 3)
+        self.assertAlmostEqual(float(summary.loc[0, "any_mechanism_percent"]), 4.0)
+        first_slug = str(_SF4_EXACT_MECHANISMS[0]["slug"])
+        self.assertAlmostEqual(float(summary.loc[0, f"{first_slug}_percent"]), 4.0)
+
+    def test_figure_12_has_no_embedded_tables_and_only_essential_notes(self) -> None:
+        summary_row: dict[str, object] = {
+            "bacterium": "alpha",
+            "n_runs": 2,
+        }
+        for mechanism in _SF4_EXACT_MECHANISMS:
+            summary_row[f"{mechanism['slug']}_percent"] = 1.0
+        summary = pd.DataFrame([summary_row])
+
+        with TemporaryDirectory() as tmp_dir, patch(
+            "amr_simulation_output_analysis.make_paper_tables._sf4_rows_from_csvs",
+            return_value=([], [], True),
+        ), patch(
+            "amr_simulation_output_analysis.make_paper_tables._sf4_summarise",
+            return_value=summary,
+        ):
+            output_dir = Path(tmp_dir)
+            make_figure_12_resistance_mechanisms_by_bacterium([], output_dir)
+            html = (output_dir / "Figures" / f"{_SF4_STEM}.html").read_text(
+                encoding="utf-8"
+            )
+            svg = (output_dir / "Figures" / f"{_SF4_STEM}.svg").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertNotIn("<table>", html)
+        self.assertNotIn("ResistanceMechanism variant definitions", html)
+        self.assertEqual(html.count("<li>"), 3)
+        self.assertIn("95th percentile", html)
+        self.assertIn("arithmetic mean", html)
+        self.assertNotIn("median", html.lower())
+        self.assertNotIn(_SF4_TITLE, svg)
 
 
 class Figure3DisplayTests(unittest.TestCase):

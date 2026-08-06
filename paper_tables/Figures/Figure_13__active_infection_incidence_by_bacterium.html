@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Old Figure 6C. Serious-R Trends by Bacterium</title><style>
+<head><meta charset="UTF-8"><title>Figure 13. Modelled annual infection incidence by bacterium, 2022–2025</title><style>
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5; max-width: 1500px; margin: 0 auto;
@@ -33,8 +33,8 @@ a { color: #2980b9; }
 </style></head>
 <body>
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
-<img src='Figure_6C_old__serious_r_trends_by_bacterium.png' alt='Old Figure 6C' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
-<p class='note'>Download: <a href='Figure_6C_old__serious_r_trends_by_bacterium.png'>PNG</a> | <a href='Figure_6C_old__serious_r_trends_by_bacterium.svg'>SVG</a></p>
+<img src='Figure_13__active_infection_incidence_by_bacterium.png' alt='Figure_13__active_infection_incidence_by_bacterium' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
+<p class='note'>Download: <a href='Figure_13__active_infection_incidence_by_bacterium.png'>PNG</a> | <a href='Figure_13__active_infection_incidence_by_bacterium.svg'>SVG</a></p>
 <ol class='footnotes'>
-<li>Per-bacterium serious-R trend data are not available in the supplied simulation_summary files.</li><li>The current simulation_summary schema contains aggregate serious-R event fields, including infection_acquisition_people_with_serious_r_count, but not bacterium-specific serious-R event counts. This placeholder is generated so the paper-output build remains explicit.</li><li>Supported future numerator fields are either a vector column named infection_acquisition_events_with_serious_r_by_bacteria or per-bacterium columns ending _infection_acquisition_events_with_serious_r.</li><li>Parser notes: simulation_summary_224546.csv: missing per-bacterium serious-R acquisition columns. simulation_summary_581453.csv: missing per-bacterium serious-R acquisition columns. simulation_summary_216804.csv: missing per-bacterium serious-R acquisition columns. simulation_summary_349541.csv: missing per-bacterium serious-R acquisition columns.</li>
+<li>For each bacterium, incidence is the number of modelled infection-acquisition events during 2022–2025, annualised and divided by the mean simulated population; values are shown per 100 population.</li><li>Points show arithmetic means across 4 independent stochastic runs. The x-axis uses a symmetric log scale near zero because modelled incidence spans several orders of magnitude across bacteria.</li>
 </ol></body></html>

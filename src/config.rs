@@ -827,11 +827,7 @@ impl GlobalScalars {
                 1.0,
             ),
             // Sepsis death logistic model parameters
-            sepsis_death_base_log_odds: get_or_default(
-                map,
-                "sepsis_death_base_log_odds",
-                -6.0,
-            ),
+            sepsis_death_base_log_odds: get_or_default(map, "sepsis_death_base_log_odds", -6.0),
             sepsis_death_log_odds_age_infant: get_or_default(
                 map,
                 "sepsis_death_log_odds_age_infant",
@@ -3421,7 +3417,7 @@ lazy_static! {
         map.insert("hgt_minority_donor_multiplier".to_string(), 0.20);
         map.insert("mechanismless_resistance_reversion_rate".to_string(), 0.0004);
         // ^^^^
-        map.insert("community_mechanism_reversion_multiplier".to_string(), 0.1);  // 1.0  0.5 
+        map.insert("community_mechanism_reversion_multiplier".to_string(), 0.1);  // 1.0  0.5
 
         map.insert("default_clearance_delay_days".to_string(), 3.0);
         map.insert("default_clearance_base_log_odds".to_string(), -4.2);

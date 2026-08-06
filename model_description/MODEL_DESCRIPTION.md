@@ -31,6 +31,7 @@
   - [B.11 Horizontal Gene Transfer Matrix](#b11-horizontal-gene-transfer-matrix)
 - [Appendix C — Output Specification](#appendix-c-output-specification)
 - [Appendix D — Individual-level Variable Dictionary](#appendix-d-individual-level-variable-dictionary)
+- [References](#references)
 
 ---
 
@@ -11884,6 +11885,8 @@ constant or category rule rather than a configurable parameter.
 
 ## References
 
+References marked with \* are retained for completeness but are not explicitly cited in the text.
+
 - Ali M, Nelson AR, Lopez AL, Sack DA. Updated global burden of cholera in endemic countries. *PLoS Negl Trop Dis.* 2015;9(6):e0003832. doi:10.1371/journal.pntd.0003832
 
 - Andersson DI, Hughes D. Antibiotic resistance and its cost: is it possible to reverse resistance? *Nat Rev Microbiol.* 2010;8(4):260–271. doi:10.1038/nrmicro2319
@@ -11906,13 +11909,13 @@ constant or category rule rather than a configurable parameter.
 
 - Bratzler DW, Dellinger EP, Olsen KM, et al. Clinical practice guidelines for antimicrobial prophylaxis in surgery. *Am J Health-Syst Pharm.* 2013;70(3):195–283. doi:10.2146/ajhp120568
 
-- Brooke JS. *Stenotrophomonas maltophilia*: an emerging global opportunistic pathogen. *Clin Microbiol Rev.* 2012;25(1):2–41. doi:10.1128/CMR.00019-11
+- \* Brooke JS. *Stenotrophomonas maltophilia*: an emerging global opportunistic pathogen. *Clin Microbiol Rev.* 2012;25(1):2–41. doi:10.1128/CMR.00019-11
 
 - Browne AJ, Chipeta MG, Haines-Woodhouse G, et al. Global antibiotic consumption and usage in humans, 2000–18: a spatial modelling study. *Lancet Planet Health.* 2021;5(12):e893–e904. doi:10.1016/S2542-5196(21)00280-1
 
 - Brunton LL, Hilal-Dandan R, Knollmann BC, eds. *Goodman & Gilman's: The Pharmacological Basis of Therapeutics.* 13th ed. New York: McGraw-Hill; 2018.
 
-- Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. *Microbiome.* 2017;5(1):154. doi:10.1186/s40168-017-0369-0
+- \* Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. *Microbiome.* 2017;5(1):154. doi:10.1186/s40168-017-0369-0
 
 - Carapetis JR, Steer AC, Mulholland EK, Weber M. The global burden of group A streptococcal diseases. *Lancet Infect Dis.* 2005;5(11):685–694. doi:10.1016/S1473-3099(05)70267-X
 
@@ -11922,9 +11925,9 @@ constant or category rule rather than a configurable parameter.
 
 - Centers for Disease Control and Prevention. *COVID-19: U.S. Impact on Antimicrobial Resistance, Special Report 2022.* Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2022. https://www.cdc.gov/antimicrobial-resistance/data-research/threats/covid-19.html
 
-- Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of *Stenotrophomonas maltophilia* reveals an organism heavily shielded by drug resistance determinants. *Genome Biol.* 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74
+- \* Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of *Stenotrophomonas maltophilia* reveals an organism heavily shielded by drug resistance determinants. *Genome Biol.* 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74
 
-- Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. *Cochrane Database Syst Rev.* 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4
+- \* Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. *Cochrane Database Syst Rev.* 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4
 
 - Drlica K, Zhao X. Mutant selection window hypothesis updated. *Clin Infect Dis.* 2007;44(5):681–688. doi:10.1086/511025
 
@@ -11934,21 +11937,9 @@ constant or category rule rather than a configurable parameter.
 
 - European Centre for Disease Prevention and Control. *Antimicrobial resistance in the EU/EEA (EARS-Net) - Annual Epidemiological Report 2023.* Stockholm: ECDC; 2024. https://www.ecdc.europa.eu/en/publications-data/antimicrobial-resistance-eueea-ears-net-annual-epidemiological-report-2023
 
-- European Committee on Antimicrobial Susceptibility Testing (EUCAST). *Breakpoint tables for interpretation of MICs and zone diameters.* Version 13.0; 2023. https://www.eucast.org/clinical_breakpoints
+- \* European Committee on Antimicrobial Susceptibility Testing (EUCAST). *Breakpoint tables for interpretation of MICs and zone diameters.* Version 13.0; 2023. https://www.eucast.org/clinical_breakpoints
 
 - Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. *Intensive Care Med.* 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y
-
-- U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised June 2025. https://www.accessdata.fda.gov/drugsatfda_docs/label/2025/209445s009lbl.pdf
-
-- Ito A, Sato T, Ota M, et al. In vitro antibacterial properties of cefiderocol, a novel siderophore cephalosporin, against Gram-negative bacteria. *Antimicrob Agents Chemother.* 2018;62(1):e01454-17. doi:10.1128/AAC.01454-17
-
-- U.S. Food and Drug Administration. *Zerbaxa (ceftolozane and tazobactam) prescribing information.* Revised May 2026. https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/206829s023lbl.pdf
-
-- U.S. Food and Drug Administration. *Ceftolozane-tazobactam clinical microbiology review, NDA 206829.* Completed September 26, 2014. https://www.accessdata.fda.gov/drugsatfda_docs/nda/2014/206829Orig1s000MicroR.pdf
-
-- Snydman DR, McDermott LA, Jacobus NV. Activity of ceftolozane-tazobactam against a broad spectrum of recent clinical anaerobic isolates. *Antimicrob Agents Chemother.* 2014;58(2):1218-1223. doi:10.1128/AAC.02253-13
-
-- Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in *Klebsiella pneumoniae*. *Front Microbiol.* 2018;9:1422. doi:10.3389/fmicb.2018.01422
 
 - Fishman JA. Infection in solid-organ transplant recipients. *N Engl J Med.* 2007;357(25):2601–2614. doi:10.1056/NEJMra064928
 
@@ -11968,13 +11959,15 @@ constant or category rule rather than a configurable parameter.
 
 - Havelaar AH, Kirk MD, Torgerson PR, et al. World Health Organization global estimates and regional comparisons of the burden of foodborne disease in 2010. *PLoS Med.* 2015;12(12):e1001923. doi:10.1371/journal.pmed.1001923
 
-- Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of *Helicobacter pylori* infection: systematic review and meta-analysis. *Gastroenterology.* 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022
+- \* Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of *Helicobacter pylori* infection: systematic review and meta-analysis. *Gastroenterology.* 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022
 
 - Human Microbiome Project Consortium. Structure, function and diversity of the healthy human microbiome. *Nature.* 2012;486(7402):207–214. doi:10.1038/nature11234
 
 - Ikuta KS, Swetschinski LR, Robles Aguilar G, et al. Global mortality associated with 33 bacterial pathogens in 2019: a systematic analysis for the Global Burden of Disease Study 2019. *Lancet.* 2022;400(10369):2221–2248. doi:10.1016/S0140-6736(22)02185-7
 
-- International Organization for Standardization. *ISO 20776-2:2021 Clinical laboratory testing and in vitro diagnostic test systems - Susceptibility testing of infectious agents and evaluation of performance of antimicrobial susceptibility test devices - Part 2: Evaluation of performance of antimicrobial susceptibility test devices against reference broth micro-dilution.* Geneva: ISO; 2021.
+- \* International Organization for Standardization. *ISO 20776-2:2021 Clinical laboratory testing and in vitro diagnostic test systems - Susceptibility testing of infectious agents and evaluation of performance of antimicrobial susceptibility test devices - Part 2: Evaluation of performance of antimicrobial susceptibility test devices against reference broth micro-dilution.* Geneva: ISO; 2021.
+
+- \* Ito A, Sato T, Ota M, et al. In vitro antibacterial properties of cefiderocol, a novel siderophore cephalosporin, against Gram-negative bacteria. *Antimicrob Agents Chemother.* 2018;62(1):e01454-17. doi:10.1128/AAC.01454-17
 
 - Jacobs J, Hardy L, Semret M, et al. Diagnostic bacteriology in district hospitals in sub-Saharan Africa: at the forefront of the containment of antimicrobial resistance. *Front Med (Lausanne).* 2019;6:205. doi:10.3389/fmed.2019.00205
 
@@ -11998,21 +11991,23 @@ constant or category rule rather than a configurable parameter.
 
 - McInnes RS, McCallum GE, Lamberte LE, van Schaik W. Horizontal transfer of antibiotic resistance genes in the human gut microbiome. *Curr Opin Microbiol.* 2020;53:35–43. doi:10.1016/j.mib.2020.02.002
 
-- Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. *Am J Respir Crit Care Med.* 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST
+- \* Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. *Am J Respir Crit Care Med.* 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST
 
 - Murray CJL, Ikuta KS, Sharara F, et al. Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. *Lancet.* 2022;399(10325):629–655. doi:10.1016/S0140-6736(21)02724-0
+
+- \* Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in *Klebsiella pneumoniae*. *Front Microbiol.* 2018;9:1422. doi:10.3389/fmicb.2018.01422
 
 - Nielsen EI, Friberg LE. Pharmacokinetic-pharmacodynamic modeling of antibacterial drugs. *Pharmacol Rev.* 2013;65(3):1053–1090. doi:10.1124/pr.111.005769
 
 - Partridge SR, Kwong SM, Firth N, Jensen SO. Mobile genetic elements associated with antimicrobial resistance. *Clin Microbiol Rev.* 2018;31(4):e00088-17. doi:10.1128/CMR.00088-17
 
-- Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. *Medical Microbiology.* 19th ed. Edinburgh: Churchill Livingstone; 2019.
+- \* Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. *Medical Microbiology.* 19th ed. Edinburgh: Churchill Livingstone; 2019.
 
 - Plummer M, Franceschi S, Vignat J, Forman D, de Martel C. Global burden of gastric cancer attributable to *Helicobacter pylori*. *Int J Cancer.* 2015;136(2):487–490. doi:10.1002/ijc.28999
 
 - Poolman JT, Wacker M. Extraintestinal pathogenic *Escherichia coli*, a common human pathogen: challenges for vaccine development and progress in the field. *J Infect Dis.* 2016;213(1):6–13. doi:10.1093/infdis/jiv429
 
-- Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. *Intensive Care Med.* 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6
+- \* Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. *Intensive Care Med.* 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6
 
 - Rowley J, Vander Hoorn S, Korenromp EL, et al. Chlamydia, gonorrhoea, trichomoniasis and syphilis: global prevalence and incidence estimates, 2016. *Bull World Health Organ.* 2019;97(8):548–562P. doi:10.2471/BLT.18.228486
 
@@ -12022,7 +12017,7 @@ constant or category rule rather than a configurable parameter.
 
 - San Millán A, MacLean RC. Fitness costs of plasmids: a limit to plasmid transmission. *Microbiol Spectr.* 2017;5(5):MTBP-0016-2017. doi:10.1128/microbiolspec.MTBP-0016-2017
 
-- Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in *Helicobacter pylori*: a systematic review and meta-analysis in World Health Organization regions. *Gastroenterology.* 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022
+- \* Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in *Helicobacter pylori*: a systematic review and meta-analysis in World Health Organization regions. *Gastroenterology.* 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022
 
 - Schuts EC, Hulscher MEJL, Mouton JW, et al. Current evidence on hospital antimicrobial stewardship objectives: a systematic review and meta-analysis. *Lancet Infect Dis.* 2016;16(7):847–856. doi:10.1016/S1473-3099(16)00065-7
 
@@ -12032,7 +12027,9 @@ constant or category rule rather than a configurable parameter.
 
 - Slimings C, Riley TV. Antibiotics and healthcare facility-associated *Clostridioides difficile* infection: updated systematic review and meta-analysis. *J Antimicrob Chemother.* 2021;76(7):1676–1688. doi:10.1093/jac/dkab091
 
-- Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. *Clin Infect Dis.* 2010;50(2):133–164. doi:10.1086/649554
+- \* Snydman DR, McDermott LA, Jacobus NV. Activity of ceftolozane-tazobactam against a broad spectrum of recent clinical anaerobic isolates. *Antimicrob Agents Chemother.* 2014;58(2):1218-1223. doi:10.1128/AAC.02253-13
+
+- \* Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. *Clin Infect Dis.* 2010;50(2):133–164. doi:10.1086/649554
 
 - Stanaway JD, Parisi A, Sarber K, et al. The global burden of non-typhoidal salmonella invasive disease: a systematic analysis for the Global Burden of Disease Study 2017. *Lancet Infect Dis.* 2019;19(12):1312–1324. doi:10.1016/S1473-3099(19)30418-9
 
@@ -12047,6 +12044,12 @@ constant or category rule rather than a configurable parameter.
 - Troeger C, Blacker BF, Khalil IA, et al. Estimates of the global, regional, and national morbidity, mortality, and aetiologies of diarrhoea in 195 countries: a systematic analysis for the Global Burden of Disease Study 2016. *Lancet Infect Dis.* 2018;18(11):1211–1228. doi:10.1016/S1473-3099(18)30362-1
 
 - Tunkel AR, Hartman BJ, Kaplan SL, et al. Practice guidelines for the management of bacterial meningitis. *Clin Infect Dis.* 2004;39(9):1267–1284. doi:10.1086/425368
+
+- U.S. Food and Drug Administration. *Ceftolozane-tazobactam clinical microbiology review, NDA 206829.* Completed September 26, 2014. https://www.accessdata.fda.gov/drugsatfda_docs/nda/2014/206829Orig1s000MicroR.pdf
+
+- U.S. Food and Drug Administration. *Fetroja (cefiderocol) prescribing information.* Revised June 2025. https://www.accessdata.fda.gov/drugsatfda_docs/label/2025/209445s009lbl.pdf
+
+- U.S. Food and Drug Administration. *Zerbaxa (ceftolozane and tazobactam) prescribing information.* Revised May 2026. https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/206829s023lbl.pdf
 
 - UN Tourism. *UN Tourism Data Dashboard: Global and Regional Tourism Performance.* 2025. Accessed March 24, 2026. https://www.untourism.int/tourism-data/global-and-regional-tourism-performance
 
@@ -12064,7 +12067,7 @@ constant or category rule rather than a configurable parameter.
 
 - Verani JR, McGee L, Schrag SJ; Division of Bacterial Diseases, National Center for Immunization and Respiratory Diseases, Centers for Disease Control and Prevention. Prevention of perinatal group B streptococcal disease - revised guidelines from CDC, 2010. *MMWR Recomm Rep.* 2010;59(RR-10):1–36.
 
-- Wain J, Kilmarx PH, eds. *Practical Laboratory Manual for National Tuberculosis Programmes.* Geneva: WHO; 2006.
+- \* Wain J, Kilmarx PH, eds. *Practical Laboratory Manual for National Tuberculosis Programmes.* Geneva: WHO; 2006.
 
 - Watkins DA, Johnson CO, Colquhoun SM, et al. Global, regional, and national burden of rheumatic heart disease, 1990–2015. *N Engl J Med.* 2017;377(8):713–722. doi:10.1056/NEJMoa1603693
 
@@ -12074,7 +12077,7 @@ constant or category rule rather than a configurable parameter.
 
 - WHO Collaborating Centre for Drug Statistics Methodology. *DDD: definition and general considerations.* Accessed June 22, 2026. https://atcddd.fhi.no/ddd/definition_and_general_considera/
 
-- Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
+- \* Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
 
 - World Bank. *Air transport, passengers carried (IS.AIR.PSGR).* World Development Indicators; source: International Civil Aviation Organization (ICAO). Accessed March 24, 2026. https://data.worldbank.org/indicator/IS.AIR.PSGR
 
@@ -12084,9 +12087,9 @@ constant or category rule rather than a configurable parameter.
 
 - World Health Organization. *Global antibiotic resistance surveillance report 2025.* Geneva: WHO; 2025. ISBN 9789240116337. https://www.who.int/publications/i/item/9789240116337
 
-- World Health Organization. *Global Antimicrobial Resistance and Use Surveillance System (GLASS) report: antibiotic use data for 2022.* Geneva: WHO; 2025. ISBN 9789240108127. https://www.who.int/publications/i/item/9789240108127
-
 - World Health Organization. *Global Antimicrobial Resistance and Use Surveillance System (GLASS).* Accessed June 22, 2026. https://www.who.int/initiatives/glass
+
+- World Health Organization. *Global Antimicrobial Resistance and Use Surveillance System (GLASS) report: antibiotic use data for 2022.* Geneva: WHO; 2025. ISBN 9789240108127. https://www.who.int/publications/i/item/9789240108127
 
 - World Health Organization. *Global tuberculosis report 2025.* Geneva: WHO; 2025. https://www.who.int/teams/global-tuberculosis-programme/tb-reports/global-tuberculosis-report-2025
 

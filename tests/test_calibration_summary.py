@@ -20,6 +20,7 @@ from amr_simulation_output_analysis.calibration_summary import (
     _calculate_resistance_fit_metrics,
     _calculate_serious_resistance_locus_table,
     _calculate_syndrome_incidence_table,
+    _select_baseline_policy_rows,
     _write_calibration_score_summary,
     _write_resistance_provenance_summary,
 )
@@ -28,6 +29,38 @@ from amr_simulation_output_analysis.make_paper_tables import (
     _clean_df,
     _figure_20_parse_calibration_summary,
 )
+
+
+class BaselinePolicySelectionTests(unittest.TestCase):
+    def test_counterfactual_rows_are_excluded_from_calibration(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "time_step": [33_580, 33_581, 33_580, 33_581],
+                "policy_option": [0, 0, 2, 2],
+                "total_population": [100, 101, 200, 201],
+            }
+        )
+
+        result = _select_baseline_policy_rows(frame)
+
+        self.assertEqual(result["policy_option"].tolist(), [0, 0])
+        self.assertEqual(result["total_population"].tolist(), [100, 101])
+
+    def test_policy_column_without_baseline_rows_is_rejected(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "time_step": [33_580, 33_581],
+                "policy_option": [2, 2],
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "policy_option=0"):
+            _select_baseline_policy_rows(frame)
+
+    def test_legacy_summary_without_policy_column_is_unchanged(self) -> None:
+        frame = pd.DataFrame({"time_step": [1, 2]})
+
+        self.assertIs(_select_baseline_policy_rows(frame), frame)
 
 
 class SyndromeIncidenceTests(unittest.TestCase):

@@ -87,7 +87,7 @@ cargo run --release
 ```
 
 Run settings are currently selected near the top of `main()` in
-`src/main.rs`. The checked-in configuration uses a population of 3,000,000,
+`src/main.rs`. The checked-in configuration uses a population of 10,000,000,
 `CalibrationMode::Full`, random seeding, and no individual or infection-journey
 logging. This is a long research run, not a quick installation test.
 
@@ -102,10 +102,15 @@ results.
 | `FullMinimal` | Sparse 2022-2025 output containing drug share and bacteria-drug resistance fields |
 | `Full` | Sparse 2022-2025 output containing all fields required by `calibration_summary.py` |
 | `Partial` | Daily 1930-2025 output for historical time-series analysis |
+| `Partial25Counterfactual` | Daily policy-0 rows for 1930-2025 plus no-resistance policy-2 rows for 2022-2025 |
+| `Full25Counterfactual` | Sparse 2022-2025 output for policy 0 and the no-resistance policy 2 |
 | `None` | Full 1930-2035 run with selected policy branches from 2027 |
 
-`time_steps` is selected from the mode in `src/main.rs`: 35,040 days for
-calibration modes and 38,325 days for the full policy horizon.
+`time_steps` is selected from the mode: 35,040 days for calibration and 2025
+counterfactual modes, and 38,325 days for the full policy horizon. The two 2025
+counterfactual modes checkpoint immediately before the first 2022 timestep,
+retain the completed policy-0 trajectory, then restore that checkpoint and run
+the resistance-suppressed policy 2 through the end of 2025.
 
 ### Reproducible Seeds
 
@@ -226,6 +231,13 @@ score inputs.
 | 2 | Resistance-suppressed AMR counterfactual |
 | 3 | Near-complete diagnostics bound |
 | 4 | Equal global access example |
+
+`CalibrationMode::Partial25Counterfactual` and
+`CalibrationMode::Full25Counterfactual` instead compare policy 0 with policy 2
+from the start of 2022 through the end of 2025. The former retains the complete
+policy-0 history from 1930; the latter retains only the 2022-2025 calibration
+window. In both modes, calibration summaries select policy 0 and do not mix the
+counterfactual rows into baseline fit statistics.
 
 These branches are research scenarios and should not be interpreted as
 validated policy forecasts without scenario-specific calibration, uncertainty

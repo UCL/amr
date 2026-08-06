@@ -79,7 +79,13 @@ const REGION_COUNT: usize = 6;
 pub const SIMULATION_SUMMARY_SCHEMA_VERSION: u32 = 1;
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
+const CALIBRATION_COUNTERFACTUAL_BRANCH_YEAR: f64 = 2022.0;
 const DAYS_PER_YEAR: f64 = 365.0;
+const CALIBRATION_TIME_STEPS: usize = 35_040;
+const FULL_POLICY_TIME_STEPS: usize = 38_325;
+const NO_POLICY_BRANCHES: &[u8] = &[];
+const FULL_POLICY_BRANCHES: &[u8] = &[0, 1, 2, 3, 4];
+const CALIBRATION_COUNTERFACTUAL_BRANCHES: &[u8] = &[0, 2];
 const DETERMINISTIC_POPULATION_CHUNK_SIZE: usize = 8_192;
 /// Output-only activity threshold for classifying sepsis treatment context and delay.
 /// This threshold does not affect model dynamics.
@@ -217,18 +223,24 @@ fn current_antibiotic_context_priority(individual: &Individual) -> AntibioticUse
 
 /// Controls the simulation horizon, policy branching, and summary-output density.
 ///
-/// * `None`: retain every row, enable policy branches, and collect policy-run diagnostics.
+/// * `None`: retain every row, enable 2027 policy branches, and collect policy-run diagnostics.
 /// * `Partial`: retain every baseline row while skipping policy branches and policy-only diagnostics.
+/// * `Partial25Counterfactual`: retain the 1930-2021 shared history and both 2022-2025
+///   baseline and no-resistance branches.
 /// * `FullMinimal`: retain only calibration-window rows and the lean calibration fields.
 /// * `Full`: retain only calibration-window rows and the complete calibration-summary fields.
+/// * `Full25Counterfactual`: retain complete calibration fields for both 2022-2025
+///   baseline and no-resistance branches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CalibrationMode {
     None,
     /// Skip policy branches while retaining the full baseline time series.
     #[allow(dead_code)]
     Partial,
+    Partial25Counterfactual,
     FullMinimal,
     Full,
+    Full25Counterfactual,
 }
 
 impl fmt::Display for CalibrationMode {
@@ -236,8 +248,12 @@ impl fmt::Display for CalibrationMode {
         match self {
             CalibrationMode::None => formatter.write_str("None"),
             CalibrationMode::Partial => formatter.write_str("Partial"),
+            CalibrationMode::Partial25Counterfactual => {
+                formatter.write_str("partial_25_counterfactual")
+            }
             CalibrationMode::FullMinimal => formatter.write_str("Full_minimal"),
             CalibrationMode::Full => formatter.write_str("Full"),
+            CalibrationMode::Full25Counterfactual => formatter.write_str("full_25_counterfactual"),
         }
     }
 }
@@ -414,6 +430,78 @@ impl SummaryContentFlags {
 const CALIBRATION_SUMMARY_WINDOW_START: f64 = 2022.0;
 const CALIBRATION_SUMMARY_WINDOW_END: f64 = 2026.0;
 
+impl CalibrationMode {
+    /// Number of daily timesteps used by the launcher for this mode.
+    pub const fn time_steps(self) -> usize {
+        match self {
+            CalibrationMode::None => FULL_POLICY_TIME_STEPS,
+            CalibrationMode::Partial
+            | CalibrationMode::Partial25Counterfactual
+            | CalibrationMode::FullMinimal
+            | CalibrationMode::Full
+            | CalibrationMode::Full25Counterfactual => CALIBRATION_TIME_STEPS,
+        }
+    }
+
+    /// Policy branches selected by default for this run mode.
+    pub const fn active_policy_ids(self) -> &'static [u8] {
+        match self {
+            CalibrationMode::None => FULL_POLICY_BRANCHES,
+            CalibrationMode::Partial25Counterfactual | CalibrationMode::Full25Counterfactual => {
+                CALIBRATION_COUNTERFACTUAL_BRANCHES
+            }
+            CalibrationMode::Partial | CalibrationMode::FullMinimal | CalibrationMode::Full => {
+                NO_POLICY_BRANCHES
+            }
+        }
+    }
+
+    pub const fn uses_policy_branches(self) -> bool {
+        matches!(
+            self,
+            CalibrationMode::None
+                | CalibrationMode::Partial25Counterfactual
+                | CalibrationMode::Full25Counterfactual
+        )
+    }
+
+    const fn branch_year(self) -> Option<f64> {
+        match self {
+            CalibrationMode::None => Some(POLICY_BRANCH_YEAR),
+            CalibrationMode::Partial25Counterfactual | CalibrationMode::Full25Counterfactual => {
+                Some(CALIBRATION_COUNTERFACTUAL_BRANCH_YEAR)
+            }
+            CalibrationMode::Partial | CalibrationMode::FullMinimal | CalibrationMode::Full => None,
+        }
+    }
+
+    fn retains_summary_year(self, simulation_year: f64) -> bool {
+        match self {
+            CalibrationMode::FullMinimal
+            | CalibrationMode::Full
+            | CalibrationMode::Full25Counterfactual => {
+                simulation_year >= CALIBRATION_SUMMARY_WINDOW_START
+                    && simulation_year < CALIBRATION_SUMMARY_WINDOW_END
+            }
+            CalibrationMode::Partial
+            | CalibrationMode::Partial25Counterfactual
+            | CalibrationMode::None => true,
+        }
+    }
+
+    const fn summary_content_flags(self) -> SummaryContentFlags {
+        match self {
+            CalibrationMode::FullMinimal => SummaryContentFlags::calibration_full_minimal(),
+            CalibrationMode::Full | CalibrationMode::Full25Counterfactual => {
+                SummaryContentFlags::calibration_full()
+            }
+            CalibrationMode::Partial
+            | CalibrationMode::Partial25Counterfactual
+            | CalibrationMode::None => SummaryContentFlags::all(),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct PolicyAdjustments {
     pub(crate) policy_option: u8,
@@ -432,6 +520,17 @@ pub(crate) struct PolicyAdjustments {
 }
 
 impl PolicyAdjustments {
+    fn from_id(id: u8, globals: &config::GlobalScalars) -> Option<Self> {
+        match id {
+            0 => Some(Self::baseline()),
+            1 => Some(Self::alternate_example(globals)),
+            2 => Some(Self::amr_counterfactual()),
+            3 => Some(Self::perfect_diagnostics(globals)),
+            4 => Some(Self::equal_global_access()),
+            _ => None,
+        }
+    }
+
     const fn baseline() -> Self {
         Self {
             policy_option: 0,
@@ -527,101 +626,10 @@ impl PolicyAdjustments {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct BranchSnapshot {
     population: Population,
     mechanism_cache: MechanismCache,
-    summary_log: Vec<TimeStepSummary>,
-}
-
-impl Serialize for BranchSnapshot {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("BranchSnapshot", 3)?;
-        state.serialize_field("population", &self.population)?;
-        state.serialize_field("mechanism_cache", &self.mechanism_cache)?;
-        state.serialize_field("summary_log", &self.summary_log)?;
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for BranchSnapshot {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::{self, MapAccess, Visitor};
-        use std::fmt;
-
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field {
-            Population,
-            MechanismCache,
-            SummaryLog,
-        }
-
-        struct BranchSnapshotVisitor;
-
-        impl<'de> Visitor<'de> for BranchSnapshotVisitor {
-            type Value = BranchSnapshot;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct BranchSnapshot")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<BranchSnapshot, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut population = None;
-                let mut mechanism_cache = None;
-                let mut summary_log = None;
-
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::Population => {
-                            if population.is_some() {
-                                return Err(de::Error::duplicate_field("population"));
-                            }
-                            population = Some(map.next_value()?);
-                        }
-                        Field::MechanismCache => {
-                            if mechanism_cache.is_some() {
-                                return Err(de::Error::duplicate_field("mechanism_cache"));
-                            }
-                            mechanism_cache = Some(map.next_value()?);
-                        }
-                        Field::SummaryLog => {
-                            if summary_log.is_some() {
-                                return Err(de::Error::duplicate_field("summary_log"));
-                            }
-                            summary_log = Some(map.next_value()?);
-                        }
-                    }
-                }
-
-                let population =
-                    population.ok_or_else(|| de::Error::missing_field("population"))?;
-                let mechanism_cache =
-                    mechanism_cache.ok_or_else(|| de::Error::missing_field("mechanism_cache"))?;
-                let summary_log =
-                    summary_log.ok_or_else(|| de::Error::missing_field("summary_log"))?;
-
-                Ok(BranchSnapshot {
-                    population,
-                    mechanism_cache,
-                    summary_log,
-                })
-            }
-        }
-
-        const FIELDS: &[&str] = &["population", "mechanism_cache", "summary_log"];
-        deserializer.deserialize_struct("BranchSnapshot", FIELDS, BranchSnapshotVisitor)
-    }
 }
 
 enum StoredBranchSnapshot {
@@ -2776,13 +2784,11 @@ impl Simulation {
         }
 
         let baseline_policy = PolicyAdjustments::baseline();
-        // Install the four alternate policy presets; callers may select a subset.
-        let branch_policies = vec![
-            PolicyAdjustments::alternate_example(globals),
-            PolicyAdjustments::amr_counterfactual(),
-            PolicyAdjustments::perfect_diagnostics(globals),
-            PolicyAdjustments::equal_global_access(),
-        ];
+        let branch_policies = calibration_mode
+            .active_policy_ids()
+            .iter()
+            .filter_map(|&id| PolicyAdjustments::from_id(id, globals))
+            .collect();
 
         Simulation {
             population,
@@ -2807,15 +2813,11 @@ impl Simulation {
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
             relevant_drugs_by_bacteria,
             calibration_mode,
-            summary_content_flags: match calibration_mode {
-                CalibrationMode::FullMinimal => SummaryContentFlags::calibration_full_minimal(),
-                CalibrationMode::Full => SummaryContentFlags::calibration_full(),
-                CalibrationMode::Partial | CalibrationMode::None => SummaryContentFlags::all(),
-            },
+            summary_content_flags: calibration_mode.summary_content_flags(),
         }
     }
 
-    /// Replace the set of policy branches that will be run from the 2027 branch point.
+    /// Replace the set of policy branches that will be run from this mode's branch point.
     ///
     /// Pass a slice of policy IDs (0-4). Invalid IDs emit a warning and are ignored.
     /// Call this after `Simulation::new()` and before `run()`.
@@ -2832,16 +2834,11 @@ impl Simulation {
         let globals = &config::parameter_store().globals;
         self.branch_policy_adjustments = policy_ids
             .iter()
-            .filter_map(|&id| match id {
-                0 => Some(PolicyAdjustments::baseline()),
-                1 => Some(PolicyAdjustments::alternate_example(globals)),
-                2 => Some(PolicyAdjustments::amr_counterfactual()),
-                3 => Some(PolicyAdjustments::perfect_diagnostics(globals)),
-                4 => Some(PolicyAdjustments::equal_global_access()),
-                _ => {
+            .filter_map(|&id| {
+                PolicyAdjustments::from_id(id, globals).or_else(|| {
                     eprintln!("Warning: unknown policy id {} — ignored", id);
                     None
-                }
+                })
             })
             .collect();
     }
@@ -4435,13 +4432,7 @@ impl Simulation {
             // Calibration-window modes collect dense bacterium-drug fields only for rows
             // that will be retained. Full-timeline modes collect them throughout.
             let sim_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
-            let need_full_summary = match calibration_mode {
-                CalibrationMode::FullMinimal | CalibrationMode::Full => {
-                    sim_year >= CALIBRATION_SUMMARY_WINDOW_START
-                        && sim_year < CALIBRATION_SUMMARY_WINDOW_END
-                }
-                CalibrationMode::Partial | CalibrationMode::None => true,
-            };
+            let need_full_summary = calibration_mode.retains_summary_year(sim_year);
             let collect_none_only_stats = calibration_mode == CalibrationMode::None;
             // Avoid allocating and populating summary groups that will be stripped immediately
             // before storage. This changes bookkeeping only, not model state transitions.
@@ -6199,14 +6190,8 @@ impl Simulation {
             // consumed by calibration_summary.py for the 2025 summary: 2022-2025 inclusive.
             // All other rows are dropped to cut CSV size substantially.
             // In Partial or None every row is kept so time-series plots remain functional.
-            let keep_row = match self.calibration_mode {
-                CalibrationMode::FullMinimal | CalibrationMode::Full => {
-                    let simulation_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
-                    simulation_year >= CALIBRATION_SUMMARY_WINDOW_START
-                        && simulation_year < CALIBRATION_SUMMARY_WINDOW_END
-                }
-                CalibrationMode::Partial | CalibrationMode::None => true,
-            };
+            let simulation_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
+            let keep_row = self.calibration_mode.retains_summary_year(simulation_year);
             if keep_row {
                 summary.apply_content_flags(self.summary_content_flags);
                 self.summary_log.push(summary);
@@ -6383,7 +6368,11 @@ impl Simulation {
         self.current_policy_adjustments = self.baseline_policy_adjustments;
         self.summary_log.clear();
 
-        let branch_step = if self.calibration_mode == CalibrationMode::None {
+        let has_alternate_policy = self
+            .branch_policy_adjustments
+            .iter()
+            .any(|policy| policy.policy_option != 0);
+        let branch_step = if self.calibration_mode.uses_policy_branches() && has_alternate_policy {
             self.policy_branch_step()
         } else {
             None
@@ -6396,8 +6385,7 @@ impl Simulation {
             }
         };
 
-        // In calibration mode the policy branches are not needed — skip them entirely.
-        if self.calibration_mode != CalibrationMode::None {
+        if !self.calibration_mode.uses_policy_branches() {
             return;
         }
 
@@ -6411,10 +6399,14 @@ impl Simulation {
                     }
                 };
 
+            // The initial run is the complete policy-0 trajectory. Keep it as the canonical
+            // baseline and run only true alternatives from the checkpoint.
+            let baseline_summary_log = std::mem::take(&mut self.summary_log);
             let branch_policies = self.branch_policy_adjustments.clone();
-            for policy in branch_policies {
-                // run_policy_branch restores self.summary_log from branch_snapshot.summary_log
-                // at its start, so no baseline_summary clone is needed here.
+            for policy in branch_policies
+                .into_iter()
+                .filter(|policy| policy.policy_option != 0)
+            {
                 let branch_result = self.run_policy_branch(&branch_snapshot, step, policy);
 
                 self.current_policy_adjustments = self.baseline_policy_adjustments;
@@ -6427,6 +6419,7 @@ impl Simulation {
                     break;
                 }
             }
+            self.summary_log = baseline_summary_log;
 
             if let Some(path) = snapshot_cleanup {
                 self.cleanup_checkpoint_file(&path);
@@ -6435,10 +6428,11 @@ impl Simulation {
     }
 
     fn policy_branch_step(&self) -> Option<usize> {
-        if POLICY_BRANCH_YEAR <= SIMULATION_START_YEAR {
+        let branch_year = self.calibration_mode.branch_year()?;
+        if branch_year <= SIMULATION_START_YEAR {
             return None;
         }
-        let step = ((POLICY_BRANCH_YEAR - SIMULATION_START_YEAR) * DAYS_PER_YEAR)
+        let step = ((branch_year - SIMULATION_START_YEAR) * DAYS_PER_YEAR)
             .round()
             .max(0.0) as usize;
         if step < self.time_steps {
@@ -6452,7 +6446,6 @@ impl Simulation {
         BranchSnapshot {
             population: self.population.clone(),
             mechanism_cache: self.mechanism_cache.clone(),
-            summary_log: self.summary_log.clone(),
         }
     }
 
@@ -6485,7 +6478,7 @@ impl Simulation {
 
         self.population = snapshot.population.clone();
         self.mechanism_cache = snapshot.mechanism_cache.clone();
-        self.summary_log = snapshot.summary_log.clone();
+        self.summary_log.clear();
 
         if policy.clear_all_resistance_on_branch_start {
             self.reset_all_resistance_state();
@@ -8319,13 +8312,15 @@ mod tests {
         bacterium_is_in_general_clinical_reporting_scope, current_antibiotic_context_priority,
         diagnostic_cascade_entry_eligible, has_active_reportable_infection,
         infection_death_has_model_scope_contributor, is_new_person_level_sepsis_episode,
-        person_day_vital_status, sample_hypergeometric_left_count, MechanismCache,
-        MechanismProfileCache, MAX_MECHANISM_PROFILES,
+        person_day_vital_status, sample_hypergeometric_left_count, BranchSnapshot, CalibrationMode,
+        MechanismCache, MechanismProfileCache, SummaryContentFlags, DAYS_PER_YEAR,
+        MAX_MECHANISM_PROFILES, SIMULATION_START_YEAR,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
         bacterium_has_separate_microbiome_compartment, AntibioticUseContext, Individual,
-        ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MISSING_EVENT_DATE,
+        Population, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
+        MISSING_EVENT_DATE,
     };
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
@@ -8340,6 +8335,74 @@ mod tests {
         cache.profiles[0][h][0] = profiles;
         cache.total_seen[0][h][0] = total_seen;
         cache
+    }
+
+    #[test]
+    fn counterfactual_2025_modes_use_the_expected_horizon_and_policies() {
+        for mode in [
+            CalibrationMode::Partial25Counterfactual,
+            CalibrationMode::Full25Counterfactual,
+        ] {
+            assert_eq!(mode.time_steps(), 35_040);
+            assert_eq!(mode.active_policy_ids(), &[0, 2]);
+            assert!(mode.uses_policy_branches());
+            assert_eq!(mode.branch_year(), Some(2022.0));
+        }
+
+        assert_eq!(
+            CalibrationMode::Partial25Counterfactual.to_string(),
+            "partial_25_counterfactual"
+        );
+        assert_eq!(
+            CalibrationMode::Full25Counterfactual.to_string(),
+            "full_25_counterfactual"
+        );
+
+        let branch_step = ((2022.0 - SIMULATION_START_YEAR) * DAYS_PER_YEAR) as usize;
+        let branch_days = CalibrationMode::Partial25Counterfactual.time_steps() - branch_step;
+        assert_eq!(branch_step, 33_580);
+        assert_eq!(branch_days, 1_460);
+        assert_eq!(35_040 + branch_days, 36_500);
+        assert_eq!(branch_days * 2, 2_920);
+    }
+
+    #[test]
+    fn counterfactual_2025_modes_match_partial_and_full_output_profiles() {
+        let partial = CalibrationMode::Partial25Counterfactual;
+        assert_eq!(partial.summary_content_flags(), SummaryContentFlags::all());
+        assert!(partial.retains_summary_year(1930.0));
+        assert!(partial.retains_summary_year(2025.999));
+
+        let full = CalibrationMode::Full25Counterfactual;
+        assert_eq!(
+            full.summary_content_flags(),
+            SummaryContentFlags::calibration_full()
+        );
+        assert!(!full.retains_summary_year(2021.999));
+        assert!(full.retains_summary_year(2022.0));
+        assert!(full.retains_summary_year(2025.999));
+        assert!(!full.retains_summary_year(2026.0));
+    }
+
+    #[test]
+    fn branch_snapshot_round_trips_without_summary_history() {
+        let mut rng = SmallRng::seed_from_u64(75);
+        let snapshot = BranchSnapshot {
+            population: Population::new(2, &mut rng),
+            mechanism_cache: MechanismCache::new(
+                7,
+                BACTERIA_LIST.len(),
+                ResistanceMechanism::all().len(),
+            ),
+        };
+
+        let encoded = bincode::serialize(&snapshot).expect("snapshot should serialize");
+        let decoded: BranchSnapshot =
+            bincode::deserialize(&encoded).expect("snapshot should deserialize");
+
+        assert_eq!(decoded.population.individuals.len(), 2);
+        assert_eq!(decoded.mechanism_cache.num_regions, 7);
+        assert_eq!(decoded.mechanism_cache.num_bacteria, BACTERIA_LIST.len());
     }
 
     #[test]
