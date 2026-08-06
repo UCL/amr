@@ -483,6 +483,7 @@ def _gather_calibration_context(
     if df is None or df.empty:
         return None
 
+    df = _select_baseline_policy_rows(df)
     simulation_csv_path = data_cache.get_simulation_csv_path()
 
     # Avoid full DataFrame copy - only add columns as needed
@@ -588,6 +589,23 @@ def _gather_calibration_context(
         "reserve_drug_stats": _calculate_reserve_drug_stats(year_df),
         "simulation_csv_path": simulation_csv_path,
     }
+
+
+def _select_baseline_policy_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Exclude counterfactual policy rows from baseline calibration calculations."""
+
+    if "policy_option" not in df.columns:
+        return df
+
+    policy = pd.to_numeric(df["policy_option"], errors="coerce")
+    baseline_mask = policy.eq(0)
+    if not baseline_mask.any():
+        raise ValueError(
+            "Calibration summary requires policy_option=0 baseline rows when "
+            "the policy_option column is present."
+        )
+
+    return df.loc[baseline_mask].reset_index(drop=True)
 
 
 def _ensure_year_slice(

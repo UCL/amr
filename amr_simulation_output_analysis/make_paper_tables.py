@@ -2,8 +2,8 @@
 make_paper_tables.py
 
 Generate the paper-facing HTML outputs from one or more calibration_summary_*.txt
-files: Table 1, Supplementary Table S2, main Figures 1-13,
-Supplementary Figures S1-S3 and S5-S8, and diagnostic Supplementary Figure SX.
+files: Table 1, Supplementary Table S2, main Figures 1-13, and
+Supplementary Figures S1-S3, S5-S6, and S8.
 
 Usage
 -----
@@ -44,16 +44,14 @@ paper_tables/
         Figure_9__antibiotic_use_by_treatment_context.html/.png/.svg
         Figure_10__sepsis_context_effective_therapy.html/.png/.svg
         Figure_11__activity_retained_by_bacterium.html/.png/.svg
-        Figure_12__distribution_drug_use_by_bacteria.html/.png/.svg
-        Figure_13__resistance_pathway_counterfactuals.html/.png/.svg
+        Figure_12__modelled_resistance_mechanisms_by_bacterium.html/.png/.svg
+        Figure_13__active_infection_incidence_by_bacterium.html/.png/.svg
         Supplementary_Figure_S1__potential_activity_retained.html/.png/.svg
         Supplementary_Figure_S2__microbiome_resistance_reservoir.html/.png/.svg
         Supplementary_Figure_S3__carrier_vs_non_carrier_infection_incidence.html/.png/.svg
         Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade.html/.png/.svg
         Supplementary_Figure_S6__new_active_infection_denominators_by_bacterium.html/.png/.svg
-        Supplementary_Figure_S7__active_infection_incidence_by_bacterium.html/.png/.svg
         Supplementary_Figure_S8__infection_outcome_pathway_by_bacterium.html/.png/.svg
-        Supplementary_Figure_SX__modelled_resistance_mechanisms_by_bacterium.html/.png/.svg
 """
 
 from __future__ import annotations
@@ -499,17 +497,22 @@ _T1_ROWS: list[tuple[str, str, str]] = [
      "active infections, microbiome, current antibiotics)."),
 
     ("Model framework", "Simulation time-span",
-     "1930–2035 (105 years; 38,325 daily time steps). Starting before the antibiotic "
-     "era allows the model to reproduce the full historical arc of drug introduction, "
-     "rising consumption, and accumulating resistance."),
+     "Calibration and 2025 counterfactual modes simulate 1930–2025 inclusive "
+     "(35,040 one-day steps, ending at the start of 2026). The counterfactual modes "
+     "checkpoint at the start of 2022 and compare baseline policy 0 with the "
+     "no-resistance policy 2 through 2025. Full policy mode continues through 2034 "
+     "(38,325 steps, ending at the start of 2035), with independent policy branches "
+     "beginning in 2027."),
 
     ("Model framework", "Time step",
-     "One calendar day. Every living individual is processed through 21 ordered "
-     "mechanistic rules each day."),
+     "One model day, with 365 days per model year. Eligible living individuals pass "
+     "through an ordered state-transition pipeline; a recorded death is terminal for "
+     "the remainder of that person-day."),
 
     ("Model framework", "Population size",
-     "100,000 synthetic individuals per run. Results are rescaled to the global population "
-     "using a run-specific scale factor derived from calibration targets."),
+     "The checked-in calibration configuration uses 10,000,000 simulated individuals "
+     "per run. Global totals use the configured 8.2 billion world-population target and "
+     "a run-specific scale factor based on the mean living population in the calibration window."),
 
     ("Model framework", "Geographic scope",
      "Six world regions: North America, Europe, Asia, Oceania, South America, Africa. "
@@ -517,138 +520,148 @@ _T1_ROWS: list[tuple[str, str, str]] = [
      "rates, and pathogen epidemiology."),
 
     ("Model framework", "Stochasticity",
-     "All events (infection, testing, treatment initiation, resistance mutation, death) "
-     "are sampled from daily Bernoulli probabilities. Multiple independent runs characterise "
-     "the distribution of outcomes; accepted calibration runs form the uncertainty ensemble."),
+     "Seeded pseudorandom draws govern binary transitions, categorical outcomes, and "
+     "weighted choices throughout the model. Fixed-seed mode supports deterministic "
+     "replication; independent random-seed runs quantify Monte Carlo variability."),
 
     # ── Biological scope ─────────────────────────────────────────────────────
     ("Biological scope", "Bacteria modelled",
-     "42 species, including all ESKAPE pathogens and IHME 2019 Global Burden of "
-     "Antimicrobial Resistance priority organisms."),
+     "42 organism categories, including the ESKAPE pathogens and organisms prioritised "
+     "in the IHME 2019 Global Burden of Antimicrobial Resistance analysis."),
 
     ("Biological scope", "Antibiotics modelled",
-     "61 drugs across 31 antibiotic classes (ATC J01 hierarchy plus key non-J01 agents "
-     "such as metronidazole, fidaxomicin, and polymyxins)."),
+     "62 antibacterial agents mapped to 39 internal drug classes. Calibration consumption "
+     "outputs aggregate these agents into 28 reporting groups, including selected non-J01 agents."),
 
     ("Biological scope", "Resistance mechanisms",
-     "40 distinct biochemical mechanisms including β-lactamases (TEM, SHV, CTX-M, NDM, "
-     "OXA-type), efflux pumps (MexAB-OprM, AcrAB-TolC, norA), target-site modifications "
-     "(PBP2a, GyrA/ParC, rpsL), and porin loss."),
+     "46 represented resistance routes, including beta-lactamases, target-site changes, "
+     "efflux, porin loss, drug modification, ribosomal protection, and compressed "
+     "policy-scale proxies. Host eligibility and transferability are enforced separately."),
 
     ("Biological scope", "Drug–bacteria potency matrix",
-     "Full 61 × 42 matrix of minimum inhibitory concentration (MIC) shifts, intrinsic "
-     "susceptibility flags, and mechanism-specific potency overrides. Each cell is "
-     "individually parameterised."),
+     "A full 62 &times; 42 matrix specifies baseline no-resistance potency on a unitless "
+     "activity scale. Host-mechanism applicability and mechanism-by-class effects then "
+     "modify activity. These values are not MICs or clinical breakpoint classifications."),
 
     # ── Disease processes ────────────────────────────────────────────────────
     ("Disease processes", "Infection acquisition",
-     "Three routes: (i) community acquisition (region-, age-, and sex-specific daily "
-     "incidence); (ii) hospital acquisition (admission probability × nosocomial hazard "
-     "× length-of-stay); (iii) endogenous infection seeded from the microbiome carriage "
-     "compartment."),
+     "Daily organism-specific acquisition log-odds combine baseline, age, region, "
+     "region-by-age, historical sanitation, vaccination, carriage, and hospital-status "
+     "terms. Acquisitions are classified by community or hospital setting and by prior carriage."),
 
     ("Disease processes", "Clinical presentation",
-     "Nine syndrome categories (respiratory, urinary tract, bloodstream, "
-     "skin and soft tissue, gastrointestinal, sexually transmitted, bone and joint, "
-     "CNS, other). Syndrome drives empiric drug choice and sepsis risk."),
+     "Ten non-zero syndrome categories: urinary tract, skin/soft tissue, respiratory, "
+     "bloodstream, intra-abdominal, CNS/meningitis, gastrointestinal, genital/STI, "
+     "bone/joint, and other. Syndrome affects prescribing, drug penetration, growth, sepsis, and mortality."),
 
     ("Disease processes", "Sepsis",
-     "Log-odds model combining bacteraemia probability, syndrome severity, age, "
-     "immune status, and treatment adequacy. Sepsis substantially increases "
-     "mortality risk and triggers escalation of antibiotic therapy."),
+     "Daily onset uses a logistic model of organism, infection burden and duration, age, "
+     "syndrome, region, immune status, hospital status, and medical care. A separate "
+     "logistic mortality pathway uses age, region, immune status, burden, duration, care, "
+     "and organism-specific severity."),
 
     ("Disease processes", "Diagnostic testing",
-     "Microbiology culture followed by antimicrobial susceptibility testing (AST). "
-     "Testing probability depends on region, syndrome, hospitalisation status, and "
-     "clinician ordering behaviour. Region-specific multipliers range from ×0.3 "
-     "(Africa) to ×1.2 (Europe)."),
+     "Clinically apparent active infections can undergo bacterial identification followed "
+     "by optional antimicrobial susceptibility testing (AST). Historical availability, "
+     "delays, region, hospitalisation, immune status, sepsis, policy, and test error affect "
+     "initiation or completion; there is no separate healthcare-presentation event."),
 
     ("Disease processes", "Antibiotic treatment",
-     "Two-phase prescribing: (i) empiric initiation based on syndrome and local "
-     "guideline preferences; (ii) culture-guided de-escalation or switching once "
-     "AST results arrive. Drug selection factors in availability tier, formulary "
-     "restrictions, and organism-specific access rules. Course duration, toxicity, "
-     "and treatment failure are explicitly modelled."),
+     "Daily initiation odds depend on clinical indication and access. At a selection event, "
+     "available drugs are sampled from weighted scores: empiric choice uses syndrome and era, "
+     "whereas identified infections can use organism potency and available AST information. "
+     "Concurrent therapy, cessation, toxicity, treatment failure, and restart are represented."),
 
     ("Disease processes", "Microbiome carriage",
-     "Individuals carry a microbiome compartment for each of the 42 bacteria. "
-     "Colonisation is acquired from the environment and lost at organism-specific "
-     "clearance rates. Carriage drives endogenous infection and acts as a reservoir "
-     "for resistance gene amplification."),
+     "A separate asymptomatic-carriage compartment is represented for 41 of 42 organisms; "
+     "H. pylori is the explicit exception. Organism-specific acquisition and clearance, "
+     "bystander selection, resistance reversion, endogenous infection, and exchange with "
+     "active infection are represented."),
 
     ("Disease processes", "Horizontal gene transfer (HGT)",
-     "Inter-species plasmid transfer of resistance genes, modelled as a per-contact "
-     "probability matrix across organism pairs. Transfer can occur during co-colonisation "
-     "in the microbiome compartment. A 42 × 42 × mechanism HGT matrix governs "
-     "species-pair permissibility."),
+     "Transfer is evaluated per mechanism among eligible organisms co-present within one "
+     "person as active infection, carriage, or both. Plasmid-pool compatibility generates "
+     "donor-recipient rates; mechanism transferability, host gates, care setting, antibiotic "
+     "pressure, shared compartment, and donor majority status modify the daily hazard."),
 
     ("Disease processes", "Mortality",
-     "Three causes: (i) background age- and region-specific all-cause mortality; "
-     "(ii) infection-attributable death (case fatality rates by syndrome, severity, "
-     "organism, and treatment outcome); (iii) drug toxicity mortality for selected agents."),
+     "Four cause-specific daily hazards are evaluated in fixed attribution order: sepsis, "
+     "drug toxicity, non-sepsis infection, and background mortality. Risks incorporate "
+     "the relevant age, region, immune, hospital, infection, syndrome, care, and drug states."),
 
     # ── Resistance biology ────────────────────────────────────────────────────
     ("Resistance biology", "De novo emergence",
-     "Each infected individual has a daily probability of generating a resistant mutant, "
-     "parameterised as organism- and mechanism-specific mutation rate × antibiotic "
-     "selection pressure (measured by active treatment). Rates are calibrated effective "
-     "hazards rather than literal point-mutation rates."),
+     "Each absent eligible mechanism receives at most one daily emergence attempt. In active "
+     "infection, the organism-mechanism baseline is modified by run/scenario controls, "
+     "infection burden, the strongest applicable site-exposure term, and combination-therapy "
+     "suppression. Rates are calibrated effective hazards, not literal mutation rates."),
 
     ("Resistance biology", "Fitness cost and reversion",
-     "Resistance mechanisms carry a fitness cost. In the absence of antibiotic pressure, "
-     "resistance reverts at mechanism-specific daily rates, scaled by a global reversion "
-     "multiplier. This allows resistance to decline when drug use is reduced."),
+     "Mechanism-specific effective reversion probabilities are sampled when no applicable "
+     "active drug is selecting the mechanism. Infection-side reversion removes it from the "
+     "majority strain while retaining minority presence; carriage-side reversion removes it "
+     "from the carriage profile. Run-level and selected community multipliers apply."),
 
     ("Resistance biology", "Resistance profile inheritance",
-     "On infection, a resistance profile is sampled from a running cache of observed "
-     "profiles for that organism (weighted by recency and current prevalence), ensuring "
-     "that transmitted infections reflect the current circulating resistance landscape "
-     "rather than drawing each mechanism independently."),
+     "New infection or carriage can sample a complete mechanism bitmask from a bounded "
+     "regional community or hospital profile cache. Daily cache refresh uses neutral "
+     "stochastic retention and reservoir sampling, with a bounded local persistence archive; "
+     "linked profiles are inherited rather than assembling mechanisms independently."),
 
     # ── Calibration ─────────────────────────────────────────────────────────
     ("Calibration", "Calibration window",
-     "2022–2025 (4-year window; ~1,461 simulated days). Summary statistics are averaged "
-     "over this window to smooth stochastic noise before comparison with surveillance "
-     "point estimates."),
+     "2022–2025 inclusive (1,460 model days, represented as "
+     "2022 &le; simulation year &lt; 2026). "
+     "Calibration totals are annualised where appropriate, and prevalence-like quantities "
+     "are aggregated over the full four-year window."),
 
     ("Calibration", "Calibration targets",
-     "Antibiotic consumption (ECDC ESAC-Net, WHO AWaRe consumption data); infection "
-     "resistance benchmarks informed by ECDC EARS-Net, WHO GLASS reports, and "
-     "organism-specific literature; infection incidence and "
-     "deaths (IHME Global Burden of Disease 2019); sepsis incidence (Rudd et al. 2020); "
-     "carriage and hospital-acquired infection rates (published HAI epidemiology)."),
+     "Versioned 2025 targets cover headline burden and use, drug-class shares, organism "
+     "incidence/carriage/deaths, resistance, and hospital-community structure. Sources include "
+     "WHO, ECDC, IHME/GRAM/GBD, and organism-specific literature. Resistance cells include "
+     "evidence-informed and expert benchmarks whose cell-level provenance is not fully recovered."),
 
     ("Calibration", "Acceptance criteria",
-     "There is an established set of criteria for a calibration being considered adequate — "
-     "in initial work we generate 5 diverse sets of parameter values each leading to adequate "
-     "calibration and evaluate policy comparisons in the context of each — in this way we begin "
-     "to take account of parameter uncertainty in the answer to the policy question."),
+     "The summary reports a weighted score: headline 20%, drug use 25%, resistance 45%, "
+     "burden consistency 5%, and resistance locus 5%. Strong and usable score thresholds are "
+     "1.0 and 1.5. Separate gates require infection deaths and daily antibiotic use within 25%, "
+     "weighted resistance mean absolute error &le;15 percentage points, and infection-resistance "
+     "normalised-distance p99 &le;4."),
 
     ("Calibration", "Uncertainty quantification",
-     "Accepted runs differ in their random-number seeds, capturing stochastic variability. "
-     "Results are reported as median (5th–95th percentile) across accepted runs."),
+     "Independent random-seed runs quantify Monte Carlo variability conditional on one frozen "
+     "parameter set. Current principal calibration figures report run-level means with two-sided "
+     "95% t confidence intervals; outputs using medians and 5th–95th percentiles state that "
+     "explicitly. These intervals do not represent parameter, target, or structural uncertainty."),
 
-    # ── Counterfactual and burden estimation ────────────────────────────────
-    ("Counterfactual", "Counterfactual design",
-     "A resistance-free counterfactual is constructed by replaying each accepted run with "
-     "resistance emergence disabled. Individuals still acquire infections and may die of "
-     "them, but all bacteria remain fully susceptible. AMR-attributable deaths = observed "
-     "deaths (with resistance) − counterfactual deaths (without resistance)."),
+    # ── Policy scenarios ───────────────────────────────────────────────────
+    ("Policy scenarios", "Policy branching",
+     "Full policy mode clones a common population and resistance-cache state at the start "
+     "of 2027. The checked-in branches are baseline continuation, stewardship, a resistance-"
+     "suppressed counterfactual, near-complete diagnostics, and equalised regional access."),
 
-    ("Counterfactual", "AMR-attributable mortality",
-     "Separable into directly attributable (deaths where resistance caused treatment "
-     "failure) and associated (deaths in resistant-infection patients who may have died "
-     "even with full susceptibility). Both components are reported."),
+    ("Policy scenarios", "AMR counterfactual",
+     "The counterfactual branch clears represented resistance at the 2027 branch point and "
+     "sets the scenario multiplier to zero for profile sampling, de novo emergence, carriage "
+     "profile seeding, and HGT. Exogenous acquisition floors and the MDR-TB rifampicin rule "
+     "remain separate pathways, so this is not a universal all-susceptible guarantee."),
+
+    ("Policy scenarios", "Mortality comparison",
+     "Differences between matched branches can estimate scenario-level changes in infection "
+     "deaths after 2027. The current executable does not classify individual deaths as directly "
+     "attributable to versus associated with AMR, so those categories are not reported."),
 
     # ── Software ──────────────────────────────────────────────────────────────
     ("Software and reproducibility", "Implementation language",
-     "Rust (edition 2021, stable toolchain). Parallelised across simulation runs using "
-     "Rayon. Analysis and paper tables produced in Python (pandas, matplotlib)."),
+     "Rust (edition 2021, stable toolchain), parallelised with Rayon over deterministic "
+     "population chunks within each run. Analysis and paper tables are produced in Python "
+     "using pandas and matplotlib."),
 
     ("Software and reproducibility", "Reproducibility",
-     "Fixed-seed mode available for deterministic replication. All parameters are stored "
-     "in a single configuration module (<code>src/config.rs</code>, ~11,700 lines). "
-     "Code and configuration will be archived at acceptance."),
+     "Fixed-seed mode is available. Run metadata records the seed, source hash, population, "
+     "time steps, calibration mode, policy branches, configuration-validation result, and "
+     "summary-file hash. Model parameters live in <code>src/config.rs</code>; run controls "
+     "live in <code>src/main.rs</code>."),
 ]
 
 
@@ -5878,22 +5891,24 @@ def make_figure_8_antibiotic_use_by_context(
     )
 
 
-_F10_TITLE = "Figure 13. Counterfactual resistance-acquisition pathway comparisons"
-_F10_STEM = "Figure_13__resistance_pathway_counterfactuals"
-_F10_NOTE = (
-    "Figure 13 is intentionally shown as a placeholder. The planned analysis requires a set "
+_COUNTERFACTUAL_DIAGNOSTIC_TITLE = (
+    "Planned analysis: counterfactual resistance-acquisition pathway comparisons"
+)
+_COUNTERFACTUAL_DIAGNOSTIC_STEM = "Diagnostic__resistance_pathway_counterfactuals"
+_COUNTERFACTUAL_DIAGNOSTIC_NOTE = (
+    "This planned analysis is intentionally shown as a placeholder. It requires a set "
     "of counterfactual model runs in which resistance-acquisition or resistance-spread pathways "
     "are individually disabled or modified. The current baseline simulation_summary and "
     "calibration_summary files do not contain the required scenario comparisons."
 )
 
 
-def make_figure_10_resistance_pathway_counterfactuals(
+def make_counterfactual_resistance_pathway_diagnostic(
     out_dir: Path,
     agg: dict | None = None,
 ) -> None:
     placeholder_text = (
-        "Figure 13 placeholder\n\n"
+        "Planned counterfactual-analysis placeholder\n\n"
         "This figure will compare resistance and health outcomes across counterfactual\n"
         "model runs in which individual resistance-acquisition or resistance-spread\n"
         "pathways are disabled or modified.\n\n"
@@ -5921,7 +5936,7 @@ def make_figure_10_resistance_pathway_counterfactuals(
         bbox=dict(boxstyle="round,pad=0.7", fc="#f7f8fa", ec="#b7c0cc"),
     )
     ax.set_axis_off()
-    fig.suptitle(_F10_TITLE, fontsize=11.5, fontweight="bold")
+    fig.suptitle(_COUNTERFACTUAL_DIAGNOSTIC_TITLE, fontsize=11.5, fontweight="bold")
     fig.subplots_adjust(left=0.03, right=0.97, top=0.88, bottom=0.08)
 
     planned_scenarios = pd.DataFrame([
@@ -5973,7 +5988,7 @@ def make_figure_10_resistance_pathway_counterfactuals(
     ])
     extra_html = "<h2>Planned Scenarios</h2>\n" + _html_table(planned_scenarios)
     footnotes = [
-        "The final Figure 13 is intended to compare resistance and health outcomes across "
+        "The final analysis is intended to compare resistance and health outcomes across "
         "dedicated counterfactual model runs with matched random seeds and run settings.",
         "No counterfactual results are displayed here, and no pathway-ablation settings are "
         "inferred from current calibration summaries or baseline simulation summaries.",
@@ -5981,14 +5996,14 @@ def make_figure_10_resistance_pathway_counterfactuals(
     _save_figure(
         fig,
         out_dir,
-        _F10_STEM,
-        _F10_TITLE,
-        _F10_NOTE,
+        _COUNTERFACTUAL_DIAGNOSTIC_STEM,
+        _COUNTERFACTUAL_DIAGNOSTIC_TITLE,
+        _COUNTERFACTUAL_DIAGNOSTIC_NOTE,
         footnotes,
         agg=agg,
         extra_html=extra_html,
     )
-    print("  Figure 13: placeholder for future resistance-pathway counterfactual runs.")
+    print("  Counterfactual diagnostic: placeholder for future resistance-pathway runs.")
 
 
 _F11_TITLE = "Figure 10. Underlying sepsis onset context and time to effective therapy, 2022\u20132025"
@@ -6718,10 +6733,10 @@ def make_figure_15_mean_activity_by_bacteria(
     )
 
 
-_F19_TITLE = "Figure 12. Antibiotic exposure distribution by bacterium, 2022\u20132025"
-_F19_STEM = "Figure_12__distribution_drug_use_by_bacteria"
+_F19_TITLE = "Diagnostic: antibiotic exposure distribution by bacterium, 2022\u20132025"
+_F19_STEM = "Diagnostic__distribution_drug_use_by_bacteria"
 _F19_REQUIRED_MESSAGE = (
-    "Figure 12 requires simulation_summary CSV output for "
+    "The antibiotic-exposure diagnostic requires simulation_summary CSV output for "
     "currently_on_drug_by_bacteria_drug. Re-run the Rust simulation with full "
     "per-bacterium/per-drug summary content enabled, or provide simulation_summary "
     "files containing this field."
@@ -6994,7 +7009,7 @@ def _figure_19_rows_from_simulation_csv(
     try:
         df = _read_csv_selected(csv_path, wanted)
     except (FileNotFoundError, ValueError, OSError) as exc:
-        return [], f"{csv_path.name}: could not load Figure 12 columns ({exc}).", set(), detection
+        return [], f"{csv_path.name}: could not load antibiotic-exposure columns ({exc}).", set(), detection
 
     if "policy_option" in df.columns:
         policy = pd.to_numeric(df["policy_option"], errors="coerce")
@@ -7040,13 +7055,13 @@ def _figure_19_rows_from_simulation_csv(
             if values
         ]
         if not parsed_lengths:
-            return [], f"{csv_path.name}: Figure 12 vector column contained no numeric values.", unmapped, detection
+            return [], f"{csv_path.name}: antibiotic-exposure vector contained no numeric values.", unmapped, detection
         vector_len = max(parsed_lengths)
         n_bacteria = len(_F15_KNOWN_BACTERIA_SLUGS)
         if vector_len % n_bacteria != 0:
             return (
                 [],
-                f"{csv_path.name}: Figure 12 vector length {vector_len} is not divisible "
+                f"{csv_path.name}: antibiotic-exposure vector length {vector_len} is not divisible "
                 f"by known bacteria count {n_bacteria}.",
                 unmapped,
                 detection,
@@ -7263,7 +7278,7 @@ def make_figure_19_antibiotic_exposure_distribution(
         ),
         "Number of displayed classes with nonzero exposure": table_df["nonzero_classes"].fillna(0).astype(int),
     })
-    extra_html = "<h2>Figure 12 Denominator Table</h2>\n" + _html_table(denom_table)
+    extra_html = "<h2>Antibiotic Exposure Denominator Table</h2>\n" + _html_table(denom_table)
 
     footnotes = [
         "Cells show the percentage distribution of active antibiotic exposure among people "
@@ -7878,8 +7893,8 @@ def make_supplementary_figure_s8_infection_outcome_pathway(
         "Supplementary Table S1 layout. The detailed numeric Supplementary Table S1 content is "
         "preserved below the multipanel figure.</p>\n"
         "<p class='note'>Panel A provides denominator context for the pathway rates in this figure. "
-        "Supplementary Figure S6 focuses specifically on serious-R denominators, and Supplementary "
-        "Figure S7 compares active infection incidence with calibration targets.</p>\n"
+        "Supplementary Figure S6 focuses specifically on serious-R denominators, and "
+        "Figure 13 shows modelled annual infection incidence by bacterium.</p>\n"
         "<h2>Detailed infection outcome table</h2>\n"
         + _html_table(table)
         + _s8_reliability_legend_html()
@@ -9841,12 +9856,21 @@ def make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(
     )
 
 
-_SF4_TITLE = "Supplementary Figure SX. Modelled resistance mechanisms by bacterium, 2022\u20132025"
-_SF4_STEM = "Supplementary_Figure_SX__modelled_resistance_mechanisms_by_bacterium"
+_SF4_TITLE = "Figure 12. Modelled resistance mechanisms by bacterium, 2022\u20132025"
+_SF4_STEM = "Figure_12__modelled_resistance_mechanisms_by_bacterium"
 _SF4_REQUIRED_MESSAGE = (
-    "Supplementary Figure SX requires simulation_summary aggregate columns for active "
+    "Figure 12 requires simulation_summary aggregate columns for active "
     "infection-days by bacterium and exact per-bacterium/per-ResistanceMechanism active "
     "infection-day counts named <bacterium>_infected_with_<mechanism>."
+)
+_SF4_HEATMAP_COLOURS = (
+    "#FFF7F9",
+    "#F4E2E7",
+    "#D88FA3",
+    "#C3607E",
+    "#A73A60",
+    "#74183B",
+    "#300713",
 )
 
 # Keep this mapping aligned with resistance_mechanism_family_idx() in src/simulation/simulation.rs.
@@ -10078,39 +10102,13 @@ def _sf4_family_column(slug: str) -> str:
     return f"infection_days_with_mechanism_family_{slug}_by_bacteria"
 
 
-def _sf4_family_lookup() -> dict[str, dict[str, str]]:
-    lookup: dict[str, dict[str, str]] = {}
-    for family in _SF4_MECHANISM_FAMILIES:
-        for variant in family["variants"]:
-            lookup[str(variant)] = {
-                "family": str(family["label"]),
-                "notes": str(family["notes"]),
-            }
-    return lookup
-
-
-def _sf4_mechanism_definitions_table_html() -> str:
-    family_lookup = _sf4_family_lookup()
-    rows: list[dict[str, str]] = []
-    for mechanism in _SF4_EXACT_MECHANISMS:
-        info = family_lookup.get(str(mechanism["variant"]), {})
-        rows.append({
-            "Mechanism enum variant": str(mechanism["variant"]),
-            "Short display label": str(mechanism["label"]),
-            "Broad interpretive family": info.get("family", "\u2014"),
-            "Notes": info.get("notes", "\u2014"),
-        })
-    return "<h2>ResistanceMechanism variant definitions</h2>\n" + _html_table(pd.DataFrame(rows))
-
-
 def _sf4_placeholder(out_dir: Path, agg: dict | None, message: str) -> dict[str, object]:
     fig, ax = plt.subplots(figsize=(10.5, 3.8))
     _sf2_axis_placeholder(ax, _SF4_TITLE, message)
     fig.subplots_adjust(left=0.03, right=0.97, top=0.88, bottom=0.08)
     footnotes = [
-        "A real Supplementary Figure SX requires aggregate simulation_summary_*.csv fields with exact "
-        "per-bacterium/per-ResistanceMechanism active infection-day counts.",
-        "Grouped mechanism-family columns are not used as a fallback for the SX heatmap.",
+        "Figure 12 requires exact per-bacterium resistance-mechanism active infection-day "
+        "counts; grouped mechanism-family columns are not substituted.",
     ]
     _save_figure(
         fig,
@@ -10120,7 +10118,7 @@ def _sf4_placeholder(out_dir: Path, agg: dict | None, message: str) -> dict[str,
         message,
         footnotes,
         agg=agg,
-        extra_html=_sf4_mechanism_definitions_table_html(),
+        meta_footnote_override="",
     )
     return {"generated": "placeholder", "bacteria_included": 0, "mechanisms_included": 0}
 
@@ -10301,11 +10299,11 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
     return rows, problems, any_new_active_available
 
 
-def _sf4_median_numeric(values: pd.Series) -> float:
+def _sf4_mean_numeric(values: pd.Series) -> float:
     numeric = pd.to_numeric(values, errors="coerce").dropna().to_numpy(dtype=float)
     if len(numeric) == 0:
         return np.nan
-    return float(np.nanmedian(numeric))
+    return float(np.nanmean(numeric))
 
 
 def _sf4_reliability_flag(row: dict[str, object]) -> str:
@@ -10348,17 +10346,17 @@ def _sf4_summarise(rows: list[dict[str, object]]) -> pd.DataFrame:
         record: dict[str, object] = {
             "bacterium_idx": int(bacterium_idx),
             "bacterium": str(bacterium),
-            "active_infection_days": _sf4_median_numeric(group["active_infection_days"]),
-            "new_active_infections": _sf4_median_numeric(group["new_active_infections"]),
+            "active_infection_days": _sf4_mean_numeric(group["active_infection_days"]),
+            "new_active_infections": _sf4_mean_numeric(group["new_active_infections"]),
             "new_active_infections_available": bool(group["new_active_infections_available"].any()),
-            "any_mechanism_days": _sf4_median_numeric(group["any_mechanism_days"]),
-            "any_mechanism_percent": _sf4_median_numeric(group["any_mechanism_percent"]),
+            "any_mechanism_days": _sf4_mean_numeric(group["any_mechanism_days"]),
+            "any_mechanism_percent": _sf4_mean_numeric(group["any_mechanism_percent"]),
             "n_runs": int(run_pairs.shape[0]),
         }
         for mechanism in _SF4_EXACT_MECHANISMS:
             slug = str(mechanism["slug"])
-            record[f"{slug}_days"] = _sf4_median_numeric(group[f"{slug}_days"])
-            record[f"{slug}_percent"] = _sf4_median_numeric(group[f"{slug}_percent"])
+            record[f"{slug}_days"] = _sf4_mean_numeric(group[f"{slug}_days"])
+            record[f"{slug}_percent"] = _sf4_mean_numeric(group[f"{slug}_percent"])
         record["reliability_flag"] = _sf4_reliability_flag(record)
         records.append(record)
     summary = pd.DataFrame(records)
@@ -10367,26 +10365,6 @@ def _sf4_summarise(rows: list[dict[str, object]]) -> pd.DataFrame:
         ascending=[False, False],
         na_position="last",
     ).reset_index(drop=True)
-
-
-def _sf4_format_percent(value: object) -> str:
-    if value is None or pd.isna(value):
-        return "\u2014"
-    value_f = float(value)
-    if not np.isfinite(value_f):
-        return "\u2014"
-    if value_f > 0.0 and value_f < 0.1:
-        return f"{value_f:.3f}"
-    return f"{value_f:.1f}"
-
-
-def _sf4_format_count(value: object) -> str:
-    if value is None or pd.isna(value):
-        return "\u2014"
-    value_f = float(value)
-    if not np.isfinite(value_f):
-        return "\u2014"
-    return f"{int(np.rint(value_f)):,}"
 
 
 def _sf4_axis_short_label(label: str) -> str:
@@ -10405,7 +10383,7 @@ def _sf4_axis_short_label(label: str) -> str:
     return replacements.get(label, label.replace(" ", "\n", 1))
 
 
-def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
+def make_figure_12_resistance_mechanisms_by_bacterium(
     csv_paths: list[Path],
     out_dir: Path,
     agg: dict | None = None,
@@ -10416,7 +10394,7 @@ def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
         message = _SF4_REQUIRED_MESSAGE
         if problems:
             message += " Parser notes: " + " ".join(problems[:3])
-        print("  Supplementary Figure SX: placeholder (required exact mechanism fields missing).")
+        print("  Figure 12: placeholder (required exact mechanism fields missing).")
         return _sf4_placeholder(out_dir, agg, message)
 
     mechanism_slugs = [str(mechanism["slug"]) for mechanism in _SF4_EXACT_MECHANISMS]
@@ -10432,80 +10410,50 @@ def make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(
     fig_height = max(9.0, 2.0 + 0.24 * len(summary))
     fig_width = max(18.0, 0.42 * len(mechanism_slugs))
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), constrained_layout=True)
-    cmap = plt.cm.YlOrRd.copy()
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "amr_burgundy",
+        _SF4_HEATMAP_COLOURS,
+    )
     cmap.set_bad("#F2F2F2")
     image = ax.imshow(heatmap, aspect="auto", cmap=cmap, vmin=0.0, vmax=vmax)
     ax.set_xticks(np.arange(len(mechanism_labels)))
-    ax.set_xticklabels([_sf4_axis_short_label(label) for label in mechanism_labels], rotation=70, ha="right", fontsize=6.2)
-    ax.set_yticks(np.arange(len(summary)))
-    ax.set_yticklabels(summary["bacterium"].values, fontsize=6.8, fontstyle="italic")
-    ax.set_title(
-        "Exact ResistanceMechanism prevalence among active infection-days",
-        loc="left",
-        fontsize=10.5,
-        fontweight="bold",
+    ax.set_xticklabels(
+        [_sf4_axis_short_label(label) for label in mechanism_labels],
+        rotation=70,
+        ha="right",
+        fontsize=8.0,
     )
-    ax.set_xlabel("ResistanceMechanism enum variant", fontsize=9)
-    ax.set_ylabel("Bacterium", fontsize=9)
+    ax.set_yticks(np.arange(len(summary)))
+    ax.set_yticklabels(summary["bacterium"].values, fontsize=8.5, fontstyle="italic")
+    ax.set_xlabel("Resistance mechanism", fontsize=11)
     cbar = fig.colorbar(image, ax=ax, shrink=0.72)
-    cbar.set_label("% of active infection-days", fontsize=8.5)
-    fig.suptitle(_SF4_TITLE, fontsize=11, fontweight="bold")
-
-    table_data: dict[str, object] = {
-        "Bacterium": summary["bacterium"],
-    }
-    if bool(summary["new_active_infections_available"].any()):
-        table_data["Infection acquisition events"] = summary["new_active_infections"].map(_sf4_format_count)
-    table_data["Active infection-days"] = summary["active_infection_days"].map(_sf4_format_count)
-    table_data["Infection-days with any recorded resistance mechanism"] = summary[
-        "any_mechanism_days"
-    ].map(_sf4_format_count)
-    table_data["Any recorded mechanism (%)"] = summary["any_mechanism_percent"].map(_sf4_format_percent)
-    for mechanism in _SF4_EXACT_MECHANISMS:
-        slug = str(mechanism["slug"])
-        label = str(mechanism["label"])
-        table_data[f"{label} (%)"] = summary[f"{slug}_percent"].map(_sf4_format_percent)
-    table_data["Reliability flag"] = summary["reliability_flag"]
-    table_data["Runs contributing"] = summary["n_runs"].astype(int).astype(str)
-
-    extra_html = "<h2>Exact mechanism prevalence by bacterium</h2>\n"
-    extra_html += _html_table(pd.DataFrame(table_data))
-    extra_html += _sf4_mechanism_definitions_table_html()
+    cbar.set_label("% of active infection-days", fontsize=10.5)
+    cbar.ax.tick_params(labelsize=9)
 
     n_runs = int(max(summary["n_runs"].max(), 1))
     footnotes = [
-        "This figure shows modelled, biologically motivated resistance-mechanism state in the simulation. It is not an externally observed genomic surveillance estimate.",
-        "Mechanisms are the exact ResistanceMechanism enum variants used by the model, not grouped mechanism families.",
-        "Percentages are calculated among active infection-days for each bacterium in the 2022-2025 baseline-policy window.",
-        "Active infection-days are repeated model observations within infection episodes, not independent clinical isolates.",
-        "Mechanism columns are not mutually exclusive; one infection-day can carry more than one mechanism.",
-        "Mechanism state can arise through the model's resistance pathways, including acquisition from circulating profiles, microbiome/carriage inheritance, HGT where allowed, environmental or ratchet floors, and de novo emergence under drug pressure.",
-        "The figure is intended as model-transparency output. The primary resistance calibration result remains the phenotypic bacterium-drug benchmark shown in Figure 2 and Supplementary Table S2.",
-        "Rare bacteria may have small incident infection denominators even when active infection-days are nonzero; those rows should be interpreted cautiously.",
-        f"Percentages are calculated within each run first and shown as medians across {n_runs} simulation "
-        f"run{'s' if n_runs != 1 else ''}; intervals are omitted to keep the heatmap readable.",
-        "Reliability flags identify rows with low active infection-days, low or moderate incident infection denominators, sparse exact mechanism counts, or unavailable incident denominators.",
+        f"Cells show the arithmetic mean across {n_runs} independent stochastic run"
+        f"{'s' if n_runs != 1 else ''} of the percentage of baseline-policy active infection-days "
+        "in 2022\u20132025 carrying each exact modelled resistance-mechanism variant. "
+        "Columns are non-exclusive.",
+        "Active infection-days are repeated observations within infection episodes, not "
+        "independent clinical isolates; this is internal model state, not genomic-surveillance data.",
+        "The colour scale is capped at the 95th percentile of positive cells to preserve "
+        "contrast; larger values use the darkest colour.",
     ]
-    if not any_new_active_available:
-        footnotes.append(
-            "infection_acquisition_events_by_bacteria was unavailable; incident infection "
-            "denominator flags were therefore unavailable."
-        )
-    if problems:
-        footnotes.append("Parser notes: " + " ".join(problems[:4]))
 
     _save_figure(
         fig,
         out_dir,
         _SF4_STEM,
         _SF4_TITLE,
-        "Baseline-policy exact resistance-mechanism prevalence among active infection-days.",
+        "",
         footnotes,
         agg=agg,
-        extra_html=extra_html,
+        meta_footnote_override="",
     )
     print(
-        "  Supplementary Figure SX: real data; "
+        "  Figure 12: real data; "
         f"{len(summary)} bacterium row{'s' if len(summary) != 1 else ''}, "
         f"{len(_SF4_EXACT_MECHANISMS)} exact mechanism columns, "
         f"new active infection denominators {'available' if any_new_active_available else 'unavailable'}."
@@ -11552,18 +11500,16 @@ def make_supplementary_figure_s6_new_active_infection_denominators(
 
 
 # ---------------------------------------------------------------------------
-# Supplementary Figure S7. Active infection incidence by bacterium
+# Figure 13. Active infection incidence by bacterium
 # ---------------------------------------------------------------------------
 
 _SF7_TITLE = (
-    "Supplementary Figure S7. Active infection incidence by bacterium: "
-    "simulation versus target, 2022\u20132025"
+    "Figure 13. Modelled annual infection incidence by bacterium, 2022\u20132025"
 )
-_SF7_STEM = "Supplementary_Figure_S7__active_infection_incidence_by_bacterium"
+_SF7_STEM = "Figure_13__active_infection_incidence_by_bacterium"
 _SF7_REQUIRED_MESSAGE = (
-    "Supplementary Figure S7 requires the Bacteria Burden Benchmarks infection "
-    "table in calibration_summary_*.txt, including Bacteria, Infection target "
-    "(%), and Infection simulation (%)."
+    "Figure 13 requires the Bacteria Burden Benchmarks infection "
+    "table in calibration_summary_*.txt, including Bacteria and Infection simulation (%)."
 )
 
 
@@ -11611,37 +11557,6 @@ def _sf7_find_column(columns: pd.Index, exact: str, include: list[str], exclude:
     return None
 
 
-def _sf7_format_percent(value: object) -> str:
-    parsed = _first_numeric_value(value)
-    if parsed is None or not np.isfinite(parsed):
-        return "\u2014"
-    value_f = float(parsed)
-    if value_f == 0:
-        return "0"
-    if abs(value_f) < 0.01:
-        return f"{value_f:.4f}"
-    if abs(value_f) < 1:
-        return f"{value_f:.3f}"
-    return f"{value_f:.2f}"
-
-
-def _sf7_format_interval(lo: object, hi: object) -> str:
-    lo_text = _sf7_format_percent(lo)
-    hi_text = _sf7_format_percent(hi)
-    if lo_text == "\u2014" or hi_text == "\u2014":
-        return "\u2014"
-    return f"{lo_text}-{hi_text}"
-
-
-def _sf7_format_ratio(value: object) -> str:
-    if value is None or pd.isna(value):
-        return "\u2014"
-    value_f = float(value)
-    if not np.isfinite(value_f):
-        return "\u2014"
-    return f"{value_f:.2f}"
-
-
 def _sf7_axis_label(value: float, _pos: int) -> str:
     if value == 0:
         return "0"
@@ -11652,62 +11567,80 @@ def _sf7_axis_label(value: float, _pos: int) -> str:
     return f"{value:.1f}".rstrip("0").rstrip(".")
 
 
-def make_supplementary_figure_s7_active_infection_incidence(
+def _sf7_run_mean_table(runs: list[dict]) -> pd.DataFrame:
+    records: list[dict[str, object]] = []
+    for run_idx, run in enumerate(runs):
+        bi = run.get("bacteria_infections", pd.DataFrame())
+        if bi is None or bi.empty:
+            continue
+        bacterium_col = "Bacteria" if "Bacteria" in bi.columns else str(bi.columns[0])
+        simulation_col = _sf7_find_column(
+            bi.columns,
+            "Infection simulation (%)",
+            ["infection", "simulation", "%"],
+            ["hospital", "carriage", "<5", "65+"],
+        )
+        if simulation_col is None:
+            continue
+        for _, row in bi[[bacterium_col, simulation_col]].iterrows():
+            value = _first_numeric_value(row[simulation_col])
+            if value is None or not np.isfinite(value):
+                continue
+            label = re.sub(r"\s*\*$", "", str(row[bacterium_col]).strip()).strip()
+            key = _normalise_target_range_key(label)
+            if not key:
+                continue
+            records.append({
+                "_run": run_idx,
+                "_key": key,
+                "_label": label,
+                "_simulation_value": float(value),
+            })
+
+    if not records:
+        return pd.DataFrame()
+    per_run = (
+        pd.DataFrame(records)
+        .groupby(["_run", "_key"], as_index=False)
+        .agg(
+            _label=("_label", "first"),
+            _simulation_value=("_simulation_value", "mean"),
+        )
+    )
+    return (
+        per_run.groupby("_key", as_index=False)
+        .agg(
+            _label=("_label", "first"),
+            _simulation_mean=("_simulation_value", "mean"),
+            _runs_contributing=("_run", "nunique"),
+        )
+    )
+
+
+def make_figure_13_active_infection_incidence(
     agg: dict,
     out_dir: Path,
+    runs: list[dict] | None = None,
 ) -> dict[str, object]:
-    bi = agg.get("bacteria_infections", pd.DataFrame()).copy()
-    n_runs = int(agg.get("n_runs", 1) or 1)
-    if bi is None or bi.empty:
-        print("  Supplementary Figure S7: placeholder (no bacteria burden table).")
-        return _sf7_placeholder(out_dir, agg, _SF7_REQUIRED_MESSAGE)
+    n_runs = len(runs) if runs is not None else int(agg.get("n_runs", 1) or 1)
+    if runs is None:
+        if n_runs == 1:
+            runs = [{"bacteria_infections": agg.get("bacteria_infections", pd.DataFrame())}]
+        else:
+            message = (
+                "Figure 13 requires individual parsed calibration runs to calculate an "
+                "arithmetic mean across runs."
+            )
+            print("  Figure 13: placeholder (individual runs unavailable).")
+            return _sf7_placeholder(out_dir, agg, message)
 
-    bacterium_col = "Bacteria" if "Bacteria" in bi.columns else str(bi.columns[0])
-    target_col = _sf7_find_column(
-        bi.columns,
-        "Infection target (%)",
-        ["infection", "target", "%"],
-        ["hospital", "carriage", "<5", "65+"],
-    )
-    simulation_col = _sf7_find_column(
-        bi.columns,
-        "Infection simulation (%)",
-        ["infection", "simulation", "%"],
-        ["hospital", "carriage", "<5", "65+"],
-    )
-    if target_col is None or simulation_col is None:
-        missing = []
-        if target_col is None:
-            missing.append("Infection target (%)")
-        if simulation_col is None:
-            missing.append("Infection simulation (%)")
-        message = _SF7_REQUIRED_MESSAGE + " Missing: " + ", ".join(missing) + "."
-        print("  Supplementary Figure S7: placeholder (missing infection columns).")
-        return _sf7_placeholder(out_dir, agg, message)
-
-    work = bi[[bacterium_col, target_col, simulation_col]].copy()
-    work = _add_interval_columns(work, target_col, "_target")
-    work = _add_interval_columns(work, simulation_col, "_simulation")
-    work = work.dropna(subset=["_target_med", "_simulation_med"], how="any").copy()
+    work = _sf7_run_mean_table(runs)
     if work.empty:
-        print("  Supplementary Figure S7: placeholder (no numeric infection rows).")
-        return _sf7_placeholder(out_dir, agg, "No numeric target/simulation infection rows were found.")
-
-    work["_ratio"] = np.where(
-        work["_target_med"].astype(float) > 0.0,
-        work["_simulation_med"].astype(float) / work["_target_med"].astype(float),
-        np.nan,
-    )
-    work["_difference"] = work["_simulation_med"].astype(float) - work["_target_med"].astype(float)
-    work["_label"] = work[bacterium_col].astype(str).str.strip()
-    work["_summary_flag"] = np.where(
-        work["_label"].str.endswith("*"),
-        "simulation >2x or <0.5x target in calibration summary",
-        "\u2014",
-    )
+        print("  Figure 13: placeholder (no numeric infection rows).")
+        return _sf7_placeholder(out_dir, agg, "No numeric simulation incidence rows were found.")
     work = work.sort_values(
-        ["_target_med", "_simulation_med", "_label"],
-        ascending=[False, False, True],
+        ["_simulation_mean", "_label"],
+        ascending=[False, True],
         na_position="last",
     ).reset_index(drop=True)
 
@@ -11716,51 +11649,22 @@ def make_supplementary_figure_s7_active_infection_incidence(
     fig_height = max(6.5, 2.2 + 0.28 * len(plot))
     fig, ax = plt.subplots(figsize=(10.4, fig_height))
 
-    for idx, row in plot.iterrows():
-        target = float(row["_target_med"])
-        simulation = float(row["_simulation_med"])
-        if np.isfinite(target) and np.isfinite(simulation):
-            ax.plot([target, simulation], [idx, idx], color="#b0bec5", linewidth=0.85, zorder=1)
-
-    target_values = plot["_target_med"].to_numpy(dtype=float)
-    simulation_values = plot["_simulation_med"].to_numpy(dtype=float)
-    target_mask = np.isfinite(target_values)
+    simulation_values = plot["_simulation_mean"].to_numpy(dtype=float)
     simulation_mask = np.isfinite(simulation_values)
 
     ax.scatter(
-        target_values[target_mask],
-        y[target_mask] - 0.11,
-        marker="D",
-        s=25,
-        color="#FF7043",
-        edgecolors="white",
-        linewidths=0.35,
-        label="Target",
-        zorder=3,
-    )
-
-    sim_err_low, sim_err_high = _asymmetric_errors(plot, "_simulation")
-    xerr = None
-    if n_runs > 1:
-        xerr = np.vstack([sim_err_low[simulation_mask], sim_err_high[simulation_mask]])
-    ax.errorbar(
         simulation_values[simulation_mask],
-        y[simulation_mask] + 0.11,
-        xerr=xerr,
-        fmt="o",
-        markersize=4.5,
-        color="#1565C0",
-        ecolor="#1565C0",
-        elinewidth=0.75,
-        capsize=2.2 if n_runs > 1 else 0,
-        linestyle="none",
-        label="Simulation median" if n_runs > 1 else "Simulation",
-        zorder=4,
+        y[simulation_mask],
+        s=28,
+        color=_F2_COLOUR_SIM,
+        edgecolors=_F2_COLOUR_SIM,
+        linewidths=0.4,
+        zorder=3,
     )
 
     finite_values = [
         float(value)
-        for value in [*target_values.tolist(), *simulation_values.tolist()]
+        for value in simulation_values.tolist()
         if np.isfinite(float(value)) and float(value) >= 0.0
     ]
     positive_values = [value for value in finite_values if value > 0.0]
@@ -11772,8 +11676,8 @@ def make_supplementary_figure_s7_active_infection_incidence(
             linthresh = max(min_value, max_value / 10_000.0)
             ax.set_xscale("symlog", linthresh=linthresh, linscale=0.8)
             axis_note = (
-                "The x-axis uses a symmetric log scale near zero because target "
-                "infection percentages vary by several orders of magnitude across bacteria."
+                "The x-axis uses a symmetric log scale near zero because modelled "
+                "incidence spans several orders of magnitude across bacteria."
             )
         ax.set_xlim(left=0.0, right=max_value * 1.25)
     else:
@@ -11782,64 +11686,42 @@ def make_supplementary_figure_s7_active_infection_incidence(
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_sf7_axis_label))
     ax.set_yticks(y)
     ax.set_yticklabels(plot["_label"].values, fontsize=7.1, fontstyle="italic")
-    ax.set_xlabel("Active infection incidence (% of world population)", fontsize=9.5)
-    ax.set_title(_SF7_TITLE, fontsize=10.8, fontweight="bold", pad=10)
+    ax.set_xlabel("Annual infection acquisitions per 100 population", fontsize=9.5)
     ax.grid(axis="x", linewidth=0.4, alpha=0.45)
-    ax.legend(fontsize=8.2, frameon=False, loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
 
-    table_cols: dict[str, object] = {
-        "Bacterium": work["_label"],
-        "Infection target (%)": work["_target_med"].map(_sf7_format_percent),
-        "Infection simulation, median (%)": work["_simulation_med"].map(_sf7_format_percent),
-    }
-    if n_runs > 1:
-        table_cols["Infection simulation, 5th-95th (%)"] = [
-            _sf7_format_interval(lo, hi)
-            for lo, hi in zip(work["_simulation_lo"], work["_simulation_hi"])
-        ]
-    table_cols["Simulation/target ratio"] = work["_ratio"].map(_sf7_format_ratio)
-    table_cols["Simulation minus target (percentage points)"] = work["_difference"].map(_sf7_format_percent)
-    table_cols["Calibration summary flag"] = work["_summary_flag"]
-    table_df = pd.DataFrame(table_cols)
-
-    extra_html = (
-        "<h2>Active infection incidence by bacterium</h2>\n"
-        + _html_table(table_df)
-    )
-    interval_note = (
-        "Simulation points are medians across accepted calibration summaries; horizontal "
-        "error bars show 5th-95th percentiles."
-        if n_runs > 1
-        else "Simulation points are from the supplied calibration summary."
-    )
-    footnotes = [
-        "Data source: Bacteria Burden Benchmarks \u2014 Infections & Carriage in "
-        "calibration_summary_*.txt. This figure displays Infection target (%) and "
-        "Infection simulation (%) only.",
-        "The plotted values are calibration-summary active-infection percentages by "
-        "bacterium. No new model-output CSV files are used.",
-        interval_note,
-        "Asterisks in bacterium labels are carried over from the calibration summary and "
-        "indicate simulated infection rates greater than 2x or less than 0.5x the target.",
-    ]
+    contributing = pd.to_numeric(work["_runs_contributing"], errors="coerce").dropna()
+    if n_runs > 1 and not contributing.empty and bool((contributing == n_runs).all()):
+        interval_note = f"Points show arithmetic means across {n_runs} independent stochastic runs."
+    elif n_runs > 1 and not contributing.empty:
+        interval_note = (
+            "Points show arithmetic means across available runs "
+            f"({int(contributing.min())}\u2013{int(contributing.max())} per bacterium; {n_runs} supplied)."
+        )
+    else:
+        interval_note = "Points show the supplied stochastic simulation run."
     if axis_note:
-        footnotes.append(axis_note)
+        interval_note += " " + axis_note
+    footnotes = [
+        "For each bacterium, incidence is the number of modelled infection-acquisition "
+        "events during 2022\u20132025, annualised and divided by the mean simulated population; "
+        "values are shown per 100 population.",
+        interval_note,
+    ]
 
     _save_figure(
         fig,
         out_dir,
         _SF7_STEM,
         _SF7_TITLE,
-        "Target and simulated active-infection incidence by bacterium from the "
-        "Bacteria Burden Benchmarks infection table.",
+        "",
         footnotes,
         agg=agg,
-        extra_html=extra_html,
+        meta_footnote_override="",
     )
     print(
-        "  Supplementary Figure S7: real data; "
+        "  Figure 13: real data; "
         f"{len(work)} bacteria included from {n_runs} calibration summary "
         f"{'files' if n_runs != 1 else 'file'}."
     )
@@ -12998,12 +12880,12 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "Figure 11. Resistance-adjusted antibiotic activity retained by bacterium, 2022\u20132025",
             ),
             (
-                "Figures/Figure_12__distribution_drug_use_by_bacteria.html",
-                "Figure 12. Antibiotic exposure distribution by bacterium, 2022\u20132025",
+                "Figures/Figure_12__modelled_resistance_mechanisms_by_bacterium.html",
+                "Figure 12. Modelled resistance mechanisms by bacterium, 2022\u20132025",
             ),
             (
-                "Figures/Figure_13__resistance_pathway_counterfactuals.html",
-                "Figure 13. Counterfactual resistance-acquisition pathway comparisons",
+                "Figures/Figure_13__active_infection_incidence_by_bacterium.html",
+                "Figure 13. Modelled annual infection incidence by bacterium, 2022\u20132025",
             ),
         ],
         "No main figures were generated.",
@@ -13039,11 +12921,6 @@ def make_index(agg: dict, out_dir: Path) -> None:
                 "2022\u20132025",
             ),
             (
-                "Figures/Supplementary_Figure_S7__active_infection_incidence_by_bacterium.html",
-                "Supplementary Figure S7. Active infection incidence by bacterium: "
-                "simulation versus target, 2022\u20132025",
-            ),
-            (
                 "Figures/Supplementary_Figure_S8__infection_outcome_pathway_by_bacterium.html",
                 "Supplementary Figure S8. Infection outcome pathway by bacterium, "
                 "2022\u20132025",
@@ -13063,11 +12940,6 @@ def make_index(agg: dict, out_dir: Path) -> None:
             (
                 "Figures/Figure_6C_old__serious_r_trends_by_bacterium.html",
                 "Old Figure 6C diagnostic. Serious-R trends by bacterium",
-            ),
-            (
-                "Figures/Supplementary_Figure_SX__modelled_resistance_mechanisms_by_bacterium.html",
-                "Supplementary Figure SX. Modelled resistance mechanisms by bacterium, "
-                "2022\u20132025",
             ),
         ],
         "No supplementary diagnostic figures were generated.",
@@ -13127,16 +12999,15 @@ def main(input_args: list[str]) -> None:
     csv_runs_with_scale = _discover_simulation_csvs_with_scale(paths)
     if csv_paths:
         print(
-            f"  Found {len(csv_paths)} simulation CSV(s) for Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, 12, "
-            "Supplementary Figures S1, S3, S5, S6, and S8, "
-            "and diagnostic Supplementary Figure SX. "
-            "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
+            f"  Found {len(csv_paths)} simulation CSV(s) for Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, and 12, "
+            "and Supplementary Figures S1, S3, S5, S6, and S8. "
+            "Supplementary Table S2, Figure 13, and Supplementary Figure S2 use calibration summary tables."
         )
     else:
         print(
-            "  No matching simulation CSVs found; Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, 12, and "
-            "Supplementary Figures S1, S3, S5, S6, S8, and diagnostic SX may render as placeholders. "
-            "Supplementary Table S2 and Supplementary Figures S2 and S7 use calibration summary tables."
+            "  No matching simulation CSVs found; Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, and 12, and "
+            "Supplementary Figures S1, S3, S5, S6, and S8 may render as placeholders. "
+            "Supplementary Table S2, Figure 13, and Supplementary Figure S2 use calibration summary tables."
         )
 
     st1_csv_paths = _filter_simulation_csvs_with_columns(
@@ -13154,7 +13025,7 @@ def main(input_args: list[str]) -> None:
         _SF3_REQUIRED_COLUMNS,
         "Supplementary Figure S3",
     )
-    sf4_csv_paths = csv_paths
+    figure_12_csv_paths = csv_paths
     sf5_required_columns = [
         column
         for _, suffix in _SF5_SETTINGS
@@ -13201,10 +13072,8 @@ def main(input_args: list[str]) -> None:
     make_supplementary_figure_s1_potential_activity_retained(sf1_csv_paths, out, agg=agg)
     make_supplementary_figure_s2_microbiome_resistance_reservoir(runs, out, agg=agg)
     make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(sf3_csv_paths, out, agg=agg)
-    make_supplementary_figure_s4_resistance_mechanisms_by_bacterium(sf4_csv_paths, out, agg=agg)
     make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(sf5_csv_paths, out, agg=agg)
     make_supplementary_figure_s6_new_active_infection_denominators(sf6_csv_paths, paths, out, agg=agg)
-    make_supplementary_figure_s7_active_infection_incidence(agg, out)
     make_supplementary_figure_s8_infection_outcome_pathway(st1_csv_paths, out, agg=agg)
     make_figure_6_resistance_trend(csv_paths, out)
     make_figure_6b_resistance_trend_by_bacterium(csv_paths, out)
@@ -13214,8 +13083,8 @@ def main(input_args: list[str]) -> None:
     make_figure_8_antibiotic_use_by_context(csv_runs_with_scale, out, agg=agg)
     make_figure_11_sepsis_context_effective_therapy(csv_paths, out, agg=agg)
     make_figure_15_mean_activity_by_bacteria(csv_paths, out, agg=agg)
-    make_figure_19_antibiotic_exposure_distribution(csv_paths, out, agg=agg)
-    make_figure_10_resistance_pathway_counterfactuals(out, agg=agg)
+    make_figure_12_resistance_mechanisms_by_bacterium(figure_12_csv_paths, out, agg=agg)
+    make_figure_13_active_infection_incidence(agg, out, runs=runs)
     make_index(agg, out)
 
     print(f"\nDone. Open {out / 'index.html'} to browse paper outputs.")
