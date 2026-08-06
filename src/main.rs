@@ -225,7 +225,7 @@ fn main() {
     // CalibrationMode::Partial25Counterfactual — full 1930-2025 baseline plus no-resistance 2022-2025.
     // CalibrationMode::Full25Counterfactual — sparse baseline and no-resistance rows for 2022-2025.
     // CalibrationMode::None        — full run with policy branches to 2035.
-    let calibration_mode = CalibrationMode::Full25Counterfactual;
+    let calibration_mode = CalibrationMode::Partial25Counterfactual;
     let time_steps = match calibration_mode {
         CalibrationMode::None => 38_325,
         CalibrationMode::Partial | CalibrationMode::FullMinimal | CalibrationMode::Full => 35_040,
