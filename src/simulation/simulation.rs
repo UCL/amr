@@ -16,11 +16,12 @@ use crate::simulation::rng::{
 use rand::{seq::index, Rng};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt::{self, Write as FmtWrite};
-use std::io::Write as IoWrite;
+use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 const CARRIAGE_DURATION_BIN_LABELS: [&str; 5] = ["0_29", "30_89", "90_179", "180_359", "360_plus"];
 const CARRIAGE_DURATION_BIN_COUNT: usize = CARRIAGE_DURATION_BIN_LABELS.len();
@@ -87,6 +88,8 @@ const NO_POLICY_BRANCHES: &[u8] = &[];
 const FULL_POLICY_BRANCHES: &[u8] = &[0, 1, 2, 3, 4];
 const CALIBRATION_COUNTERFACTUAL_BRANCHES: &[u8] = &[0, 2];
 const DETERMINISTIC_POPULATION_CHUNK_SIZE: usize = 8_192;
+const BRANCH_CHECKPOINT_FORMAT_VERSION: u32 = 1;
+const SHA256_DIGEST_LENGTH: u64 = 32;
 /// Output-only activity threshold for classifying sepsis treatment context and delay.
 /// This threshold does not affect model dynamics.
 const EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD: f64 = 0.5;
@@ -632,9 +635,115 @@ struct BranchSnapshot {
     mechanism_cache: MechanismCache,
 }
 
+#[derive(Serialize)]
+struct BorrowedBranchSnapshot<'a> {
+    population: &'a Population,
+    mechanism_cache: &'a MechanismCache,
+}
+
+#[derive(Serialize)]
+struct BorrowedBranchCheckpoint<'a> {
+    format_version: u32,
+    run_id: u32,
+    branch_step: u64,
+    time_steps: u64,
+    rng_seed: Option<u64>,
+    calibration_mode: &'a str,
+    source_hash: &'a str,
+    population_size: u64,
+    snapshot: BorrowedBranchSnapshot<'a>,
+}
+
+#[derive(Deserialize)]
+struct BranchCheckpoint {
+    format_version: u32,
+    run_id: u32,
+    branch_step: u64,
+    time_steps: u64,
+    rng_seed: Option<u64>,
+    calibration_mode: String,
+    source_hash: String,
+    population_size: u64,
+    snapshot: BranchSnapshot,
+}
+
+struct Sha256Writer<W> {
+    inner: W,
+    hasher: Sha256,
+}
+
+impl<W> Sha256Writer<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            hasher: Sha256::new(),
+        }
+    }
+
+    fn finish(self) -> (W, [u8; SHA256_DIGEST_LENGTH as usize]) {
+        (self.inner, self.hasher.finalize().into())
+    }
+}
+
+impl<W: IoWrite> IoWrite for Sha256Writer<W> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(buffer)?;
+        self.hasher.update(&buffer[..written]);
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+struct Sha256Reader<R> {
+    inner: R,
+    hasher: Sha256,
+}
+
+impl<R> Sha256Reader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            inner,
+            hasher: Sha256::new(),
+        }
+    }
+
+    fn finish(self) -> (R, [u8; SHA256_DIGEST_LENGTH as usize]) {
+        (self.inner, self.hasher.finalize().into())
+    }
+}
+
+impl<R: IoRead> IoRead for Sha256Reader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.inner.read(buffer)?;
+        self.hasher.update(&buffer[..read]);
+        Ok(read)
+    }
+}
+
+struct DiskBranchCheckpoint {
+    path: PathBuf,
+}
+
+impl Drop for DiskBranchCheckpoint {
+    fn drop(&mut self) {
+        if let Err(err) = std::fs::remove_file(&self.path) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "Warning: unable to remove branch checkpoint {}: {}",
+                    self.path.display(),
+                    err
+                );
+            }
+        }
+    }
+}
+
 enum StoredBranchSnapshot {
-    InMemory(BranchSnapshot),
-    OnDisk(PathBuf),
+    InMemory(Box<BranchSnapshot>),
+    OnDisk(DiskBranchCheckpoint),
 }
 
 #[inline]
@@ -2809,7 +2918,7 @@ impl Simulation {
             baseline_policy_adjustments: baseline_policy,
             branch_policy_adjustments: branch_policies,
             current_policy_adjustments: baseline_policy,
-            use_disk_branch_checkpoint: false,
+            use_disk_branch_checkpoint: calibration_mode.uses_policy_branches(),
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
             relevant_drugs_by_bacteria,
             calibration_mode,
@@ -2901,53 +3010,187 @@ impl Simulation {
 
     fn persist_branch_snapshot_to_disk(
         &self,
-        snapshot: &BranchSnapshot,
         branch_step: usize,
-    ) -> std::io::Result<PathBuf> {
-        use std::fs::{create_dir_all, File};
+    ) -> std::io::Result<DiskBranchCheckpoint> {
+        use std::fs::{create_dir_all, metadata, rename, OpenOptions};
         use std::io::BufWriter;
 
         create_dir_all(&self.branch_checkpoint_dir)?;
-        let path = self.branch_checkpoint_dir.join(format!(
-            "run_{:06}_branch_step_{}.bin",
-            self.run_id, branch_step
-        ));
-        let file = File::create(&path)?;
-        let writer = BufWriter::new(file);
-        bincode::serialize_into(writer, snapshot).map_err(|err| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("failed to serialize branch snapshot: {}", err),
-            )
-        })?;
-        Ok(path)
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let checkpoint_name = format!(
+            "run_{:06}_branch_step_{}_pid_{}_{}.bin",
+            self.run_id,
+            branch_step,
+            std::process::id(),
+            timestamp
+        );
+        let final_path = self.branch_checkpoint_dir.join(&checkpoint_name);
+        let temporary_path = self
+            .branch_checkpoint_dir
+            .join(format!(".{}.tmp", checkpoint_name));
+        let calibration_mode = self.calibration_mode.to_string();
+        let source_hash = observability::resolve_source_hash();
+        let checkpoint = BorrowedBranchCheckpoint {
+            format_version: BRANCH_CHECKPOINT_FORMAT_VERSION,
+            run_id: self.run_id,
+            branch_step: branch_step as u64,
+            time_steps: self.time_steps as u64,
+            rng_seed: self.rng_seed,
+            calibration_mode: &calibration_mode,
+            source_hash: &source_hash,
+            population_size: self.population.individuals.len() as u64,
+            snapshot: BorrowedBranchSnapshot {
+                population: &self.population,
+                mechanism_cache: &self.mechanism_cache,
+            },
+        };
+        let started = Instant::now();
+        println!(
+            "Writing borrowed branch checkpoint for {} people at time step {} to {}",
+            self.population.individuals.len(),
+            branch_step,
+            temporary_path.display()
+        );
+        observability::log_process_memory("before_checkpoint_write");
+
+        let write_result = (|| -> std::io::Result<DiskBranchCheckpoint> {
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary_path)?;
+            let mut writer = Sha256Writer::new(BufWriter::new(file));
+            bincode::serialize_into(&mut writer, &checkpoint).map_err(|err| {
+                std::io::Error::other(format!("failed to serialize branch checkpoint: {}", err))
+            })?;
+            let (mut writer, digest) = writer.finish();
+            writer.write_all(&digest)?;
+            writer.flush()?;
+            let file = writer.into_inner().map_err(|err| {
+                std::io::Error::new(
+                    err.error().kind(),
+                    format!("failed to flush branch checkpoint: {}", err),
+                )
+            })?;
+            file.sync_all()?;
+            drop(file);
+
+            rename(&temporary_path, &final_path)?;
+            let published = DiskBranchCheckpoint {
+                path: final_path.clone(),
+            };
+            let size = metadata(&published.path)?.len();
+            println!(
+                "Published branch checkpoint {} ({} bytes) in {:.1}s",
+                published.path.display(),
+                size,
+                started.elapsed().as_secs_f64()
+            );
+            observability::log_process_memory("after_checkpoint_write");
+            Ok(published)
+        })();
+
+        if write_result.is_err() {
+            if let Err(cleanup_err) = std::fs::remove_file(&temporary_path) {
+                if cleanup_err.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!(
+                        "Warning: unable to remove partial branch checkpoint {}: {}",
+                        temporary_path.display(),
+                        cleanup_err
+                    );
+                }
+            }
+        }
+        write_result
     }
 
     fn load_branch_snapshot_from_disk(
         &self,
-        path: &std::path::Path,
+        checkpoint_file: &DiskBranchCheckpoint,
+        expected_branch_step: usize,
     ) -> std::io::Result<BranchSnapshot> {
         use std::fs::File;
         use std::io::BufReader;
 
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        bincode::deserialize_from(reader).map_err(|err| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("failed to deserialize branch snapshot: {}", err),
-            )
-        })
-    }
-
-    fn cleanup_checkpoint_file(&self, path: &std::path::Path) {
-        if let Err(err) = std::fs::remove_file(path) {
-            eprintln!(
-                "Warning: unable to remove checkpoint file {}: {}",
-                path.display(),
-                err
-            );
+        let started = Instant::now();
+        let file = File::open(&checkpoint_file.path)?;
+        let file_size = file.metadata()?.len();
+        if file_size <= SHA256_DIGEST_LENGTH {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "branch checkpoint {} is too short",
+                    checkpoint_file.path.display()
+                ),
+            ));
         }
+        println!(
+            "Loading branch checkpoint {} ({} bytes)",
+            checkpoint_file.path.display(),
+            file_size
+        );
+        observability::log_process_memory("before_checkpoint_load");
+
+        let payload_size = file_size - SHA256_DIGEST_LENGTH;
+        let limited_reader = BufReader::new(file).take(payload_size);
+        let mut reader = Sha256Reader::new(limited_reader);
+        let checkpoint: BranchCheckpoint =
+            bincode::deserialize_from(&mut reader).map_err(|err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("failed to deserialize branch checkpoint: {}", err),
+                )
+            })?;
+        let (limited_reader, actual_digest) = reader.finish();
+        if limited_reader.limit() != 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "branch checkpoint contains unread payload bytes",
+            ));
+        }
+        let mut reader = limited_reader.into_inner();
+        let mut expected_digest = [0_u8; SHA256_DIGEST_LENGTH as usize];
+        reader.read_exact(&mut expected_digest)?;
+        if actual_digest != expected_digest {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "branch checkpoint checksum mismatch: {}",
+                    checkpoint_file.path.display()
+                ),
+            ));
+        }
+
+        let expected_mode = self.calibration_mode.to_string();
+        let expected_source_hash = observability::resolve_source_hash();
+        let metadata_matches = checkpoint.format_version == BRANCH_CHECKPOINT_FORMAT_VERSION
+            && checkpoint.run_id == self.run_id
+            && checkpoint.branch_step == expected_branch_step as u64
+            && checkpoint.time_steps == self.time_steps as u64
+            && checkpoint.rng_seed == self.rng_seed
+            && checkpoint.calibration_mode == expected_mode
+            && checkpoint.source_hash == expected_source_hash
+            && checkpoint.population_size
+                == checkpoint.snapshot.population.individuals.len() as u64;
+        if !metadata_matches {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "branch checkpoint metadata mismatch: {}",
+                    checkpoint_file.path.display()
+                ),
+            ));
+        }
+
+        println!(
+            "Validated branch checkpoint for {} people in {:.1}s",
+            checkpoint.population_size,
+            started.elapsed().as_secs_f64()
+        );
+        observability::log_process_memory("after_checkpoint_load");
+        Ok(checkpoint.snapshot)
     }
 
     fn run_from(
@@ -2961,12 +3204,12 @@ impl Simulation {
             observability::set_current_timestep(t);
             if let Some(step) = branch_capture_step {
                 if t == step && branch_snapshot.is_none() {
-                    let snapshot = self.create_branch_snapshot();
                     if self.use_disk_branch_checkpoint {
-                        let path = self.persist_branch_snapshot_to_disk(&snapshot, step)?;
-                        branch_snapshot = Some(StoredBranchSnapshot::OnDisk(path));
+                        let checkpoint = self.persist_branch_snapshot_to_disk(step)?;
+                        branch_snapshot = Some(StoredBranchSnapshot::OnDisk(checkpoint));
                     } else {
-                        branch_snapshot = Some(StoredBranchSnapshot::InMemory(snapshot));
+                        let snapshot = self.create_branch_snapshot();
+                        branch_snapshot = Some(StoredBranchSnapshot::InMemory(Box::new(snapshot)));
                     }
                 }
             }
@@ -6390,39 +6633,25 @@ impl Simulation {
         }
 
         if let (Some(stored_snapshot), Some(step)) = (baseline_snapshot, branch_step) {
-            let (branch_snapshot, snapshot_cleanup) =
-                match self.materialize_branch_snapshot(stored_snapshot) {
-                    Ok(result) => result,
-                    Err(err) => {
-                        eprintln!("Error preparing branch snapshot: {}", err);
-                        return;
-                    }
-                };
-
             // The initial run is the complete policy-0 trajectory. Keep it as the canonical
             // baseline and run only true alternatives from the checkpoint.
             let baseline_summary_log = std::mem::take(&mut self.summary_log);
-            let branch_policies = self.branch_policy_adjustments.clone();
-            for policy in branch_policies
+            let branch_policies: Vec<PolicyAdjustments> = self
+                .branch_policy_adjustments
+                .clone()
                 .into_iter()
                 .filter(|policy| policy.policy_option != 0)
-            {
-                let branch_result = self.run_policy_branch(&branch_snapshot, step, policy);
+                .collect();
 
-                self.current_policy_adjustments = self.baseline_policy_adjustments;
+            let branch_result =
+                self.run_stored_policy_branches(stored_snapshot, step, branch_policies);
 
-                if let Err(err) = branch_result {
-                    eprintln!(
-                        "Error running alternate policy branch (option {}): {}",
-                        policy.policy_option, err
-                    );
-                    break;
-                }
-            }
+            self.current_policy_adjustments = self.baseline_policy_adjustments;
+            self.branch_active = false;
             self.summary_log = baseline_summary_log;
 
-            if let Some(path) = snapshot_cleanup {
-                self.cleanup_checkpoint_file(&path);
+            if let Err(err) = branch_result {
+                eprintln!("Error running alternate policy branches: {}", err);
             }
         }
     }
@@ -6449,22 +6678,62 @@ impl Simulation {
         }
     }
 
-    fn materialize_branch_snapshot(
-        &self,
-        snapshot: StoredBranchSnapshot,
-    ) -> std::io::Result<(BranchSnapshot, Option<PathBuf>)> {
-        match snapshot {
-            StoredBranchSnapshot::InMemory(data) => Ok((data, None)),
-            StoredBranchSnapshot::OnDisk(path) => {
-                let data = self.load_branch_snapshot_from_disk(&path)?;
-                Ok((data, Some(path)))
+    fn run_stored_policy_branches(
+        &mut self,
+        stored_snapshot: StoredBranchSnapshot,
+        branch_step: usize,
+        branch_policies: Vec<PolicyAdjustments>,
+    ) -> std::io::Result<()> {
+        match stored_snapshot {
+            StoredBranchSnapshot::OnDisk(checkpoint) => {
+                for policy in branch_policies {
+                    self.release_active_state_for_disk_restore();
+                    let snapshot = self.load_branch_snapshot_from_disk(&checkpoint, branch_step)?;
+                    self.run_policy_branch(snapshot, branch_step, policy)?;
+                }
+                Ok(())
+            }
+            StoredBranchSnapshot::InMemory(snapshot) => {
+                let branch_count = branch_policies.len();
+                let mut reusable_snapshot = Some(*snapshot);
+                for (index, policy) in branch_policies.into_iter().enumerate() {
+                    let branch_snapshot = if index + 1 == branch_count {
+                        reusable_snapshot
+                            .take()
+                            .expect("branch snapshot is available")
+                    } else {
+                        reusable_snapshot
+                            .as_ref()
+                            .expect("branch snapshot is available")
+                            .clone()
+                    };
+                    self.run_policy_branch(branch_snapshot, branch_step, policy)?;
+                }
+                Ok(())
             }
         }
     }
 
+    fn release_active_state_for_disk_restore(&mut self) {
+        let population_size = self.population.individuals.len();
+        let num_regions = self.mechanism_cache.num_regions;
+        let num_bacteria = self.mechanism_cache.num_bacteria;
+        let num_mechanisms = self.mechanism_cache.num_mechanisms;
+        println!(
+            "Releasing active state for {} people before disk checkpoint restore",
+            population_size
+        );
+        observability::log_process_memory("before_active_state_release");
+        self.population.individuals = Vec::new();
+        self.mechanism_cache = MechanismCache::new(num_regions, num_bacteria, num_mechanisms);
+        self.summary_log = Vec::new();
+        println!("Active state released; beginning bounded-memory restore");
+        observability::log_process_memory("after_active_state_release");
+    }
+
     fn run_policy_branch(
         &mut self,
-        snapshot: &BranchSnapshot,
+        snapshot: BranchSnapshot,
         branch_step: usize,
         policy: PolicyAdjustments,
     ) -> std::io::Result<()> {
@@ -6476,38 +6745,44 @@ impl Simulation {
         self.branch_active = true;
         self.current_policy_adjustments = policy;
 
-        self.population = snapshot.population.clone();
-        self.mechanism_cache = snapshot.mechanism_cache.clone();
-        self.summary_log.clear();
+        let BranchSnapshot {
+            population,
+            mechanism_cache,
+        } = snapshot;
+        self.population = population;
+        self.mechanism_cache = mechanism_cache;
+        self.summary_log = Vec::new();
 
-        if policy.clear_all_resistance_on_branch_start {
-            self.reset_all_resistance_state();
-        }
+        let branch_result = (|| {
+            if policy.clear_all_resistance_on_branch_start {
+                self.reset_all_resistance_state();
+            }
 
-        self.run_from(branch_step, None)?;
+            self.run_from(branch_step, None)?;
 
-        let branch_summaries: Vec<TimeStepSummary> = self
-            .summary_log
-            .iter()
-            .cloned()
-            .filter(|entry| {
-                entry.policy_option == policy.policy_option
-                    && (policy.policy_option != 0 || entry.time_step >= branch_step)
-            })
-            .collect();
-        if !branch_summaries.is_empty() {
-            self.policy_branch_summary_log.push(PolicyBranchSummary {
-                policy_option: policy.policy_option,
-                summaries: branch_summaries,
-            });
-        }
-
+            let branch_summaries: Vec<TimeStepSummary> = std::mem::take(&mut self.summary_log)
+                .into_iter()
+                .filter(|entry| {
+                    entry.policy_option == policy.policy_option
+                        && (policy.policy_option != 0 || entry.time_step >= branch_step)
+                })
+                .collect();
+            if !branch_summaries.is_empty() {
+                self.policy_branch_summary_log.push(PolicyBranchSummary {
+                    policy_option: policy.policy_option,
+                    summaries: branch_summaries,
+                });
+            }
+            Ok(())
+        })();
         self.branch_active = false;
-        println!(
-            "Alternate policy branch (option {}) completed",
-            policy.policy_option
-        );
-        Ok(())
+        if branch_result.is_ok() {
+            println!(
+                "Alternate policy branch (option {}) completed",
+                policy.policy_option
+            );
+        }
+        branch_result
     }
 
     fn reset_all_resistance_state(&mut self) {
@@ -8313,8 +8588,8 @@ mod tests {
         diagnostic_cascade_entry_eligible, has_active_reportable_infection,
         infection_death_has_model_scope_contributor, is_new_person_level_sepsis_episode,
         person_day_vital_status, sample_hypergeometric_left_count, BranchSnapshot, CalibrationMode,
-        MechanismCache, MechanismProfileCache, SummaryContentFlags, DAYS_PER_YEAR,
-        MAX_MECHANISM_PROFILES, SIMULATION_START_YEAR,
+        MechanismCache, MechanismProfileCache, PolicyAdjustments, Simulation, SummaryContentFlags,
+        DAYS_PER_YEAR, MAX_MECHANISM_PROFILES, SIMULATION_START_YEAR,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
@@ -8324,6 +8599,93 @@ mod tests {
     };
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
+    use std::fs::OpenOptions;
+    use std::io::{Read, Seek, SeekFrom, Write};
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDirectory {
+        path: PathBuf,
+    }
+
+    impl TestDirectory {
+        fn new(label: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "amr_{}_{}_{}",
+                label,
+                std::process::id(),
+                unique
+            ));
+            std::fs::create_dir_all(&path).expect("test directory should be created");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn small_checkpoint_simulation(directory: &Path) -> Simulation {
+        let mut simulation = Simulation::new(
+            2,
+            CalibrationMode::Partial25Counterfactual.time_steps(),
+            false,
+            Some(123_456_789),
+            CalibrationMode::Partial25Counterfactual,
+        );
+        simulation.run_id = 654_321;
+        simulation.enable_disk_branch_checkpointing(Some(directory.to_path_buf()));
+        simulation
+    }
+
+    fn run_short_branch_for_parity(
+        directory: &Path,
+        use_disk_checkpoint: bool,
+    ) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+        let mut simulation = Simulation::new(
+            2,
+            3,
+            false,
+            Some(246_813_579),
+            CalibrationMode::Partial25Counterfactual,
+        );
+        simulation.run_id = 234_567;
+        if use_disk_checkpoint {
+            simulation.enable_disk_branch_checkpointing(Some(directory.to_path_buf()));
+        } else {
+            simulation.disable_disk_branch_checkpointing();
+        }
+
+        let stored_snapshot = simulation
+            .run_from(0, Some(1))
+            .expect("short baseline should run")
+            .expect("branch checkpoint should be captured");
+        let baseline_summaries = std::mem::take(&mut simulation.summary_log);
+        let policy = PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals)
+            .expect("policy 2 should exist");
+        simulation
+            .run_stored_policy_branches(stored_snapshot, 1, vec![policy])
+            .expect("counterfactual branch should run");
+        simulation.summary_log = baseline_summaries;
+
+        let baseline_bytes =
+            bincode::serialize(&simulation.summary_log).expect("baseline should serialize");
+        let branch_bytes = bincode::serialize(&simulation.policy_branch_summary_log)
+            .expect("branch summaries should serialize");
+        let final_state_bytes = bincode::serialize(&simulation.create_branch_snapshot())
+            .expect("final branch state should serialize");
+        (baseline_bytes, branch_bytes, final_state_bytes)
+    }
 
     fn cache_with_slot(
         profiles: Vec<u64>,
@@ -8385,6 +8747,27 @@ mod tests {
     }
 
     #[test]
+    fn branch_enabled_modes_default_to_disk_checkpointing() {
+        let branch_simulation = Simulation::new(
+            0,
+            CalibrationMode::Partial25Counterfactual.time_steps(),
+            false,
+            Some(1),
+            CalibrationMode::Partial25Counterfactual,
+        );
+        assert!(branch_simulation.use_disk_branch_checkpoint);
+
+        let calibration_simulation = Simulation::new(
+            0,
+            CalibrationMode::Full.time_steps(),
+            false,
+            Some(1),
+            CalibrationMode::Full,
+        );
+        assert!(!calibration_simulation.use_disk_branch_checkpoint);
+    }
+
+    #[test]
     fn branch_snapshot_round_trips_without_summary_history() {
         let mut rng = SmallRng::seed_from_u64(75);
         let snapshot = BranchSnapshot {
@@ -8403,6 +8786,226 @@ mod tests {
         assert_eq!(decoded.population.individuals.len(), 2);
         assert_eq!(decoded.mechanism_cache.num_regions, 7);
         assert_eq!(decoded.mechanism_cache.num_bacteria, BACTERIA_LIST.len());
+    }
+
+    #[test]
+    fn borrowed_disk_checkpoint_round_trips_and_cleans_up() {
+        let directory = TestDirectory::new("borrowed_checkpoint_round_trip");
+        let simulation = small_checkpoint_simulation(directory.path());
+        let expected = bincode::serialize(&simulation.create_branch_snapshot())
+            .expect("expected snapshot should serialize");
+
+        let checkpoint = simulation
+            .persist_branch_snapshot_to_disk(33_580)
+            .expect("borrowed checkpoint should persist");
+        let checkpoint_path = checkpoint.path.clone();
+        assert!(checkpoint_path.is_file());
+
+        let restored = simulation
+            .load_branch_snapshot_from_disk(&checkpoint, 33_580)
+            .expect("checkpoint should restore");
+        let actual = bincode::serialize(&restored).expect("restored snapshot should serialize");
+        assert_eq!(actual, expected);
+
+        drop(checkpoint);
+        assert!(!checkpoint_path.exists());
+    }
+
+    #[test]
+    fn disk_checkpoint_rejects_checksum_corruption() {
+        let directory = TestDirectory::new("checkpoint_checksum");
+        let simulation = small_checkpoint_simulation(directory.path());
+        let checkpoint = simulation
+            .persist_branch_snapshot_to_disk(33_580)
+            .expect("borrowed checkpoint should persist");
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&checkpoint.path)
+            .expect("checkpoint should open");
+        file.seek(SeekFrom::End(-1))
+            .expect("checksum byte should be seekable");
+        let mut last_byte = [0_u8; 1];
+        file.read_exact(&mut last_byte)
+            .expect("checksum byte should be readable");
+        last_byte[0] ^= 0xff;
+        file.seek(SeekFrom::End(-1))
+            .expect("checksum byte should be seekable");
+        file.write_all(&last_byte)
+            .expect("checksum byte should be writable");
+        file.sync_all().expect("corruption should be flushed");
+        drop(file);
+
+        let error = match simulation.load_branch_snapshot_from_disk(&checkpoint, 33_580) {
+            Ok(_) => panic!("corrupt checkpoint should be rejected"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("checksum mismatch"));
+    }
+
+    #[test]
+    fn disk_checkpoint_rejects_wrong_branch_step() {
+        let directory = TestDirectory::new("checkpoint_metadata");
+        let simulation = small_checkpoint_simulation(directory.path());
+        let checkpoint = simulation
+            .persist_branch_snapshot_to_disk(33_580)
+            .expect("borrowed checkpoint should persist");
+
+        let error = match simulation.load_branch_snapshot_from_disk(&checkpoint, 33_581) {
+            Ok(_) => panic!("checkpoint for another branch step should be rejected"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("metadata mismatch"));
+    }
+
+    #[test]
+    fn disk_checkpoint_population_moves_into_policy_branch() {
+        let directory = TestDirectory::new("checkpoint_move_restore");
+        let mut simulation = small_checkpoint_simulation(directory.path());
+        let branch_step = simulation.time_steps;
+        let checkpoint = simulation
+            .persist_branch_snapshot_to_disk(branch_step)
+            .expect("borrowed checkpoint should persist");
+
+        simulation.release_active_state_for_disk_restore();
+        assert!(simulation.population.individuals.is_empty());
+        let snapshot = simulation
+            .load_branch_snapshot_from_disk(&checkpoint, branch_step)
+            .expect("checkpoint should restore");
+        let restored_population_address = snapshot.population.individuals.as_ptr();
+        let policy = PolicyAdjustments::from_id(1, &crate::config::parameter_store().globals)
+            .expect("policy 1 should exist");
+
+        simulation
+            .run_policy_branch(snapshot, branch_step, policy)
+            .expect("empty policy continuation should complete");
+
+        assert_eq!(
+            simulation.population.individuals.as_ptr(),
+            restored_population_address
+        );
+        assert_eq!(simulation.population.individuals.len(), 2);
+    }
+
+    #[test]
+    fn disk_checkpoint_preserves_baseline_and_branch_summary_ranges() {
+        let directory = TestDirectory::new("checkpoint_branch_lifecycle");
+        let mut simulation = Simulation::new(
+            2,
+            3,
+            false,
+            Some(987_654_321),
+            CalibrationMode::Partial25Counterfactual,
+        );
+        simulation.run_id = 123_456;
+        simulation.enable_disk_branch_checkpointing(Some(directory.path().to_path_buf()));
+
+        let stored_snapshot = simulation
+            .run_from(0, Some(1))
+            .expect("short baseline should run")
+            .expect("branch checkpoint should be captured");
+        let baseline_summaries = std::mem::take(&mut simulation.summary_log);
+        let policy = PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals)
+            .expect("policy 2 should exist");
+
+        simulation
+            .run_stored_policy_branches(stored_snapshot, 1, vec![policy])
+            .expect("counterfactual branch should run");
+        simulation.summary_log = baseline_summaries;
+
+        assert_eq!(
+            simulation
+                .summary_log
+                .iter()
+                .map(|summary| (summary.time_step, summary.policy_option))
+                .collect::<Vec<_>>(),
+            vec![(0, 0), (1, 0), (2, 0)]
+        );
+        assert_eq!(simulation.policy_branch_summary_log.len(), 1);
+        assert_eq!(simulation.policy_branch_summary_log[0].policy_option, 2);
+        assert_eq!(
+            simulation.policy_branch_summary_log[0]
+                .summaries
+                .iter()
+                .map(|summary| (summary.time_step, summary.policy_option))
+                .collect::<Vec<_>>(),
+            vec![(1, 2), (2, 2)]
+        );
+        assert_eq!(
+            std::fs::read_dir(directory.path())
+                .expect("checkpoint directory should remain readable")
+                .count(),
+            0
+        );
+    }
+
+    #[test]
+    fn disk_and_in_memory_checkpoints_have_fixed_seed_parity() {
+        let disk_directory = TestDirectory::new("checkpoint_disk_parity");
+        let memory_directory = TestDirectory::new("checkpoint_memory_parity");
+
+        let disk_result = run_short_branch_for_parity(disk_directory.path(), true);
+        let memory_result = run_short_branch_for_parity(memory_directory.path(), false);
+
+        assert_eq!(disk_result.0, memory_result.0, "baseline summaries differ");
+        assert_eq!(disk_result.1, memory_result.1, "branch summaries differ");
+        assert_eq!(disk_result.2, memory_result.2, "final branch state differs");
+    }
+
+    #[test]
+    fn disk_checkpoint_reloads_independently_for_multiple_policies() {
+        let directory = TestDirectory::new("checkpoint_multiple_policies");
+        let mut simulation = Simulation::new(
+            2,
+            3,
+            false,
+            Some(135_792_468),
+            CalibrationMode::Partial25Counterfactual,
+        );
+        simulation.run_id = 345_678;
+        simulation.enable_disk_branch_checkpointing(Some(directory.path().to_path_buf()));
+
+        let stored_snapshot = simulation
+            .run_from(0, Some(1))
+            .expect("short baseline should run")
+            .expect("branch checkpoint should be captured");
+        let policies = [1, 2]
+            .into_iter()
+            .map(|policy_id| {
+                PolicyAdjustments::from_id(policy_id, &crate::config::parameter_store().globals)
+                    .expect("policy should exist")
+            })
+            .collect();
+
+        simulation
+            .run_stored_policy_branches(stored_snapshot, 1, policies)
+            .expect("both policy branches should run");
+
+        assert_eq!(
+            simulation
+                .policy_branch_summary_log
+                .iter()
+                .map(|branch| branch.policy_option)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        for branch in &simulation.policy_branch_summary_log {
+            assert_eq!(
+                branch
+                    .summaries
+                    .iter()
+                    .map(|summary| summary.time_step)
+                    .collect::<Vec<_>>(),
+                vec![1, 2]
+            );
+        }
+        assert_eq!(
+            std::fs::read_dir(directory.path())
+                .expect("checkpoint directory should remain readable")
+                .count(),
+            0
+        );
     }
 
     #[test]

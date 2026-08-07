@@ -38,6 +38,43 @@ pub fn current_timestep() -> Option<usize> {
     }
 }
 
+/// Emit Linux process-memory counters at infrequent lifecycle boundaries.
+///
+/// Values come from procfs and are intentionally unavailable on other platforms.
+/// Runner-level cgroup metrics remain the authority for job memory limits.
+pub fn log_process_memory(label: &str) {
+    #[cfg(target_os = "linux")]
+    {
+        let rss_kib = proc_memory_value("/proc/self/status", "VmRSS:");
+        let peak_rss_kib = proc_memory_value("/proc/self/status", "VmHWM:");
+        let pss_kib = proc_memory_value("/proc/self/smaps_rollup", "Pss:");
+        println!(
+            "Process memory [{}]: rss_kib={}, pss_kib={}, peak_rss_kib={}",
+            label,
+            format_optional_counter(rss_kib),
+            format_optional_counter(pss_kib),
+            format_optional_counter(peak_rss_kib)
+        );
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    let _ = label;
+}
+
+#[cfg(target_os = "linux")]
+fn proc_memory_value(path: &str, key: &str) -> Option<u64> {
+    let contents = std::fs::read_to_string(path).ok()?;
+    let line = contents.lines().find(|line| line.starts_with(key))?;
+    line.split_whitespace().nth(1)?.parse().ok()
+}
+
+#[cfg(target_os = "linux")]
+fn format_optional_counter(value: Option<u64>) -> String {
+    value
+        .map(|counter| counter.to_string())
+        .unwrap_or_else(|| "unavailable".to_string())
+}
+
 pub fn resolve_source_hash() -> String {
     if let Ok(value) = std::env::var("AMR_SOURCE_HASH") {
         let trimmed = value.trim();

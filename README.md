@@ -112,6 +112,22 @@ counterfactual modes checkpoint immediately before the first 2022 timestep,
 retain the completed policy-0 trajectory, then restore that checkpoint and run
 the resistance-suppressed policy 2 through the end of 2025.
 
+Branch-enabled runs use disk-backed checkpoints by default. Checkpoint capture
+streams borrowed population and mechanism-cache state directly to a temporary
+file, then flushes, checksums, and atomically publishes it without cloning the
+population in memory. After the baseline summaries have been retained, the
+completed active population is released before a checkpoint is deserialized;
+the restored state is moved into the policy branch. Multi-policy runs reread
+the checkpoint for each branch to keep memory bounded. These modes therefore
+still require space for the serialized checkpoint and retained summary rows,
+but disk checkpointing does not require another simultaneous full population.
+The explicitly selectable in-memory checkpoint path remains suitable only when
+the additional population copy is known to fit. Before rerunning at 10 million,
+use fixed-seed 300k, 1M, and 3M trials to review the emitted checkpoint size,
+write/read duration, phase RSS/PSS, and runner cgroup peak. Provision checkpoint
+disk capacity with explicit headroom; an interrupted process can leave a uniquely
+named stale file in the configured checkpoint directory for deliberate cleanup.
+
 To compare model-scope infection mortality between those two branches, set
 `SIMULATION_CSV` near the top of
 `amr_simulation_output_analysis/counterfactual_2025_death_rates.py`, then run:
