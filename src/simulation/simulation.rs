@@ -6806,19 +6806,15 @@ impl Simulation {
                 if b_idx < individual.mechanism_any.len() {
                     individual.clear_infection_mechanisms(b_idx);
                 }
+                if b_idx < individual.mechanism_microbiome.len() {
+                    individual.clear_microbiome_mechanisms(b_idx);
+                }
             }
         }
 
         let num_regions = self.mechanism_cache.num_regions;
         let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
         self.mechanism_cache = MechanismCache::new(num_regions, num_bacteria, num_mechanisms);
-        if config::parameter_store()
-            .globals
-            .debug_seed_hospital_cache_resistant_profiles
-        {
-            self.mechanism_cache
-                .seed_debug_hospital_resistant_profiles(&self.param_cache);
-        }
     }
 
     pub fn print_summary_statistics(&self) {
@@ -8593,9 +8589,9 @@ mod tests {
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
-        bacterium_has_separate_microbiome_compartment, AntibioticUseContext, Individual,
-        Population, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
-        MISSING_EVENT_DATE,
+        bacterium_has_separate_microbiome_compartment, load_float, store_float,
+        AntibioticUseContext, Individual, Population, ResistanceMechanism, BACTERIA_LIST,
+        DRUG_SHORT_NAMES, INFECTION_EPS, MISSING_EVENT_DATE,
     };
     use rand::rngs::SmallRng;
     use rand::SeedableRng;
@@ -8765,6 +8761,66 @@ mod tests {
             CalibrationMode::Full,
         );
         assert!(!calibration_simulation.use_disk_branch_checkpoint);
+    }
+
+    #[test]
+    fn resistance_suppression_reset_clears_all_resistance_compartments() {
+        let mut simulation = Simulation::new(
+            1,
+            0,
+            false,
+            Some(112_233_445),
+            CalibrationMode::Partial25Counterfactual,
+        );
+        let bacteria_idx = 0;
+        let mechanism_idx = 0;
+        let mechanism_mask = 1_u64 << mechanism_idx;
+
+        {
+            let individual = &mut simulation.population.individuals[0];
+            individual.level[bacteria_idx] = 1.0;
+            individual.presence_microbiome[bacteria_idx] = true;
+            individual.set_any_mechanism(bacteria_idx, mechanism_idx);
+            individual.set_majority_mechanism(bacteria_idx, mechanism_idx);
+            individual.set_microbiome_mechanism(bacteria_idx, mechanism_idx);
+            individual.test_for_resistance[bacteria_idx] = true;
+            individual.resistance_test_initiated_day[bacteria_idx] = 17;
+            for resistance in &mut individual.resistances[bacteria_idx] {
+                resistance.any_r = store_float(0.5);
+                resistance.activity_r = store_float(0.4);
+                resistance.microbiome_r = store_float(0.3);
+                resistance.test_r = store_float(0.2);
+            }
+        }
+
+        simulation
+            .mechanism_cache
+            .profiles
+            .seed_mask(0, bacteria_idx, false, mechanism_mask);
+        let mut rng = SmallRng::seed_from_u64(7);
+        assert!(simulation
+            .mechanism_cache
+            .sample_profile(0, bacteria_idx, false, &mut rng)
+            .is_some());
+
+        simulation.reset_all_resistance_state();
+        let individual = &simulation.population.individuals[0];
+
+        assert_eq!(individual.any_mechanism_mask(bacteria_idx), 0);
+        assert_eq!(individual.majority_mechanism_mask(bacteria_idx), 0);
+        assert_eq!(individual.microbiome_mechanism_mask(bacteria_idx), 0);
+        assert!(individual.resistances[bacteria_idx]
+            .iter()
+            .all(|resistance| {
+                load_float(resistance.any_r) == 0.0
+                    && load_float(resistance.activity_r) == 0.0
+                    && load_float(resistance.microbiome_r) == 0.0
+                    && load_float(resistance.test_r) == 0.0
+            }));
+        assert!(simulation
+            .mechanism_cache
+            .sample_profile(0, bacteria_idx, false, &mut rng)
+            .is_none());
     }
 
     #[test]
