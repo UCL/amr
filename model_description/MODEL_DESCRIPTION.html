@@ -66,11 +66,12 @@ a:hover { text-decoration: underline; }
 <li><a href="#b11-horizontal-gene-transfer-matrix">B.11 Horizontal Gene Transfer Matrix</a></li>
 <li><a href="#appendix-c-output-specification">Appendix C — Output Specification</a></li>
 <li><a href="#appendix-d-individual-level-variable-dictionary">Appendix D — Individual-level Variable Dictionary</a></li>
+<li><a href="#references">References</a></li>
 </ol>
 <hr />
 <h2 id="1-overview">1. Overview</h2>
 <h3 id="11-framework-structure">1.1 Framework structure</h3>
-<p>We present a <strong>framework</strong> in the form of an <strong>individual-based model</strong> that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before widespread antibacterial use, through 2025 in <strong>daily</strong> time steps; full policy runs can extend through 2035. We typically simulate 3 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.</p>
+<p>We present a <strong>framework</strong> in the form of an <strong>individual-based model</strong> that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before widespread antibacterial use, through 2025 in <strong>daily</strong> time steps; full policy runs can extend through 2035. The checked-in launcher uses 10 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.</p>
 <p>As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
 <p>The framework aims to capture how bacterial resistance in one individual can affect resistance profiles in others in the same region, while also accounting for movement between regions. It does not dynamically model infection transmission or make incidence depend on prevalence. Infection acquisition hazards are externally parameterised by bacterium, age, region, vaccination, carriage, hospital status, sanitation, and selected organism-specific calendar-era effects.</p>
 <p>The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of mechanistic rules. These rules govern the events that can happen to a person on any given day and include:</p>
@@ -83,7 +84,7 @@ a:hover { text-decoration: underline; }
 <li>Resistance emergence via de novo mutation or horizontal gene transfer</li>
 <li>Mortality from infection, sepsis, or drug toxicity</li>
 </ul>
-<p><strong>Implementation order within a simulated day.</strong> In the live <code>apply_rules()</code> implementation, the ordering is: age/living-state checks and birth-cohort vaccination; reset daily microbiome flags; immunodeficiency onset/recovery; hospital admission or discharge; travel; sepsis onset or clearance for currently active infections; antibiotic stopping, pharmacokinetic decay, and new drug initiation/selection; toxicity and treatment-failure/restart checks; mortality and sepsis recovery; then the per-bacterium loop for new acquisition, microbiome acquisition/clearance, resistance emergence/reversion/floors, infection growth, symptoms, clearance, testing, and finally HGT. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.</p>
+<p><strong>Implementation order within a simulated day.</strong> In the live <code>apply_rules()</code> implementation, the ordering is: age/living-state checks and birth-cohort vaccination; reset daily microbiome flags; immunodeficiency onset/recovery; hospital admission or discharge; travel; sepsis onset or clearance for infections already active at that point in the day; antibiotic stopping, pharmacokinetic decay, and new drug initiation/selection; toxicity and treatment-failure/restart checks; mortality and sepsis recovery; then a per-bacterium block that handles carriage acquisition/clearance and carriage resistance evolution, active-infection acquisition or progression, resistance profile assignment, testing/AST state, infection growth, symptoms, clearance, and resistance reversion/emergence. HGT is evaluated after the per-bacterium block. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.</p>
 <p><strong>Stochastic processes.</strong> The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a <em>probability</em> for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories.</p>
 <p><strong>Calibration.</strong> As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter, selected against a mixture of observed quantities, transformed comparisons, and transparent expert placeholders. Resistance calibration uses evidence-informed benchmarks drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD), but the current matrix does not retain cell-level provenance sufficient to call every value an observed estimate. Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.</p>
 <p><strong>Resistance calibration quantities.</strong> Figure 2 deliberately defines simulated
@@ -174,7 +175,7 @@ a resistance profile from the local human circulating-profile library.</p>
 <li><strong>Birth sex</strong>: Male or female, assigned with equal probability.</li>
 <li><strong>Region</strong>: Sampled from demographic weights reflecting the global population distribution.</li>
 </ul>
-<p>The six regions and their approximate population shares determine the starting geographical distribution:</p>
+<p>The six regions and their approximate configured demographic weights determine the geographical distribution of both initially living people and future births:</p>
 <p>Where a table in this document includes a <strong>Citation / source</strong> column, that citation should usually be read as support for the presence, direction, or broad ordering of the modelled effect rather than as a claim that the exact tuned numeric value is taken directly from a single empirical estimate.</p>
 <table>
 <thead>
@@ -191,23 +192,23 @@ a resistance profile from the local human circulating-profile library.</p>
 <td>UN DESA Population Division, 2024</td>
 </tr>
 <tr>
-<td>Europe</td>
-<td>~15%</td>
+<td>Africa</td>
+<td>~18%</td>
 <td>UN DESA Population Division, 2024</td>
 </tr>
 <tr>
-<td>Africa</td>
-<td>~12%</td>
+<td>Europe</td>
+<td>~13%</td>
 <td>UN DESA Population Division, 2024</td>
 </tr>
 <tr>
 <td>North America</td>
-<td>~9%</td>
+<td>~7%</td>
 <td>UN DESA Population Division, 2024</td>
 </tr>
 <tr>
 <td>South America</td>
-<td>~6%</td>
+<td>~5%</td>
 <td>UN DESA Population Division, 2024</td>
 </tr>
 <tr>
@@ -633,7 +634,7 @@ a resistance profile from the local human circulating-profile library.</p>
 <li>The carried bacteria may already be resistant (having been selected by previous antibiotic courses)</li>
 <li>The person's resistance profile passes directly from carriage to infection and each resistance mechanism present in the microbiome compartment (<code>mechanism_microbiome</code>) is independently considered for transfer to the infection compartment (<code>mechanism_any</code>)</li>
 </ul>
-<p>This pathway is governed by two parameters:</p>
+<p>This pathway is governed by two biological parameters, with an additional scenario-level gate in resistance-suppressed policy branches:</p>
 <table>
 <thead>
 <tr>
@@ -655,7 +656,7 @@ a resistance profile from the local human circulating-profile library.</p>
 </tr>
 </tbody>
 </table>
-<p>If the pathway fires, only mechanisms already present in the person's carriage compartment are eligible, and those mechanisms are copied into <code>mechanism_any</code> before infection resistance is re-derived. In practice, this bridge is checked after a new infection has been established, provided the person is already carrying the same organism in <code>presence_microbiome</code>. It is distinct from sampling from the regional stored profile library during acquisition (Section 3.4), because it uses the person's own carriage profile rather than importing a profile from the surrounding community or hospital pool.</p>
+<p>The effective person-level gate is scaled by <code>counterfactual_resistance_multiplier</code> before the draw. If the pathway fires, only mechanisms already present in the person's carriage compartment are eligible, and those mechanisms are copied into <code>mechanism_any</code> before infection resistance is re-derived. In practice, this bridge is checked after a new infection has been established, provided the person is already carrying the same organism in <code>presence_microbiome</code>. It is distinct from sampling from the regional stored profile library during acquisition (Section 3.4), because it uses the person's own carriage profile rather than importing a profile from the surrounding community or hospital pool.</p>
 <h3 id="34-resistance-at-acquisition">3.4 Resistance at acquisition</h3>
 <p>When a new active infection is established, the modelling framework determines whether (and, if so, what) resistance is present. The framework uses a set of linked mechanism-level pathways that reflect how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:</p>
 <p><strong>Step 1 — Stored library of circulating resistance profiles and prevalence tracking</strong></p>
@@ -721,7 +722,7 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 <p><strong>Hospital-acquired enriched sampling.</strong> Hospital-acquired active infections can, when configured, draw from an enriched version of the stored local hospital profile group. Early in a run, before the hospital profile group for that region and bacterium has accumulated a resistant example of its own, the model temporarily samples from the combined local community-plus-hospital set, so early hospital acquisitions can bootstrap from resistance already circulating nearby. Once resistant hospital profiles exist, sampling reverts to the hospital group alone. The model can temporarily remove a chosen fraction of fully susceptible profiles before the uniform draw, while never removing resistant profiles. If removing susceptible profiles would leave nothing to sample from, the unpruned set is used instead. The chosen profile is therefore always one that already exists in the stored library; this step changes the probability of selecting previously observed profiles, but does not create artificial new resistance combinations.</p>
 <p>Carriage acquisition (Section 8.2) is related but not identical. Hospitalised carriage acquisitions draw uniformly from the hospital profile stratum and do not use the susceptible-profile removal step reserved for active hospital infections. The run-level <code>run_pathway_microbiome_acquisition_multiplier</code> is the profile-sampling gate for hospital carriage. Community carriage applies both that gate and the per-bacterium community dilution factor. A sampled carriage profile is recorded only in <code>mechanism_microbiome</code> and projected to <code>microbiome_r</code>; it does not create active-infection <code>mechanism_any</code> or <code>any_r</code> state. Transfer into a later same-organism infection occurs through the separate carrier-inheritance pathway.</p>
 <p>If no profile exists in either relevant care-setting stratum for a given region and bacterium (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible through the profile-sampling pathway.</p>
-<p><strong>Counterfactual gating.</strong> Profile sampling is gated by the <code>counterfactual_resistance_multiplier</code>. Before writing the sampled resistance profile into the individual, the model makes a random probability check against that multiplier (default 1.0; set to 0.0 in the counterfactual branch). If the check fails, none of the sampled profile's mechanisms are written, so the newly infected individual remains susceptible through this pathway. The same multiplier is also used in the de novo, microbiome-acquisition, and HGT pathways elsewhere in the rules engine. It is not, however, a single blanket switch around every acquisition-time rule: the exogenous floor path and the MDR-TB rifampicin rule are handled separately below.</p>
+<p><strong>Counterfactual gating.</strong> Policy branches can set <code>counterfactual_resistance_multiplier</code> to suppress represented resistance pathways. The default is 1.0. Policy option 2 sets it to 0.0 and also clears existing infection resistance, carriage resistance, AST-reported resistance, resistance provenance, <code>mechanism_any</code>, <code>mechanism_majority</code>, <code>mechanism_microbiome</code>, and the profile cache at branch start. The same multiplier gates or scales profile writes, local-persistence profile writes, exogenous static and ratchet floors, the MDR-TB rifampicin rule, same-person carriage inheritance, daily infection-carriage mechanism transfer, de novo emergence in both active infection and carriage, HGT, and AST reporting-error draws. Thus the 2025 resistance-suppressed counterfactual sends all represented resistance to zero rather than only blocking one profile-sampling route.</p>
 <p><strong>Step 4 — Local persistence and exogenous reseeding</strong></p>
 <p>The acquisition pathway has two distinct forms of resistance persistence. They operate on different source branches and should not be interpreted as prevalence floors.</p>
 <p>When an infection or carriage acquisition samples the <strong>local human reservoir</strong>, the active cache and the local historical archive act as two candidate profile pools. The archive has total virtual mass <code>K</code>, shared across all of its deduplicated complete genotypes. If the active candidate pool contains <code>N</code> profiles, the archive is selected with probability:</p>
@@ -729,8 +730,8 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 <p>The defaults are <code>K = 10</code> and <code>p_max = 0.10</code>. Thus the archive contributes about 0.99% of draws beside a full 1000-profile cache, 9.09% beside 100 active profiles, and never more than 10% in sparse or empty slots. A successful draw selects one complete archived genotype in place of an active-cache profile. The draw is not repeated per mechanism or per drug, and archived mechanisms are never OR-ed independently onto another sampled genotype.</p>
 <p>The archive is enabled by <code>local_mechanism_persistence_enabled = 1.0</code>. Establishment and sampling are strictly local: an observation in one region or care setting does not seed another. Archived profiles remain eligible whether or not their mechanisms are also present in the active cache; this continuous low-weight contribution is what prevents one restored profile from immediately disabling persistence support. The archive does not alter active-cache prevalence. It is sampled only on the human-reservoir branch, follows the same counterfactual gate as ordinary profile inheritance, and can contribute to either active infection or carriage. Successful incorporations are reported separately for those two destinations.</p>
 <p>Separately, when a community active-infection acquisition falls into the <strong>non-human / exogenous fraction</strong> (<code>!from_human_reservoir</code>), the code rolls each mechanism against an effective floor equal to:</p>
-<p>\[\text{effective floor} = \max(\text{environmental floor}, \text{ratchet floor})\]</p>
-<p>The <strong>environmental floor</strong> is configured only for selected bacteria-mechanism pairs and represents resistance maintained outside the local human circulating pool, for example in agricultural, food-chain, wastewater, or other exogenous reservoirs (see Section 7.7). The <strong>ratchet floor</strong> is dynamic and is derived from stepped historical peak values in the stored profile library (see Section 7.8). Both are evaluated only when the mechanism's executable status permits that bacterial host. Despite the word “floor,” both values are Bernoulli mechanism-assignment probabilities on each exogenous acquisition. They provide reseeding pressure but do not mathematically guarantee that resistance prevalence across all infections remains above the same percentage.</p>
+<p>\[\text{assignment probability} = \max(\text{environmental floor}, \text{ratchet floor}) \times \text{counterfactual resistance multiplier}\]</p>
+<p>The <strong>environmental floor</strong> is configured only for selected bacteria-mechanism pairs and represents resistance maintained outside the local human circulating pool, for example in agricultural, food-chain, wastewater, or other exogenous reservoirs (see Section 7.7). The <strong>ratchet floor</strong> is dynamic and is derived from stepped historical peak values in the stored profile library (see Section 7.8). Both are evaluated only when the mechanism's executable status permits that bacterial host, and the final draw is scaled by the scenario-level counterfactual multiplier. Despite the word “floor,” both values are Bernoulli mechanism-assignment probabilities on each exogenous acquisition. They provide reseeding pressure but do not mathematically guarantee that resistance prevalence across all infections remains above the same percentage.</p>
 <p>The former universal per-drug acquisition guard has been removed. It repeated a nominal probability across all eligible drug entries and could therefore impose strong, drug-list-dependent pressure unrelated to local extinction. The local archive replaces only its finite-population persistence purpose; explicit environmental probabilities and the ratchet remain separate exogenous pathways.</p>
 <p><strong>Linked resistance profiles.</strong> Successful bacterial lineages can carry correlated sets of resistance mechanisms, including the familiar co-resistance patterns of MRSA lineages. The model represents this linkage by sampling and transmitting complete mechanism profiles from the region- and setting-specific profile reservoir. The local persistence archive likewise stores complete profiles. It does not independently add mechanisms after a profile draw merely because their marginal presence has been observed elsewhere: that would create combinations unsupported by the sampled lineage and would replace local joint structure with global marginal probabilities. This rule is the same for <em>S. aureus</em> and other bacteria. If future evidence shows that the finite profile reservoir does not adequately retain an important lineage structure, any extension should use empirically defined joint profiles or conditional lineage distributions rather than independent package completion.</p>
 <p><strong>Step 5 — Converting recorded mechanisms into the summary resistance measure <code>any_r</code></strong></p>
@@ -738,9 +739,9 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 <p>\[\text{any_r} = 1 - \prod_{m : \text{mechanism_any}_m = \text{true}} (1 - e_m)\]</p>
 <p>where \(e_m\) is the enhancement multiplier for mechanism \(m\) against that drug (see Section 7.2). At this stage the function recalculates resistance from the full recorded mechanism profile (<code>raise_only = false</code> in the code), so the derived value replaces whatever was there before. If later steps add additional mechanisms, the same function is called again in an upward-only update mode (<code>raise_only = true</code>), so <code>any_r</code> can rise when new mechanisms are added but is not reduced by that partial update.</p>
 <p><strong>Step 6 — MDR-TB guaranteed rifampicin resistance</strong></p>
-<p><em>M. tuberculosis</em> is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (World Health Organization drug-resistant TB treatment guidelines, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the current code records every resistance mechanism applicable to rifampicin for that bacterium — specifically the <code>rpoB</code> RNA-polymerase mutation — in both <code>mechanism_any</code> and <code>mechanism_majority</code>, regardless of what the earlier profile-sampling step assigned. <code>propagate_mechanism_resistance()</code> is then called again in upward-only mode so that the rifampicin <code>any_r</code> is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with <code>ResistanceAcquisitionType::AtInfectionTB</code> rather than <code>AtInfectionCommunity</code>, which allows the model to track this pathway separately in output statistics. The parameter <code>mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance</code> is currently used as an on/off gate: any positive value enables the hard-set rule, so the live default 0.90 behaves as "enabled" rather than as a 90% random probability check.</p>
+<p><em>M. tuberculosis</em> is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (World Health Organization drug-resistant TB treatment guidelines, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the current code records every resistance mechanism applicable to rifampicin for that bacterium — specifically the <code>rpoB</code> RNA-polymerase mutation — in both <code>mechanism_any</code> and <code>mechanism_majority</code>, regardless of what the earlier profile-sampling step assigned. <code>propagate_mechanism_resistance()</code> is then called again in upward-only mode so that the rifampicin <code>any_r</code> is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with <code>ResistanceAcquisitionType::AtInfectionTB</code> rather than <code>AtInfectionCommunity</code>, which allows the model to track this pathway separately in output statistics. The parameter <code>mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance</code> is currently used as an on/off gate after counterfactual scaling: any positive effective value enables the hard-set rule, so the live default 0.90 behaves as "enabled" in ordinary branches, while policy option 2 scales the effective gate to zero.</p>
 <p><strong>Note</strong></p>
-<p>After these six steps, the carrier-inheritance bridge described in Section 3.3 may apply additional mechanisms from <code>mechanism_microbiome</code> if the individual is already a carrier of the same organism. That step is separate from acquisition from the regional stored profile library: it is evaluated for any newly established same-organism infection with pre-existing carriage and is governed by <code>carrier_resistance_inheritance_probability</code> and the per-mechanism <code>infection_from_microbiome_dampening</code> transfer probability.</p>
+<p>After these six steps, the carrier-inheritance bridge described in Section 3.3 may apply additional mechanisms from <code>mechanism_microbiome</code> if the individual is already a carrier of the same organism. That step is separate from acquisition from the regional stored profile library: it is evaluated for any newly established same-organism infection with pre-existing carriage and is governed by <code>carrier_resistance_inheritance_probability</code>, <code>counterfactual_resistance_multiplier</code>, and the per-mechanism <code>infection_from_microbiome_dampening</code> transfer probability.</p>
 <h4 id="resistance-appearance-and-expression-summary">Resistance appearance and expression summary</h4>
 <p>The model distinguishes three related but different records of resistance: mechanisms present anywhere in the active infection, mechanisms present in the dominant infecting strain, and mechanisms present in asymptomatic carriage. In the code these are <code>mechanism_any</code>, <code>mechanism_majority</code>, and <code>mechanism_microbiome</code>, respectively. <code>mechanism_any</code> is the source of <code>any_r</code>. <code>mechanism_majority</code> is what active infections contribute back into the stored profile library and it also affects HGT donor strength. <code>mechanism_microbiome</code> is the carriage compartment and is the source of <code>microbiome_r</code>. Mechanism acquisition, dominant-strain evolution, and drug-level resistance calculation are therefore separate operations.</p>
 <table>
@@ -757,7 +758,7 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 <td>Human-reservoir profile sampling</td>
 <td>New infection passes the human-reservoir draw</td>
 <td>Records the host-eligible subset of the sampled mechanism profile in <code>mechanism_any</code> and <code>mechanism_majority</code></td>
-<td>Acquisition of an already-circulating strain genotype</td>
+<td>Acquisition of an already-circulating strain genotype; subject to the scenario resistance gate</td>
 </tr>
 <tr>
 <td>Hospital-enriched profile sampling</td>
@@ -775,13 +776,13 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 <td>Static environmental floors</td>
 <td>Community acquisition not sampled from the human reservoir</td>
 <td>Records one or more host-eligible mechanisms as present in <code>mechanism_any</code> and <code>mechanism_majority</code></td>
-<td>Explicit exogenous reseeding for configured bacteria-mechanism pairs</td>
+<td>Explicit exogenous reseeding for configured bacteria-mechanism pairs; scaled by the scenario resistance gate</td>
 </tr>
 <tr>
 <td>Dynamic ratchet floors</td>
 <td>Same exogenous path, for mechanisms below the configured reversion-rate threshold</td>
 <td>Records one or more mechanisms as present in <code>mechanism_any</code> and <code>mechanism_majority</code></td>
-<td>Uses stepped historical cache peaks as exogenous reseeding probabilities; does not impose a hard prevalence bound</td>
+<td>Uses stepped historical cache peaks as exogenous reseeding probabilities; scaled by the scenario resistance gate; does not impose a hard prevalence bound</td>
 </tr>
 <tr>
 <td>Local mechanism-persistence archive</td>
@@ -791,27 +792,27 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 </tr>
 <tr>
 <td>MDR-TB rifampicin rule</td>
-<td>MDR-TB acquisition from 1966 onward when the gate is enabled</td>
+<td>MDR-TB acquisition from 1966 onward when the effective gate is enabled</td>
 <td>Sets rifampicin-applicable mechanisms in <code>mechanism_any</code> and <code>mechanism_majority</code></td>
-<td>Enforces the definitional rifampicin resistance of MDR-TB</td>
+<td>Enforces the definitional rifampicin resistance of MDR-TB in ordinary branches; disabled when the scenario gate is zero</td>
 </tr>
 <tr>
 <td>Same-person microbiome inheritance</td>
 <td>New infection when the person already carries the same organism</td>
 <td>Copies eligible mechanisms from <code>mechanism_microbiome</code> into <code>mechanism_any</code> only</td>
-<td>Carrier-to-infection bridge; copied mechanisms start as active-infection minority mechanisms</td>
+<td>Carrier-to-infection bridge; copied mechanisms start as active-infection minority mechanisms; scenario-gated</td>
 </tr>
 <tr>
 <td>De novo infection emergence</td>
 <td>Existing active infection under drug pressure</td>
 <td>Adds newly emerged mechanisms to <code>mechanism_any</code></td>
-<td>Within-host emergence under selection; majority status can follow later under drug pressure</td>
+<td>Within-host emergence under selection; majority status can follow later under drug pressure; scaled by pathway and scenario multipliers</td>
 </tr>
 <tr>
 <td>De novo microbiome emergence</td>
 <td>Existing carriage with at least one positive-level active drug applicable to an absent mechanism</td>
 <td>Gives each eligible mechanism one daily emergence roll and records successful transitions in <code>mechanism_microbiome</code></td>
-<td>Carriage-compartment emergence under binary drug pressure without multiplying the daily rate by the number of selecting drugs</td>
+<td>Carriage-compartment emergence under binary drug pressure without multiplying the daily rate by the number of selecting drugs; scenario-scaled</td>
 </tr>
 <tr>
 <td>Microbiome mechanism reversion</td>
@@ -829,13 +830,13 @@ implemented through <code>community_resistance_dilution_factor</code>.</p>
 <td>Infection-microbiome transfer</td>
 <td>Same organism present in both compartments and they contain different mechanisms</td>
 <td>Copies mechanisms so <code>mechanism_any</code> and <code>mechanism_microbiome</code> contain the combined profile</td>
-<td>Within-host spillover between active infection and carriage</td>
+<td>Within-host spillover between active infection and carriage; scenario-gated</td>
 </tr>
 <tr>
 <td>HGT</td>
 <td>After the per-bacterium loop, between co-present bacteria</td>
 <td>Adds mechanisms that are transferable and host-eligible for both donor and recipient to each recipient compartment where that organism is present: <code>mechanism_any</code> for active infection and <code>mechanism_microbiome</code> for carriage</td>
-<td>Inter-species mechanism transfer, scaled by context and donor majority/minority status</td>
+<td>Inter-species mechanism transfer, scaled by context, donor majority/minority status, run-level HGT multiplier, and scenario resistance gate</td>
 </tr>
 <tr>
 <td>Mechanism-to-drug propagation</td>
@@ -2634,7 +2635,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>AAC/APH/ANT</td>
 <td><code>enzyme_aac_aph</code></td>
 <td>Aminoglycoside-modifying enzymes</td>
-<td><code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code>, <code>streptomycin</code>, <code>neomycin</code></td>
+<td><code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci</td>
 </tr>
 <tr>
@@ -2833,7 +2834,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>The two narrow-spectrum penicillinase routes use an explicit <code>0.90</code> effect for the plain-penicillin class and a zero legacy fallback. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.</p>
 <p>The protected beta-lactam combinations use mechanism-specific substrate logic. NDM/VIM has a <code>0.95</code> effect against both ceftazidime-avibactam and meropenem-vaborbactam because neither inhibitor blocks a class B metallo-beta-lactamase and the partner beta-lactams remain vulnerable. NDM/VIM has no direct effect on plain or avibactam-protected aztreonam. OXA-48 has the same <code>0.70</code> model effect against meropenem-vaborbactam as against group-2 carbapenems because vaborbactam does not inhibit OXA-48; its direct aztreonam-avibactam effect is zero. Co-produced mechanisms continue to combine independently, so these protected-aztreonam exceptions do not imply perfect activity against every multi-mechanism strain.</p>
 <p>Plasmid CMY, plasmid DHA, and derepressed chromosomal AmpC have strong effects against plain aztreonam (<code>0.80</code>, <code>0.75</code>, and <code>0.80</code>, respectively), aligned with their oxyimino-cephalosporin bands. This does not extend to aztreonam-avibactam: ordinary class C enzymes are inhibited by avibactam and are not standalone resistance routes for that combination.</p>
-<p>ErmB is a macrolide-lincosamide mechanism in the live drug map. Although it affects the streptogramin-B component quinupristin, it is not sufficient by itself to confer resistance to the combined quinupristin-dalfopristin product, so its explicit streptogramin-class effect is zero and that drug is outside ErmB applicability. The model currently has no separate complementary streptogramin-A mechanism. Existing quinupristin-dalfopristin benchmark values are therefore retained in the target source but marked inactive/model-unrepresentable rather than forcing an incorrect ErmB phenotype.</p>
+<p>ErmB is a macrolide-lincosamide mechanism in the live drug map. Although it affects the streptogramin-B component quinupristin, it is not sufficient by itself to confer resistance to the combined quinupristin-dalfopristin product, so its explicit streptogramin-class effect is zero and that drug is outside ErmB applicability. The model currently has no separate complementary streptogramin-A mechanism. Existing quinupristin-dalfopristin prevalence benchmarks are therefore retained as active, model-unrepresentable targets: their zero simulated prevalence contributes to resistance-fit statistics as an explicit structural model gap rather than forcing an incorrect ErmB phenotype.</p>
 <p>Cefiderocol uses one compressed, non-transferable <code>mutation_siderophore_uptake</code> route with an expert model-scale effect of <code>0.60</code>. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is <code>0.0001</code> per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss no longer project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.</p>
 <p>Baseline cefiderocol potency is correspondingly limited to susceptible aerobic Gram-negative bacteria. <em>S. maltophilia</em> and the <em>B. cepacia</em> complex use a conservative active value of <code>0.55</code>, matching the existing <em>P. aeruginosa</em> and <em>A. baumannii</em> model bucket, because activity is supported principally by in vitro and animal data rather than established clinical efficacy. Gram-positive bacteria, <em>B. fragilis</em>, <em>C. jejuni</em>, and intracellular <em>L. pneumophila</em> receive poor-activity values. The categories follow the FDA spectrum statement and primary susceptibility data and are not direct MIC or breakpoint conversions.</p>
 <p>Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For <em>P. aeruginosa</em>, the non-transferable <code>mutation_ampc_derepression</code> slot is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental <em>K. pneumoniae</em> work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because the model does not implement mechanism epistasis, the interaction is not converted into a positive standalone <code>any_r</code> phenotype.</p>
@@ -3133,7 +3134,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>Population realism is distributed across three parts of the model: organism-specific infection acquisition parameters determine how often each pathogen appears, organism-specific mechanism baselines determine which resistance pathways are plausible and how readily they arise, and within-host modifiers determine whether the ecological conditions for emergence are present on a given day.</p>
 <p><strong>Microbiome pathway.</strong> While a bacterium is carried, each absent applicable mechanism receives one daily emergence attempt whenever at least one active drug has a positive current level and is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. The probability uses the same organism-mechanism baseline table and applies counterfactual scaling, but it does not use the infection-burden, concentration-window, or multidrug-penalty terms described above. Current drug pressure is therefore a binary trigger in this pathway.</p>
 <p>These parameters should therefore be read as <strong>effective emergence hazards</strong> rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.</p>
-<p><strong>Run-level pathway sensitivity controls.</strong> Four neutral <code>run_pathway_*</code> multipliers are retained for diagnostic ablations and global sensitivity analysis without rewriting organism-specific baselines. Their defaults are all 1.0: <code>run_pathway_infection_de_novo_multiplier</code> scales de novo emergence during active infection; <code>run_pathway_hgt_multiplier</code> scales horizontal gene transfer; <code>run_pathway_reversion_rate_multiplier</code> scales mechanism loss in infection and carriage; and <code>run_pathway_microbiome_acquisition_multiplier</code> scales resistance-profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy branches can set <code>counterfactual_resistance_multiplier</code> to 0.0, which blocks profile-sampled resistance, de novo emergence, microbiome-acquisition seeding, and HGT transfer in the counterfactual branch. Acquisition-time floors and the MDR-TB rifampicin rule are separate pathways described in Section 3.4.</p>
+<p><strong>Run-level pathway sensitivity controls.</strong> Four neutral <code>run_pathway_*</code> multipliers are retained for diagnostic ablations and global sensitivity analysis without rewriting organism-specific baselines. Their defaults are all 1.0: <code>run_pathway_infection_de_novo_multiplier</code> scales de novo emergence during active infection; <code>run_pathway_hgt_multiplier</code> scales horizontal gene transfer; <code>run_pathway_reversion_rate_multiplier</code> scales mechanism loss in infection and carriage; and <code>run_pathway_microbiome_acquisition_multiplier</code> scales resistance-profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy branches can set <code>counterfactual_resistance_multiplier</code> to 0.0. In the current rules engine, that scenario multiplier gates or scales profile-sampled resistance, local persistence, exogenous floors and ratchet reseeding, MDR-TB rifampicin seeding, same-person carriage inheritance, infection-carriage spillover, de novo emergence, microbiome-acquisition seeding, HGT transfer, and AST reporting-error draws.</p>
 <h3 id="74-resistance-reversion-and-fitness-costs">7.4 Resistance reversion and fitness costs</h3>
 <p>Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI &amp; Hughes D, 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily <strong>reversion rate</strong>, used as an effective probability of removing the mechanism from carriage or demoting it from the dominant active-infection strain when no selecting antibiotic is present. Higher rates represent faster effective turnover; lower rates represent greater persistence. This is a compressed population/within-host approximation rather than a literal genetic back-mutation rate. In the rules engine, per-mechanism reversion rates are scaled by <code>run_pathway_reversion_rate_multiplier</code> (default 1.0), with additional community-specific reversion multipliers for some bacteria.</p>
 <p>Reversion operates in <strong>both</strong> compartments, but not in exactly the same way. In the active infection, fitness-cost loss removes a mechanism from <code>mechanism_majority</code>, so it no longer contributes to majority-strain surveillance or seeding of newly acquired infections; <code>mechanism_any</code> is retained for the currently infected individual. In the microbiome compartment, reversion removes the mechanism from <code>mechanism_microbiome</code>, after which <code>microbiome_r</code> is re-derived from the updated carriage flags. In each compartment, a mechanism can only revert on a given day if no antibiotic with selective pressure for that mechanism is currently present. Carriage mechanisms are evaluated independently, so a drug selecting one mechanism does not preserve unrelated mechanisms. Both compartments use the same cached bacterium-drug-mechanism applicability predicate and a positive-level drug trigger. The cached predicate starts from the molecular mechanism-to-drug map, applies any explicit overrides, and excludes pairs whose susceptible-organism potency is below the model's non-negligible threshold unless explicitly retained. A class-mapped but intrinsically inactive drug therefore does not preserve a mechanism that provides no additional modelled advantage.</p>
@@ -3452,7 +3453,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <h3 id="77-environmental-and-exogenous-mechanism-floors">7.7 Environmental and Exogenous Mechanism Floors</h3>
 <p>The model includes a dedicated family of <strong>environmental / exogenous mechanism floors</strong> that apply only to the non-human fraction of community acquisition. These are distinct from the local human-reservoir persistence archive in Section 7.5.</p>
 <p><strong>What they represent.</strong> The environmental floors are used when resistance can be maintained outside the local human circulating pool. In the classic case, this means agricultural, food-chain, wastewater, or other exogenous reservoirs that keep resistance present even when direct human treatment of that bacterium is weak. In the current configuration they also cover a small number of explicitly modelled non-agricultural exogenous pathways, most notably the rifampicin <code>rpoB</code> floors discussed below.</p>
-<p><strong>Where they act.</strong> Each community active-infection acquisition is split by <code>community_resistance_dilution_factor</code> into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair. These are marginal mechanism probabilities: independent rolls do not themselves encode plasmid linkage or other within-profile correlation. Once a resulting profile enters the human cache, later profile sampling can propagate that realised combination. In the current implementation this environmental/ratchet floor loop is applied at active-infection acquisition; carriage acquisition uses its own profile-cache gate and does not directly run this exogenous floor loop.</p>
+<p><strong>Where they act.</strong> Each community active-infection acquisition is split by <code>community_resistance_dilution_factor</code> into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair, after scenario-level counterfactual scaling. These are marginal mechanism probabilities: independent rolls do not themselves encode plasmid linkage or other within-profile correlation. Once a resulting profile enters the human cache, later profile sampling can propagate that realised combination. In the current implementation this environmental/ratchet floor loop is applied at active-infection acquisition; carriage acquisition uses its own profile-cache gate and does not directly run this exogenous floor loop.</p>
 <p>Despite the parameter name, a configured value is therefore a Bernoulli mechanism-assignment probability on an exogenous active-infection acquisition, not a guaranteed lower bound on prevalence in infections, carriage, or the population. The resulting prevalence also depends on how often acquisition follows the exogenous path, the competing human-cache pathway, subsequent transmission and selection, and mechanism loss.</p>
 <p><strong>How they are configured.</strong> These floors use the keys:</p>
 <pre><code>bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor
@@ -3589,8 +3590,8 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 </tbody>
 </table>
-<p>In conceptual terms, a static environmental floor is a configured exogenous reseeding probability, whereas the ratchet is a history-derived exogenous reseeding probability based on prior cache prevalence.</p>
-<p><strong>Relationship to static floors.</strong> Era-specific static environmental probabilities can provide exogenous seeding during configured historical periods, including periods when the finite profile cache might otherwise build a resistant reservoir slowly. The ratchet has no universal takeover date. At each eligible exogenous acquisition, the model uses the larger of the static and ratchet probabilities. For example, if a <em>Shigella</em> mechanism has a current static probability of 0.45 and a recorded cache peak that produces a ratchet probability of 0.40, the effective assignment probability remains 0.45. Neither value implies 45% or 40% total resistance prevalence.</p>
+<p>In conceptual terms, a static environmental floor is a configured exogenous reseeding probability, whereas the ratchet is a history-derived exogenous reseeding probability based on prior cache prevalence. The effective draw in a policy branch is then multiplied by <code>counterfactual_resistance_multiplier</code>.</p>
+<p><strong>Relationship to static floors.</strong> Era-specific static environmental probabilities can provide exogenous seeding during configured historical periods, including periods when the finite profile cache might otherwise build a resistant reservoir slowly. The ratchet has no universal takeover date. At each eligible exogenous acquisition, the model uses the larger of the static and ratchet probabilities before applying scenario-level counterfactual scaling. For example, if a <em>Shigella</em> mechanism has a current static probability of 0.45 and a recorded cache peak that produces a ratchet probability of 0.40, the ordinary-branch assignment probability remains 0.45. Neither value implies 45% or 40% total resistance prevalence.</p>
 <p><strong>Diagnostic switch.</strong> <code>run_pathway_ratchet_enabled</code> is 1.0 by default and preserves the ratchet behaviour described above. Setting it to 0.0 disables only the dynamic ratchet contribution for component-ablation runs; static environmental floors and the independently configured local persistence archive remain active.</p>
 <p><strong>Practical calibration framework for resistance shortfalls.</strong> When the model under-shoots a resistance calibration benchmark, the preferred response is <em>not</em> to keep inflating mechanism emergence rates above biologically plausible values. For stewardship-policy purposes, the model instead treats most persistent shortfalls as belonging to one of four interpretable categories:</p>
 <ol>
@@ -3685,19 +3686,19 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td>Carrier → infection bridge</td>
 <td><code>carrier_resistance_inheritance_probability</code></td>
 <td>0.50</td>
-<td>When a new same-organism infection is established in a carrier, each mechanism in <code>mechanism_microbiome</code> is independently considered for transfer to <code>mechanism_any</code> (see Section 3.3)</td>
+<td>When a new same-organism infection is established in a carrier, each mechanism in <code>mechanism_microbiome</code> is independently considered for transfer to <code>mechanism_any</code> (see Section 3.3). The person-level gate is scaled by <code>counterfactual_resistance_multiplier</code>.</td>
 </tr>
 <tr>
 <td>Infection ↔ microbiome transfer</td>
 <td><code>microbiome_resistance_transfer_probability_per_day</code></td>
 <td>0.0001</td>
-<td>When both compartments are present and contain different mechanisms, a daily random probability check can trigger copying in both directions so that <code>mechanism_any</code> and <code>mechanism_microbiome</code> end up containing the combined profile. The drug-level resistance measures are then recalculated.</td>
+<td>When both compartments are present and contain different mechanisms, a daily random probability check can trigger copying in both directions so that <code>mechanism_any</code> and <code>mechanism_microbiome</code> end up containing the combined profile. The drug-level resistance measures are then recalculated. The draw is scaled by <code>counterfactual_resistance_multiplier</code>.</td>
 </tr>
 <tr>
 <td>HGT into the microbiome</td>
 <td>(see Section 9)</td>
 <td>—</td>
-<td>When a horizontal gene transfer event fires, the mechanism is written only to recipient compartments where that bacterium is present: <code>mechanism_microbiome</code> for carriage and <code>mechanism_any</code> for active infection</td>
+<td>When a horizontal gene transfer event fires, the mechanism is written only to recipient compartments where that bacterium is present: <code>mechanism_microbiome</code> for carriage and <code>mechanism_any</code> for active infection. HGT is scaled by <code>counterfactual_resistance_multiplier</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -4460,13 +4461,15 @@ rare-positive structural priors: they define conditional severity if the simulat
 positive phenotype and do not assert nonzero observed prevalence. A missing benchmark means that
 no comparison value was assigned;
 it does not by itself mean that the drug has negligible model potency. Potency-based exclusions are
-recorded separately from benchmark availability. A benchmark is also retained but excluded from
-the score when no host-eligible mechanism with a positive effect can produce resistance for that
-bacterium-drug pair in the current model. This representability check is generated directly from
-the Rust mechanism applicability and effect matrices. Conditional-severity benchmarks above the
-maximum <code>any_r</code> obtainable even if every applicable mechanism is present are excluded for the same
-reason. These checks prevent calibration pressure towards a phenotype the implemented architecture
-cannot express while preserving the benchmark for later mechanism review.
+recorded separately from benchmark availability. When no host-eligible mechanism with a positive
+effect can produce resistance for a bacterium-drug pair, a numeric prevalence benchmark remains
+active: the zero simulated prevalence contributes to the plots and resistance-fit statistics as a
+structural model gap. Such rows are marked <code>active_target_model_unrepresentable</code>, with
+representability generated directly from the Rust mechanism applicability and effect matrices.
+Conditional-severity benchmarks above the maximum <code>any_r</code> obtainable even if every applicable
+mechanism is present remain excluded, as do conditional-severity benchmarks for pairs in which no
+positive phenotype can exist, because the mean among resistant-positive infection-days is then
+unattainable or undefined.
 Conditional-severity values that lack a paired prevalence benchmark are likewise retained for
 provenance but excluded from scoring until the pair is completed.</p>
 <p>The versioned long-form target set records a provenance class, source ID, and rationale ID for
@@ -4520,7 +4523,7 @@ the intended schema, not downloaded observations.</p>
 <h3 id="1210-simplified-historical-gonorrhoea-incidence-decline">12.10 Simplified historical gonorrhoea incidence decline</h3>
 <p>Gonorrhoea incidence in high-income countries was approximately 3-fold higher in the 1960s–1970s than in the present day, before sexual health programmes, contact tracing, and partner notification services substantially reduced transmission. The model now applies coarse historical acquisition multipliers for <em>N. gonorrhoeae</em> so that the pre-1980 and transitional pre-2000 eras generate a larger organism pool than the modern era, which better aligns the volume of penicillin, tetracycline, sulfonamide, and early fluoroquinolone treatment with the historical period that seeded the major resistance layers. This is still a compressed approximation rather than a full epidemiological reconstruction: the era multipliers are global and intentionally simple, so resistance trajectories for <em>N. gonorrhoeae</em> should still be interpreted as reflecting the broad timing and scale of historical selection rather than an exact quantitative reconstruction of country-specific gonorrhoea incidence.</p>
 <h3 id="1211-exogenous-resistance-reservoirs-are-approximated-rather-than-explicitly-modelled">12.11 Exogenous resistance reservoirs are approximated rather than explicitly modelled</h3>
-<p>The environmental/exogenous floor system (§7.7) applies background mechanism probabilities to the non-human fraction of community acquisition instead of explicitly simulating livestock populations, wastewater ecology, food-chain contamination, or other external reservoirs. In the current configuration this includes both classic agricultural pathways and a few explicitly parameterised non-agricultural exogenous pathways such as the rifampicin <code>rpoB</code> block. The floor values are therefore calibrated surrogates rather than direct measurements of source-reservoir prevalence. They can encode historically realistic persistence, but they do not respond endogenously to interventions targeted at those outside-human reservoirs unless the corresponding parameters are changed.</p>
+<p>The environmental/exogenous floor system (§7.7) applies background mechanism probabilities to the non-human fraction of community acquisition instead of explicitly simulating livestock populations, wastewater ecology, food-chain contamination, or other external reservoirs. In the current configuration this includes both classic agricultural pathways and a few explicitly parameterised non-agricultural exogenous pathways such as the rifampicin <code>rpoB</code> block. The floor values are therefore calibrated surrogates rather than direct measurements of source-reservoir prevalence. They can encode historically realistic persistence, but they do not respond endogenously to interventions targeted at those outside-human reservoirs unless the corresponding parameters or scenario-level pathway gates are changed.</p>
 <h3 id="1212-no-explicit-background-rifampicin-exposure-pathway-for-non-target-organisms">12.12 No explicit background rifampicin exposure pathway for non-target organisms</h3>
 <p>Outside directly modelled treatment-linked uses such as staphylococcal combination therapy and selected ICU combination regimens, the simulation does not currently place people on rifampicin simply because they are receiving TB treatment or another non-modelled indication. As a result, bystander selection of <code>rpoB</code> resistance in coincident gut or enteric carriage is only represented indirectly through the existing floor and persistence machinery, not through an explicit infection-independent rifampicin-use process. This can lead the model to understate rifampicin resistance prevalence for some non-target organisms, but that limitation is currently accepted because it is unlikely to materially alter the main stewardship-policy comparisons the model is being used for.</p>
 <h3 id="1213-residual-high-emergence-rate-mechanisms-as-reviewed-coarse-graining">12.13 Residual high-emergence-rate mechanisms as reviewed coarse-graining</h3>
@@ -5401,7 +5404,7 @@ the intended schema, not downloaded observations.</p>
 <h4 id="hospitalstatus-2">HospitalStatus (2)</h4>
 <p><code>InHospital</code>, <code>NotInHospital</code></p>
 <h4 id="region-7">Region (7)</h4>
-<p><code>NorthAmerica</code>, <code>Europe</code>, <code>Asia</code>, <code>Oceania</code>, <code>SouthAmerica</code>, <code>Africa</code>, <code>Home</code> (fallback)</p>
+<p><code>NorthAmerica</code>, <code>SouthAmerica</code>, <code>Africa</code>, <code>Asia</code>, <code>Europe</code>, <code>Oceania</code>, <code>Home</code> (fallback)</p>
 <h4 id="microbiomeresistancelevel-4">MicrobiomeResistanceLevel (4)</h4>
 <p><code>NoMicrobiome</code>, <code>MicrobiomePresentNoResistance</code>, <code>MicrobiomeMinorityResistance</code>, <code>MicrobiomeMajorityResistance</code></p>
 <h4 id="antibioticusecontext-7">AntibioticUseContext (7)</h4>
@@ -7526,28 +7529,28 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
-<td style="text-align: right;">-15.1</td>
+<td style="text-align: right;">-17.1</td>
 <td style="text-align: right;">-2</td>
 <td style="text-align: right;">0.5</td>
-<td style="text-align: right;">4.3</td>
+<td style="text-align: right;">5.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
-<td style="text-align: right;">0.008</td>
+<td style="text-align: right;">0.003</td>
 <td style="text-align: right;">11</td>
 <td style="text-align: right;">yes</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
-<td style="text-align: right;">-15.5</td>
+<td style="text-align: right;">-17.7</td>
 <td style="text-align: right;">-2</td>
 <td style="text-align: right;">0.5</td>
-<td style="text-align: right;">5.1</td>
+<td style="text-align: right;">6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
-<td style="text-align: right;">0.06</td>
-<td style="text-align: right;">12.1</td>
+<td style="text-align: right;">0.008</td>
+<td style="text-align: right;">9.6</td>
 <td style="text-align: right;">yes</td>
 </tr>
 <tr>
@@ -7880,7 +7883,7 @@ the intended schema, not downloaded observations.</p>
 <td style="text-align: right;">-15.1</td>
 <td style="text-align: right;">-2</td>
 <td style="text-align: right;">0.5</td>
-<td style="text-align: right;">4.5</td>
+<td style="text-align: right;">5</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.42</td>
 <td style="text-align: right;">5</td>
@@ -8531,8 +8534,8 @@ the intended schema, not downloaded observations.</p>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.4</td>
-<td style="text-align: right;">55</td>
+<td style="text-align: right;">0.8</td>
+<td style="text-align: right;">75</td>
 <td style="text-align: right;">0.1</td>
 </tr>
 <tr>
@@ -8543,13 +8546,13 @@ the intended schema, not downloaded observations.</p>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.35</td>
-<td style="text-align: right;">65</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.8</td>
+<td style="text-align: right;">75</td>
+<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
-<td style="text-align: right;">-10.3</td>
+<td style="text-align: right;">-10.5</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">0</td>
@@ -8561,7 +8564,7 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
-<td style="text-align: right;">-7.8</td>
+<td style="text-align: right;">-8.1</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">0</td>
@@ -8585,7 +8588,7 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>proteus_spp.</td>
-<td style="text-align: right;">-6.4</td>
+<td style="text-align: right;">-6.8</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">0</td>
@@ -8645,7 +8648,7 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>staphylococcus_aureus</td>
-<td style="text-align: right;">-8.8</td>
+<td style="text-align: right;">-9.3</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">0</td>
@@ -8669,7 +8672,7 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>streptococcus_pneumoniae</td>
-<td style="text-align: right;">-9.5</td>
+<td style="text-align: right;">-9.9</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">0</td>
@@ -8717,7 +8720,7 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>shigella_spp.</td>
-<td style="text-align: right;">-20.5</td>
+<td style="text-align: right;">-22.5</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">1</td>
@@ -8957,7 +8960,7 @@ the intended schema, not downloaded observations.</p>
 </tr>
 <tr>
 <td>mycoplasma_pneumoniae</td>
-<td style="text-align: right;">-12</td>
+<td style="text-align: right;">-18</td>
 <td style="text-align: right;">0.93</td>
 <td style="text-align: right;">0.005</td>
 <td style="text-align: right;">-0.7</td>
@@ -10256,13 +10259,13 @@ the intended schema, not downloaded observations.</p>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">erythromycin</td>
 <td style="text-align: right;">0.7</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">azithromycin</td>
 <td style="text-align: right;">0.7</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
@@ -10628,13 +10631,13 @@ the intended schema, not downloaded observations.</p>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">erythromycin</td>
 <td style="text-align: right;">0.7</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">azithromycin</td>
 <td style="text-align: right;">0.7</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
@@ -39829,7 +39832,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">30</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -39889,7 +39892,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.3</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -39967,7 +39970,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_23s_rrna_oxazolidinone</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.003</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -41659,55 +41662,55 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">7e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">7e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">7e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">mutation_ampc_derepression</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -41911,7 +41914,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>pseudomonas_aeruginosa</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">4e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -42871,7 +42874,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pneumoniae</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">30</td>
+<td style="text-align: right;">15</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -42961,7 +42964,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pneumoniae</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">0.4</td>
+<td style="text-align: right;">0.25</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -43015,7 +43018,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pneumoniae</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">5e-7</td>
+<td style="text-align: right;">1e-7</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44491,13 +44494,13 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.1</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.1</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44515,19 +44518,19 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">0.05</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">0.2</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">0.002</td>
+<td style="text-align: right;">0.02</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44569,13 +44572,13 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">0.2</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">1</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44593,7 +44596,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">mutation_mpr_f</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.01</td>
 <td style="text-align: right;">excluded host</td>
 </tr>
 <tr>
@@ -44605,19 +44608,19 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.03</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">protection_fus_b</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.1</td>
 <td style="text-align: right;">excluded host</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">3e-4</td>
+<td style="text-align: right;">0.003</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44653,7 +44656,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_pyogenes</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.1</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44749,31 +44752,31 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">target_site_pbp2a_meca</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 <td style="text-align: right;">excluded host</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">target_site_van_a</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.01</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">target_site_van_b</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.01</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.3</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.3</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44791,19 +44794,19 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">15</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">15</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.3</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44845,13 +44848,13 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">1</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">3</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44869,7 +44872,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_mpr_f</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.3</td>
 <td style="text-align: right;">excluded host</td>
 </tr>
 <tr>
@@ -44881,19 +44884,19 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.03</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">protection_fus_b</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.3</td>
 <td style="text-align: right;">excluded host</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">5</td>
+<td style="text-align: right;">30</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44929,7 +44932,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">5</td>
+<td style="text-align: right;">30</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -44947,7 +44950,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>streptococcus_agalactiae</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">3e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -49939,49 +49942,49 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.001</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.001</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.001</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">6e-4</td>
+<td style="text-align: right;">3e-4</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">6e-4</td>
+<td style="text-align: right;">3e-4</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">6e-4</td>
+<td style="text-align: right;">3e-4</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.001</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.001</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50011,7 +50014,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">0.15</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50029,7 +50032,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50047,7 +50050,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">5e-4</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50077,7 +50080,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.015</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50089,7 +50092,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.05</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50107,7 +50110,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_fos</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.015</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50125,7 +50128,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.005</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50137,13 +50140,13 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">5e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50185,7 +50188,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">5e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 <tr>
@@ -50209,7 +50212,7 @@ the intended schema, not downloaded observations.</p>
 <tr>
 <td>burkholderia_cepacia_complex</td>
 <td style="text-align: right;">mutation_siderophore_uptake</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">5e-5</td>
 <td style="text-align: right;">eligible; de novo enabled</td>
 </tr>
 </tbody>
@@ -55389,6 +55392,16 @@ selected rows, so row count is not in general equal to the number of simulated t
 <td>Output contract version; currently <code>1</code></td>
 </tr>
 <tr>
+<td><code>policy_option</code></td>
+<td>int</td>
+<td>Policy branch identifier for the row; baseline rows use <code>0</code></td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>int</td>
+<td>Numeric run identifier written into the summary file</td>
+</tr>
+<tr>
 <td><code>time_in_years</code></td>
 <td>float</td>
 <td>Years since the 1930 simulation epoch</td>
@@ -55399,19 +55412,14 @@ selected rows, so row count is not in general equal to the number of simulated t
 <td>Living people at the summary observation point</td>
 </tr>
 <tr>
-<td><code>total_currently_infected</code></td>
-<td>int</td>
-<td>Living people with at least one reportable infection above <code>INFECTION_EPS</code></td>
-</tr>
-<tr>
-<td><code>currently_taking_drug_count</code></td>
-<td>int</td>
-<td>Living people receiving at least one antibiotic</td>
-</tr>
-<tr>
 <td><code>number_in_hospital</code></td>
 <td>int</td>
 <td>Living hospitalised people</td>
+</tr>
+<tr>
+<td><code>number_severely_immunosuppressed</code></td>
+<td>int</td>
+<td>Living people currently in a temporary or chronic immunodeficiency state</td>
 </tr>
 <tr>
 <td><code>number_with_sepsis</code></td>
@@ -55424,9 +55432,64 @@ selected rows, so row count is not in general equal to the number of simulated t
 <td>People entering a sepsis episode during the day; at most one count per person-day</td>
 </tr>
 <tr>
+<td><code>total_currently_infected</code></td>
+<td>int</td>
+<td>Living people with at least one reportable infection above <code>INFECTION_EPS</code></td>
+</tr>
+<tr>
+<td><code>infected_10_days_count</code>, <code>infected_21_days_count</code></td>
+<td>int</td>
+<td>Living people whose current infection duration has reached the named threshold</td>
+</tr>
+<tr>
+<td><code>total_with_resistance</code></td>
+<td>int</td>
+<td>Living people with any active infection resistance flag</td>
+</tr>
+<tr>
+<td><code>currently_taking_drug_count</code> and <code>currently_taking_drug_count_*</code></td>
+<td>int</td>
+<td>Living people receiving antibiotics, including empiric, targeted, prophylaxis, other, and other-context subsets</td>
+</tr>
+<tr>
+<td><code>currently_infected_and_on_drug_count</code></td>
+<td>int</td>
+<td>Living people with a reportable infection and at least one active antibiotic</td>
+</tr>
+<tr>
+<td><code>taking_two_drugs_count</code></td>
+<td>int</td>
+<td>Living people currently taking exactly two antibiotics</td>
+</tr>
+<tr>
 <td><code>infection_acquisition_people_count</code></td>
 <td>int</td>
 <td>People with at least one successful bacterial acquisition during the day; deduplicated across bacteria</td>
+</tr>
+<tr>
+<td><code>infection_acquisition_people_with_any_r_count</code>, <code>infection_acquisition_people_with_serious_r_count</code>, <code>infection_acquisition_people_serious_r_marker_eligible_count</code></td>
+<td>int</td>
+<td>Person-level acquisition counts stratified by acquisition-time resistance marker state</td>
+</tr>
+<tr>
+<td><code>infection_acquisition_people_past_year</code></td>
+<td>int</td>
+<td>Rolling one-year count of people with successful infection acquisition</td>
+</tr>
+<tr>
+<td><code>local_persistence_profile_incorporations_total</code></td>
+<td>int</td>
+<td>Complete archived local profiles incorporated into active infection or carriage acquisitions</td>
+</tr>
+<tr>
+<td><code>local_persistence_profile_incorporations_infection</code>, <code>local_persistence_profile_incorporations_carriage</code></td>
+<td>int</td>
+<td>Local-profile incorporations split by active-infection and carriage acquisition pathways</td>
+</tr>
+<tr>
+<td><code>new_drug_initiations_count</code></td>
+<td>int</td>
+<td>New antibiotic courses started during the day</td>
 </tr>
 <tr>
 <td><code>new_drug_initiations_with_active_infection_count</code></td>
@@ -55434,9 +55497,54 @@ selected rows, so row count is not in general equal to the number of simulated t
 <td>New course starts in people with a reportable infection above <code>INFECTION_EPS</code> at the pre-rule snapshot</td>
 </tr>
 <tr>
+<td><code>diagnostic_cascade_*</code></td>
+<td>int</td>
+<td>Person-level diagnostic and targeted-treatment cascade counts, split by all settings plus community/hospital subsets</td>
+</tr>
+<tr>
+<td><code>sepsis_onset_*</code> and <code>sepsis_effective_therapy_*</code></td>
+<td>int</td>
+<td>Sepsis onset context and effective-therapy timing counters</td>
+</tr>
+<tr>
 <td><code>toxicity_drug_course_stop_events</code></td>
 <td>int</td>
 <td>Drug-course stop events caused by toxicity, including stops followed by death later that day</td>
+</tr>
+<tr>
+<td><code>total_deaths</code>, <code>deaths_background</code>, <code>deaths_sepsis</code>, <code>deaths_infection_non_sepsis</code>, <code>deaths_drug_toxicity</code></td>
+<td>int</td>
+<td>Mutually exclusive all-cause and cause-specific daily death counts</td>
+</tr>
+<tr>
+<td><code>deaths_past_year</code> and <code>deaths_*_past_year</code></td>
+<td>int</td>
+<td>Rolling one-year all-cause and cause-specific death counts</td>
+</tr>
+<tr>
+<td><code>num_age_*</code></td>
+<td>int</td>
+<td>Living population counts in exported age bands</td>
+</tr>
+<tr>
+<td><code>num_with_any_bacteria_microbiome</code></td>
+<td>int</td>
+<td>Living people with at least one bacterium present in the carriage/microbiome state</td>
+</tr>
+<tr>
+<td><code>people_on_1_drug</code>, <code>people_on_2_drugs</code>, <code>people_on_3plus_drugs</code></td>
+<td>int</td>
+<td>Current treatment-intensity stocks</td>
+</tr>
+<tr>
+<td><code>active_infection_on_drug_with_previous_failure_count</code></td>
+<td>int</td>
+<td>Active infection and antibiotic exposure count among people with a previous drug-failure flag</td>
+</tr>
+<tr>
+<td><code>people_on_*_drugs_hist</code></td>
+<td>int</td>
+<td>Histogram of current concurrent antibiotic counts</td>
 </tr>
 <tr>
 <td><code>deaths_sepsis_model_scope</code></td>
@@ -55464,16 +55572,20 @@ selected rows, so row count is not in general equal to the number of simulated t
 <td>Current active-infection stock</td>
 </tr>
 <tr>
+<td><code>{bacteria}_infections_prevented_by_drug</code></td>
+<td>Prevention events attributed to antibiotic prophylaxis/activity</td>
+</tr>
+<tr>
+<td><code>{bacteria}_deaths</code> and <code>{bacteria}_deaths_*</code></td>
+<td>Bacterium-attributed deaths and age/care-setting subsets</td>
+</tr>
+<tr>
 <td><code>{bacteria}_number_with_sepsis</code></td>
 <td>Current sepsis stock</td>
 </tr>
 <tr>
 <td><code>{bacteria}_sepsis_onset_events</code></td>
 <td>Bacterium-level sepsis-onset transitions during the day</td>
-</tr>
-<tr>
-<td><code>{bacteria}_deaths</code></td>
-<td>Infection deaths attributed to the bacterium during the day</td>
 </tr>
 <tr>
 <td><code>{bacteria}_infection_acquisition_events_home_region_{region}</code></td>
@@ -55500,6 +55612,50 @@ selected rows, so row count is not in general equal to the number of simulated t
 <td>Community-acquired events with any-R snapshotted at acquisition</td>
 </tr>
 <tr>
+<td><code>{bacteria}_presence_microbiome</code>, <code>{bacteria}_presence_microbiome_resistant</code>, and living tier suffixes</td>
+<td>Current carriage/microbiome stocks and resistance-tier summaries</td>
+</tr>
+<tr>
+<td><code>{bacteria}_microbiome_acquisitions_*</code>, <code>{bacteria}_microbiome_clearances_*</code>, and clearance-category suffixes</td>
+<td>Carriage acquisition, clearance, and resistant-clearance event families</td>
+</tr>
+<tr>
+<td><code>{bacteria}_infected_carrier_count</code>, <code>{bacteria}_infected_non_carrier_count</code>, and resistant/location splits</td>
+<td>Active infection stocks split by carrier status, current care setting, and resistance state</td>
+</tr>
+<tr>
+<td><code>{bacteria}_drug_failure_events_{region}</code> and <code>{bacteria}_drug_treatment_day5_events_{region}</code></td>
+<td>Region-stratified treatment failure and day-5 treatment evaluation events</td>
+</tr>
+<tr>
+<td><code>{bacteria}_infected_with_test_identified</code>, <code>{bacteria}_infected_with_test_for_resistance</code></td>
+<td>Active infection stocks with diagnostic identification and resistance-testing state</td>
+</tr>
+<tr>
+<td><code>{bacteria}_infected_and_on_any_drug</code></td>
+<td>Active infections under any antibiotic exposure</td>
+</tr>
+<tr>
+<td><code>{bacteria}_infected_with_{mechanism}</code> and mechanism-family vector cells</td>
+<td>Mechanism-attributed active infection summaries</td>
+</tr>
+<tr>
+<td><code>{bacteria}_infection_resolution_*</code></td>
+<td>Resolution events by immune clearance, drug-assisted clearance, and death cause</td>
+</tr>
+<tr>
+<td><code>{bacteria}_day_7_evaluations</code>, <code>{bacteria}_day_7_drug_used</code></td>
+<td>Day-7 treatment-review counters</td>
+</tr>
+<tr>
+<td><code>{bacteria}_syndrome_{id}_infected</code></td>
+<td>Active infection stock by syndrome</td>
+</tr>
+<tr>
+<td><code>{bacteria}_drug_selection_count</code></td>
+<td>Count of drug-selection evaluations for the bacterium</td>
+</tr>
+<tr>
 <td><code>{bacteria}_applied_activity_sum</code></td>
 <td>Antibiotic activity at the within-day point where it changes bacterial level</td>
 </tr>
@@ -55514,6 +55670,10 @@ selected rows, so row count is not in general equal to the number of simulated t
 <tr>
 <td><code>{bacteria}_applied_exposure_potency_sum</code></td>
 <td>Potency denominator for those observations</td>
+</tr>
+<tr>
+<td><code>*_by_bacteria</code> vector cells</td>
+<td>Semicolon-delimited vectors in <code>BACTERIA_LIST</code> order</td>
 </tr>
 </tbody>
 </table>
@@ -55546,20 +55706,28 @@ selected rows, so row count is not in general equal to the number of simulated t
 </thead>
 <tbody>
 <tr>
-<td><code>{bacteria}_{drug}_activity_r</code> and related summaries</td>
-<td>Resistance/activity state summaries; these are distinct from the applied-stage activity sums above</td>
+<td><code>{bacteria}_infected_and_mic_lt2_{drug}</code> and <code>{bacteria}_sum_mic_{drug}</code></td>
+<td>Legacy reciprocal-activity proxy count and sum by organism-drug pair</td>
 </tr>
 <tr>
-<td><code>{bacteria}_{drug}_infected_and_standardized_mic_lt2</code> and related summaries</td>
-<td>Treatment-relevant susceptible-infection summaries</td>
-</tr>
-<tr>
-<td><code>{bacteria}_{drug}_currently_on_drug</code> and related summaries</td>
+<td><code>{bacteria}_currently_on_drug_{drug}</code></td>
 <td>Drug exposure by organism-drug pair</td>
 </tr>
 <tr>
-<td><code>{bacteria}_{drug}_any_r</code>, <code>microbiome_r_positive</code>, and split hospital/community variants</td>
-<td>Mechanism-derived resistance summaries. The summary CSV no longer exports <code>{bacteria}_{drug}_majority_r</code>; mechanism-majority state is used internally and exposed through mechanism-derived summaries rather than the old majority-r column family.</td>
+<td><code>{bacteria}_microbiome_r_positive_{drug}</code></td>
+<td>Carriage/microbiome resistance positivity by organism-drug pair</td>
+</tr>
+<tr>
+<td><code>{bacteria}_sum_any_r_{drug}</code> and <code>{bacteria}_sum_any_r_hospital_{drug}</code></td>
+<td>Mechanism-derived any-R sums by organism-drug pair and hospital subset</td>
+</tr>
+<tr>
+<td><code>{bacteria}_infected_with_any_r_positive_{drug}</code> and hospital/community splits</td>
+<td>Active infection resistance counts by organism-drug pair and current care setting</td>
+</tr>
+<tr>
+<td><code>{bacteria}_drug_score_sum_{drug}</code></td>
+<td>Accumulated drug-selection score contributions by organism-drug pair</td>
 </tr>
 </tbody>
 </table>
@@ -55573,16 +55741,32 @@ selected rows, so row count is not in general equal to the number of simulated t
 </thead>
 <tbody>
 <tr>
-<td><code>{region}_infected</code></td>
-<td>Regional infection count</td>
+<td><code>{region}_population</code></td>
+<td>Living population in the region</td>
 </tr>
 <tr>
-<td><code>{region}_hospitalized</code></td>
-<td>Regional hospital count</td>
+<td><code>{region}_hospital_population</code></td>
+<td>Living hospitalised population in the region</td>
 </tr>
 <tr>
-<td><code>{region}_deaths</code></td>
-<td>Regional death count</td>
+<td><code>{region}_{death_type}</code></td>
+<td>Regional death counts by background, sepsis, non-sepsis infection, and drug-toxicity cause</td>
+</tr>
+<tr>
+<td><code>{region}_{age_group}_{death_type}</code></td>
+<td>Regional age-by-cause death counts</td>
+</tr>
+<tr>
+<td><code>{region}_{drug}_currently_on_drug</code></td>
+<td>Current regional drug exposure</td>
+</tr>
+<tr>
+<td><code>syndrome_{id}_population_{region}</code></td>
+<td>Regional active syndrome stock</td>
+</tr>
+<tr>
+<td><code>syndrome_{id}_deaths_sepsis_{region}</code> and <code>syndrome_{id}_deaths_infection_non_sepsis_{region}</code></td>
+<td>Regional syndrome-attributed infection death counts</td>
 </tr>
 </tbody>
 </table>
@@ -56211,7 +56395,7 @@ individual-level model variables and are excluded.</p>
 <td>Persistent bacterium bitmask family</td>
 <td>Mechanisms represented in carriage.</td>
 <td>Empty mask.</td>
-<td>Updated by carriage acquisition, HGT, reversion, and clearance.</td>
+<td>Updated by carriage acquisition, de novo carriage emergence, HGT, infection-carriage transfer, reversion, and clearance.</td>
 <td>Resistance and carriage</td>
 </tr>
 <tr>
@@ -57187,8 +57371,8 @@ constant or category rule rather than a configurable parameter.</p>
 </tr>
 <tr>
 <td><a id="rule-mechanism-microbiome"></a><code>mechanism_microbiome[b]</code></td>
-<td>Incoming carriage profile, HGT and carriage reversion.</td>
-<td>Carriage profile-source, HGT and reversion parameter families.</td>
+<td>Incoming carriage profile, de novo carriage emergence, infection-carriage transfer, HGT, and carriage reversion.</td>
+<td>Carriage profile-source, emergence, transfer, HGT and reversion parameter families.</td>
 <td>Set at carriage acquisition and updated during carriage resistance evolution; reset at clearance.</td>
 <td>Separate from the active-infection masks.</td>
 <td>Carriage acquisition, evolution and clearance blocks in <code>rules::apply_rules</code></td>
@@ -57628,6 +57812,7 @@ constant or category rule rather than a configurable parameter.</p>
 </tbody>
 </table>
 <h2 id="references">References</h2>
+<p>References marked with * are retained for completeness but are not explicitly cited in the text.</p>
 <ul>
 <li>
 <p>Ali M, Nelson AR, Lopez AL, Sack DA. Updated global burden of cholera in endemic countries. <em>PLoS Negl Trop Dis.</em> 2015;9(6):e0003832. doi:10.1371/journal.pntd.0003832</p>
@@ -57663,7 +57848,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Bratzler DW, Dellinger EP, Olsen KM, et al. Clinical practice guidelines for antimicrobial prophylaxis in surgery. <em>Am J Health-Syst Pharm.</em> 2013;70(3):195–283. doi:10.2146/ajhp120568</p>
 </li>
 <li>
-<p>Brooke JS. <em>Stenotrophomonas maltophilia</em>: an emerging global opportunistic pathogen. <em>Clin Microbiol Rev.</em> 2012;25(1):2–41. doi:10.1128/CMR.00019-11</p>
+<p>* Brooke JS. <em>Stenotrophomonas maltophilia</em>: an emerging global opportunistic pathogen. <em>Clin Microbiol Rev.</em> 2012;25(1):2–41. doi:10.1128/CMR.00019-11</p>
 </li>
 <li>
 <p>Browne AJ, Chipeta MG, Haines-Woodhouse G, et al. Global antibiotic consumption and usage in humans, 2000–18: a spatial modelling study. <em>Lancet Planet Health.</em> 2021;5(12):e893–e904. doi:10.1016/S2542-5196(21)00280-1</p>
@@ -57672,7 +57857,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Brunton LL, Hilal-Dandan R, Knollmann BC, eds. <em>Goodman &amp; Gilman's: The Pharmacological Basis of Therapeutics.</em> 13th ed. New York: McGraw-Hill; 2018.</p>
 </li>
 <li>
-<p>Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. <em>Microbiome.</em> 2017;5(1):154. doi:10.1186/s40168-017-0369-0</p>
+<p>* Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. <em>Microbiome.</em> 2017;5(1):154. doi:10.1186/s40168-017-0369-0</p>
 </li>
 <li>
 <p>Carapetis JR, Steer AC, Mulholland EK, Weber M. The global burden of group A streptococcal diseases. <em>Lancet Infect Dis.</em> 2005;5(11):685–694. doi:10.1016/S1473-3099(05)70267-X</p>
@@ -57687,10 +57872,10 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Centers for Disease Control and Prevention. <em>COVID-19: U.S. Impact on Antimicrobial Resistance, Special Report 2022.</em> Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2022. https://www.cdc.gov/antimicrobial-resistance/data-research/threats/covid-19.html</p>
 </li>
 <li>
-<p>Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of <em>Stenotrophomonas maltophilia</em> reveals an organism heavily shielded by drug resistance determinants. <em>Genome Biol.</em> 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74</p>
+<p>* Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of <em>Stenotrophomonas maltophilia</em> reveals an organism heavily shielded by drug resistance determinants. <em>Genome Biol.</em> 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74</p>
 </li>
 <li>
-<p>Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. <em>Cochrane Database Syst Rev.</em> 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4</p>
+<p>* Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. <em>Cochrane Database Syst Rev.</em> 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4</p>
 </li>
 <li>
 <p>Drlica K, Zhao X. Mutant selection window hypothesis updated. <em>Clin Infect Dis.</em> 2007;44(5):681–688. doi:10.1086/511025</p>
@@ -57705,28 +57890,10 @@ constant or category rule rather than a configurable parameter.</p>
 <p>European Centre for Disease Prevention and Control. <em>Antimicrobial resistance in the EU/EEA (EARS-Net) - Annual Epidemiological Report 2023.</em> Stockholm: ECDC; 2024. https://www.ecdc.europa.eu/en/publications-data/antimicrobial-resistance-eueea-ears-net-annual-epidemiological-report-2023</p>
 </li>
 <li>
-<p>European Committee on Antimicrobial Susceptibility Testing (EUCAST). <em>Breakpoint tables for interpretation of MICs and zone diameters.</em> Version 13.0; 2023. https://www.eucast.org/clinical_breakpoints</p>
+<p>* European Committee on Antimicrobial Susceptibility Testing (EUCAST). <em>Breakpoint tables for interpretation of MICs and zone diameters.</em> Version 13.0; 2023. https://www.eucast.org/clinical_breakpoints</p>
 </li>
 <li>
 <p>Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. <em>Intensive Care Med.</em> 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y</p>
-</li>
-<li>
-<p>U.S. Food and Drug Administration. <em>Fetroja (cefiderocol) prescribing information.</em> Revised June 2025. https://www.accessdata.fda.gov/drugsatfda_docs/label/2025/209445s009lbl.pdf</p>
-</li>
-<li>
-<p>Ito A, Sato T, Ota M, et al. In vitro antibacterial properties of cefiderocol, a novel siderophore cephalosporin, against Gram-negative bacteria. <em>Antimicrob Agents Chemother.</em> 2018;62(1):e01454-17. doi:10.1128/AAC.01454-17</p>
-</li>
-<li>
-<p>U.S. Food and Drug Administration. <em>Zerbaxa (ceftolozane and tazobactam) prescribing information.</em> Revised May 2026. https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/206829s023lbl.pdf</p>
-</li>
-<li>
-<p>U.S. Food and Drug Administration. <em>Ceftolozane-tazobactam clinical microbiology review, NDA 206829.</em> Completed September 26, 2014. https://www.accessdata.fda.gov/drugsatfda_docs/nda/2014/206829Orig1s000MicroR.pdf</p>
-</li>
-<li>
-<p>Snydman DR, McDermott LA, Jacobus NV. Activity of ceftolozane-tazobactam against a broad spectrum of recent clinical anaerobic isolates. <em>Antimicrob Agents Chemother.</em> 2014;58(2):1218-1223. doi:10.1128/AAC.02253-13</p>
-</li>
-<li>
-<p>Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in <em>Klebsiella pneumoniae</em>. <em>Front Microbiol.</em> 2018;9:1422. doi:10.3389/fmicb.2018.01422</p>
 </li>
 <li>
 <p>Fishman JA. Infection in solid-organ transplant recipients. <em>N Engl J Med.</em> 2007;357(25):2601–2614. doi:10.1056/NEJMra064928</p>
@@ -57756,7 +57923,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Havelaar AH, Kirk MD, Torgerson PR, et al. World Health Organization global estimates and regional comparisons of the burden of foodborne disease in 2010. <em>PLoS Med.</em> 2015;12(12):e1001923. doi:10.1371/journal.pmed.1001923</p>
 </li>
 <li>
-<p>Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of <em>Helicobacter pylori</em> infection: systematic review and meta-analysis. <em>Gastroenterology.</em> 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022</p>
+<p>* Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of <em>Helicobacter pylori</em> infection: systematic review and meta-analysis. <em>Gastroenterology.</em> 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022</p>
 </li>
 <li>
 <p>Human Microbiome Project Consortium. Structure, function and diversity of the healthy human microbiome. <em>Nature.</em> 2012;486(7402):207–214. doi:10.1038/nature11234</p>
@@ -57765,7 +57932,10 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Ikuta KS, Swetschinski LR, Robles Aguilar G, et al. Global mortality associated with 33 bacterial pathogens in 2019: a systematic analysis for the Global Burden of Disease Study 2019. <em>Lancet.</em> 2022;400(10369):2221–2248. doi:10.1016/S0140-6736(22)02185-7</p>
 </li>
 <li>
-<p>International Organization for Standardization. <em>ISO 20776-2:2021 Clinical laboratory testing and in vitro diagnostic test systems - Susceptibility testing of infectious agents and evaluation of performance of antimicrobial susceptibility test devices - Part 2: Evaluation of performance of antimicrobial susceptibility test devices against reference broth micro-dilution.</em> Geneva: ISO; 2021.</p>
+<p>* International Organization for Standardization. <em>ISO 20776-2:2021 Clinical laboratory testing and in vitro diagnostic test systems - Susceptibility testing of infectious agents and evaluation of performance of antimicrobial susceptibility test devices - Part 2: Evaluation of performance of antimicrobial susceptibility test devices against reference broth micro-dilution.</em> Geneva: ISO; 2021.</p>
+</li>
+<li>
+<p>* Ito A, Sato T, Ota M, et al. In vitro antibacterial properties of cefiderocol, a novel siderophore cephalosporin, against Gram-negative bacteria. <em>Antimicrob Agents Chemother.</em> 2018;62(1):e01454-17. doi:10.1128/AAC.01454-17</p>
 </li>
 <li>
 <p>Jacobs J, Hardy L, Semret M, et al. Diagnostic bacteriology in district hospitals in sub-Saharan Africa: at the forefront of the containment of antimicrobial resistance. <em>Front Med (Lausanne).</em> 2019;6:205. doi:10.3389/fmed.2019.00205</p>
@@ -57801,10 +57971,13 @@ constant or category rule rather than a configurable parameter.</p>
 <p>McInnes RS, McCallum GE, Lamberte LE, van Schaik W. Horizontal transfer of antibiotic resistance genes in the human gut microbiome. <em>Curr Opin Microbiol.</em> 2020;53:35–43. doi:10.1016/j.mib.2020.02.002</p>
 </li>
 <li>
-<p>Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. <em>Am J Respir Crit Care Med.</em> 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST</p>
+<p>* Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. <em>Am J Respir Crit Care Med.</em> 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST</p>
 </li>
 <li>
 <p>Murray CJL, Ikuta KS, Sharara F, et al. Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. <em>Lancet.</em> 2022;399(10325):629–655. doi:10.1016/S0140-6736(21)02724-0</p>
+</li>
+<li>
+<p>* Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in <em>Klebsiella pneumoniae</em>. <em>Front Microbiol.</em> 2018;9:1422. doi:10.3389/fmicb.2018.01422</p>
 </li>
 <li>
 <p>Nielsen EI, Friberg LE. Pharmacokinetic-pharmacodynamic modeling of antibacterial drugs. <em>Pharmacol Rev.</em> 2013;65(3):1053–1090. doi:10.1124/pr.111.005769</p>
@@ -57813,7 +57986,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Partridge SR, Kwong SM, Firth N, Jensen SO. Mobile genetic elements associated with antimicrobial resistance. <em>Clin Microbiol Rev.</em> 2018;31(4):e00088-17. doi:10.1128/CMR.00088-17</p>
 </li>
 <li>
-<p>Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. <em>Medical Microbiology.</em> 19th ed. Edinburgh: Churchill Livingstone; 2019.</p>
+<p>* Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. <em>Medical Microbiology.</em> 19th ed. Edinburgh: Churchill Livingstone; 2019.</p>
 </li>
 <li>
 <p>Plummer M, Franceschi S, Vignat J, Forman D, de Martel C. Global burden of gastric cancer attributable to <em>Helicobacter pylori</em>. <em>Int J Cancer.</em> 2015;136(2):487–490. doi:10.1002/ijc.28999</p>
@@ -57822,7 +57995,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Poolman JT, Wacker M. Extraintestinal pathogenic <em>Escherichia coli</em>, a common human pathogen: challenges for vaccine development and progress in the field. <em>J Infect Dis.</em> 2016;213(1):6–13. doi:10.1093/infdis/jiv429</p>
 </li>
 <li>
-<p>Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. <em>Intensive Care Med.</em> 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6</p>
+<p>* Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. <em>Intensive Care Med.</em> 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6</p>
 </li>
 <li>
 <p>Rowley J, Vander Hoorn S, Korenromp EL, et al. Chlamydia, gonorrhoea, trichomoniasis and syphilis: global prevalence and incidence estimates, 2016. <em>Bull World Health Organ.</em> 2019;97(8):548–562P. doi:10.2471/BLT.18.228486</p>
@@ -57837,7 +58010,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>San Millán A, MacLean RC. Fitness costs of plasmids: a limit to plasmid transmission. <em>Microbiol Spectr.</em> 2017;5(5):MTBP-0016-2017. doi:10.1128/microbiolspec.MTBP-0016-2017</p>
 </li>
 <li>
-<p>Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in <em>Helicobacter pylori</em>: a systematic review and meta-analysis in World Health Organization regions. <em>Gastroenterology.</em> 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022</p>
+<p>* Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in <em>Helicobacter pylori</em>: a systematic review and meta-analysis in World Health Organization regions. <em>Gastroenterology.</em> 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022</p>
 </li>
 <li>
 <p>Schuts EC, Hulscher MEJL, Mouton JW, et al. Current evidence on hospital antimicrobial stewardship objectives: a systematic review and meta-analysis. <em>Lancet Infect Dis.</em> 2016;16(7):847–856. doi:10.1016/S1473-3099(16)00065-7</p>
@@ -57852,7 +58025,10 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Slimings C, Riley TV. Antibiotics and healthcare facility-associated <em>Clostridioides difficile</em> infection: updated systematic review and meta-analysis. <em>J Antimicrob Chemother.</em> 2021;76(7):1676–1688. doi:10.1093/jac/dkab091</p>
 </li>
 <li>
-<p>Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. <em>Clin Infect Dis.</em> 2010;50(2):133–164. doi:10.1086/649554</p>
+<p>* Snydman DR, McDermott LA, Jacobus NV. Activity of ceftolozane-tazobactam against a broad spectrum of recent clinical anaerobic isolates. <em>Antimicrob Agents Chemother.</em> 2014;58(2):1218-1223. doi:10.1128/AAC.02253-13</p>
+</li>
+<li>
+<p>* Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. <em>Clin Infect Dis.</em> 2010;50(2):133–164. doi:10.1086/649554</p>
 </li>
 <li>
 <p>Stanaway JD, Parisi A, Sarber K, et al. The global burden of non-typhoidal salmonella invasive disease: a systematic analysis for the Global Burden of Disease Study 2017. <em>Lancet Infect Dis.</em> 2019;19(12):1312–1324. doi:10.1016/S1473-3099(19)30418-9</p>
@@ -57874,6 +58050,15 @@ constant or category rule rather than a configurable parameter.</p>
 </li>
 <li>
 <p>Tunkel AR, Hartman BJ, Kaplan SL, et al. Practice guidelines for the management of bacterial meningitis. <em>Clin Infect Dis.</em> 2004;39(9):1267–1284. doi:10.1086/425368</p>
+</li>
+<li>
+<p>U.S. Food and Drug Administration. <em>Ceftolozane-tazobactam clinical microbiology review, NDA 206829.</em> Completed September 26, 2014. https://www.accessdata.fda.gov/drugsatfda_docs/nda/2014/206829Orig1s000MicroR.pdf</p>
+</li>
+<li>
+<p>U.S. Food and Drug Administration. <em>Fetroja (cefiderocol) prescribing information.</em> Revised June 2025. https://www.accessdata.fda.gov/drugsatfda_docs/label/2025/209445s009lbl.pdf</p>
+</li>
+<li>
+<p>U.S. Food and Drug Administration. <em>Zerbaxa (ceftolozane and tazobactam) prescribing information.</em> Revised May 2026. https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/206829s023lbl.pdf</p>
 </li>
 <li>
 <p>UN Tourism. <em>UN Tourism Data Dashboard: Global and Regional Tourism Performance.</em> 2025. Accessed March 24, 2026. https://www.untourism.int/tourism-data/global-and-regional-tourism-performance</p>
@@ -57900,7 +58085,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>Verani JR, McGee L, Schrag SJ; Division of Bacterial Diseases, National Center for Immunization and Respiratory Diseases, Centers for Disease Control and Prevention. Prevention of perinatal group B streptococcal disease - revised guidelines from CDC, 2010. <em>MMWR Recomm Rep.</em> 2010;59(RR-10):1–36.</p>
 </li>
 <li>
-<p>Wain J, Kilmarx PH, eds. <em>Practical Laboratory Manual for National Tuberculosis Programmes.</em> Geneva: WHO; 2006.</p>
+<p>* Wain J, Kilmarx PH, eds. <em>Practical Laboratory Manual for National Tuberculosis Programmes.</em> Geneva: WHO; 2006.</p>
 </li>
 <li>
 <p>Watkins DA, Johnson CO, Colquhoun SM, et al. Global, regional, and national burden of rheumatic heart disease, 1990–2015. <em>N Engl J Med.</em> 2017;377(8):713–722. doi:10.1056/NEJMoa1603693</p>
@@ -57915,7 +58100,7 @@ constant or category rule rather than a configurable parameter.</p>
 <p>WHO Collaborating Centre for Drug Statistics Methodology. <em>DDD: definition and general considerations.</em> Accessed June 22, 2026. https://atcddd.fhi.no/ddd/definition_and_general_considera/</p>
 </li>
 <li>
-<p>Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. <em>MMWR Recomm Rep.</em> 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1</p>
+<p>* Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. <em>MMWR Recomm Rep.</em> 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1</p>
 </li>
 <li>
 <p>World Bank. <em>Air transport, passengers carried (IS.AIR.PSGR).</em> World Development Indicators; source: International Civil Aviation Organization (ICAO). Accessed March 24, 2026. https://data.worldbank.org/indicator/IS.AIR.PSGR</p>
@@ -57930,10 +58115,10 @@ constant or category rule rather than a configurable parameter.</p>
 <p>World Health Organization. <em>Global antibiotic resistance surveillance report 2025.</em> Geneva: WHO; 2025. ISBN 9789240116337. https://www.who.int/publications/i/item/9789240116337</p>
 </li>
 <li>
-<p>World Health Organization. <em>Global Antimicrobial Resistance and Use Surveillance System (GLASS) report: antibiotic use data for 2022.</em> Geneva: WHO; 2025. ISBN 9789240108127. https://www.who.int/publications/i/item/9789240108127</p>
+<p>World Health Organization. <em>Global Antimicrobial Resistance and Use Surveillance System (GLASS).</em> Accessed June 22, 2026. https://www.who.int/initiatives/glass</p>
 </li>
 <li>
-<p>World Health Organization. <em>Global Antimicrobial Resistance and Use Surveillance System (GLASS).</em> Accessed June 22, 2026. https://www.who.int/initiatives/glass</p>
+<p>World Health Organization. <em>Global Antimicrobial Resistance and Use Surveillance System (GLASS) report: antibiotic use data for 2022.</em> Geneva: WHO; 2025. ISBN 9789240108127. https://www.who.int/publications/i/item/9789240108127</p>
 </li>
 <li>
 <p>World Health Organization. <em>Global tuberculosis report 2025.</em> Geneva: WHO; 2025. https://www.who.int/teams/global-tuberculosis-programme/tb-reports/global-tuberculosis-report-2025</p>

@@ -4,13 +4,14 @@ import subprocess
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parent
-MODEL_DESCRIPTION_PATH = REPO_ROOT / "MODEL_DESCRIPTION.md"
+DOC_DIR = Path(__file__).resolve().parent
+REPO_ROOT = DOC_DIR.parent
+MODEL_DESCRIPTION_PATH = DOC_DIR / "MODEL_DESCRIPTION.md"
 APPENDIX_B_HEADING = "## Appendix B — Parameter Reference"
 APPENDIX_C_HEADING = "## Appendix C — Output Specification"
 
 
-def generate_appendix_markdown() -> str:
+def generate_appendix_markdown(newline: str) -> str:
     result = subprocess.run(
         ["cargo", "run", "--quiet", "--bin", "dump_parameter_appendix"],
         cwd=REPO_ROOT,
@@ -19,7 +20,7 @@ def generate_appendix_markdown() -> str:
         text=True,
         encoding="utf-8",
     )
-    return result.stdout.strip() + "\n\n"
+    return (result.stdout.strip() + "\n\n").replace("\n", newline)
 
 
 def replace_appendix_block(document_text: str, appendix_markdown: str) -> str:
@@ -34,9 +35,11 @@ def replace_appendix_block(document_text: str, appendix_markdown: str) -> str:
 
 def main() -> None:
     existing_text = MODEL_DESCRIPTION_PATH.read_text(encoding="utf-8")
-    appendix_markdown = generate_appendix_markdown()
+    newline = "\r\n" if "\r\n" in existing_text else "\n"
+    appendix_markdown = generate_appendix_markdown(newline)
     updated_text = replace_appendix_block(existing_text, appendix_markdown)
-    MODEL_DESCRIPTION_PATH.write_text(updated_text, encoding="utf-8")
+    with MODEL_DESCRIPTION_PATH.open("w", encoding="utf-8", newline="") as file:
+        file.write(updated_text)
 
 
 if __name__ == "__main__":
