@@ -519,11 +519,6 @@ fn record_sampled_microbiome_profile(
 }
 
 #[inline]
-fn resistance_pathway_probability(base_probability: f64, counterfactual_multiplier: f64) -> f64 {
-    (base_probability * counterfactual_multiplier).clamp(0.0, 1.0)
-}
-
-#[inline]
 fn carriage_profile_sampling_probability(
     pathway_multiplier: f64,
     counterfactual_multiplier: f64,
@@ -535,10 +530,7 @@ fn carriage_profile_sampling_probability(
     } else {
         community_dilution_factor
     };
-    resistance_pathway_probability(
-        pathway_multiplier * source_profile_fraction,
-        counterfactual_multiplier,
-    )
+    (pathway_multiplier * source_profile_fraction * counterfactual_multiplier).clamp(0.0, 1.0)
 }
 
 fn clear_microbiome_compartment(individual: &mut Individual, b_idx: usize) {
@@ -2473,10 +2465,7 @@ pub(crate) fn apply_rules(
         param_cache.bacterial_testing_available_from_day;
     let cached_bacterial_testing_available =
         time_step >= cached_bacterial_testing_available_from_day as usize;
-    let cached_test_r_error_prob = resistance_pathway_probability(
-        param_cache.test_r_error_prob,
-        counterfactual_resistance_multiplier,
-    );
+    let cached_test_r_error_prob = param_cache.test_r_error_prob;
     let cached_test_r_error_value = param_cache.test_r_error_value;
     let cached_resistance_testing_available_from_day =
         param_cache.resistance_testing_available_from_day;
@@ -5425,10 +5414,7 @@ pub(crate) fn apply_rules(
                 let has_microbiome_only_mechanisms = microbiome_mask & !infection_mask != 0;
 
                 if (has_infection_only_mechanisms || has_microbiome_only_mechanisms)
-                    && rng.gen_bool(resistance_pathway_probability(
-                        transfer_prob,
-                        counterfactual_resistance_multiplier,
-                    ))
+                    && rng.gen_bool(transfer_prob)
                 {
                     let mut any_transferred = false;
                     if has_infection_only_mechanisms || has_microbiome_only_mechanisms {
@@ -5470,10 +5456,7 @@ pub(crate) fn apply_rules(
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
 
                     let guaranteed_rifampicin_resistance = if is_tb && simulation_year >= 1966.0 {
-                        resistance_pathway_probability(
-                            param_cache.tb_guaranteed_rifampicin_resistance,
-                            counterfactual_resistance_multiplier,
-                        )
+                        param_cache.tb_guaranteed_rifampicin_resistance
                     } else {
                         0.0
                     };
@@ -5520,10 +5503,7 @@ pub(crate) fn apply_rules(
                                 )
                             };
                         if let Some(profile) = sampled_profile {
-                            if rng.gen_bool(resistance_pathway_probability(
-                                1.0,
-                                counterfactual_resistance_multiplier,
-                            )) {
+                            if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 let eligible_profile =
                                     param_cache.sanitize_mechanism_profile(b_idx, profile.mask);
                                 // A sampled circulating genotype starts in both the any-strain
@@ -5555,11 +5535,7 @@ pub(crate) fn apply_rules(
                                 ratchet_enabled,
                                 param_cache,
                             );
-                            let floor_probability = resistance_pathway_probability(
-                                floor,
-                                counterfactual_resistance_multiplier,
-                            );
-                            if floor_probability > 0.0 && rng.gen_bool(floor_probability) {
+                            if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
                                 let mechanism_bit = 1u64 << m_idx;
                                 incoming_any_mask |= mechanism_bit;
                                 incoming_majority_mask |= mechanism_bit;
@@ -5597,10 +5573,8 @@ pub(crate) fn apply_rules(
                     // Carriage inheritance uses a person-level gate followed by an independent
                     // dampening draw for each carriage mechanism absent from the incoming profile.
                     if individual.presence_microbiome[b_idx] {
-                        let inheritance_prob = resistance_pathway_probability(
-                            store.globals.carrier_resistance_inheritance_probability,
-                            counterfactual_resistance_multiplier,
-                        );
+                        let inheritance_prob =
+                            store.globals.carrier_resistance_inheritance_probability;
                         if rng.gen_bool(inheritance_prob) {
                             let dampening = store.globals.infection_from_microbiome_dampening;
                             let mut candidate_mask = param_cache.sanitize_mechanism_profile(
@@ -6924,9 +6898,8 @@ mod tests {
         promote_minority_mechanisms_once, propagate_mechanism_resistance, ratchet_floor_from_peak,
         ratchet_mechanism_is_eligible, record_hgt_mechanism_in_present_compartments,
         record_sampled_microbiome_profile, reset_resistance_test_state,
-        resistance_pathway_probability, revert_unselected_microbiome_mechanisms,
-        sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
-        ParameterKeyCache, RuleEvents,
+        revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
+        vaccination_acquisition_log_odds, ParameterKeyCache, RuleEvents,
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
@@ -8131,77 +8104,6 @@ mod tests {
             .to_bits(),
             eligible_floor.to_bits()
         );
-    }
-
-    #[test]
-    fn zero_counterfactual_multiplier_suppresses_resistance_source_probabilities() {
-        let param_cache = ParameterKeyCache::new();
-        let store = parameter_store();
-        let bacteria_idx = bacteria_idx("shigella_spp.");
-        let mechanism_idx = super::mechanism_idx(ResistanceMechanism::ProtectionTetM);
-        let floor = exogenous_mechanism_floor_probability(
-            bacteria_idx,
-            mechanism_idx,
-            2025.0,
-            0.50,
-            true,
-            &param_cache,
-        );
-
-        assert!(floor > 0.0);
-        assert_eq!(resistance_pathway_probability(1.0, 0.0), 0.0);
-        assert_eq!(
-            carriage_profile_sampling_probability(1.0, 0.0, true, 1.0),
-            0.0
-        );
-        assert_eq!(resistance_pathway_probability(floor, 0.0), 0.0);
-        assert_eq!(
-            resistance_pathway_probability(
-                store
-                    .globals
-                    .microbiome_resistance_transfer_probability_per_day,
-                0.0,
-            ),
-            0.0
-        );
-        assert_eq!(
-            resistance_pathway_probability(
-                store.globals.carrier_resistance_inheritance_probability,
-                0.0,
-            ),
-            0.0
-        );
-        assert_eq!(
-            resistance_pathway_probability(param_cache.tb_guaranteed_rifampicin_resistance, 0.0),
-            0.0
-        );
-        assert_eq!(
-            resistance_pathway_probability(param_cache.test_r_error_prob, 0.0),
-            0.0
-        );
-    }
-
-    #[test]
-    fn zero_counterfactual_multiplier_prevents_ast_false_positive_resistance() {
-        let (mut individual, mut rng) = individual_with_seed(31);
-        let bacteria_idx = 0;
-        individual.level[bacteria_idx] = 1.0;
-        individual.resistance_test_initiated_day[bacteria_idx] = 0;
-
-        let completed = complete_resistance_test_if_ready(
-            &mut individual,
-            bacteria_idx,
-            0,
-            0,
-            resistance_pathway_probability(1.0, 0.0),
-            0.25,
-            &mut rng,
-        );
-
-        assert!(completed);
-        assert!(individual.resistances[bacteria_idx]
-            .iter()
-            .all(|resistance| load_float(resistance.test_r) == 0.0));
     }
 
     #[test]
