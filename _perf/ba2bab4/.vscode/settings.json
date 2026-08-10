@@ -1,0 +1,5 @@
+{
+    "search.exclude": {
+        "**/amr_simulation_output_analysis_outputs": true
+    }
+}

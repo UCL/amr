@@ -1,0 +1,29 @@
+Class,Share_2025 (%),Share_2000 (%),Share_1975 (%),Share_1950 (%)
+Penicillins (J01C),17.910448,25.0,48.0,66
+Beta-lactamase combinations (J01CR),17.910448,10.0,0.0,0
+Cephalosporins 1-2G,9.950249,8.0,6.0,0
+Cephalosporins 3G,4.975124,4.0,2.0,0
+Cephalosporins 3G/BLI,0.497512,0.0,0.0,0
+Cephalosporins 4G,1.990050,2.0,1.0,0
+Anti-MRSA Cephalosporins (5G),0.199005,0.0,0.0,0
+Siderophore Cephalosporins,0.099502,0.0,0.0,0
+Novel BL/BLI,0.199005,0.0,0.0,0
+Monobactams,0.497512,0.3,0.0,0
+Macrolides (J01F),10.945274,11.0,7.0,2
+Lincosamides (J01FF),1.990050,2.0,1.0,0
+Quinolones/Fluoroquinolones (J01M),9.950249,9.0,1.0,0
+Tetracyclines (J01A),5.970149,7.0,11.0,14
+Carbapenems (J01DH),1.990050,1.0,0.0,0
+Aminoglycosides (J01G),1.990050,3.0,6.0,8
+Sulfonamides (J01E),3.980100,5.0,7.0,10
+Nitrofurans (J01XE),2.985075,2.0,1.0,0
+Fosfomycin (J01XX01),0.995025,0.5,0.2,0
+Glycopeptides (J01XA),1.990050,1.5,0.5,0
+Lipoglycopeptides & Oxazolidinones,0.995025,0.3,0.0,0
+Lipopeptides (J01XX09),0.497512,0.0,0.0,0
+Fidaxomicin,0.099502,0.0,0.0,0
+Nitroimidazoles,0.995025,1.0,0.5,0
+Polymyxins (J01XB),0.049751,0.01,0.0,0
+Rifamycins (J04AB),0.149254,0.04,0.0,0
+Chloramphenicol (J01BA),0.099502,0.03,0.0,0
+Other Antibiotics,0.099502,0.02,0.0,0

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Table 1 — Model Summary</title><style>
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5; max-width: 1500px; margin: 0 auto;
+  padding: 24px; color: #222; font-size: 13px;
+}
+h1  { font-size: 1.25em; border-bottom: 2px solid #2c3e50;
+      padding-bottom: 8px; color: #2c3e50; margin-bottom: 4px; }
+h2  { font-size: 1.05em; margin-top: 26px; color: #2c3e50;
+      border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.subtitle { color: #555; font-size: 0.9em; margin-bottom: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px 0;
+        font-size: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+th, td { border: 1px solid #ccc; padding: 5px 9px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 160px; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; }
+th { background: #eef1f5; font-weight: 600; color: #2c3e50; }
+tr:nth-child(even) td { background: #fafbfc; }
+tr:hover td { background: #eef4fb; }
+.total-row td { font-weight: 600; background: #e2e8f0 !important; }
+.note  { font-style: italic; color: #666; font-size: 0.87em; margin: 4px 0; }
+.meta-box {
+  background: #f4f7fb; border-left: 4px solid #3498db;
+  padding: 9px 14px; margin-bottom: 14px;
+  border-radius: 0 4px 4px 0; font-size: 0.88em; color: #333;
+}
+ol.footnotes { font-size: 0.87em; color: #444; padding-left: 22px; margin-top: 20px; }
+ol.footnotes li { margin-bottom: 7px; line-height: 1.5; }
+.back-link { font-size: 0.83em; margin-bottom: 12px; }
+a { color: #2980b9; }
+</style></head>
+<body>
+<p class='back-link'><a href='../index.html'>← Back to index</a></p>
+<h1>Table 1. Summary of simulation model design</h1>
+<p class='note'>This table summarises the structure and scope of the individual-based antimicrobial resistance simulation. Full methodological detail is provided in the accompanying Technical Model Description.</p>
+<table>
+<thead><tr><th style='width:14%'>Section</th><th style='width:22%'>Feature</th><th>Detail</th></tr></thead><tbody>
+<tr>
+<td rowspan='6' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Model framework</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Model type</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Individual-based model (IBM / agent-based model). Each simulated person is an independent agent with their own state (age, sex, region, immune status, active infections, microbiome, current antibiotics).</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Simulation time-span</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>1930–2035 (105 years; 38,325 daily time steps). Starting before the antibiotic era allows the model to reproduce the full historical arc of drug introduction, rising consumption, and accumulating resistance.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Time step</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>One calendar day. Every living individual is processed through 21 ordered mechanistic rules each day.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Population size</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>100,000 synthetic individuals per run. Results are rescaled to the global population using a run-specific scale factor derived from calibration targets.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Geographic scope</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Six world regions: North America, Europe, Asia, Oceania, South America, Africa. Regions differ in antibiotic availability, hospital capacity, diagnostic testing rates, and pathogen epidemiology.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Stochasticity</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>All events (infection, testing, treatment initiation, resistance mutation, death) are sampled from daily Bernoulli probabilities. Multiple independent runs characterise the distribution of outcomes; accepted calibration runs form the uncertainty ensemble.</td>
+</tr>
+<tr>
+<td rowspan='4' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Biological scope</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Bacteria modelled</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>42 species, including all ESKAPE pathogens and IHME 2019 Global Burden of Antimicrobial Resistance priority organisms.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Antibiotics modelled</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>61 drugs across 31 antibiotic classes (ATC J01 hierarchy plus key non-J01 agents such as metronidazole, fidaxomicin, and polymyxins).</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Resistance mechanisms</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>40 distinct biochemical mechanisms including β-lactamases (TEM, SHV, CTX-M, NDM, OXA-type), efflux pumps (MexAB-OprM, AcrAB-TolC, norA), target-site modifications (PBP2a, GyrA/ParC, rpsL), and porin loss.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Drug–bacteria potency matrix</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Full 61 × 42 matrix of minimum inhibitory concentration (MIC) shifts, intrinsic susceptibility flags, and mechanism-specific potency overrides. Each cell is individually parameterised.</td>
+</tr>
+<tr>
+<td rowspan='8' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Disease processes</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Infection acquisition</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Three routes: (i) community acquisition (region-, age-, and sex-specific daily incidence); (ii) hospital acquisition (admission probability × nosocomial hazard × length-of-stay); (iii) endogenous infection seeded from the microbiome carriage compartment.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Clinical presentation</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Nine syndrome categories (respiratory, urinary tract, bloodstream, skin and soft tissue, gastrointestinal, sexually transmitted, bone and joint, CNS, other). Syndrome drives empiric drug choice and sepsis risk.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Sepsis</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Log-odds model combining bacteraemia probability, syndrome severity, age, immune status, and treatment adequacy. Sepsis substantially increases mortality risk and triggers escalation of antibiotic therapy.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Diagnostic testing</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Microbiology culture followed by antimicrobial susceptibility testing (AST). Testing probability depends on region, syndrome, hospitalisation status, and clinician ordering behaviour. Region-specific multipliers range from ×0.3 (Africa) to ×1.2 (Europe).</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Antibiotic treatment</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Two-phase prescribing: (i) empiric initiation based on syndrome and local guideline preferences; (ii) culture-guided de-escalation or switching once AST results arrive. Drug selection factors in availability tier, formulary restrictions, and organism-specific access rules. Course duration, toxicity, and treatment failure are explicitly modelled.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Microbiome carriage</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Individuals carry a microbiome compartment for each of the 42 bacteria. Colonisation is acquired from the environment and lost at organism-specific clearance rates. Carriage drives endogenous infection and acts as a reservoir for resistance gene amplification.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Horizontal gene transfer (HGT)</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Inter-species plasmid transfer of resistance genes, modelled as a per-contact probability matrix across organism pairs. Transfer can occur during co-colonisation in the microbiome compartment. A 42 × 42 × mechanism HGT matrix governs species-pair permissibility.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Mortality</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Three causes: (i) background age- and region-specific all-cause mortality; (ii) infection-attributable death (case fatality rates by syndrome, severity, organism, and treatment outcome); (iii) drug toxicity mortality for selected agents.</td>
+</tr>
+<tr>
+<td rowspan='3' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Resistance biology</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>De novo emergence</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Each infected individual has a daily probability of generating a resistant mutant, parameterised as organism- and mechanism-specific mutation rate × antibiotic selection pressure (measured by active treatment). Rates are calibrated effective hazards rather than literal point-mutation rates.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Fitness cost and reversion</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Resistance mechanisms carry a fitness cost. In the absence of antibiotic pressure, resistance reverts at mechanism-specific daily rates, scaled by a global reversion multiplier. This allows resistance to decline when drug use is reduced.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Resistance profile inheritance</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>On infection, a resistance profile is sampled from a running cache of observed profiles for that organism (weighted by recency and current prevalence), ensuring that transmitted infections reflect the current circulating resistance landscape rather than drawing each mechanism independently.</td>
+</tr>
+<tr>
+<td rowspan='4' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Calibration</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Calibration window</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>2022–2025 (4-year window; ~1,461 simulated days). Summary statistics are averaged over this window to smooth stochastic noise before comparison with surveillance point estimates.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Calibration targets</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Antibiotic consumption (ECDC ESAC-Net, WHO AWaRe consumption data); infection resistance benchmarks informed by ECDC EARS-Net, WHO GLASS reports, and organism-specific literature; infection incidence and deaths (IHME Global Burden of Disease 2019); sepsis incidence (Rudd et al. 2020); carriage and hospital-acquired infection rates (published HAI epidemiology).</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Acceptance criteria</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>There is an established set of criteria for a calibration being considered adequate — in initial work we generate 5 diverse sets of parameter values each leading to adequate calibration and evaluate policy comparisons in the context of each — in this way we begin to take account of parameter uncertainty in the answer to the policy question.</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Uncertainty quantification</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Accepted runs differ in their random-number seeds, capturing stochastic variability. Results are reported as median (5th–95th percentile) across accepted runs.</td>
+</tr>
+<tr>
+<td rowspan='2' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Counterfactual</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Counterfactual design</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>A resistance-free counterfactual is constructed by replaying each accepted run with resistance emergence disabled. Individuals still acquire infections and may die of them, but all bacteria remain fully susceptible. AMR-attributable deaths = observed deaths (with resistance) − counterfactual deaths (without resistance).</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>AMR-attributable mortality</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Separable into directly attributable (deaths where resistance caused treatment failure) and associated (deaths in resistant-infection patients who may have died even with full susceptibility). Both components are reported.</td>
+</tr>
+<tr>
+<td rowspan='2' style='font-weight:600; vertical-align:top; background:#eef1f5; white-space:normal;'>Software and reproducibility</td>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Implementation language</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Rust (edition 2021, stable toolchain). Parallelised across simulation runs using Rayon. Analysis and paper tables produced in Python (pandas, matplotlib).</td>
+</tr>
+<tr>
+<td style='font-weight:500; vertical-align:top; white-space:normal; background:#f8f9fb;'>Reproducibility</td>
+<td style='vertical-align:top; white-space:normal; text-align:left;'>Fixed-seed mode available for deterministic replication. All parameters are stored in a single configuration module (<code>src/config.rs</code>, ~11,700 lines). Code and configuration will be archived at acceptance.</td>
+</tr>
+</tbody></table>
+<ol class='footnotes'>
+<li>ESKAPE pathogens: <em>Enterococcus faecium</em>, <em>Staphylococcus aureus</em>, <em>Klebsiella pneumoniae</em>, <em>Acinetobacter baumannii</em>, <em>Pseudomonas aeruginosa</em>, and <em>Enterobacter</em> spp.</li><li>IHME priority organisms: those listed in Murray CJ et al. (2022). Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. <em>Lancet</em> 399:629–655.</li><li>ATC = Anatomical Therapeutic Chemical classification. AWaRe = Access, Watch, Reserve (WHO antibiotic categorisation). EARS-Net = European Antimicrobial Resistance Surveillance Network. GLASS = Global Antimicrobial Resistance and Use Surveillance System.</li>
+</ol></body></html>
