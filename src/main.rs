@@ -222,16 +222,15 @@ fn main() {
     // CalibrationMode::FullMinimal — sparse 2022-2025 CSV with drug-share plus bacteria×drug resistance.
     // CalibrationMode::Full        — sparse 2022-2025 CSV with all fields needed for calibration_summary.txt.
     // CalibrationMode::Partial     — all 1930-2025 rows kept; time-series plots still work.
-    // CalibrationMode::Partial25Counterfactual — full 1930-2025 baseline plus no-resistance 2022-2025.
-    // CalibrationMode::Full25Counterfactual — sparse baseline and no-resistance rows for 2022-2025.
     // CalibrationMode::None        — full run with policy branches to 2035.
     let calibration_mode = CalibrationMode::Full;
+    // Calibration runs only need rows through the end of 2025.
+    // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
+    // Full run (policy branches to 2035) needs 38_325.
     let time_steps = match calibration_mode {
         CalibrationMode::None => 38_325,
         CalibrationMode::Partial | CalibrationMode::FullMinimal | CalibrationMode::Full => 35_040,
-        CalibrationMode::Partial25Counterfactual | CalibrationMode::Full25Counterfactual => 35_040,
     };
-    debug_assert_eq!(time_steps, calibration_mode.time_steps());
     let log_individuals = false; // Full individual logging is expensive and mainly useful for narrow debugging.
     let log_infection_journeys = false; // Journey logging captures dense snapshots only for sampled infections.
     let infection_journey_sample_rate = 1.00; // Fraction of eligible infections to log when journey logging is enabled.
@@ -254,18 +253,24 @@ fn main() {
     eprintln!("[startup] source_hash={}", source_hash);
 
     // ── Policy branch selection ────────────────────────────────────────────────
-    // Mode-specific policy branches. The 2025 counterfactual modes select policies 0 and 2;
-    // the full policy mode selects all five; non-branching calibration modes select none.
+    // Only active when calibration_mode == CalibrationMode::None (full run).
+    // List the policy IDs you want to run; comment out any you don't need.
     //
-    //   0 = Baseline continuation      (status quo carried forward after the checkpoint)
+    //   0 = Baseline continuation      (status quo carried forward to 2035)
     //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
     //   2 = AMR Counterfactual         (resistance-suppressed comparison branch)
     //   3 = Near-complete Diagnostics  (high testing and more targeted selection)
     //   4 = Equal Global Access        (testing, initiation, and cessation use North America references)
     //
-    // Branches are independent and restore the mode-specific checkpoint: 2022 for the
-    // 2025 counterfactual modes and 2027 for the full policy mode.
-    let active_policies = calibration_mode.active_policy_ids();
+    // Policies are independent branches starting from POLICY_BRANCH_YEAR (2027);
+    // they do not interact with each other.
+    let active_policies: &[u8] = &[
+        0, // Baseline continuation
+        1, // Stewardship
+        2, // AMR counterfactual
+        3, // Near-complete diagnostics
+        4, // Equal global access
+    ];
 
     let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
     if let Err(err) = std::fs::create_dir_all(output_dir) {
@@ -386,7 +391,7 @@ fn main() {
         seed_override,
         calibration_mode,
     );
-    let use_disk_branch_checkpointing = calibration_mode.uses_policy_branches();
+    let use_disk_branch_checkpointing = calibration_mode == CalibrationMode::None;
     let disk_checkpoint_directory: Option<PathBuf> = None; // Override with Some(path) to specify a custom folder
 
     if use_disk_branch_checkpointing {
