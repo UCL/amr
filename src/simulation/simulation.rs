@@ -5045,8 +5045,18 @@ impl Simulation {
                     let died_today = vital_status.died_today;
                     if collect_testing_stats {
                         for b_idx in 0..num_bacteria {
-                            let active_now = individual.level[b_idx] > INFECTION_EPS
-                                && vital_status.available_for_current_day_event_attribution;
+                            // A death-day episode may receive its final same-day attribution,
+                            // but retained infection/test state must not create new diagnostic
+                            // episodes on later days. Clear any stale open state without
+                            // recording additional stages.
+                            if !vital_status.available_for_current_day_event_attribution {
+                                if individual.diagnostic_cascade_open[b_idx] {
+                                    reset_diagnostic_cascade_episode_state(individual, b_idx);
+                                }
+                                continue;
+                            }
+
+                            let active_now = individual.level[b_idx] > INFECTION_EPS;
                             if !individual.diagnostic_cascade_open[b_idx]
                                 && diagnostic_cascade_entry_eligible(
                                     individual,
@@ -8585,7 +8595,8 @@ mod tests {
         infection_death_has_model_scope_contributor, is_new_person_level_sepsis_episode,
         person_day_vital_status, sample_hypergeometric_left_count, BranchSnapshot, CalibrationMode,
         MechanismCache, MechanismProfileCache, PolicyAdjustments, Simulation, SummaryContentFlags,
-        DAYS_PER_YEAR, MAX_MECHANISM_PROFILES, SIMULATION_START_YEAR,
+        DAYS_PER_YEAR, DIAGNOSTIC_CASCADE_ELIGIBLE_IDX, MAX_MECHANISM_PROFILES,
+        SIMULATION_START_YEAR,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
@@ -9107,6 +9118,126 @@ mod tests {
         let not_yet_born = person_day_vital_status(&individual, time_step);
         assert!(!not_yet_born.died_today);
         assert!(!not_yet_born.counts_as_living_stock);
+    }
+
+    #[test]
+    fn previously_dead_people_do_not_open_new_diagnostic_cascade_episodes() {
+        let time_step = 33_580;
+        let mut simulation = Simulation::new(
+            1,
+            time_step + 1,
+            false,
+            Some(73_001),
+            CalibrationMode::Partial,
+        );
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        {
+            let individual = &mut simulation.population.individuals[0];
+            individual.age = 40 * 365;
+            individual.date_of_death = Some(time_step - 1);
+            individual.level[bacteria_idx] = 1.0;
+            individual.infection_has_caused_symptoms[bacteria_idx] = true;
+            individual.date_last_infected[bacteria_idx] = time_step as i32 - 10;
+        }
+        assert!(diagnostic_cascade_entry_eligible(
+            &simulation.population.individuals[0],
+            bacteria_idx,
+            time_step,
+            &simulation.param_cache,
+        ));
+
+        simulation
+            .run_from(time_step, None)
+            .expect("post-death diagnostic regression timestep should run");
+
+        assert_eq!(simulation.summary_log.len(), 1);
+        assert_eq!(
+            simulation.summary_log[0].diagnostic_cascade_stage_counts
+                [DIAGNOSTIC_CASCADE_ELIGIBLE_IDX],
+            0
+        );
+        assert!(!simulation.population.individuals[0].diagnostic_cascade_open[bacteria_idx]);
+    }
+
+    #[test]
+    fn previously_dead_open_diagnostic_episode_is_cleared_without_attribution() {
+        let time_step = 33_580;
+        let mut simulation = Simulation::new(
+            1,
+            time_step + 1,
+            false,
+            Some(73_002),
+            CalibrationMode::Partial,
+        );
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        {
+            let individual = &mut simulation.population.individuals[0];
+            individual.age = 40 * 365;
+            individual.date_of_death = Some(time_step - 1);
+            individual.level[bacteria_idx] = 1.0;
+            individual.infection_has_caused_symptoms[bacteria_idx] = true;
+            individual.test_identified_infection[bacteria_idx] = true;
+            individual.diagnostic_cascade_open[bacteria_idx] = true;
+            individual.diagnostic_cascade_entry_time_step[bacteria_idx] = time_step as i32 - 5;
+        }
+
+        simulation
+            .run_from(time_step, None)
+            .expect("stale post-death diagnostic episode should be cleared");
+
+        assert_eq!(simulation.summary_log.len(), 1);
+        assert!(simulation.summary_log[0]
+            .diagnostic_cascade_stage_counts
+            .iter()
+            .all(|&count| count == 0));
+        let individual = &simulation.population.individuals[0];
+        assert!(!individual.diagnostic_cascade_open[bacteria_idx]);
+        assert_eq!(
+            individual.diagnostic_cascade_entry_time_step[bacteria_idx],
+            -1
+        );
+    }
+
+    #[test]
+    fn death_day_remains_eligible_for_diagnostic_cascade_attribution() {
+        let time_step = 33_580;
+        let mut simulation = Simulation::new(
+            1,
+            time_step + 1,
+            false,
+            Some(73_003),
+            CalibrationMode::Partial,
+        );
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        {
+            let individual = &mut simulation.population.individuals[0];
+            individual.age = 40 * 365;
+            individual.date_of_death = Some(time_step);
+            individual.level[bacteria_idx] = 1.0;
+            individual.infection_has_caused_symptoms[bacteria_idx] = true;
+            individual.date_last_infected[bacteria_idx] = time_step as i32 - 10;
+        }
+
+        simulation
+            .run_from(time_step, None)
+            .expect("death-day diagnostic regression timestep should run");
+
+        assert_eq!(simulation.summary_log.len(), 1);
+        assert_eq!(
+            simulation.summary_log[0].diagnostic_cascade_stage_counts
+                [DIAGNOSTIC_CASCADE_ELIGIBLE_IDX],
+            1
+        );
+        assert!(!simulation.population.individuals[0].diagnostic_cascade_open[bacteria_idx]);
     }
 
     #[test]
