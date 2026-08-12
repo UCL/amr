@@ -41,11 +41,11 @@
 
 ### 1.1 Framework structure
 
-We present a **framework** in the form of an **individual-based model** that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before widespread antibacterial use, through 2025 (95 years) in **daily** time steps; full policy runs can extend through 2035 and beyond. We simulate the lives of 10 million people who are alive at some point during the 95 years. The framework code is open source, and we encourage others to use it to investigate how resistance has emerged over time, including through counterfactuals, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.  Users are free to make adaptations to the struture as well as the parameter values.
+We present a **framework** in the form of an **individual-based model** that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before widespread antibacterial use, through 2025 in **daily** time steps; full policy runs can extend through 2035. We typically simulate 3 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.
 
 As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
-The framework dynamically models resistance at infection acquisition and how this depends on resistance in people concurrently infected in the same region and hospital / community setting, also accounting for movement between regions. Infection acquisition hazards are externally parameterised by bacterium, age, region, vaccination, carriage status, hospital status, sanitation, and selected organism-specific calendar-era effects.
+The framework aims to capture how bacterial resistance in one individual can affect resistance profiles in others in the same region, while also accounting for movement between regions. It does not dynamically model infection transmission or make incidence depend on prevalence. Infection acquisition hazards are externally parameterised by bacterium, age, region, vaccination, carriage, hospital status, sanitation, and selected organism-specific calendar-era effects.
 
 The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of mechanistic rules. These rules govern the events that can happen to a person on any given day and include:
 
@@ -57,21 +57,30 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 - Resistance emergence via de novo mutation or horizontal gene transfer
 - Mortality from infection, sepsis, or drug toxicity
 
-**Implementation order within a simulated day.** The ordering of updating of variable values in a day is: age/living-state checks and birth-cohort vaccination; reset daily microbiome flags; immunodeficiency onset/recovery; hospital admission or discharge; travel; sepsis onset or clearance for infections already active at that point in the day; antibiotic stopping, pharmacokinetic decay, and new drug initiation/selection; toxicity and treatment-failure/restart checks; mortality and sepsis recovery; then a per-bacterium block that handles carriage acquisition/clearance and carriage resistance evolution, active-infection acquisition or progression, resistance profile assignment, testing/AST state, infection growth, symptoms, clearance, and resistance reversion/emergence. HGT is evaluated after the per-bacterium block. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than being skipped because the person already has another active infection.
+**Implementation order within a simulated day.** In the live `apply_rules()` implementation, the ordering is: age/living-state checks and birth-cohort vaccination; reset daily microbiome flags; immunodeficiency onset/recovery; hospital admission or discharge; travel; sepsis onset or clearance for currently active infections; antibiotic stopping, pharmacokinetic decay, and new drug initiation/selection; toxicity and treatment-failure/restart checks; mortality and sepsis recovery; then the per-bacterium loop for new acquisition, microbiome acquisition/clearance, resistance emergence/reversion/floors, infection growth, symptoms, clearance, testing, and finally HGT. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.
 
-**Stochastic processes.** The model calculates a *probability* for each event and then samples at random to determine whether that event occurs. Repeated runs therefore produce non-identical outputs.
+**Stochastic processes.** The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a *probability* for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories.
 
-**Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter. Resistance calibration uses review-informed estimates drawing on surveillance systems and other studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD). In deriving review-informed estimates for resistance we take into consideration the fact that resistance data are based on cultured clinical isolates and may overrepresent infections that are tested, severe, persistent, invasive, or healthcare-associated relative to all simulated active-infection person-days.  We recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
+**Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter, selected against a mixture of observed quantities, transformed comparisons, and transparent expert placeholders. Resistance calibration uses evidence-informed benchmarks drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD), but the current matrix does not retain cell-level provenance sufficient to call every value an observed estimate. Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
 
-**Resistance calibration quantities.** in figure 2 we define simulated
+**Resistance calibration quantities.** Figure 2 deliberately defines simulated
 resistance prevalence as the proportion of active-infection person-days for which
-the bacterium-drug `any_r` value is greater than zero (ie. whether any bacteria with acquired resistance are present in the infection or not). Resistance severity is
-represented separately by the mean `any_r` value (on a scale of 0-1) among those positive infection-days.
-The model does not assign drug-specific concentration units or attempt
+the bacterium-drug `any_r` value is greater than zero. Resistance severity is
+represented separately by the mean `any_r` among those positive infection-days.
+These are policy-scale model quantities rather than literal clinical breakpoint
+categories. The model does not assign drug-specific concentration units or attempt
 to reproduce organism-drug MIC values, because the additional pharmacokinetic,
 laboratory, and breakpoint parameterisation would be disproportionate to its
 all-bacteria policy-comparison purpose.
 
+**Surveillance ascertainment.** Many of the evidence sources informing the
+resistance benchmarks are based on cultured clinical isolates and may overrepresent
+infections that are tested, severe, persistent, invasive, or healthcare-associated
+relative to all simulated active-infection person-days. This is a difference between
+the model output and the evidence used for calibration. It should not be interpreted
+as the operational meaning of `community_resistance_dilution_factor`, which instead
+controls whether a community infection or carriage acquisition attempts to inherit
+a resistance profile from the local human circulating-profile library.
 
 
 ### 1.2 Document structure
@@ -82,7 +91,7 @@ The document is organised to follow the progression of an individual through the
 |---------|---------------|
 | **2. Population** | Who the simulated people are — age, sex, region, immune status |
 | **3. Infection Acquisition** | How people catch bacteria (epidemiology — incidence, risk factors, hospital vs community) |
-| **4. Clinical Progression** | What happens once infected — bacteria level, symptoms, syndromes, sepsis |
+| **4. Clinical Progression** | What happens once infected — symptoms, syndromes, sepsis |
 | **5. Diagnostic Testing** | When and how bacteria and resistance are identified |
 | **6. Antibiotic Treatment** | How drugs are started, chosen, dosed, and stopped (empiric and targeted prescribing) |
 | **7. Resistance Dynamics** | How bacteria become resistant and how resistance spreads (biology of AMR — mechanisms, selection pressure) |
@@ -111,17 +120,17 @@ The population is created at day 0 (representing the calendar year 1930). Each i
 - **Birth sex**: Male or female, assigned with equal probability.
 - **Region**: Sampled from demographic weights reflecting the global population distribution.
 
-The six regions and their approximate configured demographic weights determine the geographical distribution of both initially living people and future births:
+The six regions and their approximate population shares determine the starting geographical distribution:
 
 Where a table in this document includes a **Citation / source** column, that citation should usually be read as support for the presence, direction, or broad ordering of the modelled effect rather than as a claim that the exact tuned numeric value is taken directly from a single empirical estimate.
 
 | Region | Population Share | Citation / source |
 |--------|------------------|-------------------|
 | Asia | ~55% | UN DESA Population Division, 2024 |
-| Africa | ~18% | UN DESA Population Division, 2024 |
-| Europe | ~13% | UN DESA Population Division, 2024 |
-| North America | ~7% | UN DESA Population Division, 2024 |
-| South America | ~5% | UN DESA Population Division, 2024 |
+| Europe | ~15% | UN DESA Population Division, 2024 |
+| Africa | ~12% | UN DESA Population Division, 2024 |
+| North America | ~9% | UN DESA Population Division, 2024 |
+| South America | ~6% | UN DESA Population Division, 2024 |
 | Oceania | ~3% | UN DESA Population Division, 2024 |
 
 These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations World Population Prospects 2024, which provides official demographic estimates and projections across global regions and countries (UN DESA Population Division, 2024).
@@ -175,7 +184,9 @@ Pregnancy is not currently represented as a separate maternal immunologic state 
 
 At simulation start, a configurable fraction (currently 5%) of the population are allocated to having immmunodeficiency (e.g. Martinson ML et al., 2024).
 
-When a new immunodeficiency episode occurs in the model, the following age-band probabilities determine whether that episode is typed as **chronic** rather than **temporary**. These immunodeficiency probabilities should be read as part of a **composite infection-vulnerability state**, not as literal prevalence estimates of formal immunodeficiency diagnoses. The model therefore aggregates classic immunodeficiency, transplant medicine, chemotherapy-related neutropenia, advanced HIV, frailty, and other clinically important causes of impaired host defence into one tractable state variable (Fishman JA, 2007; Taplitz RA et al., 2018). 
+When a new immunodeficiency episode occurs in the model, the following age-band probabilities determine whether that episode is typed as **chronic** rather than **temporary**. They are therefore best read as a structural mapping from age to chronic-vs-temporary assignment, not as literal age-specific prevalence estimates of diagnosed immunodeficiency in the underlying population:
+
+These immunodeficiency probabilities should be read as part of a **composite infection-vulnerability state**, not as literal prevalence estimates of formal immunodeficiency diagnoses. The model therefore aggregates classic immunodeficiency, transplant medicine, chemotherapy-related neutropenia, advanced HIV, frailty, and other clinically important causes of impaired host defence into one tractable state variable (Fishman JA, 2007; Taplitz RA et al., 2018). 
 
 **How immunodeficiency affects the clinical risks:**
 
@@ -196,9 +207,12 @@ Clinically, severely immunocompromised patients often also receive broader empir
 
 ***Log-odds**. Many sections of this document describe probabilities using log-odds (also called logit values), which is standard in medical statistics. In parameter names, effects of covariates are labelled `log_odds`, although these additive effects are strictly log odds ratios:
 
-The model adds together multiple log-odds ratio terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.
+- A probability of 50% corresponds to log-odds of 0.
+- Negative log-odds mean the event is unlikely (log-odds of −2 ≈ 12% probability; −4 ≈ 2%).
+- Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).
+- The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.
 
-For example, the daily probability of starting antibiotics for a hospitalised septic immunocompromised patient with symptoms includes: *baseline log-odds (−5.5) + symptomatic infection (+6.2) + sepsis (+6.5) + hospitalised (+0.7) + immunodeficiency (+0.2) = +8.1*.
+For example, the daily probability of starting antibiotics for a hospitalised septic immunocompromised patient with symptoms includes: *baseline log-odds (−5.5) + symptomatic infection (+6.2) + sepsis (+6.5) + hospitalised (+0.7) + immunodeficiency (+0.2) = +8.1*, yielding near-certainty because the acute clinical syndrome dominates the decision.
 
 ### 2.4 Hospitalisation
 
@@ -218,7 +232,7 @@ Given the concentration of resistant organisms, broad-spectrum antibiotic use, a
 Independent of this baseline logistic admission process, starting a **hospital-managed antibiotic** also triggers inpatient management. In the current model this includes a broad set of parenteral hospital drugs plus a narrow oral reserve subset (`linezolid`, `tedizolid`) used as a proxy for infections that would usually be managed in hospital. This is a simplification: in real practice, some prolonged IV courses are delivered through outpatient parenteral antimicrobial therapy (OPAT), especially in higher-income settings and particularly for infections such as bone and joint disease that may require 4-6 weeks of IV treatment.
 
 
-**Length of stay:** Once admitted, patients face a baseline discharge hazard of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. This baseline applies only to relatively uncomplicated admissions. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; in the current model, septic patients therefore remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any hospital-managed treatment course has finished. We acknowledge that real systems are less rigid because some patients complete part of a prolonged IV course via OPAT rather than remaining continuously hospitalised. 
+**Length of stay:** Once admitted, patients face a baseline discharge hazard of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. This baseline applies only to relatively uncomplicated admissions. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; in the current model, septic patients therefore remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any hospital-managed treatment course has finished. Real systems are less rigid because some patients complete part of a prolonged IV course via OPAT rather than remaining continuously hospitalised. The `0.28` figure should therefore be interpreted as an **effective all-cause discharge hazard for clinically stable inpatients**, not as a claim that sepsis admissions average only 3.6 days or that every real-world admission has the same geometric length-of-stay distribution.
 
 **Regional healthcare access:**
 
@@ -235,7 +249,7 @@ Hospital access varies substantially across regions. The model uses regional mod
 
 
 
-This is consistent with broad cross-country differences in service coverage and infrastructure documented by WHO's universal health coverage monitoring framework and the World Bank's hospital-bed indicator, which show persistent between-country variation in effective access to care and inpatient capacity even as global service coverage has improved over time (World Health Organization UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS`).
+These modifiers should be read as a qualitative ordering of effective hospital access rather than literal estimates of admission probabilities. The ranking is consistent with broad cross-country differences in service coverage and infrastructure documented by WHO's universal health coverage monitoring framework and the World Bank's hospital-bed indicator, which show persistent between-country variation in effective access to care and inpatient capacity even as global service coverage has improved over time (World Health Organization UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS`).
 
 Negative values mean patients are *less* likely to be admitted — not because they are less sick, but because hospital bed capacity is limited. This matters for AMR because patients who cannot access hospital care may not receive appropriate antibiotics or diagnostics, whereas international sepsis-care programmes have associated better structured in-hospital and ICU bundle delivery with lower hospital mortality (Evans L et al., 2021; Levy MM et al., 2010).
 
@@ -280,7 +294,7 @@ These multipliers are intended as a semi-quantitative ranking of cross-region mi
 
 When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. In the current implementation, travel can only start while the person is at home and not hospitalised. A trip lasts 30 days, then the person returns to their home region. Destinations are sampled from a fixed origin-specific matrix and the home region is excluded from the candidate destinations for that trip.
 
-**Age-specific travel risk.** Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of *Salmonella enterica* serovar Typhi (+0.8 log-odds) and *Shigella* spp. (+0.5 log-odds), while *V. cholerae* risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens. 
+**Age-specific travel risk.** Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of *Salmonella enterica* serovar Typhi (+0.8 log-odds) and *Shigella* spp. (+0.5 log-odds), while *V. cholerae* risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens but no risk for sexually transmitted infections acquired during travel.
 
 ---
 
@@ -312,7 +326,7 @@ Each day, the model evaluates each of the 42 bacterial species separately. A per
 
 #### Vaccination
 
-Vaccination is implemented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person therefore has a yes/no vaccination record (`vaccination_status` in the code) for every bacterium. Vaccination is assigned once, at cohort entry: at the start of the first active day, while a newborn's age is zero and before the daily age increment, the code checks the historically available vaccines and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress at that calendar year. Once that record is set to `true`, it remains on for the rest of the simulation; there is currently no waning, revaccination, booster logic, or catch-up campaign. Future users may wish to enable vaccination at realistic ages and allow waning and re-vaccination.
+Vaccination is implemented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person therefore has a yes/no vaccination record (`vaccination_status` in the code) for every bacterium. Vaccination is assigned once, at cohort entry: at the start of the first active day, while a newborn's age is zero and before the daily age increment, the code checks the historically available vaccines and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress at that calendar year. Once that record is set to `true`, it remains on for the rest of the simulation; there is currently no waning, revaccination, booster logic, or catch-up campaign.
 
 The vaccine layer currently supports four bacterial vaccines:
 
@@ -336,7 +350,7 @@ Under the current default parameter map, vaccination is active rather than dorma
 
 #### Age and region interactions
 
-The acquisition risk function uses additive log-odds across six age bands (`infant`, `preschool`, `school`, `young_adult`, `middle_age`, and `elderly`). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without treating a generic syndrome template as an executable multiplier. Appendix B.6 lists the current bacterium-region-age values.
+The live acquisition path uses additive log-odds across six age bands (`infant`, `preschool`, `school`, `young_adult`, `middle_age`, and `elderly`). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without treating a generic syndrome template as an executable multiplier. Appendix B.6 is generated from the live configuration and lists the current bacterium-age and bacterium-region-age values.
 
 ### 3.2 Hospital acquisition
 
@@ -344,7 +358,7 @@ Since hospitals concentrate nosocomial pathogens — *Acinetobacter* and *Pseudo
 
 These hospital-acquisition terms are best interpreted as semi-quantitative rankings of nosocomial exposure pressure rather than directly sourced empirical estimates. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (World Health Organization GLASS dashboard, accessed 2026; World Health Organization Global antibiotic resistance surveillance report, 2025).
 
-For pathogens whose transmission is overwhelmingly sexual or foodborne, the current configuration assumes effectively zero hospital acquisition risk.  So while organisms such as *C. trachomatis*, *N. gonorrhoeae*, *M. genitalium*, *T. pallidum*, and *Campylobacter* can still be diagnosed while a patient is in hospital, the model treats those episodes as infections acquired in the community rather than nosocomial transmission.
+For pathogens whose transmission is overwhelmingly sexual or foodborne, the current configuration assumes effectively zero hospital acquisition risk.  So while organisms such as *C. trachomatis*, *N. gonorrhoeae*, *M. genitalium*, *T. pallidum*, and *Campylobacter* can still be diagnosed while a patient is in hospital, the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.
 
 
 ### 3.3 Carrier-derived infection
@@ -354,14 +368,14 @@ Asymptomatic carriage (see Section 8) can give rise to endogenous infection when
 - The carried bacteria may already be resistant (having been selected by previous antibiotic courses)
 - The person's resistance profile passes directly from carriage to infection and each resistance mechanism present in the microbiome compartment (`mechanism_microbiome`) is independently considered for transfer to the infection compartment (`mechanism_any`)
 
-This pathway is governed by two biological parameters:
+This pathway is governed by two parameters:
 
 | Parameter | Value | Interpretation |
 |-----------|-------|---------------|
-| `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the carrier-inheritance pathway aries — when it does, individual mechanisms are copied from the microbiome to the infection compartment |
+| `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the carrier-inheritance pathway fires at all — when it does, individual mechanisms are copied from the microbiome to the infection compartment |
 | `infection_from_microbiome_dampening` | 0.70 | Per-mechanism transfer probability: each mechanism in the microbiome has a 70% chance of being copied to the infection site, reflecting that not all colonising lineages successfully transition to the infection site |
 
-The effective person-level gate is scaled by `counterfactual_resistance_multiplier` before the draw. If the pathway is randomly selected to happen, only mechanisms already present in the person's carriage compartment are eligible, and those mechanisms are copied into `mechanism_any` before infection resistance is re-derived. In practice, this bridge is checked after a new infection has been established, provided the person is already carrying the same organism in `presence_microbiome`. It is distinct from sampling from the regional stored profile library during acquisition (Section 3.4), because it uses the person's own carriage profile rather than importing a profile from the surrounding community or hospital pool.
+If the pathway fires, only mechanisms already present in the person's carriage compartment are eligible, and those mechanisms are copied into `mechanism_any` before infection resistance is re-derived. In practice, this bridge is checked after a new infection has been established, provided the person is already carrying the same organism in `presence_microbiome`. It is distinct from sampling from the regional stored profile library during acquisition (Section 3.4), because it uses the person's own carriage profile rather than importing a profile from the surrounding community or hospital pool.
 
 
 
@@ -418,7 +432,7 @@ Carriage acquisition (Section 8.2) is related but not identical. Hospitalised ca
 
 If no profile exists in either relevant care-setting stratum for a given region and bacterium (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible through the profile-sampling pathway.
 
-**Counterfactual gating.** Policy branches can set `counterfactual_resistance_multiplier` to suppress represented resistance pathways. The default is 1.0. Policy option 2 sets it to 0.0 and also clears existing infection resistance, carriage resistance, AST-reported resistance, resistance provenance, `mechanism_any`, `mechanism_majority`, `mechanism_microbiome`, and the profile cache at branch start. The same multiplier gates or scales profile writes, local-persistence profile writes, exogenous static and ratchet floors, the MDR-TB rifampicin rule, same-person carriage inheritance, daily infection-carriage mechanism transfer, de novo emergence in both active infection and carriage, HGT, and AST reporting-error draws. Thus the 2025 resistance-suppressed counterfactual sends all represented resistance to zero rather than only blocking one profile-sampling route.
+**Counterfactual gating.** Profile sampling is gated by the `counterfactual_resistance_multiplier`. Before writing the sampled resistance profile into the individual, the model makes a random probability check against that multiplier (default 1.0; set to 0.0 in the counterfactual branch). If the check fails, none of the sampled profile's mechanisms are written, so the newly infected individual remains susceptible through this pathway. The same multiplier is also used in the de novo, microbiome-acquisition, and HGT pathways elsewhere in the rules engine. It is not, however, a single blanket switch around every acquisition-time rule: the exogenous floor path and the MDR-TB rifampicin rule are handled separately below.
 
 
 **Step 4 — Local persistence and exogenous reseeding**
@@ -435,9 +449,9 @@ The archive is enabled by `local_mechanism_persistence_enabled = 1.0`. Establish
 
 Separately, when a community active-infection acquisition falls into the **non-human / exogenous fraction** (`!from_human_reservoir`), the code rolls each mechanism against an effective floor equal to:
 
-$$\text{assignment probability} = \max(\text{environmental floor}, \text{ratchet floor}) \times \text{counterfactual resistance multiplier}$$
+$$\text{effective floor} = \max(\text{environmental floor}, \text{ratchet floor})$$
 
-The **environmental floor** is configured only for selected bacteria-mechanism pairs and represents resistance maintained outside the local human circulating pool, for example in agricultural, food-chain, wastewater, or other exogenous reservoirs (see Section 7.7). The **ratchet floor** is dynamic and is derived from stepped historical peak values in the stored profile library (see Section 7.8). Both are evaluated only when the mechanism's executable status permits that bacterial host, and the final draw is scaled by the scenario-level counterfactual multiplier. Despite the word “floor,” both values are Bernoulli mechanism-assignment probabilities on each exogenous acquisition. They provide reseeding pressure but do not mathematically guarantee that resistance prevalence across all infections remains above the same percentage.
+The **environmental floor** is configured only for selected bacteria-mechanism pairs and represents resistance maintained outside the local human circulating pool, for example in agricultural, food-chain, wastewater, or other exogenous reservoirs (see Section 7.7). The **ratchet floor** is dynamic and is derived from stepped historical peak values in the stored profile library (see Section 7.8). Both are evaluated only when the mechanism's executable status permits that bacterial host. Despite the word “floor,” both values are Bernoulli mechanism-assignment probabilities on each exogenous acquisition. They provide reseeding pressure but do not mathematically guarantee that resistance prevalence across all infections remains above the same percentage.
 
 The former universal per-drug acquisition guard has been removed. It repeated a nominal probability across all eligible drug entries and could therefore impose strong, drug-list-dependent pressure unrelated to local extinction. The local archive replaces only its finite-population persistence purpose; explicit environmental probabilities and the ratchet remain separate exogenous pathways.
 
@@ -453,11 +467,11 @@ where $e_m$ is the enhancement multiplier for mechanism $m$ against that drug (s
 
 **Step 6 — MDR-TB guaranteed rifampicin resistance**
 
-*M. tuberculosis* is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (World Health Organization drug-resistant TB treatment guidelines, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the current code records every resistance mechanism applicable to rifampicin for that bacterium — specifically the `rpoB` RNA-polymerase mutation — in both `mechanism_any` and `mechanism_majority`, regardless of what the earlier profile-sampling step assigned. `propagate_mechanism_resistance()` is then called again in upward-only mode so that the rifampicin `any_r` is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with `ResistanceAcquisitionType::AtInfectionTB` rather than `AtInfectionCommunity`, which allows the model to track this pathway separately in output statistics. The parameter `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` is currently used as an on/off gate after counterfactual scaling: any positive effective value enables the hard-set rule, so the live default 0.90 behaves as "enabled" in ordinary branches, while policy option 2 scales the effective gate to zero.
+*M. tuberculosis* is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (World Health Organization drug-resistant TB treatment guidelines, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the current code records every resistance mechanism applicable to rifampicin for that bacterium — specifically the `rpoB` RNA-polymerase mutation — in both `mechanism_any` and `mechanism_majority`, regardless of what the earlier profile-sampling step assigned. `propagate_mechanism_resistance()` is then called again in upward-only mode so that the rifampicin `any_r` is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with `ResistanceAcquisitionType::AtInfectionTB` rather than `AtInfectionCommunity`, which allows the model to track this pathway separately in output statistics. The parameter `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` is currently used as an on/off gate: any positive value enables the hard-set rule, so the live default 0.90 behaves as "enabled" rather than as a 90% random probability check.
 
 **Note**
 
-After these six steps, the carrier-inheritance bridge described in Section 3.3 may apply additional mechanisms from `mechanism_microbiome` if the individual is already a carrier of the same organism. That step is separate from acquisition from the regional stored profile library: it is evaluated for any newly established same-organism infection with pre-existing carriage and is governed by `carrier_resistance_inheritance_probability`, `counterfactual_resistance_multiplier`, and the per-mechanism `infection_from_microbiome_dampening` transfer probability.
+After these six steps, the carrier-inheritance bridge described in Section 3.3 may apply additional mechanisms from `mechanism_microbiome` if the individual is already a carrier of the same organism. That step is separate from acquisition from the regional stored profile library: it is evaluated for any newly established same-organism infection with pre-existing carriage and is governed by `carrier_resistance_inheritance_probability` and the per-mechanism `infection_from_microbiome_dampening` transfer probability.
 
 #### Resistance appearance and expression summary
 
@@ -465,20 +479,20 @@ The model distinguishes three related but different records of resistance: mecha
 
 | Pathway | When it runs | What changes in the model | Interpretation |
 |---------|--------------|---------------|----------------|
-| Human-reservoir profile sampling | New infection passes the human-reservoir draw | Records the host-eligible subset of the sampled mechanism profile in `mechanism_any` and `mechanism_majority` | Acquisition of an already-circulating strain genotype; subject to the scenario resistance gate |
+| Human-reservoir profile sampling | New infection passes the human-reservoir draw | Records the host-eligible subset of the sampled mechanism profile in `mechanism_any` and `mechanism_majority` | Acquisition of an already-circulating strain genotype |
 | Hospital-enriched profile sampling | Hospital-acquired active infection with hospital enrichment configured | Records a hospital-weighted sampled profile in `mechanism_any` and `mechanism_majority` | Makes already-observed resistant ward profiles more likely to be selected without creating new combinations |
 | Community dilution | Community-acquired infection before profile sampling | Determines whether the acquisition draws from the human circulating profile library at all | A failed draw does not itself add resistance; it sends the acquisition to the exogenous/no-profile path |
-| Static environmental floors | Community acquisition not sampled from the human reservoir | Records one or more host-eligible mechanisms as present in `mechanism_any` and `mechanism_majority` | Explicit exogenous reseeding for configured bacteria-mechanism pairs; scaled by the scenario resistance gate |
-| Dynamic ratchet floors | Same exogenous path, for mechanisms below the configured reversion-rate threshold | Records one or more mechanisms as present in `mechanism_any` and `mechanism_majority` | Uses stepped historical cache peaks as exogenous reseeding probabilities; scaled by the scenario resistance gate; does not impose a hard prevalence bound |
+| Static environmental floors | Community acquisition not sampled from the human reservoir | Records one or more host-eligible mechanisms as present in `mechanism_any` and `mechanism_majority` | Explicit exogenous reseeding for configured bacteria-mechanism pairs |
+| Dynamic ratchet floors | Same exogenous path, for mechanisms below the configured reversion-rate threshold | Records one or more mechanisms as present in `mechanism_any` and `mechanism_majority` | Uses stepped historical cache peaks as exogenous reseeding probabilities; does not impose a hard prevalence bound |
 | Local mechanism-persistence archive | Human-reservoir infection or carriage sampling after a complete genotype has been established locally | Samples one complete archived genotype for that region × setting × bacterium | One bounded profile-level pseudo-reservoir draw shared across all archived genotypes; does not alter active-cache prevalence |
-| MDR-TB rifampicin rule | MDR-TB acquisition from 1966 onward when the effective gate is enabled | Sets rifampicin-applicable mechanisms in `mechanism_any` and `mechanism_majority` | Enforces the definitional rifampicin resistance of MDR-TB in ordinary branches; disabled when the scenario gate is zero |
-| Same-person microbiome inheritance | New infection when the person already carries the same organism | Copies eligible mechanisms from `mechanism_microbiome` into `mechanism_any` only | Carrier-to-infection bridge; copied mechanisms start as active-infection minority mechanisms; scenario-gated |
-| De novo infection emergence | Existing active infection under drug pressure | Adds newly emerged mechanisms to `mechanism_any` | Within-host emergence under selection; majority status can follow later under drug pressure; scaled by pathway and scenario multipliers |
-| De novo microbiome emergence | Existing carriage with at least one positive-level active drug applicable to an absent mechanism | Gives each eligible mechanism one daily emergence roll and records successful transitions in `mechanism_microbiome` | Carriage-compartment emergence under binary drug pressure without multiplying the daily rate by the number of selecting drugs; scenario-scaled |
+| MDR-TB rifampicin rule | MDR-TB acquisition from 1966 onward when the gate is enabled | Sets rifampicin-applicable mechanisms in `mechanism_any` and `mechanism_majority` | Enforces the definitional rifampicin resistance of MDR-TB |
+| Same-person microbiome inheritance | New infection when the person already carries the same organism | Copies eligible mechanisms from `mechanism_microbiome` into `mechanism_any` only | Carrier-to-infection bridge; copied mechanisms start as active-infection minority mechanisms |
+| De novo infection emergence | Existing active infection under drug pressure | Adds newly emerged mechanisms to `mechanism_any` | Within-host emergence under selection; majority status can follow later under drug pressure |
+| De novo microbiome emergence | Existing carriage with at least one positive-level active drug applicable to an absent mechanism | Gives each eligible mechanism one daily emergence roll and records successful transitions in `mechanism_microbiome` | Carriage-compartment emergence under binary drug pressure without multiplying the daily rate by the number of selecting drugs |
 | Microbiome mechanism reversion | Existing carriage, evaluated independently for each present mechanism when no positive-level active drug is clinically applicable to that bacterium-mechanism pair | Removes successful transitions from `mechanism_microbiome` and recalculates `microbiome_r` | Effective loss of an unselected carriage mechanism; pressure selecting another mechanism does not block the transition |
 | Majority-strain evolution | Existing active infection with at least one active drug applicable to a minority mechanism | Gives each eligible mechanism one daily promotion roll and records successful transitions in `mechanism_majority` | Converts a minority resistant subpopulation into the dominant/circulating strain without multiplying the daily rate by the number of selecting drugs |
-| Infection-microbiome transfer | Same organism present in both compartments and they contain different mechanisms | Copies mechanisms so `mechanism_any` and `mechanism_microbiome` contain the combined profile | Within-host spillover between active infection and carriage; scenario-gated |
-| HGT | After the per-bacterium loop, between co-present bacteria | Adds mechanisms that are transferable and host-eligible for both donor and recipient to each recipient compartment where that organism is present: `mechanism_any` for active infection and `mechanism_microbiome` for carriage | Inter-species mechanism transfer, scaled by context, donor majority/minority status, run-level HGT multiplier, and scenario resistance gate |
+| Infection-microbiome transfer | Same organism present in both compartments and they contain different mechanisms | Copies mechanisms so `mechanism_any` and `mechanism_microbiome` contain the combined profile | Within-host spillover between active infection and carriage |
+| HGT | After the per-bacterium loop, between co-present bacteria | Adds mechanisms that are transferable and host-eligible for both donor and recipient to each recipient compartment where that organism is present: `mechanism_any` for active infection and `mechanism_microbiome` for carriage | Inter-species mechanism transfer, scaled by context and donor majority/minority status |
 | Mechanism-to-drug propagation | After mechanism changes | Recalculates `any_r` and/or `microbiome_r` from the mechanisms recorded as present | Drug-level resistance is recalculated according to which mechanisms affect which drugs |
 
 ---
@@ -1153,7 +1167,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
    | GyrA + ParC | `mutation_gyra_parc_secondary` | Additional topoisomerase mutation | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | All |
    | Qnr | `protection_qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | 16S rRMT | `enzyme_16s_rrmt` | 16S rRNA methyltransferase | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | AAC/APH/ANT | `enzyme_aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
+   | AAC/APH/ANT | `enzyme_aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
    | ErmB | `target_site_erm_b` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin` | Staphylococci, Streptococci, Anaerobes, Fastidious, *C. jejuni*; excluded for *H. pylori* |
    | MphA | `enzyme_mph_a` | Mobile macrolide phosphotransferase | `azithromycin`, `erythromycin`, `clarithromycin` | Enterobacterales, Enteric Pathogens |
    | 23S rRNA | `mutation_23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Streptococci |
@@ -1324,7 +1338,7 @@ Population realism is distributed across three parts of the model: organism-spec
 
 These parameters should therefore be read as **effective emergence hazards** rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.
 
-**Run-level pathway sensitivity controls.** Four neutral `run_pathway_*` multipliers are retained for diagnostic ablations and global sensitivity analysis without rewriting organism-specific baselines. Their defaults are all 1.0: `run_pathway_infection_de_novo_multiplier` scales de novo emergence during active infection; `run_pathway_hgt_multiplier` scales horizontal gene transfer; `run_pathway_reversion_rate_multiplier` scales mechanism loss in infection and carriage; and `run_pathway_microbiome_acquisition_multiplier` scales resistance-profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy branches can set `counterfactual_resistance_multiplier` to 0.0. In the current rules engine, that scenario multiplier gates or scales profile-sampled resistance, local persistence, exogenous floors and ratchet reseeding, MDR-TB rifampicin seeding, same-person carriage inheritance, infection-carriage spillover, de novo emergence, microbiome-acquisition seeding, HGT transfer, and AST reporting-error draws.
+**Run-level pathway sensitivity controls.** Four neutral `run_pathway_*` multipliers are retained for diagnostic ablations and global sensitivity analysis without rewriting organism-specific baselines. Their defaults are all 1.0: `run_pathway_infection_de_novo_multiplier` scales de novo emergence during active infection; `run_pathway_hgt_multiplier` scales horizontal gene transfer; `run_pathway_reversion_rate_multiplier` scales mechanism loss in infection and carriage; and `run_pathway_microbiome_acquisition_multiplier` scales resistance-profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy branches can set `counterfactual_resistance_multiplier` to 0.0, which blocks profile-sampled resistance, de novo emergence, microbiome-acquisition seeding, and HGT transfer in the counterfactual branch. Acquisition-time floors and the MDR-TB rifampicin rule are separate pathways described in Section 3.4.
 
 
 
@@ -1476,7 +1490,7 @@ The model includes a dedicated family of **environmental / exogenous mechanism f
 
 **What they represent.** The environmental floors are used when resistance can be maintained outside the local human circulating pool. In the classic case, this means agricultural, food-chain, wastewater, or other exogenous reservoirs that keep resistance present even when direct human treatment of that bacterium is weak. In the current configuration they also cover a small number of explicitly modelled non-agricultural exogenous pathways, most notably the rifampicin `rpoB` floors discussed below.
 
-**Where they act.** Each community active-infection acquisition is split by `community_resistance_dilution_factor` into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair, after scenario-level counterfactual scaling. These are marginal mechanism probabilities: independent rolls do not themselves encode plasmid linkage or other within-profile correlation. Once a resulting profile enters the human cache, later profile sampling can propagate that realised combination. In the current implementation this environmental/ratchet floor loop is applied at active-infection acquisition; carriage acquisition uses its own profile-cache gate and does not directly run this exogenous floor loop.
+**Where they act.** Each community active-infection acquisition is split by `community_resistance_dilution_factor` into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair. These are marginal mechanism probabilities: independent rolls do not themselves encode plasmid linkage or other within-profile correlation. Once a resulting profile enters the human cache, later profile sampling can propagate that realised combination. In the current implementation this environmental/ratchet floor loop is applied at active-infection acquisition; carriage acquisition uses its own profile-cache gate and does not directly run this exogenous floor loop.
 
 Despite the parameter name, a configured value is therefore a Bernoulli mechanism-assignment probability on an exogenous active-infection acquisition, not a guaranteed lower bound on prevalence in infections, carriage, or the population. The resulting prevalence also depends on how often acquisition follows the exogenous path, the competing human-cache pathway, subsequent transmission and selection, and mechanism loss.
 
@@ -1544,9 +1558,9 @@ capped at 0.50. Here `ratchet_floor` is a probability in the exogenous assignmen
 | VanA/VanB | 0.002/day | no |
 | RpoB | 0.002/day | yes — explicit exception |
 
-In conceptual terms, a static environmental floor is a configured exogenous reseeding probability, whereas the ratchet is a history-derived exogenous reseeding probability based on prior cache prevalence. The effective draw in a policy branch is then multiplied by `counterfactual_resistance_multiplier`.
+In conceptual terms, a static environmental floor is a configured exogenous reseeding probability, whereas the ratchet is a history-derived exogenous reseeding probability based on prior cache prevalence.
 
-**Relationship to static floors.** Era-specific static environmental probabilities can provide exogenous seeding during configured historical periods, including periods when the finite profile cache might otherwise build a resistant reservoir slowly. The ratchet has no universal takeover date. At each eligible exogenous acquisition, the model uses the larger of the static and ratchet probabilities before applying scenario-level counterfactual scaling. For example, if a *Shigella* mechanism has a current static probability of 0.45 and a recorded cache peak that produces a ratchet probability of 0.40, the ordinary-branch assignment probability remains 0.45. Neither value implies 45% or 40% total resistance prevalence.
+**Relationship to static floors.** Era-specific static environmental probabilities can provide exogenous seeding during configured historical periods, including periods when the finite profile cache might otherwise build a resistant reservoir slowly. The ratchet has no universal takeover date. At each eligible exogenous acquisition, the model uses the larger of the static and ratchet probabilities. For example, if a *Shigella* mechanism has a current static probability of 0.45 and a recorded cache peak that produces a ratchet probability of 0.40, the effective assignment probability remains 0.45. Neither value implies 45% or 40% total resistance prevalence.
 
 **Diagnostic switch.** `run_pathway_ratchet_enabled` is 1.0 by default and preserves the ratchet behaviour described above. Setting it to 0.0 disables only the dynamic ratchet contribution for component-ablation runs; static environmental floors and the independently configured local persistence archive remain active.
 
@@ -1599,9 +1613,9 @@ Key dynamics:
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
 | Mechanism-level reversion | `run_pathway_reversion_rate_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates, pathway multiplier, and potency-filtered applicability predicate as in the infection compartment (Section 7.4). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium-mechanism pair; selection for another mechanism does not block reversion. |
 | De-novo emergence under treatment | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` | Organism-mechanism specific | When at least one positive-level active drug applies to an absent carriage mechanism, that mechanism receives one daily emergence attempt via the microbiome pathway (Section 7.3), using the organism-mechanism baseline and counterfactual scaling. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
-| Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a new same-organism infection is established in a carrier, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3). The person-level gate is scaled by `counterfactual_resistance_multiplier`. |
-| Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | When both compartments are present and contain different mechanisms, a daily random probability check can trigger copying in both directions so that `mechanism_any` and `mechanism_microbiome` end up containing the combined profile. The drug-level resistance measures are then recalculated. The draw is scaled by `counterfactual_resistance_multiplier`. |
-| HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event fires, the mechanism is written only to recipient compartments where that bacterium is present: `mechanism_microbiome` for carriage and `mechanism_any` for active infection. HGT is scaled by `counterfactual_resistance_multiplier`. |
+| Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a new same-organism infection is established in a carrier, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3) |
+| Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | When both compartments are present and contain different mechanisms, a daily random probability check can trigger copying in both directions so that `mechanism_any` and `mechanism_microbiome` end up containing the combined profile. The drug-level resistance measures are then recalculated. |
+| HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event fires, the mechanism is written only to recipient compartments where that bacterium is present: `mechanism_microbiome` for carriage and `mechanism_any` for active infection |
 
 
 
@@ -1988,7 +2002,7 @@ Gonorrhoea incidence in high-income countries was approximately 3-fold higher in
 
 ### 12.11 Exogenous resistance reservoirs are approximated rather than explicitly modelled
 
-The environmental/exogenous floor system (§7.7) applies background mechanism probabilities to the non-human fraction of community acquisition instead of explicitly simulating livestock populations, wastewater ecology, food-chain contamination, or other external reservoirs. In the current configuration this includes both classic agricultural pathways and a few explicitly parameterised non-agricultural exogenous pathways such as the rifampicin `rpoB` block. The floor values are therefore calibrated surrogates rather than direct measurements of source-reservoir prevalence. They can encode historically realistic persistence, but they do not respond endogenously to interventions targeted at those outside-human reservoirs unless the corresponding parameters or scenario-level pathway gates are changed.
+The environmental/exogenous floor system (§7.7) applies background mechanism probabilities to the non-human fraction of community acquisition instead of explicitly simulating livestock populations, wastewater ecology, food-chain contamination, or other external reservoirs. In the current configuration this includes both classic agricultural pathways and a few explicitly parameterised non-agricultural exogenous pathways such as the rifampicin `rpoB` block. The floor values are therefore calibrated surrogates rather than direct measurements of source-reservoir prevalence. They can encode historically realistic persistence, but they do not respond endogenously to interventions targeted at those outside-human reservoirs unless the corresponding parameters are changed.
 
 ### 12.12 No explicit background rifampicin exposure pathway for non-target organisms
 
@@ -2255,7 +2269,7 @@ See [Section 7.1](#71-resistance-mechanisms) for the full table.
 
 #### Region (7)
 
-`NorthAmerica`, `SouthAmerica`, `Africa`, `Asia`, `Europe`, `Oceania`, `Home` (fallback)
+`NorthAmerica`, `Europe`, `Asia`, `Oceania`, `SouthAmerica`, `Africa`, `Home` (fallback)
 
 
 
@@ -2727,8 +2741,8 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | acinetobacter_baumannii | -17.7 | -2 | 0.5 | 5.6 | 0.01 | 0.55 | 5 | 0.1 | 8 | yes |
 | citrobacter_spp. | -16.3 | -2 | 0.5 | 4.6 | 0.01 | 0.5 | 5 | 0.08 | 9.8 | yes |
 | enterobacter_spp. | -16.8 | -2 | 0.5 | 5.2 | 0.01 | 0.5 | 5 | 0.07 | 10.6 | yes |
-| enterococcus_faecalis | -17.1 | -2 | 0.5 | 5.3 | 0.01 | 0.48 | 5 | 0.003 | 11 | yes |
-| enterococcus_faecium | -17.7 | -2 | 0.5 | 6 | 0.01 | 0.48 | 5 | 0.008 | 9.6 | yes |
+| enterococcus_faecalis | -15.1 | -2 | 0.5 | 4.3 | 0.01 | 0.48 | 5 | 0.008 | 11 | yes |
+| enterococcus_faecium | -15.5 | -2 | 0.5 | 5.1 | 0.01 | 0.48 | 5 | 0.06 | 12.1 | yes |
 | escherichia_coli | -11.6 | -2 | 0.5 | 4 | 0.01 | 0.5 | 5 | 0.005 | 6.5 | yes |
 | klebsiella_pneumoniae | -14.7 | -2 | 0.5 | 5 | 0.01 | 0.52 | 5 | 0.03 | 7.4 | yes |
 | morganella_spp. | -17.2 | -2 | 0.5 | 5 | 0.01 | 0.48 | 5 | 0.1 | 10 | yes |
@@ -2754,7 +2768,7 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | neisseria_meningitidis | -18.5 | -2 | 0.5 | 4.2 | 0.01 | 0.65 | 5 | 0.05 | 10.9 | yes |
 | listeria_monocytogenes | -19 | -2 | 0.5 | 2 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | yes |
 | clostridioides_difficile | -15.15 | -2 | 0.5 | 5.3 | 0.01 | 0.55 | 5 | 0.02 | 6 | yes |
-| bacteroides_fragilis | -15.1 | -2 | 0.5 | 5 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | yes |
+| bacteroides_fragilis | -15.1 | -2 | 0.5 | 4.5 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | yes |
 | campylobacter_jejuni | -13 | -2 | 0.5 | -7.5 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | yes |
 | enterobacter_cloacae | -17.3 | -2 | 0.5 | 6.8 | 0.01 | 0.5 | 5 | 0.04 | 11.3 | yes |
 | yersinia_enterocolitica | -16.6 | -2 | 0.5 | 2 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | yes |
@@ -2821,23 +2835,23 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | acinetobacter_baumannii | -5.1 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 0.3 | 75 | 3 |
 | citrobacter_spp. | -8.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
 | enterobacter_spp. | -6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
-| enterococcus_faecalis | -5.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 0.1 |
-| enterococcus_faecium | -4.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 1.5 |
-| escherichia_coli | -10.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
-| klebsiella_pneumoniae | -8.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
+| enterococcus_faecalis | -5.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.4 | 55 | 0.1 |
+| enterococcus_faecium | -4.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 3 |
+| escherichia_coli | -10.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
+| klebsiella_pneumoniae | -7.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
 | morganella_spp. | -7.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| proteus_spp. | -6.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| proteus_spp. | -6.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
 | serratia_spp. | -7.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
 | p_stuartii | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
 | pseudomonas_aeruginosa | -5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
 | stenotrophomonas_maltophilia | -7.3 | 0.08 | 0.012 | -4 | 0 | 4e-4 | 0.3 | 75 | 3 |
-| staphylococcus_aureus | -9.3 | 0.93 | 0.005 | 0 | 0.41 | 4e-4 | 0.8 | 65 | 0.1 |
+| staphylococcus_aureus | -8.8 | 0.93 | 0.005 | 0 | 0.41 | 4e-4 | 0.8 | 65 | 0.1 |
 | staphylococcus_epidermidis | -7.3 | 0.04 | 0.005 | -6 | 0 | 4e-4 | 0.5 | 65 | 0.1 |
-| streptococcus_pneumoniae | -9.9 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 50 | 0.1 |
+| streptococcus_pneumoniae | -9.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 50 | 0.1 |
 | salmonella_enterica_serovar_typhi | -8.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 20 | 0.1 |
 | salmonella_enterica_serovar_paratyphi_a | -8.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 20 | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | -8.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
-| shigella_spp. | -22.5 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 0.72 | 25 | 0.1 |
+| shigella_spp. | -20.5 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 0.72 | 25 | 0.1 |
 | neisseria_gonorrhoeae | -23.3 | 0.93 | 0.005 | -2.5 | 0 | 4e-4 | 1 | 50 | 0.01 |
 | streptococcus_pyogenes | -6 | 0.93 | 0.005 | 3 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
 | streptococcus_agalactiae | -6.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
@@ -2857,7 +2871,7 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | bordetella_pertussis | -500 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | helicobacter_pylori | -500 | 0.93 | 0.005 | 1.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | mdr_mycobacterium_tuberculosis | -38 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| mycoplasma_pneumoniae | -18 | 0.93 | 0.005 | -0.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mycoplasma_pneumoniae | -12 | 0.93 | 0.005 | -0.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | legionella_pneumophila | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
 | burkholderia_cepacia_complex | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
 
@@ -3081,8 +3095,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecalis | imipenem_c | 0.45 | 0.5 |
 | enterococcus_faecalis | ertapenem | 0.1 | 0.5 |
 | enterococcus_faecalis | aztreonam | 0 | 0.003 |
-| enterococcus_faecalis | erythromycin | 0.7 | 1 |
-| enterococcus_faecalis | azithromycin | 0.7 | 1 |
+| enterococcus_faecalis | erythromycin | 0.7 | 0.01 |
+| enterococcus_faecalis | azithromycin | 0.7 | 0.01 |
 | enterococcus_faecalis | clarithromycin | 0.7 | 1 |
 | enterococcus_faecalis | clindamycin | 0.7 | 1 |
 | enterococcus_faecalis | gentamicin | 0.1 | 20 |
@@ -3143,8 +3157,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecium | imipenem_c | 0.1 | 0.5 |
 | enterococcus_faecium | ertapenem | 0.1 | 0.5 |
 | enterococcus_faecium | aztreonam | 0 | 0.003 |
-| enterococcus_faecium | erythromycin | 0.7 | 1 |
-| enterococcus_faecium | azithromycin | 0.7 | 1 |
+| enterococcus_faecium | erythromycin | 0.7 | 0.01 |
+| enterococcus_faecium | azithromycin | 0.7 | 0.01 |
 | enterococcus_faecium | clarithromycin | 0.7 | 1 |
 | enterococcus_faecium | clindamycin | 0.7 | 1 |
 | enterococcus_faecium | gentamicin | 0.75 | 1 |
@@ -8602,7 +8616,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | enterococcus_faecium | protection_qnr | 0 | excluded host |
 | enterococcus_faecium | enzyme_16s_rrmt | 0 | excluded host |
 | enterococcus_faecium | target_site_erm_b | 30 | eligible; de novo enabled |
-| enterococcus_faecium | target_site_cfr | 30 | eligible; de novo enabled |
+| enterococcus_faecium | target_site_cfr | 10 | eligible; de novo enabled |
 | enterococcus_faecium | enzyme_cat | 30 | eligible; de novo enabled |
 | enterococcus_faecium | efflux_acrab_tolc | 0 | excluded host |
 | enterococcus_faecium | efflux_mexxy_oprm | 0 | excluded host |
@@ -8612,7 +8626,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | enterococcus_faecium | mutation_polymyxin_regulatory | 0 | excluded host |
 | enterococcus_faecium | global_efflux_pump | 30 | eligible; de novo enabled |
 | enterococcus_faecium | mutation_folate_pathway | 0.005 | eligible; de novo enabled |
-| enterococcus_faecium | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_nitroreductase | 3 | eligible; de novo enabled |
 | enterococcus_faecium | enzyme_fos | 30 | eligible; de novo enabled |
 | enterococcus_faecium | mutation_mpr_f | 0 | excluded host |
 | enterococcus_faecium | mutation_liafsr_cls | 30 | eligible; de novo enabled |
@@ -8625,7 +8639,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | enterococcus_faecium | enzyme_mph_a | 0 | excluded host |
 | enterococcus_faecium | enzyme_oxa_acinetobacter | 0 | excluded host |
 | enterococcus_faecium | mutation_23s_rrna | 30 | eligible; de novo enabled |
-| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 0.003 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 0.01 | eligible; de novo enabled |
 | enterococcus_faecium | efflux_tet_abc | 0 | excluded host |
 | enterococcus_faecium | mutation_pbp_mosaic | 0.001 | eligible; de novo enabled |
 | enterococcus_faecium | efflux_mtr_cde | 0.001 | excluded host |
@@ -8907,15 +8921,15 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | p_stuartii | efflux_mtr_cde | 0 | excluded host |
 | p_stuartii | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | p_stuartii | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 4e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_esbl_tem | 4e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_esbl_shv | 4e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_kpc | 7e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_ndm_vim | 7e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_oxa_48 | 7e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_ampc_cmy | 4e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_ampc_dha | 4e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | mutation_ampc_derepression | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_tem | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_shv | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_kpc | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ampc_cmy | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ampc_dha | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_ampc_derepression | 5e-5 | eligible; de novo enabled |
 | pseudomonas_aeruginosa | target_site_pbp2a_meca | 0 | excluded host |
 | pseudomonas_aeruginosa | target_site_van_a | 0 | excluded host |
 | pseudomonas_aeruginosa | target_site_van_b | 0 | excluded host |
@@ -8949,7 +8963,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | pseudomonas_aeruginosa | mutation_23s_rrna | 0 | excluded host |
 | pseudomonas_aeruginosa | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
 | pseudomonas_aeruginosa | efflux_tet_abc | 3e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | mutation_pbp_mosaic | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_pbp_mosaic | 5e-5 | eligible; de novo enabled |
 | pseudomonas_aeruginosa | efflux_mtr_cde | 0 | excluded host |
 | pseudomonas_aeruginosa | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | pseudomonas_aeruginosa | mutation_siderophore_uptake | 2e-4 | eligible; de novo enabled |
@@ -9109,7 +9123,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | streptococcus_pneumoniae | enzyme_16s_rrmt | 0 | excluded host |
 | streptococcus_pneumoniae | target_site_erm_b | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | target_site_cfr | 0 | eligible; HGT only |
-| streptococcus_pneumoniae | enzyme_cat | 15 | eligible; de novo enabled |
+| streptococcus_pneumoniae | enzyme_cat | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | efflux_acrab_tolc | 0 | excluded host |
 | streptococcus_pneumoniae | efflux_mexxy_oprm | 0 | excluded host |
 | streptococcus_pneumoniae | porin_loss_ompk35_36 | 0 | excluded host |
@@ -9124,7 +9138,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | streptococcus_pneumoniae | mutation_liafsr_cls | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_rpo_b | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | protection_fus_b | 0 | excluded host |
-| streptococcus_pneumoniae | protection_tet_m | 0.25 | eligible; de novo enabled |
+| streptococcus_pneumoniae | protection_tet_m | 0.4 | eligible; de novo enabled |
 | streptococcus_pneumoniae | enzyme_aac_aph | 0 | eligible; HGT only |
 | streptococcus_pneumoniae | enzyme_bla_z | 0 | excluded host |
 | streptococcus_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
@@ -9133,7 +9147,7 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | streptococcus_pneumoniae | mutation_23s_rrna | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | streptococcus_pneumoniae | efflux_tet_abc | 0 | excluded host |
-| streptococcus_pneumoniae | mutation_pbp_mosaic | 1e-7 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_pbp_mosaic | 5e-7 | eligible; de novo enabled |
 | streptococcus_pneumoniae | efflux_mtr_cde | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_siderophore_uptake | 0 | excluded host |
@@ -9379,34 +9393,34 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | streptococcus_pyogenes | target_site_pbp2a_meca | 0 | excluded host |
 | streptococcus_pyogenes | target_site_van_a | 0 | eligible; HGT only |
 | streptococcus_pyogenes | target_site_van_b | 0 | eligible; HGT only |
-| streptococcus_pyogenes | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
-| streptococcus_pyogenes | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_gyra_primary | 0.01 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_gyra_parc_secondary | 0.01 | eligible; de novo enabled |
 | streptococcus_pyogenes | protection_qnr | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_16s_rrmt | 0 | excluded host |
-| streptococcus_pyogenes | target_site_erm_b | 0.05 | eligible; de novo enabled |
-| streptococcus_pyogenes | target_site_cfr | 0.2 | eligible; de novo enabled |
-| streptococcus_pyogenes | enzyme_cat | 0.02 | eligible; de novo enabled |
+| streptococcus_pyogenes | target_site_erm_b | 0.005 | eligible; de novo enabled |
+| streptococcus_pyogenes | target_site_cfr | 0.02 | eligible; de novo enabled |
+| streptococcus_pyogenes | enzyme_cat | 0.002 | eligible; de novo enabled |
 | streptococcus_pyogenes | efflux_acrab_tolc | 0 | excluded host |
 | streptococcus_pyogenes | efflux_mexxy_oprm | 0 | excluded host |
 | streptococcus_pyogenes | porin_loss_ompk35_36 | 0 | excluded host |
 | streptococcus_pyogenes | porin_loss_oprd | 0 | excluded host |
 | streptococcus_pyogenes | modification_mcr_1 | 0 | excluded host |
 | streptococcus_pyogenes | mutation_polymyxin_regulatory | 0 | excluded host |
-| streptococcus_pyogenes | global_efflux_pump | 0.2 | eligible; de novo enabled |
-| streptococcus_pyogenes | mutation_folate_pathway | 1 | eligible; de novo enabled |
+| streptococcus_pyogenes | global_efflux_pump | 0.02 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_folate_pathway | 0.2 | eligible; de novo enabled |
 | streptococcus_pyogenes | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
 | streptococcus_pyogenes | enzyme_fos | 0 | eligible; HGT only |
-| streptococcus_pyogenes | mutation_mpr_f | 0.01 | excluded host |
+| streptococcus_pyogenes | mutation_mpr_f | 0.001 | excluded host |
 | streptococcus_pyogenes | mutation_liafsr_cls | 0 | excluded host |
-| streptococcus_pyogenes | mutation_rpo_b | 0.03 | eligible; de novo enabled |
-| streptococcus_pyogenes | protection_fus_b | 0.1 | excluded host |
-| streptococcus_pyogenes | protection_tet_m | 0.003 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_rpo_b | 0.003 | eligible; de novo enabled |
+| streptococcus_pyogenes | protection_fus_b | 0.01 | excluded host |
+| streptococcus_pyogenes | protection_tet_m | 3e-4 | eligible; de novo enabled |
 | streptococcus_pyogenes | enzyme_aac_aph | 0 | eligible; HGT only |
 | streptococcus_pyogenes | enzyme_bla_z | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_mph_a | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_oxa_acinetobacter | 0 | excluded host |
-| streptococcus_pyogenes | mutation_23s_rrna | 0.1 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_23s_rrna | 0.01 | eligible; de novo enabled |
 | streptococcus_pyogenes | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | streptococcus_pyogenes | efflux_tet_abc | 0 | excluded host |
 | streptococcus_pyogenes | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
@@ -9422,40 +9436,40 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | streptococcus_agalactiae | enzyme_ampc_cmy | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_ampc_dha | 0 | excluded host |
 | streptococcus_agalactiae | mutation_ampc_derepression | 0 | excluded host |
-| streptococcus_agalactiae | target_site_pbp2a_meca | 1e-4 | excluded host |
-| streptococcus_agalactiae | target_site_van_a | 0.01 | eligible; de novo enabled |
-| streptococcus_agalactiae | target_site_van_b | 0.01 | eligible; de novo enabled |
-| streptococcus_agalactiae | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
-| streptococcus_agalactiae | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_pbp2a_meca | 1e-5 | excluded host |
+| streptococcus_agalactiae | target_site_van_a | 0.001 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_van_b | 0.001 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_gyra_primary | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_gyra_parc_secondary | 0.03 | eligible; de novo enabled |
 | streptococcus_agalactiae | protection_qnr | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_16s_rrmt | 0 | excluded host |
-| streptococcus_agalactiae | target_site_erm_b | 15 | eligible; de novo enabled |
-| streptococcus_agalactiae | target_site_cfr | 15 | eligible; de novo enabled |
-| streptococcus_agalactiae | enzyme_cat | 0.3 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_erm_b | 3 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_cfr | 3 | eligible; de novo enabled |
+| streptococcus_agalactiae | enzyme_cat | 0.03 | eligible; de novo enabled |
 | streptococcus_agalactiae | efflux_acrab_tolc | 0 | excluded host |
 | streptococcus_agalactiae | efflux_mexxy_oprm | 0 | excluded host |
 | streptococcus_agalactiae | porin_loss_ompk35_36 | 0 | excluded host |
 | streptococcus_agalactiae | porin_loss_oprd | 0 | excluded host |
 | streptococcus_agalactiae | modification_mcr_1 | 0 | excluded host |
 | streptococcus_agalactiae | mutation_polymyxin_regulatory | 0 | excluded host |
-| streptococcus_agalactiae | global_efflux_pump | 1 | eligible; de novo enabled |
-| streptococcus_agalactiae | mutation_folate_pathway | 3 | eligible; de novo enabled |
+| streptococcus_agalactiae | global_efflux_pump | 0.1 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
 | streptococcus_agalactiae | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
 | streptococcus_agalactiae | enzyme_fos | 0 | eligible; HGT only |
-| streptococcus_agalactiae | mutation_mpr_f | 0.3 | excluded host |
+| streptococcus_agalactiae | mutation_mpr_f | 0.03 | excluded host |
 | streptococcus_agalactiae | mutation_liafsr_cls | 0 | excluded host |
-| streptococcus_agalactiae | mutation_rpo_b | 0.03 | eligible; de novo enabled |
-| streptococcus_agalactiae | protection_fus_b | 0.3 | excluded host |
-| streptococcus_agalactiae | protection_tet_m | 30 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_rpo_b | 0.003 | eligible; de novo enabled |
+| streptococcus_agalactiae | protection_fus_b | 0.03 | excluded host |
+| streptococcus_agalactiae | protection_tet_m | 5 | eligible; de novo enabled |
 | streptococcus_agalactiae | enzyme_aac_aph | 0 | eligible; HGT only |
 | streptococcus_agalactiae | enzyme_bla_z | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_mph_a | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_oxa_acinetobacter | 0 | excluded host |
-| streptococcus_agalactiae | mutation_23s_rrna | 30 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_23s_rrna | 5 | eligible; de novo enabled |
 | streptococcus_agalactiae | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | streptococcus_agalactiae | efflux_tet_abc | 0 | excluded host |
-| streptococcus_agalactiae | mutation_pbp_mosaic | 3e-5 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_pbp_mosaic | 3e-6 | eligible; de novo enabled |
 | streptococcus_agalactiae | efflux_mtr_cde | 0 | excluded host |
 | streptococcus_agalactiae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | streptococcus_agalactiae | mutation_siderophore_uptake | 0 | excluded host |
@@ -10287,52 +10301,52 @@ Resolved de novo emergence rate and executable pathway status for every bacteria
 | legionella_pneumophila | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
 | legionella_pneumophila | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | legionella_pneumophila | mutation_siderophore_uptake | 0 | excluded host |
-| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 0.001 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_esbl_tem | 0.001 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_esbl_shv | 0.001 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_kpc | 3e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_ndm_vim | 3e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_oxa_48 | 3e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_ampc_cmy | 0.001 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_ampc_dha | 0.001 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_kpc | 6e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ndm_vim | 6e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_oxa_48 | 6e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ampc_cmy | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ampc_dha | 0.003 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | target_site_pbp2a_meca | 0 | excluded host |
 | burkholderia_cepacia_complex | target_site_van_a | 0 | excluded host |
 | burkholderia_cepacia_complex | target_site_van_b | 0 | excluded host |
-| burkholderia_cepacia_complex | mutation_gyra_primary | 0.15 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 0.9 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | protection_qnr | 0.9 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_16s_rrmt | 5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_16s_rrmt | 10 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | target_site_erm_b | 0 | excluded host |
 | burkholderia_cepacia_complex | target_site_cfr | 0 | excluded host |
-| burkholderia_cepacia_complex | enzyme_cat | 5e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_cat | 0.001 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | porin_loss_ompk35_36 | 0 | excluded host |
 | burkholderia_cepacia_complex | porin_loss_oprd | 0 | excluded host |
-| burkholderia_cepacia_complex | modification_mcr_1 | 0.015 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | modification_mcr_1 | 0.03 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
-| burkholderia_cepacia_complex | global_efflux_pump | 0.05 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | global_efflux_pump | 0.1 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_folate_pathway | 0.02 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_nitroreductase | 0 | excluded host |
-| burkholderia_cepacia_complex | enzyme_fos | 0.015 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_fos | 0.03 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_mpr_f | 0 | excluded host |
 | burkholderia_cepacia_complex | mutation_liafsr_cls | 0 | excluded host |
-| burkholderia_cepacia_complex | mutation_rpo_b | 0.005 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_rpo_b | 0.01 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | protection_fus_b | 0 | excluded host |
-| burkholderia_cepacia_complex | protection_tet_m | 5e-5 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_aac_aph | 5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | protection_tet_m | 1e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_aac_aph | 10 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | enzyme_bla_z | 0 | excluded host |
 | burkholderia_cepacia_complex | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | burkholderia_cepacia_complex | enzyme_mph_a | 0 | excluded host |
 | burkholderia_cepacia_complex | enzyme_oxa_acinetobacter | 0 | eligible; HGT only |
 | burkholderia_cepacia_complex | mutation_23s_rrna | 0 | excluded host |
 | burkholderia_cepacia_complex | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| burkholderia_cepacia_complex | efflux_tet_abc | 5e-5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | efflux_tet_abc | 1e-4 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | efflux_mtr_cde | 0 | excluded host |
 | burkholderia_cepacia_complex | mutation_16s_rrna_tetracycline | 0 | excluded host |
-| burkholderia_cepacia_complex | mutation_siderophore_uptake | 5e-5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
 
 #### Environmental and Exogenous Mechanism Floors
 
@@ -11447,37 +11461,16 @@ selected rows, so row count is not in general equal to the number of simulated t
 |--------|------|-------------|
 | `time_step` | int | Simulation day (0-indexed) |
 | `simulation_summary_schema_version` | int | Output contract version; currently `1` |
-| `policy_option` | int | Policy branch identifier for the row; baseline rows use `0` |
-| `run_id` | int | Numeric run identifier written into the summary file |
 | `time_in_years` | float | Years since the 1930 simulation epoch |
 | `total_population` | int | Living people at the summary observation point |
+| `total_currently_infected` | int | Living people with at least one reportable infection above `INFECTION_EPS` |
+| `currently_taking_drug_count` | int | Living people receiving at least one antibiotic |
 | `number_in_hospital` | int | Living hospitalised people |
-| `number_severely_immunosuppressed` | int | Living people currently in a temporary or chronic immunodeficiency state |
 | `number_with_sepsis` | int | Living people with active sepsis |
 | `sepsis_episode_onset_people_count` | int | People entering a sepsis episode during the day; at most one count per person-day |
-| `total_currently_infected` | int | Living people with at least one reportable infection above `INFECTION_EPS` |
-| `infected_10_days_count`, `infected_21_days_count` | int | Living people whose current infection duration has reached the named threshold |
-| `total_with_resistance` | int | Living people with any active infection resistance flag |
-| `currently_taking_drug_count` and `currently_taking_drug_count_*` | int | Living people receiving antibiotics, including empiric, targeted, prophylaxis, other, and other-context subsets |
-| `currently_infected_and_on_drug_count` | int | Living people with a reportable infection and at least one active antibiotic |
-| `taking_two_drugs_count` | int | Living people currently taking exactly two antibiotics |
 | `infection_acquisition_people_count` | int | People with at least one successful bacterial acquisition during the day; deduplicated across bacteria |
-| `infection_acquisition_people_with_any_r_count`, `infection_acquisition_people_with_serious_r_count`, `infection_acquisition_people_serious_r_marker_eligible_count` | int | Person-level acquisition counts stratified by acquisition-time resistance marker state |
-| `infection_acquisition_people_past_year` | int | Rolling one-year count of people with successful infection acquisition |
-| `local_persistence_profile_incorporations_total` | int | Complete archived local profiles incorporated into active infection or carriage acquisitions |
-| `local_persistence_profile_incorporations_infection`, `local_persistence_profile_incorporations_carriage` | int | Local-profile incorporations split by active-infection and carriage acquisition pathways |
-| `new_drug_initiations_count` | int | New antibiotic courses started during the day |
 | `new_drug_initiations_with_active_infection_count` | int | New course starts in people with a reportable infection above `INFECTION_EPS` at the pre-rule snapshot |
-| `diagnostic_cascade_*` | int | Person-level diagnostic and targeted-treatment cascade counts, split by all settings plus community/hospital subsets |
-| `sepsis_onset_*` and `sepsis_effective_therapy_*` | int | Sepsis onset context and effective-therapy timing counters |
 | `toxicity_drug_course_stop_events` | int | Drug-course stop events caused by toxicity, including stops followed by death later that day |
-| `total_deaths`, `deaths_background`, `deaths_sepsis`, `deaths_infection_non_sepsis`, `deaths_drug_toxicity` | int | Mutually exclusive all-cause and cause-specific daily death counts |
-| `deaths_past_year` and `deaths_*_past_year` | int | Rolling one-year all-cause and cause-specific death counts |
-| `num_age_*` | int | Living population counts in exported age bands |
-| `num_with_any_bacteria_microbiome` | int | Living people with at least one bacterium present in the carriage/microbiome state |
-| `people_on_1_drug`, `people_on_2_drugs`, `people_on_3plus_drugs` | int | Current treatment-intensity stocks |
-| `active_infection_on_drug_with_previous_failure_count` | int | Active infection and antibiotic exposure count among people with a previous drug-failure flag |
-| `people_on_*_drugs_hist` | int | Histogram of current concurrent antibiotic counts |
 | `deaths_sepsis_model_scope` | int | Sepsis deaths with a bacterium in the model's reporting scope |
 | `deaths_infection_non_sepsis_model_scope` | int | Non-sepsis infection deaths with a bacterium in the model's reporting scope |
 
@@ -11488,32 +11481,19 @@ selected rows, so row count is not in general equal to the number of simulated t
 | Pattern | Description |
 |---------|-------------|
 | `{bacteria}_currently_infected` | Current active-infection stock |
-| `{bacteria}_infections_prevented_by_drug` | Prevention events attributed to antibiotic prophylaxis/activity |
-| `{bacteria}_deaths` and `{bacteria}_deaths_*` | Bacterium-attributed deaths and age/care-setting subsets |
 | `{bacteria}_number_with_sepsis` | Current sepsis stock |
 | `{bacteria}_sepsis_onset_events` | Bacterium-level sepsis-onset transitions during the day |
+| `{bacteria}_deaths` | Infection deaths attributed to the bacterium during the day |
 | `{bacteria}_infection_acquisition_events_home_region_{region}` | Acquisition events classified by the person's home region; includes both care settings |
 | `{bacteria}_infection_acquisition_events_hospital_{region}` | Hospital-acquired subset, classified by acquisition region |
 | `{bacteria}_infection_acquisition_events_carrier_at_acquisition` | Events in people carrying that bacterium immediately before acquisition |
 | `{bacteria}_infection_acquisition_events_non_carrier_at_acquisition` | Events in people not carrying that bacterium immediately before acquisition |
 | `{bacteria}_infection_acquisition_events_with_any_r_hospital` | Hospital-acquired events with any-R snapshotted at acquisition |
 | `{bacteria}_infection_acquisition_events_with_any_r_community` | Community-acquired events with any-R snapshotted at acquisition |
-| `{bacteria}_presence_microbiome`, `{bacteria}_presence_microbiome_resistant`, and living tier suffixes | Current carriage/microbiome stocks and resistance-tier summaries |
-| `{bacteria}_microbiome_acquisitions_*`, `{bacteria}_microbiome_clearances_*`, and clearance-category suffixes | Carriage acquisition, clearance, and resistant-clearance event families |
-| `{bacteria}_infected_carrier_count`, `{bacteria}_infected_non_carrier_count`, and resistant/location splits | Active infection stocks split by carrier status, current care setting, and resistance state |
-| `{bacteria}_drug_failure_events_{region}` and `{bacteria}_drug_treatment_day5_events_{region}` | Region-stratified treatment failure and day-5 treatment evaluation events |
-| `{bacteria}_infected_with_test_identified`, `{bacteria}_infected_with_test_for_resistance` | Active infection stocks with diagnostic identification and resistance-testing state |
-| `{bacteria}_infected_and_on_any_drug` | Active infections under any antibiotic exposure |
-| `{bacteria}_infected_with_{mechanism}` and mechanism-family vector cells | Mechanism-attributed active infection summaries |
-| `{bacteria}_infection_resolution_*` | Resolution events by immune clearance, drug-assisted clearance, and death cause |
-| `{bacteria}_day_7_evaluations`, `{bacteria}_day_7_drug_used` | Day-7 treatment-review counters |
-| `{bacteria}_syndrome_{id}_infected` | Active infection stock by syndrome |
-| `{bacteria}_drug_selection_count` | Count of drug-selection evaluations for the bacterium |
 | `{bacteria}_applied_activity_sum` | Antibiotic activity at the within-day point where it changes bacterial level |
 | `{bacteria}_max_possible_applied_activity_sum` | Zero-resistance activity for exactly the same applied-exposure observations |
 | `{bacteria}_applied_exposure_potency_retained_sum` | Potency retained after resistance for those observations |
 | `{bacteria}_applied_exposure_potency_sum` | Potency denominator for those observations |
-| `*_by_bacteria` vector cells | Semicolon-delimited vectors in `BACTERIA_LIST` order |
 
 
 
@@ -11530,12 +11510,10 @@ selected rows, so row count is not in general equal to the number of simulated t
 
 | Pattern | Description |
 |---------|-------------|
-| `{bacteria}_infected_and_mic_lt2_{drug}` and `{bacteria}_sum_mic_{drug}` | Legacy reciprocal-activity proxy count and sum by organism-drug pair |
-| `{bacteria}_currently_on_drug_{drug}` | Drug exposure by organism-drug pair |
-| `{bacteria}_microbiome_r_positive_{drug}` | Carriage/microbiome resistance positivity by organism-drug pair |
-| `{bacteria}_sum_any_r_{drug}` and `{bacteria}_sum_any_r_hospital_{drug}` | Mechanism-derived any-R sums by organism-drug pair and hospital subset |
-| `{bacteria}_infected_with_any_r_positive_{drug}` and hospital/community splits | Active infection resistance counts by organism-drug pair and current care setting |
-| `{bacteria}_drug_score_sum_{drug}` | Accumulated drug-selection score contributions by organism-drug pair |
+| `{bacteria}_{drug}_activity_r` and related summaries | Resistance/activity state summaries; these are distinct from the applied-stage activity sums above |
+| `{bacteria}_{drug}_infected_and_standardized_mic_lt2` and related summaries | Treatment-relevant susceptible-infection summaries |
+| `{bacteria}_{drug}_currently_on_drug` and related summaries | Drug exposure by organism-drug pair |
+| `{bacteria}_{drug}_any_r`, `microbiome_r_positive`, and split hospital/community variants | Mechanism-derived resistance summaries. The summary CSV no longer exports `{bacteria}_{drug}_majority_r`; mechanism-majority state is used internally and exposed through mechanism-derived summaries rather than the old majority-r column family. |
 
 
 
@@ -11543,13 +11521,9 @@ selected rows, so row count is not in general equal to the number of simulated t
 
 | Pattern | Description |
 |---------|-------------|
-| `{region}_population` | Living population in the region |
-| `{region}_hospital_population` | Living hospitalised population in the region |
-| `{region}_{death_type}` | Regional death counts by background, sepsis, non-sepsis infection, and drug-toxicity cause |
-| `{region}_{age_group}_{death_type}` | Regional age-by-cause death counts |
-| `{region}_{drug}_currently_on_drug` | Current regional drug exposure |
-| `syndrome_{id}_population_{region}` | Regional active syndrome stock |
-| `syndrome_{id}_deaths_sepsis_{region}` and `syndrome_{id}_deaths_infection_non_sepsis_{region}` | Regional syndrome-attributed infection death counts |
+| `{region}_infected` | Regional infection count |
+| `{region}_hospitalized` | Regional hospital count |
+| `{region}_deaths` | Regional death count |
 
 
 
@@ -11723,7 +11697,7 @@ individual-level model variables and are excluded.
 | [`resistances[b][d].any_r`](#rule-resistance-any-r) | Persistent bacterium-by-drug family | Active-infection resistance severity, bounded by `max_resistance_level`. | `0`. | Derived from `mechanism_any`; reset on infection clearance. | Resistance |
 | [`mechanism_any[b]`](#rule-mechanism-any) | Persistent bacterium bitmask family | Mechanisms present in any represented active-infection strain. | Empty mask. | Updated by acquisition, emergence, HGT, and clearance. | Resistance |
 | [`mechanism_majority[b]`](#rule-mechanism-majority) | Persistent bacterium bitmask family | Mechanisms in the represented majority infection strain. | Empty mask. | Updated by acquisition, promotion, reversion, and clearance. | Resistance |
-| [`mechanism_microbiome[b]`](#rule-mechanism-microbiome) | Persistent bacterium bitmask family | Mechanisms represented in carriage. | Empty mask. | Updated by carriage acquisition, de novo carriage emergence, HGT, infection-carriage transfer, reversion, and clearance. | Resistance and carriage |
+| [`mechanism_microbiome[b]`](#rule-mechanism-microbiome) | Persistent bacterium bitmask family | Mechanisms represented in carriage. | Empty mask. | Updated by carriage acquisition, HGT, reversion, and clearance. | Resistance and carriage |
 | [`how_resistance_acquired[b][d]`](#rule-how-resistance-acquired) | Optional persistent bacterium-by-drug family | Resistance-acquisition provenance category. | Empty matrix when provenance tracking is disabled; otherwise `None`. | Updated only in provenance-enabled runs and cleared with the corresponding compartment. | Optional diagnostics |
 | [`infection_resolution_this_timestep[b][resolution]`](#rule-infection-resolution-this-timestep) | Persistent bacterium-by-resolution daily counter family | Counts infection resolutions by immune clearance, drug-assisted clearance, or death pathway. | All counts `0`. | Reset at the start of each day after aggregation. | Outcome reporting |
 | [`day_7_since_last_infection_drug_used[b]`](#rule-day-7-since-last-infection-drug-used) | Persistent bacterium family of optional Booleans | Whether any antibiotic began within seven days of infection onset. | `None`. | Set once on day seven; reset for a new infection. | Treatment reporting |
@@ -11853,7 +11827,7 @@ constant or category rule rather than a configurable parameter.
 | <a id="rule-resistance-any-r"></a>`resistances[b][d].any_r` | `mechanism_any[b]`, drug class. | `resistance_mechanism_{mechanism}_enhancement_{drug_class}` with mechanism-wide fallback; `max_resistance_level`. | Recomputed after infection mechanism acquisition, emergence, transfer, promotion or reversion. | Mechanism effects multiply remaining susceptibility and are bounded by `max_resistance_level`. | Resistance recalculation helpers in `rules`; `population::Resistance` |
 | <a id="rule-mechanism-any"></a>`mechanism_any[b]` | Incoming infection mask, de novo emergence, HGT, minority promotion and reversion. | Mechanism applicability; de novo, HGT, promotion and reversion parameter families. | Bitmask updated when any represented infection strain carries or loses a mechanism. | Includes minority mechanisms; `mechanism_majority` is the dominant-profile subset. | Resistance acquisition and evolution blocks in `rules::apply_rules` |
 | <a id="rule-mechanism-majority"></a>`mechanism_majority[b]` | Incoming majority mask, minority promotion and majority reversion. | `majority_r_evolution_rate_per_day_when_drug_present`; reversion families. | Updated when mechanisms establish in, enter, or leave the represented majority infection profile. | Must remain a subset of `mechanism_any[b]`. | Resistance acquisition and evolution blocks in `rules::apply_rules` |
-| <a id="rule-mechanism-microbiome"></a>`mechanism_microbiome[b]` | Incoming carriage profile, de novo carriage emergence, infection-carriage transfer, HGT, and carriage reversion. | Carriage profile-source, emergence, transfer, HGT and reversion parameter families. | Set at carriage acquisition and updated during carriage resistance evolution; reset at clearance. | Separate from the active-infection masks. | Carriage acquisition, evolution and clearance blocks in `rules::apply_rules` |
+| <a id="rule-mechanism-microbiome"></a>`mechanism_microbiome[b]` | Incoming carriage profile, HGT and carriage reversion. | Carriage profile-source, HGT and reversion parameter families. | Set at carriage acquisition and updated during carriage resistance evolution; reset at clearance. | Separate from the active-infection masks. | Carriage acquisition, evolution and clearance blocks in `rules::apply_rules` |
 | <a id="rule-how-resistance-acquired"></a>`how_resistance_acquired[b][d]` | Profile sampling, microbiome inheritance, de novo emergence and HGT events. | Fixed provenance categories; compile-time `TRACK_RESISTANCE_ACQUISITION_PROVENANCE`. | Updated when resistance first enters or materially changes the active infection profile. | The matrix is empty when tracking is disabled; when enabled it is a coarse last-event classification, not full causal provenance. | Resistance acquisition and evolution blocks in `rules`; output aggregation in `simulation` |
 | <a id="rule-infection-resolution-this-timestep"></a>`infection_resolution_this_timestep[b][resolution]` | Clearance, treatment-associated resolution and fatal infection outcomes. | Fixed resolution-type categories. | Reset daily, then increments the category produced by `infection_resolution_type[b]`. | Output counter; mutually exclusive resolution handling avoids double counting. | Resolution and mortality blocks in `rules`; aggregation in `simulation` |
 | <a id="rule-day-7-since-last-infection-drug-used"></a>`day_7_since_last_infection_drug_used[b]` | Infection acquisition date and whether any drug was initiated in the first seven days. | Fixed seven-day observation window. | Set once on day seven to indicate whether any antibiotic began in that early infection window. | One optional Boolean per bacterium, not a per-drug matrix; reporting state only. | Treatment-use reporting code in `rules` and `simulation` |
