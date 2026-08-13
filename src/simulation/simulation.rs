@@ -5043,19 +5043,12 @@ impl Simulation {
 
                     let vital_status = person_day_vital_status(individual, t);
                     let died_today = vital_status.died_today;
-                    if collect_testing_stats {
+                    // Make the person-day availability decision outside the hot bacterium loop.
+                    // A death-day episode may receive its final same-day attribution.
+                    let collect_diagnostic_cascade_for_person_day = collect_testing_stats
+                        && vital_status.available_for_current_day_event_attribution;
+                    if collect_diagnostic_cascade_for_person_day {
                         for b_idx in 0..num_bacteria {
-                            // A death-day episode may receive its final same-day attribution,
-                            // but retained infection/test state must not create new diagnostic
-                            // episodes on later days. Clear any stale open state without
-                            // recording additional stages.
-                            if !vital_status.available_for_current_day_event_attribution {
-                                if individual.diagnostic_cascade_open[b_idx] {
-                                    reset_diagnostic_cascade_episode_state(individual, b_idx);
-                                }
-                                continue;
-                            }
-
                             let active_now = individual.level[b_idx] > INFECTION_EPS;
                             if !individual.diagnostic_cascade_open[b_idx]
                                 && diagnostic_cascade_entry_eligible(
@@ -5193,6 +5186,21 @@ impl Simulation {
                             if individual.diagnostic_cascade_open[b_idx]
                                 && (!active_now || died_today)
                             {
+                                reset_diagnostic_cascade_episode_state(individual, b_idx);
+                            }
+                        }
+                    }
+                    if collect_testing_stats
+                        && !collect_diagnostic_cascade_for_person_day
+                        && individual
+                            .diagnostic_cascade_open
+                            .iter()
+                            .any(|&episode_open| episode_open)
+                    {
+                        // Defensive cleanup for legacy/checkpoint state. Normal death-day
+                        // processing closes episodes already, so this path is usually empty.
+                        for b_idx in 0..num_bacteria {
+                            if individual.diagnostic_cascade_open[b_idx] {
                                 reset_diagnostic_cascade_episode_state(individual, b_idx);
                             }
                         }
