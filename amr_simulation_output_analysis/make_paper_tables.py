@@ -104,11 +104,6 @@ SIMULATION_OUTPUTS_DIR = REPO_ROOT / "amr_simulation_output_analysis_outputs"
 #   "mean_ci"      - simulation mean with 95% confidence interval
 FIGURE2_SUMMARY_MODE = "mean_ci"
 
-# Manuscript-facing figures are intended to summarise ten independent stochastic
-# runs. This constant controls reporting text only; plotted summaries and
-# confidence intervals are always calculated from the files actually supplied.
-PAPER_FIGURE_RUN_COUNT = 10
-
 TABLES_DIRNAME = "Tables"
 FIGURES_DIRNAME = "Figures"
 GENERATED_SUBDIRS = (
@@ -215,9 +210,9 @@ def _meta_box(agg: dict) -> str:
     return "<div class='meta-box'>" + " &nbsp;|&nbsp; ".join(parts) + "</div>\n"
 
 
-def _meta_footnote(agg: dict, *, reported_runs: int | None = None) -> str:
+def _meta_footnote(agg: dict) -> str:
     m = agg.get("meta", {})
-    n = reported_runs if reported_runs is not None else agg.get("n_runs", 1)
+    n = agg.get("n_runs", 1)
     run_label = f"{n} accepted calibration run{'s' if n > 1 else ''}"
     return (
         f"<strong>Run/window:</strong> Target year: {m.get('target_year', '—')}; "
@@ -2265,7 +2260,7 @@ def make_figure_6b_resistance_trend_by_bacterium(
     )
     trend_summary_note += (
         "Shaded bands show two-sided 95% t confidence intervals across "
-        f"{PAPER_FIGURE_RUN_COUNT} stochastic runs."
+        f"{n_runs} stochastic run{'s' if n_runs != 1 else ''}."
     )
     footnotes = [
         trend_summary_note,
@@ -4074,7 +4069,7 @@ def make_figure_2_calibration_resistance_fit(
     if mode == _F2_SUMMARY_MEAN_CI:
         ci_note = (
             "Error bars: 95% confidence interval for the mean across "
-            f"{PAPER_FIGURE_RUN_COUNT} stochastic runs."
+            f"{n_runs} stochastic run{'s' if n_runs != 1 else ''}."
         )
     else:
         ci_note = (
@@ -4167,7 +4162,7 @@ def make_figure_2_calibration_resistance_fit(
         "IHME/WHO-ESKAPE priority bacteria are shown first, remainder alphabetically."
     )
     body += _html_footnotes([
-        _meta_footnote(agg, reported_runs=PAPER_FIGURE_RUN_COUNT),
+        _meta_footnote(agg),
         figure_note,
         (
             _SIMULATION_MEAN_CI_FOOTNOTE
@@ -4314,7 +4309,8 @@ def _make_figure_2_setting_resistance_fit(
         extra_footnotes=[
             interpretation_note,
             (
-                f"Confidence intervals use up to {PAPER_FIGURE_RUN_COUNT} matched stochastic runs. A run "
+                f"Confidence intervals use up to {n_runs} matched stochastic run"
+                f"{'s' if n_runs != 1 else ''}. A run "
                 f"with no {setting} active-infection days for a bacterium contributes "
                 "no simulation value for that bacterium."
             ),
@@ -4594,11 +4590,11 @@ def make_figure_1_calibration_headline_metrics(
     run_window_note = (
         "Simulation values summarise the 2022–2025 calibration window; totals are "
         "annualised to yearly equivalents. Bars show means across "
-        f"{PAPER_FIGURE_RUN_COUNT} independent stochastic runs."
+        f"{n} independent stochastic run{'s' if n != 1 else ''}."
     )
     uncertainty_note = (
         f"Burgundy error bars show two-sided 95% t confidence intervals for simulation "
-        f"means across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs. "
+        f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
         "Dark-grey error bars show review-informed plausible ranges around the estimates."
@@ -4789,11 +4785,11 @@ def make_figure_3_calibration_drug_class_share(
     fig.tight_layout()
     run_window_note = (
         "Simulation values summarise the 2022–2025 calibration window. Bars show means "
-        f"across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs."
+        f"across {n} independent stochastic run{'s' if n != 1 else ''}."
     )
     uncertainty_note = (
         f"Burgundy error bars show two-sided 95% t confidence intervals for simulation "
-        f"means across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs. "
+        f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
         "Dark-grey error bars show review-informed plausible ranges around the estimates. "
@@ -5140,11 +5136,11 @@ def make_figure_4_calibration_infection_deaths(
     run_window_note = (
         "Simulation values summarise the 2022–2025 calibration window and are scaled to "
         "the global population and annualised to yearly equivalents. Bars show means "
-        f"across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs."
+        f"across {n} independent stochastic run{'s' if n != 1 else ''}."
     )
     uncertainty_note = (
         f"Burgundy error bars show two-sided 95% t confidence intervals for simulation "
-        f"means across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs. "
+        f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
         "Dark-grey error bars show review-informed plausible ranges around the estimates. "
@@ -5296,11 +5292,11 @@ def make_figure_5_calibration_carriage_prevalence(
 
     run_window_note = (
         "Simulation values summarise the 2022–2025 calibration window. Bars show means "
-        f"across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs."
+        f"across {n} independent stochastic run{'s' if n != 1 else ''}."
     )
     uncertainty_note = (
         f"Burgundy error bars show two-sided 95% t confidence intervals for simulation "
-        f"means across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs. "
+        f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
         "Dark-grey error bars show review-informed plausible ranges around the estimates. "
@@ -5590,7 +5586,7 @@ def make_figure_7_infection_death_rate_by_region(csv_paths: list[Path], out_dir:
         stem,
         title,
         f"Bars show mean infection deaths per 100,000 regional person-years during 2022-2025 "
-        f"across {PAPER_FIGURE_RUN_COUNT} runs; error bars are two-sided 95% t confidence "
+        f"across {n_runs} run{'s' if n_runs != 1 else ''}; error bars are two-sided 95% t confidence "
         "intervals. Sepsis and non-sepsis infection deaths are included.",
         [],
         agg=agg,
@@ -5796,6 +5792,7 @@ def make_figure_8_antibiotic_use_by_context(
         return
 
     df = pd.DataFrame(rows)
+    n_runs = int(df[["source", "run"]].drop_duplicates().shape[0])
     labels = [label for label, _ in context_columns]
     context_summaries: dict[str, tuple[float | None, float | None, float | None]] = {
         label: _mean_ci95(
@@ -5869,7 +5866,8 @@ def make_figure_8_antibiotic_use_by_context(
     fig.subplots_adjust(left=0.03, right=0.99, top=0.82, bottom=0.34)
 
     footnotes = [
-        f"Segments show mean daily antibiotic users across {PAPER_FIGURE_RUN_COUNT} runs under "
+        f"Segments show mean daily antibiotic users across {n_runs} run"
+        f"{'s' if n_runs != 1 else ''} under "
         "the baseline policy in 2025; percentages use the total across displayed contexts. "
         "Category-specific 95% confidence intervals are not drawn on the cumulative stack.",
         "Treatment context is fixed when a course starts; concurrent use is classified as "
@@ -6312,6 +6310,7 @@ def make_figure_11_sepsis_context_effective_therapy(
     if "run_id" in df.columns:
         run_group_columns.append("run_id")
     run_groups = list(df.groupby(run_group_columns, dropna=False, sort=False))
+    n_runs = len(run_groups)
 
     context_labels = [label for label, _ in context_counts_all]
     delay_labels = [label for label, _ in delay_counts_all]
@@ -6373,8 +6372,9 @@ def make_figure_11_sepsis_context_effective_therapy(
     fig.tight_layout(rect=[0, 0.02, 0.78, 1.0])
 
     footnotes = [
-        f"Segments show mean run-level percentages across {PAPER_FIGURE_RUN_COUNT} stochastic "
-        "runs for baseline-policy sepsis episodes beginning in 2022-2025. Category-specific "
+        f"Segments show mean run-level percentages across {n_runs} stochastic run"
+        f"{'s' if n_runs != 1 else ''} for baseline-policy sepsis episodes beginning in "
+        "2022-2025. Category-specific "
         "95% confidence intervals are not drawn on the cumulative stacks.",
         "Effective therapy means at least one active antibiotic has resistance-adjusted "
         "activity_r >= 0.500; this output classification does not alter model dynamics.",
@@ -6717,7 +6717,7 @@ def make_figure_15_mean_activity_by_bacteria(
     footnotes = [
         "Activity retained is resistance-adjusted activity divided by the corresponding "
         "no-resistance activity among treated active infections in 2022-2025.",
-        f"Bars show means across {PAPER_FIGURE_RUN_COUNT} runs; error bars are two-sided 95% t "
+        f"Bars show means across {n_runs} run{'s' if n_runs != 1 else ''}; error bars are two-sided 95% t "
         "confidence intervals. Bacteria without a treatment-activity denominator are excluded.",
     ]
 
@@ -7152,6 +7152,7 @@ def make_figure_19_antibiotic_exposure_distribution(
         return
 
     count_df = pd.DataFrame(rows)
+    n_runs = int(count_df[["source", "run"]].drop_duplicates().shape[0])
     class_counts = (
         count_df.groupby(["source", "run", "bacterium_slug", "bacterium", "drug_class"], as_index=False)
         ["exposure_count"]
@@ -7289,8 +7290,8 @@ def make_figure_19_antibiotic_exposure_distribution(
         "bystander exposure from antibiotics used for other concurrent infections.",
         "Rows are normalised within bacterium and sum to 100% across displayed classes plus "
         "'Other classes'.",
-        f"Values are mean within-bacterium class shares across {PAPER_FIGURE_RUN_COUNT} simulation "
-        "runs; exposure counts are summed first within each run, "
+        f"Values are mean within-bacterium class shares across {n_runs} simulation run"
+        f"{'s' if n_runs != 1 else ''}; exposure counts are summed first within each run, "
         "then converted to percentages.",
         "Drug-to-class mapping source: " + class_mapping_source + ".",
     ]
@@ -12190,7 +12191,8 @@ def _figure_20_render_grouped(
     extra_html = "<h2>Figure 7 details</h2>\n" + _html_table(details)
 
     run_note = (
-        f"Points show means across {PAPER_FIGURE_RUN_COUNT} independent stochastic runs; "
+        f"Points show means across {n_runs} independent stochastic run"
+        f"{'s' if n_runs != 1 else ''}; "
         "horizontal error bars show two-sided 95% t confidence intervals for those means."
     )
     denominator_note = (

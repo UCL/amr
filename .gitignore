@@ -18,6 +18,7 @@ Thumbs.db
 /STACK_OVERFLOW_CRASH_HUNT_PLAN.md
 /submit_jump.ps1
 /panic_log.txt
+/local_perf_comparison_3000/runs/
 
 # Local configuration copies. Versioned historical snapshots belong under archive/.
 /src/*.bak

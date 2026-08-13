@@ -36,6 +36,7 @@ from amr_simulation_output_analysis.make_paper_tables import (
     _sf7_run_mean_table,
     make_figure_12_resistance_mechanisms_by_bacterium,
     make_figure_13_active_infection_incidence,
+    make_figure_2_calibration_resistance_fit,
     make_index,
     make_t1,
 )
@@ -463,6 +464,61 @@ class Figure2PaperLayoutTests(unittest.TestCase):
         self.assertEqual(result.loc[0, "Class"], "Streptogramins")
         self.assertEqual(result.loc[0, "sim"], 0.0)
         self.assertEqual(result.loc[0, "target"], 0.5)
+
+    def test_figure_2_reports_the_supplied_run_count(self) -> None:
+        runs = []
+        for run_index, simulation_value in enumerate((10.0, 20.0), start=1):
+            runs.append(
+                {
+                    "meta": {"run_id": f"run_{run_index}"},
+                    "resistance_benchmarks": pd.DataFrame(
+                        [
+                            {
+                                "Bacteria": "Enterococcus faecium",
+                                "Drug": "quinu_dalfo",
+                                "Class": "Streptogramins",
+                                "Inf sim (%)": simulation_value,
+                                "Inf target (%)": 15.0,
+                                "Flags": "",
+                            }
+                        ]
+                    ),
+                }
+            )
+
+        agg = {
+            "n_runs": len(runs),
+            "meta": {
+                "target_year": "2025",
+                "window_duration": "4 years",
+                "mean_pop": "1,000",
+                "scale_factor": "1.0",
+            },
+        }
+        with TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            make_figure_2_calibration_resistance_fit(
+                agg,
+                output_dir,
+                runs=runs,
+                summary_mode="mean_ci",
+                figure_label="Figure 2 test",
+                output_stem="Figure_2_test",
+                organism_subset=["Enterococcus faecium"],
+                ncols=1,
+                paper_layout=True,
+                show_overall_title=False,
+            )
+            html = (
+                output_dir / "Figures" / "Figure_2_test.html"
+            ).read_text(encoding="utf-8")
+            svg = (
+                output_dir / "Figures" / "Figure_2_test.svg"
+            ).read_text(encoding="utf-8")
+
+        self.assertIn("runs: 2 accepted calibration runs", html)
+        self.assertIn("across 2 stochastic runs", svg)
+        self.assertNotIn("10 stochastic runs", html + svg)
 
 
 class Figure2SettingResistanceTests(unittest.TestCase):
