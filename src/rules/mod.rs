@@ -1753,11 +1753,6 @@ pub struct ParameterKeyCache {
     /// Clinical preference multipliers indexed by bacterium then drug.
     /// A value of 1.0 leaves the score unchanged.
     clinical_preference_multipliers: Vec<f64>,
-    run_pathway_infection_de_novo_multiplier: f64,
-    run_pathway_hgt_multiplier: f64,
-    run_pathway_reversion_rate_multiplier: f64,
-    run_pathway_microbiome_acquisition_multiplier: f64,
-    run_pathway_ratchet_enabled: bool,
     pub microbiome_majority_threshold: f64,
     pub majority_r_evolution_rate: f64,
     pub max_resistance_level: f64,
@@ -1905,23 +1900,6 @@ impl ParameterKeyCache {
             mechanism_de_novo_masks,
             mechanism_hgt_recipient_masks,
             clinical_preference_multipliers,
-            run_pathway_infection_de_novo_multiplier: get_global_param(
-                RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_hgt_multiplier: get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY)
-                .unwrap_or(1.0),
-            run_pathway_reversion_rate_multiplier: get_global_param(
-                RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_microbiome_acquisition_multiplier: get_global_param(
-                RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
-            )
-            .unwrap_or(1.0),
-            run_pathway_ratchet_enabled: get_global_param(RUN_PATHWAY_RATCHET_ENABLED_KEY)
-                .unwrap_or(1.0)
-                > 0.5,
             microbiome_majority_threshold: crate::config::get_global_param(
                 "microbiome_majority_threshold",
             )
@@ -2428,12 +2406,14 @@ pub(crate) fn apply_rules(
     let counterfactual_resistance_multiplier =
         policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
     // Neutral pathway controls support sensitivity analysis and diagnostic ablations.
-    let infection_de_novo_multiplier = param_cache.run_pathway_infection_de_novo_multiplier;
-    let hgt_multiplier = param_cache.run_pathway_hgt_multiplier;
-    let reversion_rate_sampling_multiplier = param_cache.run_pathway_reversion_rate_multiplier;
+    let infection_de_novo_multiplier =
+        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
+    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0);
+    let reversion_rate_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY).unwrap_or(1.0);
     let microbiome_acquisition_sampling_multiplier =
-        param_cache.run_pathway_microbiome_acquisition_multiplier;
-    let ratchet_enabled = param_cache.run_pathway_ratchet_enabled;
+        get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
+    let ratchet_enabled = get_global_param(RUN_PATHWAY_RATCHET_ENABLED_KEY).unwrap_or(1.0) > 0.5;
 
     // Policy adjustments to prescribing and course duration.
     let reserve_drug_penalty_multiplier = policy.reserve_drug_penalty_multiplier.unwrap_or(1.0);
