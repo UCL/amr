@@ -381,7 +381,7 @@ If the pathway is applied, only mechanisms already present in the person's carri
 
 ### 3.4 Resistance at acquisition
 
-When a new active infection is established, the modelling framework determines whether (and, if so, what) resistance is present. The framework uses a set of linked mechanism-level pathways that reflect how resistance co-occurs in bacterial populations and how the simulation's policy scenarios interact with that process:
+When a new active infection is established, the modelling framework determines whether (and, if so, what) resistance is present. The framework uses a set of linked mechanism-level pathways that reflect how resistance occurs in bacterial populations:
 
 **Step 1 — Stored library of circulating resistance-mechanism profiles and prevalence tracking**
 
