@@ -5496,13 +5496,15 @@ pub(crate) fn apply_rules(
                     let from_human_reservoir = rng.gen_bool(community_dilution.clamp(0.0, 1.0));
 
                     // Sample a complete mechanism genotype from the profile reservoir.
-                    // Hospital-acquired infections can temporarily prune a configured fraction
-                    // of mechanism-free candidates. Community infections use uniform sampling.
+                    // Hospital-acquired infections can downweight a configured fraction of
+                    // mechanism-free candidates. Community infections use uniform sampling.
                     // If the profile cache is empty (early warm-up), this sampling route
                     // contributes no mechanisms.
                     let prune_susceptible_percent =
                         store.bacteria.hospital_resistance_prune_susceptible_percent[b_idx];
-                    if from_human_reservoir {
+                    let circulating_profile_assignment_probability =
+                        resistance_pathway_probability(1.0, counterfactual_resistance_multiplier);
+                    if from_human_reservoir && circulating_profile_assignment_probability > 0.0 {
                         let sampled_profile =
                             if is_hospital_acquired && prune_susceptible_percent > 0.0 {
                                 mechanism_cache.sample_profile_hospital_enriched(
@@ -5520,10 +5522,7 @@ pub(crate) fn apply_rules(
                                 )
                             };
                         if let Some(profile) = sampled_profile {
-                            if rng.gen_bool(resistance_pathway_probability(
-                                1.0,
-                                counterfactual_resistance_multiplier,
-                            )) {
+                            if rng.gen_bool(circulating_profile_assignment_probability) {
                                 let eligible_profile =
                                     param_cache.sanitize_mechanism_profile(b_idx, profile.mask);
                                 // A sampled circulating genotype starts in both the any-strain

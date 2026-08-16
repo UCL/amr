@@ -2013,13 +2013,22 @@ impl MechanismCache {
         }
     }
 
-    fn sample_from_slot<R: Rng + ?Sized>(slot: &[u64], rng: &mut R) -> Option<u64> {
-        if slot.is_empty() {
+    fn sample_from_slots<R: Rng + ?Sized>(
+        first_slot: &[u64],
+        second_slot: &[u64],
+        rng: &mut R,
+    ) -> Option<u64> {
+        let total_len = first_slot.len() + second_slot.len();
+        if total_len == 0 {
             return None;
         }
 
-        let idx = rng.gen_range(0..slot.len());
-        Some(slot[idx])
+        let idx = rng.gen_range(0..total_len);
+        if idx < first_slot.len() {
+            Some(first_slot[idx])
+        } else {
+            Some(second_slot[idx - first_slot.len()])
+        }
     }
 
     #[inline]
@@ -2027,16 +2036,18 @@ impl MechanismCache {
         slot.iter().any(|&mask| mask != 0)
     }
 
-    /// Sample a hospital acquisition profile after optionally pruning all-zero profiles.
+    /// Sample a hospital acquisition profile after downweighting all-zero profiles.
     ///
     /// Before the hospital slot has ever accumulated a resistant genotype for this
     /// region×bacterium, hospital acquisition temporarily bootstraps from the pooled
     /// hospital+community regional reservoir. Once the hospital slot contains at least one
     /// resistant profile of its own, sampling reverts to the hospital slot alone.
     ///
-    /// The prune percentage applies only to mechanism-free profiles in the selected
-    /// candidate pool. If pruning removes every candidate and the pool contains only
-    /// mechanism-free profiles, the original unpruned pool is used instead.
+    /// Rejection sampling always accepts mechanism-bearing profiles and accepts
+    /// mechanism-free profiles with probability `1 - prune_percentage`. This gives the
+    /// configured hospital enrichment without allocating and scanning a temporary filtered
+    /// profile vector for every acquisition. A fully mechanism-free pool remains sampleable
+    /// even when the configured prune percentage is 100%.
     pub fn sample_profile_hospital_enriched<R: Rng + ?Sized>(
         &self,
         region_idx: usize,
@@ -2052,54 +2063,60 @@ impl MechanismCache {
         let community_slot = &self.profiles.profiles[region_idx][0][bacteria_idx];
         let hospital_has_resistant = Self::slot_has_resistant_profile(hospital_slot);
 
-        let pooled_slot;
-        let slot = if hospital_has_resistant {
-            hospital_slot.as_slice()
+        let (first_slot, second_slot) = if hospital_has_resistant {
+            (hospital_slot.as_slice(), &[][..])
         } else if hospital_slot.is_empty() {
-            community_slot.as_slice()
+            (community_slot.as_slice(), &[][..])
         } else if community_slot.is_empty() {
-            hospital_slot.as_slice()
+            (hospital_slot.as_slice(), &[][..])
         } else {
-            pooled_slot = hospital_slot
-                .iter()
-                .chain(community_slot.iter())
-                .copied()
-                .collect::<Vec<u64>>();
-            pooled_slot.as_slice()
+            (hospital_slot.as_slice(), community_slot.as_slice())
         };
+        let active_profile_count = first_slot.len() + second_slot.len();
 
-        if let Some(sample) =
-            self.sample_local_persistence_profile(region_idx, bacteria_idx, true, slot.len(), rng)
-        {
+        if let Some(sample) = self.sample_local_persistence_profile(
+            region_idx,
+            bacteria_idx,
+            true,
+            active_profile_count,
+            rng,
+        ) {
             return Some(sample);
         }
-        if slot.is_empty() {
+        if active_profile_count == 0 {
             return None;
         }
 
-        let prune_probability = (prune_susceptible_percent / 100.0).clamp(0.0, 1.0);
-        let use_pruned_slot = prune_probability > 0.0;
-        let mut filtered_slot = Vec::with_capacity(slot.len());
-        if use_pruned_slot {
-            // Only all-zero profiles are eligible for pruning. Resistant profiles remain
-            // candidates, so the sampled pool is enriched without inventing genotypes.
-            for &mask in slot {
-                if mask != 0 || rng.gen::<f64>() >= prune_probability {
-                    filtered_slot.push(mask);
+        let rejection_probability = (prune_susceptible_percent / 100.0).clamp(0.0, 1.0);
+        if rejection_probability <= 0.0 || !rejection_probability.is_finite() {
+            return Self::sample_from_slots(first_slot, second_slot, rng).map(|mask| {
+                MechanismProfileSample {
+                    mask,
+                    from_local_persistence: false,
                 }
-            }
+            });
+        }
+        if rejection_probability >= 1.0
+            && !Self::slot_has_resistant_profile(first_slot)
+            && !Self::slot_has_resistant_profile(second_slot)
+        {
+            return Self::sample_from_slots(first_slot, second_slot, rng).map(|mask| {
+                MechanismProfileSample {
+                    mask,
+                    from_local_persistence: false,
+                }
+            });
         }
 
-        let candidate_slot = if use_pruned_slot && !filtered_slot.is_empty() {
-            filtered_slot.as_slice()
-        } else {
-            slot
-        };
-
-        Self::sample_from_slot(candidate_slot, rng).map(|mask| MechanismProfileSample {
-            mask,
-            from_local_persistence: false,
-        })
+        loop {
+            let mask = Self::sample_from_slots(first_slot, second_slot, rng)?;
+            if mask != 0 || rng.gen::<f64>() >= rejection_probability {
+                return Some(MechanismProfileSample {
+                    mask,
+                    from_local_persistence: false,
+                });
+            }
+        }
     }
 
     /// Return the exact prevalence derived from the current profile reservoir.
@@ -9757,6 +9774,48 @@ mod tests {
 
         assert_eq!(sample.mask, 0);
         assert!(!sample.from_local_persistence);
+    }
+
+    #[test]
+    fn hospital_profile_enrichment_bootstraps_without_combining_slots() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let resistant_mask = 1_u64 << 0;
+        let mut cache = MechanismCache::new(1, 1, num_mechanisms);
+        cache.profiles.profiles[0][1][0] = vec![0, 0];
+        cache.profiles.profiles[0][0][0] = vec![0, resistant_mask];
+        let mut rng = SmallRng::seed_from_u64(8);
+
+        for _ in 0..100 {
+            let sample = cache
+                .sample_profile_hospital_enriched(0, 0, 100.0, &mut rng)
+                .expect("the pooled hospital and community reservoir is not empty");
+            assert_eq!(sample.mask, resistant_mask);
+        }
+    }
+
+    #[test]
+    fn hospital_profile_enrichment_applies_fixed_rejection_weight() {
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let resistant_mask = 1_u64 << 0;
+        let mut cache = MechanismCache::new(1, 1, num_mechanisms);
+        cache.profiles.profiles[0][1][0] = vec![resistant_mask, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut rng = SmallRng::seed_from_u64(9);
+
+        let samples = 20_000;
+        let resistant_samples = (0..samples)
+            .filter(|_| {
+                cache
+                    .sample_profile_hospital_enriched(0, 0, 50.0, &mut rng)
+                    .is_some_and(|sample| sample.mask == resistant_mask)
+            })
+            .count();
+        let observed_probability = resistant_samples as f64 / samples as f64;
+        let expected_probability = 1.0 / (1.0 + 0.5 * 9.0);
+
+        assert!(
+            (observed_probability - expected_probability).abs() < 0.015,
+            "expected approximately {expected_probability}, observed {observed_probability}"
+        );
     }
 
     #[test]
