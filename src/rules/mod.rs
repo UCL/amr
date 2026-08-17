@@ -212,7 +212,6 @@ pub(crate) fn serious_resistance_marker_drugs(bacteria_name: &str) -> &'static [
         | "neisseria_meningitidis" => &["ceftriaxone"],
         "listeria_monocytogenes" => &["ampicillin"],
         "helicobacter_pylori" => &["clarithromycin"],
-        "mdr_mycobacterium_tuberculosis" => &["rifampicin"],
         _ => &[],
     }
 }
@@ -9542,6 +9541,28 @@ mod tests {
         assert!(!has_serious_resistance_test_positive(&individual));
         individual.test_for_resistance[bacteria_idx] = true;
         assert!(has_serious_resistance_test_positive(&individual));
+    }
+
+    #[test]
+    fn mdr_tb_rifampicin_resistance_is_not_a_serious_resistance_marker() {
+        let (mut individual, _rng) = individual_with_seed(6);
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "mdr_mycobacterium_tuberculosis")
+            .expect("MDR-TB index");
+        let drug_idx = DRUG_SHORT_NAMES
+            .iter()
+            .position(|&name| name == "rifampicin")
+            .expect("rifampicin index");
+        individual.level[bacteria_idx] = 1.0;
+        individual.resistances[bacteria_idx][drug_idx].any_r = store_float(1.0);
+        individual.resistances[bacteria_idx][drug_idx].test_r = store_float(1.0);
+        individual.test_for_resistance[bacteria_idx] = true;
+
+        let event = infection_acquisition_event(&individual, bacteria_idx, false);
+        assert!(!event.serious_marker_eligible);
+        assert!(!event.has_serious_r);
+        assert!(!has_serious_resistance_test_positive(&individual));
     }
 
     #[test]

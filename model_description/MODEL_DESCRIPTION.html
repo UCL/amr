@@ -895,40 +895,20 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p><strong>Active-infection immune clearance</strong> is a separate daily logistic hazard. In the current model its log-odds are</p>
 <p>\[-4.2 + \text{bacterium adjustment} + \text{age adjustment} - 0.69\,I(\text{immunodeficient}) - 0.3\times\text{infection level} + 0.25\times\text{duration in days}.\]</p>
 <p>All current bacterium and age adjustments are zero. The daily immune-clearance probability is evaluated from the day the infection is acquired, with infection duration counted from that day. Consequently, an infection can undergo immune clearance on its first simulated day.</p>
-<p><strong>Infection resolution.</strong> Infection level changes each day through configured bacterial growth, host characteristics that modify that growth, and any active antibiotic effect. Immune clearance is evaluated separately as a daily all-or-nothing event rather than as gradual host-driven suppression of the infection level. An infection resolves when the simulated bacterial level falls below 0.0001, or when an immune-clearance event occurs; this is not controlled by <code>default_microbiome_clearance_probability_per_day</code>. <em>H. pylori</em> uses this same active-infection clearance pathway and, uniquely among the 42 bacteria, has no separate microbiome/carriage state. Its configured microbiome-clearance value is consequently available to the model but is not applied to a distinct <em>H. pylori</em> carriage compartment.</p>
+<p><strong>Infection resolution.</strong> Infection level changes each day through configured bacterial growth, host characteristics that modify that growth, and any active antibiotic effect. Immune clearance is evaluated separately as a daily all-or-nothing event rather than as gradual host-driven suppression of the infection level. An infection resolves when the simulated bacterial level falls below 0.0001, or when an immune-clearance event occurs. <em>H. pylori</em> uses this same active-infection clearance pathway but has no separate microbiome/carriage state.</p>
 <p>There can be a delay between infection acquisition and symptom-driven treatment. During that interval, infection level follows the untreated growth calculation. Acquired resistance mechanisms may already be present in the resistance-mechanism profile assigned at infection establishment, and eligible mechanisms can subsequently be transferred through horizontal gene transfer. However, the model's de novo emergence of resistance mechanisms and promotion of minority mechanisms require active applicable antibiotic pressure. It therefore does not apply antibiotic selection before antibiotic exposure begins.</p>
 <hr />
 <h2 id="5-diagnostic-testing">5. Diagnostic Testing</h2>
 <p>Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.</p>
 <p>We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, MIC levels, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.</p>
-<p>Within this simplified pathway, AST is an error-prone report of the model's mechanism-derived acquired resistance. It does not assess the potency matrix. A zero reported resistance value therefore means that no modelled acquired resistance was reported for that drug; it does not establish that the drug has baseline activity against the bacterium or will be clinically effective.</p>
-<p><strong>Individual-level variables introduced in this section.</strong> For each active infection, <code>test_identified_infection[b]</code> records whether bacterial identification is complete, while <code>test_for_resistance[b]</code> records whether the antimicrobial susceptibility testing (AST) panel is available and <code>resistance_test_initiated_day[b]</code> records when AST began. The corresponding daily identification and AST-initiation probabilities are <code>bacterial_identification_probability[b]</code> and <code>resistance_testing_probability[b]</code>. Once available, <code>resistances[b][d].test_r</code> records the reported acquired-resistance result for each drug; <code>serious_resistance_test_positive</code> summarises whether the completed panel meets the model's serious-resistance definition. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p>Within this simplified pathway, AST is an error-prone report of the model's mechanism-derived acquired resistance.  A zero reported resistance value (any_r = 0) therefore means that no modelled acquired resistance was reported for that drug; it does not in itself establish that the drug has baseline activity against the bacterium or will be clinically effective as that also depends on the potency of the drug against the bacteria.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> For each active infection, <code>test_identified_infection[b]</code> records whether bacterial identification is complete, while <code>test_for_resistance[b]</code> records whether the antimicrobial susceptibility testing (AST) panel is available and <code>resistance_test_initiated_day[b]</code> records when AST began. The corresponding daily identification and AST-initiation probabilities are <code>bacterial_identification_probability[b]</code> and <code>resistance_testing_probability[b]</code>. Once available, <code>resistances[b][d].test_r</code> records the reported acquired-resistance result for each drug; <code>serious_resistance_test_positive</code> indicates whether the completed panel reports resistance to at least one of the organism-specific marker drugs listed in <a href="#54-serious-resistance-marker-drugs">Section 5.4</a>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="51-historical-introduction">5.1 Historical introduction</h3>
 <p>The framework treats routine bacterial identification and antimicrobial susceptibility testing as unavailable at the 1930 epoch and activates them at configured dates:</p>
-<table>
-<thead>
-<tr>
-<th>Technology</th>
-<th>Available from</th>
-<th>~ Calendar year</th>
-<th>Clinical context</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Bacterial culture</strong></td>
-<td>Day 5,478</td>
-<td>~1945</td>
-<td>Basic culture techniques became routine in the mid-20th century</td>
-</tr>
-<tr>
-<td><strong>Antimicrobial susceptibility testing (AST)</strong></td>
-<td>Day 9,131</td>
-<td>~1955</td>
-<td>Standardised AST methods (e.g., disc diffusion) followed about a decade later (Bauer AW et al., 1966)</td>
-</tr>
-</tbody>
-</table>
+<p>| Technology | Available from Calendar year | Clinical context |
+|------------|---------------|-----------------|-----------------|
+| <strong>Bacterial culture</strong> | ~1945 | Basic culture techniques became routine in the mid-20th century |
+| <strong>Antimicrobial susceptibility testing (AST)</strong> | ~1955 | Standardised AST methods (e.g., disc diffusion) followed about a decade later (Bauer AW et al., 1966) |</p>
 <p>Before these dates, all prescribing in the model is entirely empiric — clinicians have no laboratory information to guide drug choice. This represents the early antibiotic era, when penicillin was prescribed without knowing the susceptibility of the infecting organism.</p>
 <h3 id="52-the-testing-process">5.2 The testing process</h3>
 <p>Once testing is available and ordered, the model simulates a laboratory workflow:</p>
@@ -946,7 +926,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <td><strong>Bacterial identification delay</strong></td>
 <td><code>test_delay_days</code></td>
 <td>3 days</td>
-<td>Bacterial identification cannot be recorded until 3 days after infection acquisition. This is a simplified aggregate representation of specimen collection, culture, and identification.</td>
+<td>Bacterial identification cannot be recorded until 3 days after infection acquisition. This is a simplified aggregate representation of symptom development, presentation, specimen collection, culture, and identification.</td>
 </tr>
 <tr>
 <td><strong>AST result delay</strong></td>
@@ -1056,10 +1036,10 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </tbody>
 </table>
 <p><em>Table sources: Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026.</em></p>
-<p>These regional differences have direct consequences for AMR: in settings where testing is rare, patients are more likely to continue on ineffective empiric therapy, creating selection pressure for resistance without the feedback loop of culture results to guide narrower prescribing.</p>
+<p>These regional differences have direct consequences for AMR: in settings where testing is rare, patients are more likely to continue on empiric therapy (including on ineffective empiric therapy), creating selection pressure for resistance without the feedback loop of culture results to guide narrower prescribing.</p>
 <p>As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasised by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings.</p>
 <h3 id="54-serious-resistance-marker-drugs">5.4 Serious resistance marker drugs</h3>
-<p>The <code>serious_resistance_marker_drugs</code> reference table defines one or more marker drug-resistance results for each organism. These markers are used when interpreting serious-resistance burden and in admission logic once a relevant resistant test result is known.</p>
+<p>In this model, "serious resistance" means modelled acquired resistance to at least one of the organism-specific marker drugs listed below. This classification is used in outputs describing resistance present at infection acquisition and among active infections and does not depend on diagnostic testing. Separately, once AST results are available, reported resistance to a marker drug contributes to the probability of hospital admission. The <code>serious_resistance_marker_drugs</code> reference table defines the relevant marker drug or drugs for each organism.</p>
 <table>
 <thead>
 <tr>
@@ -1116,12 +1096,9 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <td><em>H. pylori</em></td>
 <td><code>clarithromycin</code></td>
 </tr>
-<tr>
-<td>MDR <em>M. tuberculosis</em></td>
-<td><code>rifampicin</code></td>
-</tr>
 </tbody>
 </table>
+<p>MDR <em>M. tuberculosis</em> is excluded from this classification because rifampicin resistance is part of the definition of MDR-TB. Additional resistance within MDR-TB would require a separate measure.</p>
 <hr />
 <h2 id="6-antibiotic-treatment">6. Antibiotic Treatment</h2>
 <p>This section covers the entire antibiotic prescribing process as the model simulates it — from the decision to start an antibiotic, through drug selection and dosing, to stopping the course. Antibiotic use drives the selection pressure that causes resistance to emerge and spread.</p>
