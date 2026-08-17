@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SIMULATION_CSV = (
     PROJECT_ROOT
     / "amr_simulation_output_analysis_outputs"
-    / "simulation_summary_956704.csv"
+    / "simulation_summary_774079.csv"
 )
 CALIBRATION_TARGETS_PATH = PROJECT_ROOT / "data" / "calibration_targets.json"
 SIMULATION_START_YEAR = 1930

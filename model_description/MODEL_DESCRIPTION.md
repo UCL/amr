@@ -63,15 +63,7 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 
 **Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter, selected against a mixture of observed quantities, transformed comparisons, and transparent expert placeholders. Resistance calibration uses evidence-informed benchmarks drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD), but the current matrix does not retain cell-level provenance sufficient to call every value an observed estimate. Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
 
-**Resistance calibration quantities.** Figure 2 deliberately defines simulated
-resistance prevalence as the proportion of active-infection person-days for which
-the bacterium-drug `any_r` value is greater than zero. Resistance severity is
-represented separately by the mean `any_r` among those positive infection-days.
-These are policy-scale model quantities rather than literal clinical breakpoint
-categories. The model does not assign drug-specific concentration units or attempt
-to reproduce organism-drug MIC values, because the additional pharmacokinetic,
-laboratory, and breakpoint parameterisation would be disproportionate to its
-all-bacteria policy-comparison purpose.
+**Resistance calibration quantities.** Figure 2 in the main paper defines simulated resistance prevalence as the proportion of active-infection person-days for which the bacterium-drug `any_r` value is greater than zero. Resistance severity is represented separately by the mean `any_r` among those positive infection-days.  These are policy-scale model quantities rather than literal clinical breakpoint categories. The model does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because the additional pharmacokinetic, laboratory, and breakpoint parameterisation would be disproportionate to its all-bacteria policy-comparison purpose.
 
 **Surveillance ascertainment.** Many of the evidence sources informing the
 resistance benchmarks are based on cultured clinical isolates and may overrepresent
@@ -381,11 +373,11 @@ If the pathway is applied, only mechanisms already present in the person's carri
 
 ### 3.4 Resistance at acquisition
 
-When the initial acquisition draw proposes a new active infection, the modelling framework assembles the resistance mechanisms of the prospective infection before determining whether existing antibiotic therapy prevents it from becoming established. The framework uses a set of linked mechanism-level pathways that reflect how resistance occurs in bacterial populations:
+When the acquisition random draw proposes a new active infection, the modelling framework assembles the resistance mechanisms of the proposed infection before determining whether existing antibiotic therapy prevents it from becoming established. The framework uses a set of linked mechanism-level pathways that reflect how resistance occurs in bacterial populations:
 
 **Step 1 — Stored library of circulating resistance-mechanism profiles and prevalence tracking**
 
-After every simulated day, the model refreshes a **stored library of circulating resistance-mechanism profiles** (`MechanismCache` in the code) containing up to 1000 complete resistance-mechanism profiles for each combination of region × current care setting (community / hospital) × bacterium. Each active infection contributes the resistance-mechanism profile of its predominant ("majority") strain to that day's collection. If that strain carries none of the resistance mechanisms represented in the model, it is recorded as a resistance-mechanism profile with no modelled acquired resistance. Every eligible active infection-day has an equal chance of entering its daily region × setting × bacterium collection, so a persistent infection can contribute again on successive days.
+After every simulated day, the model refreshes a **stored library of circulating resistance-mechanism profiles** (`MechanismCache` in the code) containing up to 1000 complete resistance-mechanism profiles for each combination of region × current care setting (community / hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant (“majority”) strain in the daily collection for the corresponding combination of region × care setting × bacterium group. For each such combination, the model forms a daily collection of up to 1,000 resistance_mechanism profiles, with each entry representing one eligible active infection-day. If more than 1,000 infection-days are eligible, entries are selected uniformly so that every eligible infection-day has the same chance of representation. A persistent infection is eligible again on each successive day that it remains active. If that strain carries none of the resistance mechanisms represented in the model, it is recorded as a resistance-mechanism profile with no modelled acquired resistance. Every eligible active infection-day has an equal chance of entering its daily region × setting × bacterium collection, so a persistent infection can contribute again on successive days.
 
 The stored resistance-mechanism profile library blends retained resistance-mechanism profiles with newly collected resistance-mechanism profiles each day. Every stored resistance-mechanism profile currently has the same probability of retention each day (0.999 for `community_profile_cache_retention` and `hospital_profile_cache_retention`).  Established resistance-mechanism profiles are represented separately in the bounded local mechanism-persistence archive (see below) rather than being forced into the active-prevalence library.
 
