@@ -6,7 +6,7 @@
 
 1. [Overview](#1-overview)
 2. [Population and Demographics](#2-population-and-demographics)
-3. [Infection Acquisition](#3-infection-acquisition)
+3. [Infection Acquisition and Resistance at Establishment](#3-infection-acquisition-and-resistance-at-establishment)
 4. [Clinical Progression](#4-clinical-progression)
 5. [Diagnostic Testing](#5-diagnostic-testing)
 6. [Antibiotic Treatment](#6-antibiotic-treatment)
@@ -82,7 +82,7 @@ The document is organised to follow the progression of an individual through the
 | Section | Content |
 |---------|---------------|
 | **2. Population** | Who the simulated people are — age, sex, region, immune status |
-| **3. Infection Acquisition** | How people catch bacteria (epidemiology — incidence, risk factors, hospital vs community) |
+| **3. Infection Acquisition and Resistance at Establishment** | How candidate infections arise, acquire resistance-mechanism profiles, and either become established or are prevented by existing therapy |
 | **4. Clinical Progression** | What happens once infected — symptoms, syndromes, sepsis |
 | **5. Diagnostic Testing** | When and how bacteria and resistance are identified |
 | **6. Antibiotic Treatment** | How drugs are started, chosen, dosed, and stopped (empiric and targeted prescribing) |
@@ -92,10 +92,10 @@ The document is organised to follow the progression of an individual through the
 | **10. Mortality** | Case fatality rates, sepsis mortality |
 | **11. Potential future model uses** | Illustrative scientific and policy questions that the framework could support |
 | **12. Limitations** | What the framework does not capture / caveats for interpretation |
-| **Appendices** | Reference tables of all bacteria, drugs, parameters, and outputs |
+| **Appendices** | Reference tables of bacteria, drugs, parameters, individual-level variables, and outputs |
 
 
-Each section describes the modelling choices, their rationale, and the specific rules and parameter values. 
+Each section describes the modelling choices, their rationale, and the specific rules and parameter values. Sections 2–10 also identify the principal individual-level quantities at the start of the section where they are first treated in detail. Exact identifiers are included in parentheses for traceability to [Appendix D](#appendix-d-individual-level-variable-dictionary), which provides the complete variable dictionary and update-rule catalogue. Variables used only for output counting or to prevent duplicate reporting remain in Appendices C and D rather than being foregrounded in the scientific narrative.
 
 ---
 
@@ -103,6 +103,8 @@ Each section describes the modelling choices, their rationale, and the specific 
 ## 2. Population and Demographics
 
 This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immune status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.  Future users may wish to add further details (variables) for each individual.
+
+**Individual-level quantities introduced in this section.** Each person has an identifier (`id`), age in days (`age`), sex at birth (`sex_at_birth`), a home region (`region_living`), and a current region that can change during travel (`region_cur_in`, with `days_visiting` recording the duration of a visit). Current care setting is represented by `hospital_status` and `days_hospitalized`, and severe temporary or chronic immunodeficiency by `immunodeficiency_type`. Daily transition probabilities determine changes in immunodeficiency, hospital admission, and travel (`immunodeficiency_transition_probability`, `hospitalization_probability`, and `travel_probability`). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 ### 2.1 Initialisation
 
@@ -292,9 +294,11 @@ When a person travels, they are temporarily exposed to the infection risks and d
 
 
 
-## 3. Infection Acquisition
+## 3. Infection Acquisition and Resistance at Establishment
 
-This section describes how people in the model acquire bacterial infections. A person can acquire bacteria from three main sources: the community (e.g., food, water, close contacts), the hospital environment (e.g., ventilators, catheters, other patients), or their own body (bacteria they are already carrying asymptomatically can flare into active infection). The model captures all three pathways, but it does so through a deliberately compressed acquisition architecture that preserves the main epidemiological distinctions needed for long-run AMR policy analysis rather than every route-specific exposure mechanism.
+This section describes how candidate bacterial infections arise and whether they become established. A candidate can originate from the community (e.g., food, water, or close contacts), the hospital environment (e.g., ventilators, catheters, or other patients), or the person's own asymptomatic carriage. Before establishment, the model assembles the candidate infection's resistance-mechanism profile and evaluates whether antibiotics the person is already taking prevent it. The model captures these distinctions through a deliberately compressed architecture suited to long-run AMR policy analysis rather than representing every route-specific exposure mechanism.
+
+**Individual-level quantities introduced in this section.** For each bacterium, the model records vaccination status (`vaccination_status[b]`), the calculated daily acquisition risk (`predicted_infection_risk[b]`), and the temporary probability used to generate a candidate infection (`infection_acquisition_probability[b]`). A successful episode records its start day and acquisition setting (`date_last_infected[b]`, `date_last_infected_keep[b]`, and `infection_hospital_acquired[b]`). For a candidate infection, `incoming_infection_mechanism_mask[b]` represents its prospective resistance-mechanism profile; if it becomes established, `mechanism_any[b]` records mechanisms present in any represented strain, `mechanism_majority[b]` records those in the predominant strain, and `resistances[b][d].any_r` records the resulting resistance severity for each drug. The model also records the probability and occurrence of prevention by existing therapy (`existing_therapy_prevention_probability[b]` and `infection_prevented_by_drug[b]`). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 3.1 Community acquisition
@@ -358,7 +362,7 @@ For pathogens whose transmission is overwhelmingly sexual or foodborne, the curr
 Asymptomatic carriage (see Section 8) can give rise to endogenous infection when commensal organisms transition to an active infection site. This pathway is important for AMR because:
 
 - The carried bacteria may already be resistant (having been selected by previous antibiotic courses)
-- Resistance mechanisms in the person's carriage resistance-mechanism profile can pass from carriage to infection, with each mechanism present in the microbiome compartment (`mechanism_microbiome`) considered independently for transfer to the infection compartment (`mechanism_any`)
+- Resistance mechanisms in the person's carriage resistance-mechanism profile can pass from carriage to infection, with each mechanism present in the carriage compartment considered independently for transfer to the prospective infection
 
 This pathway is governed by two parameters:
 
@@ -367,131 +371,23 @@ This pathway is governed by two parameters:
 | `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the carrier-inheritance pathway is applied; when it is, individual mechanisms are copied from the microbiome to the infection compartment |
 | `infection_from_microbiome_dampening` | 0.70 | Per-mechanism transfer probability: each mechanism in the microbiome has a 70% chance of being copied to the infection site, reflecting that not all colonising lineages successfully transition to the infection site |
 
-If the pathway is applied, only mechanisms already present in the person's carriage compartment are eligible, and successful transfers are added to the prospective infection's `mechanism_any` record. This link is evaluated after the initial infection-acquisition draw succeeds but before the candidate infection is tested against existing therapy and established, provided the person is already carrying the same organism in `presence_microbiome`. It is distinct from sampling from the regional stored resistance-mechanism profile library during acquisition (Section 3.4), because it uses the person's own carriage resistance-mechanism profile rather than importing a resistance-mechanism profile from the surrounding community or hospital pool.
+If the pathway is applied, only mechanisms already present in the person's carriage compartment are eligible, and successful transfers are added to the prospective infection's record of mechanisms present in any represented strain. This link is evaluated after the initial infection-acquisition draw succeeds but before the candidate infection is tested against existing therapy and established, provided the person is already carrying the same organism. It is distinct from sampling from the regional stored resistance-mechanism profile library during acquisition (Section 7.3), because it uses the person's own carriage resistance-mechanism profile rather than importing a resistance-mechanism profile from the surrounding community or hospital pool. The individual-level carriage variables are introduced in Section 8.
 
 
 
-### 3.4 Resistance at acquisition
+### 3.4 Resistance at establishment
 
-When the acquisition random draw proposes a new active infection, the modelling framework assembles the resistance mechanisms of the proposed infection before determining whether existing antibiotic therapy prevents it from becoming established. The framework uses a set of linked mechanism-level pathways that reflect how resistance occurs in bacterial populations:
+The initial acquisition calculation determines whether a candidate active infection is generated before a resistance-mechanism profile is assigned. Resistance nevertheless affects which candidate infections ultimately become established, because the model evaluates existing antibiotic therapy against the candidate's prospective resistance mechanisms.
 
-**Step 1 — Stored library of circulating resistance-mechanism profiles and prevalence tracking**
+The sequence is:
 
-After every simulated day, the model refreshes a **stored library of circulating resistance-mechanism profiles** (`MechanismCache` in the code) containing up to 1000 complete resistance-mechanism profiles for each combination of region × current care setting (community / hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant (“majority”) strain in the daily collection for the corresponding combination of region × care setting × bacterium group. For each such combination, the model forms a daily collection of up to 1,000 resistance_mechanism profiles, with each entry representing one eligible active infection-day. If more than 1,000 infection-days are eligible, entries are selected uniformly so that every eligible infection-day has the same chance of representation. A persistent infection is eligible again on each successive day that it remains active. If that strain carries none of the resistance mechanisms represented in the model, it is recorded as a resistance-mechanism profile with no modelled acquired resistance. Every eligible active infection-day has an equal chance of entering its daily region × setting × bacterium collection, so a persistent infection can contribute again on successive days.
+1. **Candidate acquisition.** The model calculates the bacterium-specific acquisition probability and samples whether a candidate infection arises. This probability depends on the epidemiological factors described in Sections 3.1–3.3, not on the resistance-mechanism profile that will subsequently be assigned.
+2. **Resistance source.** After a candidate arises, the model selects the applicable source pathway. A candidate may inherit a complete resistance-mechanism profile from the local human circulating reservoir, including its bounded local persistence archive, or follow an exogenous route on which configured environmental or historical reseeding probabilities may assign mechanisms. Candidate hospital infections use the local human-reservoir pathway with any configured hospital enrichment. Section 7.3 describes these population-level resistance sources.
+3. **Completion of the prospective resistance-mechanism profile.** The model adds any mechanisms supplied by the MDR-TB rule and, where the person carries the same organism, by the same-person carriage pathway described in Section 3.3. These mechanisms remain prospective at this stage and are not yet stored as an active infection.
+4. **Prevention by existing therapy.** For each antibiotic the person is already taking, the model calculates effective activity from drug potency, current drug level, and the resistance implied by the prospective resistance-mechanism profile. A sufficiently active drug can prevent establishment according to `antibiotic_infection_prevention_efficacy` (0.70). Resistance can reduce activity and thereby permit breakthrough infection.
+5. **Establishment.** If prevention occurs, the candidate infection and its prospective resistance mechanisms are discarded and no infection-acquisition event is recorded. Otherwise, the infection becomes established: `mechanism_any` and `mechanism_majority` are stored, and the drug-specific resistance measure `any_r` is calculated from the mechanisms in `mechanism_any` as described in Sections 7.2 and 7.3.
 
-The stored resistance-mechanism profile library blends retained resistance-mechanism profiles with newly collected resistance-mechanism profiles each day. Every stored resistance-mechanism profile currently has the same probability of retention each day (0.999 for `community_profile_cache_retention` and `hospital_profile_cache_retention`).  Established resistance-mechanism profiles are represented separately in the bounded local mechanism-persistence archive (see below) rather than being forced into the active-prevalence library.
-
-Alongside the current circulating resistance-mechanism profile library, the model keeps a permanent **local mechanism-persistence archive**. The first complete observed resistance-mechanism profile carrying each mechanism is remembered separately for that region × care setting × bacterium. Distinct archived resistance-mechanism profiles form a small, weighted representation of established strains in the much larger population outside the finite simulation. The archive is not included in the prevalence calculated from the current circulating resistance-mechanism profile library and does not itself imply that a resistance-mechanism profile is currently circulating among simulated infections. Section 7.5 describes its bounded contribution to resistance-mechanism profile sampling.
-
-Because the stored resistance-mechanism profile library includes resistance-mechanism profiles with and without modelled acquired resistance, the **prevalence** of resistance to any given drug can be estimated directly from it: for each stored resistance-mechanism profile, the model checks whether at least one recorded mechanism would affect that drug, and the fraction meeting this condition gives the current prevalence estimate. The same stored resistance-mechanism profile library therefore supplies both the resistance-mechanism profiles sampled at acquisition and the prevalence estimates used later by prescribing logic (Section 6).
-
-**Hospital enrichment lever.** Hospital-acquired active infections can be made more likely to draw already-observed resistance-mechanism profiles containing at least one represented mechanism through `hospital_resistance_prune_susceptible_percent`. The model repeatedly draws from the current candidate pool, always accepting a profile containing a represented acquired-resistance mechanism and accepting a mechanism-free profile with probability one minus the configured percentage. The default is 50%, with higher organism-specific values for classic nosocomial pathogens. Thus the parameter downweights mechanism-free profiles without creating or combining genotypes; it does not imply susceptibility to every drug because intrinsic non-susceptibility is represented elsewhere. If the pool is entirely mechanism-free, it remains sampleable even at 100%. The separate local mechanism-persistence archive is considered before this enrichment step.
-
-**Step 2 — Community resistance-mechanism profile source**
-
-The model calculates the initial probability of a candidate community infection or carriage acquisition before assigning any resistance-mechanism profile. For active infection, however, successful establishment is not independent of resistance: after the incoming resistance mechanisms have been assembled, existing antibiotic therapy may prevent the infection, and this check depends on the resistance implied by those mechanisms. Carriage has no equivalent post-acquisition prevention check.
-
-After the initial community acquisition draw succeeds, the bacterium-specific `community_resistance_dilution_factor` controls whether the model attempts to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. Despite the word `dilution` in its configuration name, the parameter is therefore the probability of using this resistance-mechanism profile source rather than a direct multiplier applied to resistance prevalence.
-
-The circulating resistance-mechanism profile library is generated internally from the predominant-strain resistance-mechanism profiles of all simulated active-infection person-days in the relevant region and current care setting. It includes untested and fully susceptible infections as well as resistant infections, and a persistent infection can contribute on successive days. It should therefore not be interpreted as a library of clinical isolates or as a direct representation of surveillance sampling.
-
-For a candidate active community infection, a successful source probability check leads to resistance-mechanism profile sampling from the local community human-reservoir resistance-mechanism profile library, including its bounded local persistence archive. If the check is unsuccessful, that resistance-mechanism profile library is skipped and the candidate infection follows the exogenous route, where configured environmental or dynamic ratchet probabilities may assign mechanisms without sampling a human-reservoir resistance-mechanism profile. Same-person carriage inheritance can add mechanisms after either route and before the existing-therapy check. For a new community carriage episode, the same factor contributes to the probability that the human-reservoir resistance-mechanism profile library is sampled, but the active-infection exogenous-floor assignment step is not applied; resistance can subsequently arise through the other carriage pathways. Hospital acquisitions do not use this community source probability: candidate hospital infections use the human-reservoir route, while hospital carriage applies the run-level and counterfactual controls without community dilution.
-
-The parameter consequently controls the mixture of resistance-mechanism profile pathways after the initial acquisition draw; it does not change the probability of that initial draw. Because the resulting resistance mechanisms affect the existing-therapy prevention check, the parameter can indirectly influence both the number and resistance distribution of active infections that ultimately become established. Its effect on resistance is not necessarily monotonic because the human-reservoir resistance-mechanism profile library contains resistance-mechanism profiles with and without modelled acquired resistance, and the exogenous active-infection route can itself assign resistance.
-
-The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir and to resistant exogenous reservoirs. The categories are interpretive groupings rather than constraints enforced by the model; the bacterium-specific values in Appendix B.3 are the reference values used in the calculations.
-
-| Category | Dilution range | Example bacteria | Rationale |
-|----------|---------------:|------------------|-----------|
-| Environmental / waterborne | 0.30 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition has a substantial exogenous component rather than being drawn exclusively from the local human circulating pool |
-| Foodborne / mixed exogenous reservoir | 0.30–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | The non-human or broad exogenous fraction remains important, but some organisms in this group are still largely human-maintained |
-| Healthcare-associated | 0.30–0.50 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance is amplified in hospitals, so community acquisitions retain a material exogenous component without human-reservoir resistance-mechanism profile sampling |
-| Endogenous flora / human-associated | 0.60–1.00 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology; *H. pylori* uses the human-reservoir resistance-mechanism profile source but has no separate modelled carriage compartment |
-| Obligate human pathogen / STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission means the community pool is the human circulating pool |
-
-The values are best-guess ecological and calibration parameters used to mix the human-reservoir and exogenous source pathways. The initial candidate-acquisition probability is parameterised separately.
-
-Differences between clinically sampled resistance evidence and the model's active-infection person-day outputs are discussed in Sections 1.1 and 12.1.  They are an issue for interpretation of the calibration comparison and are not
-implemented through `community_resistance_dilution_factor`.
-
-**Step 3 — Correlated resistance-mechanism profile sampling**
-
-Rather than deciding each mechanism independently from a separate prevalence estimate, the framework can draw a **complete resistance-mechanism profile** from the stored resistance-mechanism profile library described in Step 1, adding all mechanisms recorded in that resistance-mechanism profile to the prospective infection at the same time. These mechanisms are committed to the individual only if the candidate infection subsequently becomes established. The result is that newly acquired *E. coli*, for example, can arrive with a resistance-mechanism profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
-
-**Community-acquired infections** that pass the Step 2 source probability check — meaning the model treats them as arising from the human circulating reservoir rather than from a wholly exogenous environmental exposure — can draw from the local mechanism-persistence archive described in Step 4. If the archive is not selected, the model draws a resistance-mechanism profile uniformly at random from the current community resistance-mechanism profile group for the relevant region and bacterium. Conditional on using that current group, the draw reflects the resistance prevalence already present in the community library; the dilution factor selects the source pathway but does not alter prevalence within the library. In the very early warm-up phase, if the requested community resistance-mechanism profile group is still empty, the model temporarily uses the other care-setting stratum rather than inventing a synthetic resistance-mechanism profile.
-
-**Hospital-acquired enriched sampling.** Candidate hospital-acquired active infections can, when configured, draw from an enriched version of the stored local hospital resistance-mechanism profile group. Whenever the current hospital resistance-mechanism profile group for that region and bacterium contains no example with a represented mechanism, the model temporarily uses the available local community and hospital resistance-mechanism profiles together, so resistance already circulating nearby can inform hospital acquisitions. Once the current hospital group contains a resistance-mechanism profile with at least one represented mechanism, sampling uses that group alone. The model can temporarily remove a chosen fraction of fully susceptible resistance-mechanism profiles before the uniform draw, while never removing resistance-mechanism profiles containing at least one represented mechanism. If removing fully susceptible resistance-mechanism profiles would leave nothing to sample from, the original set is used instead. The selected resistance-mechanism profile comes either from this current candidate pool or from the separate local mechanism-persistence archive; neither route creates artificial new resistance combinations.
-
-Carriage acquisition (Section 8.2) is related but not identical. Hospitalised carriage acquisitions can draw from the hospital local mechanism-persistence archive or from the current hospital resistance-mechanism profile stratum; if the current hospital stratum is empty, the current community stratum is used as a temporary fallback. Carriage does not use the removal step for fully susceptible resistance-mechanism profiles that is reserved for active hospital infections. For hospital carriage, the run-level `run_pathway_microbiome_acquisition_multiplier` controls whether resistance-mechanism profile sampling occurs. Community carriage applies both that control and the per-bacterium community dilution factor. A sampled carriage resistance-mechanism profile is recorded only in `mechanism_microbiome` and used to calculate `microbiome_r`; it does not create active-infection `mechanism_any` or `any_r` state. Transfer into a later same-organism infection occurs through the separate carrier-inheritance pathway.
-
-If neither the relevant local mechanism-persistence archive nor either current care-setting stratum supplies a resistance-mechanism profile for a given region and bacterium, no resistance-mechanism profile is assigned and the individual remains susceptible through the resistance-mechanism profile sampling pathway.
-
-**Counterfactual scenario control.** The `counterfactual_resistance_multiplier` controls whether resistance mechanisms are incorporated through resistance-mechanism profile inheritance and the model's other resistance-acquisition pathways (default 1.0; set to 0.0 in the counterfactual scenario). For candidate active infections, a sampled resistance-mechanism profile is accepted only after a probability check against this multiplier; for carriage, the multiplier is included in the probability of sampling a resistance-mechanism profile. A value of 0.0 also disables resistance assignment through static and ratchet exogenous floors, the MDR-TB rifampicin rule, same-person carriage inheritance, de novo emergence, microbiome-acquisition seeding, and HGT. These pathways are implemented separately but share the same counterfactual control.
-
-
-**Step 4 — Local persistence and exogenous reseeding**
-
-The acquisition pathway has two distinct forms of resistance persistence. They operate on different source pathways and should not be interpreted as prevalence floors.
-
-When an infection or carriage acquisition samples the **local human reservoir**, the current circulating resistance-mechanism profile library and the local historical archive act as two candidate resistance-mechanism profile pools. The archive has total virtual mass `K`, shared across all of its distinct complete resistance-mechanism profiles. If the current candidate pool contains `N` resistance-mechanism profiles, the archive is selected with probability:
-
-$$p_{archive} = \min\left(p_{max}, \frac{K}{N + K}\right).$$
-
-The defaults are `K = 10` and `p_max = 0.10`. Thus the archive contributes about 0.99% of draws beside a circulating library containing 1000 resistance-mechanism profiles, 9.09% beside 100 current resistance-mechanism profiles, and never more than 10% in sparsely populated or empty strata. A successful draw selects one complete archived resistance-mechanism profile in place of a resistance-mechanism profile from the current library. The draw is not repeated per mechanism or per drug, and archived mechanisms are never added independently to another sampled resistance-mechanism profile.
-
-The archive is enabled by `local_mechanism_persistence_enabled = 1.0`. Establishment and sampling are strictly local: an observation in one region or care setting does not seed another. Archived resistance-mechanism profiles remain eligible whether or not their mechanisms are also present in the current circulating resistance-mechanism profile library; this continuous low-weight contribution prevents one restored resistance-mechanism profile from immediately disabling persistence support. The archive does not alter prevalence in the current library. It is sampled only on the human-reservoir pathway, follows the same counterfactual scenario control as ordinary resistance-mechanism profile inheritance, and can contribute to either active infection or carriage. Successful incorporations are reported separately for those two destinations.
-
-Separately, when a community active-infection acquisition falls into the **non-human / exogenous fraction** (`!from_human_reservoir`), the model evaluates each mechanism using an effective assignment probability equal to:
-
-$$\text{effective floor} = \max(\text{environmental floor}, \text{ratchet floor})$$
-
-The **environmental floor** is configured only for selected bacteria-mechanism pairs and represents resistance maintained outside the local human circulating pool, for example in agricultural, food-chain, wastewater, or other exogenous reservoirs (see Section 7.7). The **ratchet floor** is dynamic and is derived from stepped historical peak values in the stored resistance-mechanism profile library (see Section 7.8). Both are evaluated only when the model permits that mechanism for the bacterial species. Despite the word “floor,” both values are Bernoulli mechanism-assignment probabilities on each exogenous acquisition. They provide reseeding pressure but do not mathematically guarantee that resistance prevalence across all infections remains above the same percentage.
-
-The local archive addresses finite-population loss from the human circulating reservoir. Explicit environmental probabilities and the ratchet provide separate exogenous pathways.
-
-**Linked resistance-mechanism profiles.** Successful bacterial lineages can carry correlated sets of resistance mechanisms, including the familiar co-resistance patterns of MRSA lineages. The model represents this linkage by sampling and transmitting complete resistance-mechanism profiles from the region- and setting-specific resistance-mechanism profile reservoir. The local persistence archive likewise stores complete resistance-mechanism profiles. It does not independently add mechanisms after a resistance-mechanism profile draw merely because their marginal presence has been observed elsewhere: that would create combinations unsupported by the sampled lineage and would replace local joint structure with global marginal probabilities. This rule is the same for *S. aureus* and other bacteria. If future evidence shows that the finite resistance-mechanism profile reservoir does not adequately retain an important lineage structure, any extension should use empirically defined joint resistance-mechanism profiles or conditional lineage distributions rather than independent package completion.
-
-**Step 5 — Completing the prospective resistance-mechanism profile**
-
-Before a candidate active infection is assessed against existing therapy, two additional acquisition-time pathways can add mechanisms to its prospective resistance-mechanism profile.
-
-**MDR-TB guaranteed rifampicin resistance.** *M. tuberculosis* is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (World Health Organization drug-resistant TB treatment guidelines, 2020). For MDR-TB candidate acquisitions occurring in or after 1966 (when rifampicin was introduced), the model adds every resistance mechanism applicable to rifampicin for that bacterium — specifically the `rpoB` RNA-polymerase mutation — to both the prospective `mechanism_any` and `mechanism_majority` records, regardless of what the earlier resistance-mechanism profile sampling step supplied. If the infection becomes established, this pathway is classified as `ResistanceAcquisitionType::AtInfectionTB` rather than `AtInfectionCommunity`, allowing it to be tracked separately in output statistics. The parameter `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` acts as an enable/disable control: any positive value enables this fixed model rule, so the current default of 0.90 behaves as "enabled" rather than as a 90% random probability check. A counterfactual resistance multiplier of 0.0 disables the rule.
-
-**Same-person carriage inheritance.** If the person already carries the same organism, the carrier-inheritance bridge described in Section 3.3 is evaluated before the candidate infection is tested against existing therapy. The person-level `carrier_resistance_inheritance_probability` first determines whether the pathway is applied. Each eligible carriage mechanism that is not already present in the prospective infection is then considered independently using `infection_from_microbiome_dampening`. Successful transfers are added to prospective `mechanism_any` only, so they begin as minority active-infection mechanisms rather than part of the predominant-strain resistance-mechanism profile. This pathway is distinct from acquisition from the regional stored resistance-mechanism profile library because it uses the person's own carriage resistance-mechanism profile.
-
-**Step 6 — Existing therapy, establishment, and calculation of `any_r`**
-
-Once the prospective resistance mechanisms have been assembled, the model evaluates whether antibiotics the person is already taking prevent the candidate active infection from becoming established. For each current drug, effective activity is calculated from its potency against the bacterium, the person's current drug level, and the resistance implied by the prospective resistance-mechanism profile. A sufficiently active drug can prevent establishment according to `antibiotic_infection_prevention_efficacy` (currently 0.70). Resistance reduces effective activity and can therefore allow a candidate infection to break through therapy. If prevention succeeds, the candidate infection and its prospective resistance mechanisms are discarded and no infection-acquisition event is recorded. This check is not applied to carriage acquisition.
-
-If the candidate infection is not prevented, it becomes established and the prospective `mechanism_any` and `mechanism_majority` records are stored. The model then uses `propagate_mechanism_resistance()` to translate the mechanisms in `mechanism_any` into the summary resistance measure `any_r` reported in outputs. For each drug, susceptibility is combined multiplicatively across all applicable mechanisms:
-
-$$\text{any\_r} = R_{max}\left[1 - \prod_{m : \text{mechanism\_any}_m = \text{true}} (1 - e_m)\right],$$
-
-bounded between 0 and $R_{max}$, where $e_m$ is the enhancement multiplier for mechanism $m$ against that drug and $R_{max}$ is `max_resistance_level` (currently 1.0; see Section 7.2). At establishment, resistance is calculated from the full recorded resistance-mechanism profile (`raise_only = false` in the code), so the derived value replaces the previous value. Later mechanism additions recalculate resistance without allowing a decrease (`raise_only = true`); explicit reversion pathways instead recalculate from the mechanisms that remain.
-
-#### Resistance appearance and expression summary
-
-The model distinguishes three related but different records of resistance: mechanisms present anywhere in the active infection, mechanisms present in the dominant infecting strain, and mechanisms present in asymptomatic carriage. In the code these are `mechanism_any`, `mechanism_majority`, and `mechanism_microbiome`, respectively. `mechanism_any` is the source of `any_r`. `mechanism_majority` is what active infections contribute back into the stored resistance-mechanism profile library and it also affects HGT donor strength. `mechanism_microbiome` is the carriage compartment and is the source of `microbiome_r`. Mechanism acquisition, dominant-strain evolution, and drug-level resistance calculation are therefore separate operations.
-
-| Pathway | When it runs | What changes in the model | Interpretation |
-|---------|--------------|---------------|----------------|
-| Human-reservoir resistance-mechanism profile sampling | Candidate infection takes the human-reservoir route | Adds the host-eligible subset of the sampled resistance-mechanism profile to prospective `mechanism_any` and `mechanism_majority` | Acquisition of a resistance-mechanism profile already circulating in a strain; records are retained only if the infection becomes established |
-| Hospital-enriched resistance-mechanism profile sampling | Candidate hospital-acquired active infection with hospital enrichment configured | Adds a hospital-weighted sampled resistance-mechanism profile to prospective `mechanism_any` and `mechanism_majority` | Makes already-observed ward resistance-mechanism profiles more likely to be selected without creating new combinations |
-| Community dilution | Candidate community-acquired infection before resistance-mechanism profile sampling | Determines whether the candidate draws from the human circulating resistance-mechanism profile library or follows the exogenous route | Does not change the initial acquisition draw; the selected route can affect subsequent establishment under existing therapy |
-| Static environmental floors | Candidate community acquisition not sampled from the human reservoir | Adds one or more host-eligible mechanisms to prospective `mechanism_any` and `mechanism_majority` | Explicit exogenous reseeding for configured bacteria-mechanism pairs |
-| Dynamic ratchet floors | Same exogenous path, for mechanisms below the configured reversion-rate threshold | Adds one or more mechanisms to prospective `mechanism_any` and `mechanism_majority` | Uses stepped historical peaks from the circulating resistance-mechanism profile library as exogenous reseeding probabilities; does not impose a hard prevalence bound |
-| Local mechanism-persistence archive | Human-reservoir infection or carriage sampling after a complete resistance-mechanism profile has been established locally | Samples one complete archived resistance-mechanism profile for that region × setting × bacterium | One bounded draw of a complete resistance-mechanism profile, shared across all archived resistance-mechanism profiles; does not alter prevalence in the current circulating resistance-mechanism profile library |
-| MDR-TB rifampicin rule | Candidate MDR-TB acquisition from 1966 onward when the rule is enabled | Adds rifampicin-applicable mechanisms to prospective `mechanism_any` and `mechanism_majority` | Enforces the definitional rifampicin resistance of MDR-TB if the infection becomes established |
-| Same-person microbiome inheritance | Candidate infection when the person already carries the same organism | Adds eligible mechanisms from `mechanism_microbiome` to prospective `mechanism_any` only | Carrier-to-infection bridge; copied mechanisms start as active-infection minority mechanisms |
-| Existing-therapy prevention | After the prospective infection resistance mechanisms have been assembled | May discard the candidate infection and its prospective resistance mechanisms | Effective existing therapy preferentially prevents susceptible infections; resistance can permit breakthrough |
-| De novo infection emergence | Existing active infection under drug pressure | Adds newly emerged mechanisms to `mechanism_any` | Within-host emergence under selection; majority status can follow later under drug pressure |
-| De novo microbiome emergence | Existing carriage with at least one positive-level active drug applicable to an absent mechanism | Gives each eligible mechanism one daily emergence roll and records successful transitions in `mechanism_microbiome` | Carriage-compartment emergence under binary drug pressure without multiplying the daily rate by the number of selecting drugs |
-| Microbiome mechanism reversion | Existing carriage, evaluated independently for each present mechanism when no positive-level active drug is clinically applicable to that bacterium-mechanism pair | Removes successful transitions from `mechanism_microbiome` and recalculates `microbiome_r` | Effective loss of an unselected carriage mechanism; pressure selecting another mechanism does not block the transition |
-| Majority-strain evolution | Existing active infection with at least one active drug applicable to a minority mechanism | Gives each eligible mechanism one daily promotion roll and records successful transitions in `mechanism_majority` | Converts a minority resistant subpopulation into the dominant/circulating strain without multiplying the daily rate by the number of selecting drugs |
-| Infection-microbiome transfer | Same organism present in both compartments and they contain different mechanisms | Copies mechanisms so `mechanism_any` and `mechanism_microbiome` contain the combined resistance-mechanism profile | Within-host spillover between active infection and carriage |
-| HGT | After all bacteria have been evaluated for the day, between co-present bacteria | Adds mechanisms that are transferable and permitted for both donor and recipient to each recipient compartment where that organism is present: `mechanism_any` for active infection and `mechanism_microbiome` for carriage | Inter-species mechanism transfer, scaled by context and donor majority/minority status |
-| Mechanism-to-drug propagation | After successful infection establishment and after later mechanism changes | Recalculates `any_r` and/or `microbiome_r` from the mechanisms recorded as present | Drug-level resistance is recalculated according to which mechanisms affect which drugs |
-
+The initial candidate-acquisition probability is therefore independent of the assigned resistance-mechanism profile, but successful establishment is not. The corresponding prevention check is not applied to carriage acquisition.
 ---
 
 
@@ -499,6 +395,8 @@ The model distinguishes three related but different records of resistance: mecha
 ## 4. Clinical Progression
 
 Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparisons around antibiotic resistance rather than attempting to model the clinical course of each infection in high level detail.
+
+**Individual-level quantities introduced in this section.** For each active infection, the model records the clinical syndrome (`infectious_syndrome[b]`), infection intensity (`level[b]`), and whether symptoms or another clinical-testing indication have occurred (`infection_has_caused_symptoms[b]`). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (`clearance_hazard[b]` and `clearance_ready_day[b]`). Sepsis status and timing are recorded in `sepsis[b]` and `sepsis_onset_day[b]`. Daily intermediate quantities govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (`symptom_onset_probability[b]`, `sepsis_onset_probability[b]`, `sepsis_recovery_probability[b]`, and `new_bacteria_level[b]`). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 4.1 Syndrome assignment
@@ -611,6 +509,8 @@ Since the transition from empiric to targeted prescribing depends on laboratory 
 
 We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, MIC levels, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.
 
+**Individual-level quantities introduced in this section.** For each active infection, `test_identified_infection[b]` records whether bacterial identification is complete, while `test_for_resistance[b]` records whether the antimicrobial susceptibility testing (AST) panel is available and `resistance_test_initiated_day[b]` records when AST began. The corresponding daily identification and AST-initiation probabilities are `bacterial_identification_probability[b]` and `resistance_testing_probability[b]`. Once available, `resistances[b][d].test_r` records the reported resistance result for each drug; `serious_resistance_test_positive` summarises whether the completed panel meets the model's serious-resistance definition. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+
 
 ### 5.1 Historical introduction
 
@@ -703,6 +603,8 @@ The `serious_resistance_marker_drugs` reference table defines one or more marker
 This section covers the entire antibiotic prescribing process as the model simulates it — from the decision to start an antibiotic, through drug selection and dosing, to stopping the course. Antibiotic use drives the selection pressure that causes resistance to emerge and spread.
 
 The model aims to reproduce how antibiotics are prescribed in clinical practice — including imperfect decisions, regional variation in drug access, and the distinction between empiric therapy (before microbiology results are available) and targeted therapy (guided by culture and susceptibility results). Here especially, the intention is not to encode every clinical nuance of antimicrobial decision-making, but to represent the prescribing features most likely to change AMR trajectories under different policy environments.
+
+**Individual-level quantities introduced in this section.** Prescribing can depend on perceived penicillin allergy (`perceived_penicillin_allergy`) and on the person's current clinical and care context. For each drug, current use, treatment context, systemic exposure, initiation date, and prior use are recorded in `cur_use_drug[d]`, `drug_use_context[d]`, `cur_level_drug[d]`, `date_drug_initiated[d]`, and `ever_taken_drug[d]`; `current_number_of_drugs` records concurrent treatment. Daily intermediate quantities govern treatment initiation, drug selection, and cessation (`antibiotic_initiation_probability`, `drug_selection_score[d]`, and `drug_cessation_probability[d]`). Effective activity against each infection is recorded in `resistances[b][d].activity_r`. Treatment response is followed through infection intensity at treatment start, days on treatment, failure assessment, and the individual response multiplier (`bacteria_level_at_drug_start[b]`, `days_on_current_treatment[b]`, `treatment_failure_assessed[b]`, and `drug_activity_response_multiplier[b]`), with additional variables recording cessation and restart eligibility. Drug toxicity is represented by `drug_toxicity_reservoir[d]` and `current_toxicity_hazard`. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 6.1 Treatment initiation — deciding to start antibiotics
@@ -909,7 +811,7 @@ Starting hospital-managed therapy can itself trigger admission. Always-inpatient
 
 ### 6.3 Drug pharmacokinetics
 
-The model uses a simplified pharmacokinetic representation in which each drug has a **half-life** and a **starting level** at administration. Since the mutant selection window — where sub-therapeutic concentrations select for resistance rather than clearing it — is a key driver of emergence (see Section 7.3), the shape of the drug-level decay matters for downstream resistance dynamics.
+The model uses a simplified pharmacokinetic representation in which each drug has a **half-life** and a **starting level** at administration. Since the mutant selection window — where sub-therapeutic concentrations select for resistance rather than clearing it — is a key driver of emergence (see Section 7.4), the shape of the drug-level decay matters for downstream resistance dynamics.
 
 | Parameter | Default | What it represents |
 |-----------|---------|-------------------|
@@ -950,7 +852,7 @@ Since broad-spectrum agents exert collateral selection pressure on the commensal
 Specifically:
 
 1. `spectrum_breadth` is a stewardship-facing drug property used when scoring treatment choices. In empiric therapy it favours broader agents when coverage is uncertain, while in targeted therapy it rewards de-escalation towards narrower agents once the pathogen is identified.
-2. The longer ecological consequence is handled through each drug's `microbiome_disruption_log_odds`, which accumulates into a persistent `microbiome_disruption_level` reservoir. That reservoir decays over time rather than disappearing immediately when treatment stops, and it directly raises the log-odds of later microbiome acquisition events.
+2. The longer ecological consequence is handled through each drug's `microbiome_disruption_log_odds`, which accumulates into a persistent ecological-disruption state described in Section 8. That state decays over time rather than disappearing immediately when treatment stops, and it directly raises the log-odds of later microbiome acquisition events.
 
 The model consequence is not limited to broader initial coverage. Broader therapy influences prescribing behaviour up front, and microbiome disruption leaves a persistent ecological effect that can increase later carriage risk even after the course has finished.
 
@@ -1036,7 +938,7 @@ A key modelling principle is that intrinsic resistance must be represented exclu
 | Aminoglycosides | *C. difficile*, *B. fragilis* | Obligate anaerobes — AG uptake depends on oxygen-dependent active transport, which is completely abolished anaerobically |
 | TMP-SMX | *B. fragilis* | Constitutively encoded insensitivity to sulfonamides (chromosomal folate pathway) |
 | Nitrofurantoin | *S. maltophilia* | Intrinsic non-fermenter resistance; nitrofurantoin is never used for *Stenotrophomonas* infections |
-| Penicillins, ceph 1–2G, carbapenems, macrolides, clindamycin, aztreonam | *S. maltophilia* | Chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps render these drug classes intrinsically inactive; `potency_when_no_r` ≤ 0.05 across all affected classes (see Section 7.5) |
+| Penicillins, ceph 1–2G, carbapenems, macrolides, clindamycin, aztreonam | *S. maltophilia* | Chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps render these drug classes intrinsically inactive; `potency_when_no_r` ≤ 0.05 across all affected classes (see Section 7.6) |
 
 These zeroing values are encoded directly as `potency_when_no_r = 0.0` entries, covering every affected organism-drug pair explicitly.
 
@@ -1122,9 +1024,9 @@ Patients who are already receiving an effective antibiotic are partially protect
 
 This section describes how the model represents the biology of resistance emergence and spread. The model tracks resistance at the level of individual **mechanisms**. This matters because the same phenotype (e.g., "carbapenem-resistant *K. pneumoniae*") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.
 
-**Mechanism-centred architecture.** For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code these three records are `mechanism_any`, `mechanism_majority`, and `mechanism_microbiome`, while the derived summary resistance measures are `any_r` and `microbiome_r`. A single stored resistance-mechanism profile library (`MechanismCache` in the code) holds up to 1000 retained predominant-strain resistance-mechanism profiles per region × care setting × bacterium for acquisitions based on resistance-mechanism profile sampling (Section 3.4). It is assembled from active infection-days rather than unique isolates or people. This library keeps separate hospital and community collections, retains resistance-mechanism profiles over time, derives prevalence directly from the stored resistance-mechanism profiles, and supports configured removal of fully susceptible resistance-mechanism profiles from the candidate set for active hospital infections. It also maintains a regional `peak_mechanism_prevalence` table (Section 7.8) containing the highest annually sampled marginal prevalence in each region's community resistance-mechanism profile library for each bacterium-mechanism pair; stepped values derived from that table can support later local exogenous reseeding.
+**Individual-level quantities used in this section.** The active-infection mechanism records and derived drug resistance introduced in Section 3 (`mechanism_any[b]`, `mechanism_majority[b]`, and `resistances[b][d].any_r`) are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in `mechanism_microbiome[b]` and `resistances[b][d].microbiome_r`; the wider carriage state is described in Section 8. At acquisition, `local_profile_sampling_probability[b]` is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (`de_novo_emergence_probability[b,m]`, `minority_promotion_probability[b,m]`, and `mechanism_reversion_probability[b,m]`). Optional provenance tracking is recorded in `how_resistance_acquired[b][d]`. Population-level resistance-mechanism profile libraries and historical prevalence records are described here but are not individual-level variables. Full definitions and update rules for the individual-level quantities are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
-`MechanismCache` also stores a local historical establishment archive separately from its current resistance-mechanism profiles and prevalence estimates. This archive retains one complete first-observed resistance-mechanism profile for each established mechanism in each region × care setting × bacterium stratum, retains only one copy of identical resistance-mechanism profiles, and supplies the bounded representation of the wider population described in Section 7.5.
+**Mechanism-centred architecture.** For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code these three records are `mechanism_any`, `mechanism_majority`, and `mechanism_microbiome`, while the derived summary resistance measures are `any_r` and `microbiome_r`. At population level, `MechanismCache` maintains the circulating resistance-mechanism profile library and prevalence estimates described in Section 7.3, the bounded local establishment archive described in Section 7.6, and the historical peak-prevalence records used by the ratchet in Section 7.9.
 
 The architecture is primarily mechanism-by-mechanism for **de novo** emergence under active drug pressure. Every bacterium-mechanism pair also has a route classification used by the model, determined from the reviewed host-mechanism correspondence, the explicit bacterium-mechanism emergence rate, and whether the mechanism is horizontally transferable:
 
@@ -1265,7 +1167,73 @@ Baseline ceftolozane/tazobactam potency is represented separately from acquired 
 
 
 
-### 7.3 Resistance emergence
+### 7.3 Resistance at acquisition
+
+Section 3.4 describes the individual-level sequence from a candidate infection to successful establishment. This subsection describes the population-level resistance sources used to assemble the candidate infection's resistance-mechanism profile.
+
+#### Circulating resistance-mechanism profile library and prevalence
+
+After every simulated day, the model refreshes a stored library of circulating resistance-mechanism profiles (`MechanismCache` in the code) for each combination of region × current care setting (community or hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant strain in the corresponding daily collection. Each collection contains up to 1,000 entries, with each entry representing one eligible active infection-day. If more than 1,000 infection-days are eligible, entries are selected uniformly so that every eligible infection-day has the same chance of representation. A persistent infection is eligible again on each successive day that it remains active.
+
+A predominant strain carrying none of the acquired resistance mechanisms represented in the model is included as a resistance-mechanism profile with no modelled acquired resistance. The library therefore represents active-infection person-days with and without modelled acquired resistance, rather than a collection restricted to resistant infections, tested infections, clinical isolates, or unique people.
+
+The stored resistance-mechanism profile library blends retained resistance-mechanism profiles with newly collected resistance-mechanism profiles each day. Every previously stored resistance-mechanism profile has the same marginal probability of retention. The configured retention probability is 0.999 in both the community and hospital libraries.
+
+For any drug, the model estimates prevalence from the fraction of stored resistance-mechanism profiles containing at least one mechanism that affects that drug. The same library therefore supplies resistance-mechanism profiles for acquisition and prevalence estimates used by prescribing logic. The bounded local mechanism-persistence archive described in Section 7.6 is stored separately and does not contribute directly to these current prevalence estimates.
+
+#### Selection of the resistance source
+
+The model first samples whether a candidate infection occurs and only then selects its resistance source. For a candidate community infection, the bacterium-specific `community_resistance_dilution_factor` is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. Despite the word `dilution` in its name, it is not a multiplier applied to resistance prevalence. The corresponding individual-level probability of sampling from the circulating library or its persistence archive is represented by `local_profile_sampling_probability[b]`.
+
+If the human-reservoir source is not selected, a candidate community infection follows the exogenous route described below. Candidate hospital infections use the local human-reservoir route rather than this community source probability. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source subject to the run-level and counterfactual controls described below.
+
+The source probability does not alter the initial candidate-acquisition probability. It can nevertheless affect the number and resistance distribution of infections that become established because the resulting resistance-mechanism profile is used when existing therapy is evaluated. Its effect on resistance need not be monotonic: the human-reservoir library contains resistance-mechanism profiles with and without modelled acquired resistance, while the exogenous route can itself assign resistance mechanisms.
+
+The configured source probabilities use broad ecological groupings:
+
+| Category | Dilution range | Example bacteria | Interpretation |
+|----------|---------------:|------------------|----------------|
+| Environmental or waterborne | 0.30 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition has a substantial exogenous component |
+| Foodborne or mixed exogenous reservoir | 0.30–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | Non-human or broad exogenous reservoirs remain important, to differing degrees |
+| Healthcare-associated | 0.30–0.50 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Community acquisitions retain a material exogenous component while resistance is amplified in hospitals |
+| Endogenous flora or human-associated | 0.60–1.00 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology; *H. pylori* has no separate modelled carriage compartment |
+| Obligate human pathogen or STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | The community source is treated as the human circulating reservoir |
+
+These are ecological and calibration parameters used to mix human-reservoir and exogenous pathways, not constraints imposed by the model. Bacterium-specific values are listed in Appendix B.3. Differences between clinical resistance evidence and active-infection person-day outputs are discussed in Sections 1.1 and 12.1; they are not represented by `community_resistance_dilution_factor`.
+
+#### Complete resistance-mechanism profile sampling
+
+When the human-reservoir route is used, the model samples one complete resistance-mechanism profile rather than sampling each mechanism independently. All mechanisms in that resistance-mechanism profile are added together to the prospective infection. This preserves correlations such as ESBL CTX-M occurring with fluoroquinolone resistance in the same circulating lineage (Partridge SR et al., 2018). The local mechanism-persistence archive, when selected, likewise supplies one complete resistance-mechanism profile and is not combined with a separate resistance-mechanism profile from the current library.
+
+For a candidate community infection, the current community collection for the relevant region and bacterium is used. During the early warm-up period, if that collection is empty, the model can use the corresponding hospital collection rather than constructing a synthetic resistance-mechanism profile.
+
+For a candidate hospital infection, `hospital_resistance_prune_susceptible_percent` can enrich sampling for resistance-mechanism profiles containing at least one represented acquired-resistance mechanism. If the hospital collection has no such resistance-mechanism profile, the available local hospital and community collections are temporarily combined. Once the hospital collection contains a resistance-mechanism profile with a represented mechanism, only that collection is used. The model may temporarily remove the configured fraction of resistance-mechanism profiles with no modelled acquired resistance before sampling, but it never removes resistance-mechanism profiles containing a represented mechanism. If removal would leave no candidate, the original collection remains available. The default removal percentage is 50%, with higher bacterium-specific values for selected healthcare-associated pathogens.
+
+Carriage sampling is related but does not apply the hospital removal step. A hospital carriage acquisition uses the current hospital collection, with the community collection as a temporary fallback if needed. A sampled carriage resistance-mechanism profile is recorded in `mechanism_microbiome` and used to calculate `microbiome_r`; it does not directly create active-infection resistance. If neither the relevant persistence archive nor either current care-setting collection supplies a resistance-mechanism profile, this pathway assigns no acquired resistance mechanisms.
+
+Complete resistance-mechanism profile sampling represents linkage already present in observed simulated lineages. The model does not add mechanisms independently merely because their marginal presence has been observed elsewhere, because doing so would construct combinations unsupported by the sampled lineage.
+
+The `counterfactual_resistance_multiplier` controls whether resistance mechanisms are incorporated through resistance-mechanism profile inheritance and the other resistance-acquisition pathways. A value of 0.0 disables resistance-mechanism profile inheritance, static and ratchet exogenous assignment, the MDR-TB rifampicin rule, same-person carriage inheritance, de novo emergence, microbiome-acquisition seeding, and HGT. These pathways are implemented separately but share this counterfactual control.
+
+#### Exogenous assignment and completion of the prospective resistance-mechanism profile
+
+When a candidate community infection follows the exogenous route, each eligible mechanism is evaluated using the larger of its configured environmental assignment probability and its dynamic ratchet assignment probability. These probabilities provide resistance reseeding on individual exogenous acquisitions; they do not impose lower bounds on overall resistance prevalence. Sections 7.8 and 7.9 describe the environmental and ratchet pathways in detail. The separate local persistence archive in Section 7.6 acts only on the human-reservoir route.
+
+Two further pathways can add mechanisms before the candidate infection is evaluated against existing therapy:
+
+- **MDR-TB rifampicin rule.** For MDR-TB candidate acquisitions from 1966 onward, the model adds the applicable `rpoB` rifampicin-resistance mechanism to both the prospective `mechanism_any` and `mechanism_majority` records when the rule is enabled. Any positive value of `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` enables this fixed rule; the value is not used as a probability. A counterfactual resistance multiplier of 0.0 disables it.
+- **Same-person carriage inheritance.** If the person already carries the same organism, `carrier_resistance_inheritance_probability` determines whether this pathway is applied. Each eligible mechanism in the person's carriage resistance-mechanism profile is then considered using `infection_from_microbiome_dampening`. Successful transfers are added to prospective `mechanism_any` only and therefore initially represent minority infection mechanisms. Section 3.3 describes this bridge from carriage to infection.
+
+After the prospective resistance-mechanism profile has been completed, existing therapy determines whether the candidate infection becomes established as described in Section 3.4. Only an established infection stores `mechanism_any` and `mechanism_majority`. The model then derives drug-specific `any_r` from all applicable mechanisms in `mechanism_any`:
+
+$$\text{any\_r} = R_{max}\left[1 - \prod_{m : \text{mechanism\_any}_m = \text{true}} (1 - e_m)\right],$$
+
+bounded between 0 and $R_{max}$, where $e_m$ is the enhancement multiplier for mechanism $m$ against the drug and $R_{max}$ is `max_resistance_level` (1.0). At establishment, the value is recalculated from the complete stored mechanism set. Later mechanism additions cannot reduce the derived value; explicit mechanism reversion instead recalculates it from the mechanisms that remain.
+
+---
+
+
+### 7.4 Resistance emergence
 
 This subsection concerns **de novo resistance emergence during treatment**. In the current model, this pathway is only evaluated when a patient is actively exposed to antibiotics.
 
@@ -1335,12 +1303,12 @@ Population realism is distributed across three parts of the model: organism-spec
 
 These parameters should therefore be read as **effective emergence hazards** rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.
 
-**Run-level pathway sensitivity controls.** Four neutral `run_pathway_*` multipliers are retained for diagnostic ablations and global sensitivity analysis without changing organism-specific baselines. Their defaults are all 1.0: `run_pathway_infection_de_novo_multiplier` scales de novo emergence during active infection; `run_pathway_hgt_multiplier` scales horizontal gene transfer; `run_pathway_reversion_rate_multiplier` scales mechanism loss in infection and carriage; and `run_pathway_microbiome_acquisition_multiplier` scales resistance-mechanism profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy scenarios can set `counterfactual_resistance_multiplier` to 0.0, which blocks resistance acquired through resistance-mechanism profile sampling, de novo emergence, microbiome-acquisition seeding, and HGT transfer in the counterfactual scenario. Acquisition-time floors and the MDR-TB rifampicin rule are separate pathways described in Section 3.4.
+**Run-level pathway sensitivity controls.** Four neutral `run_pathway_*` multipliers are retained for diagnostic ablations and global sensitivity analysis without changing organism-specific baselines. Their defaults are all 1.0: `run_pathway_infection_de_novo_multiplier` scales de novo emergence during active infection; `run_pathway_hgt_multiplier` scales horizontal gene transfer; `run_pathway_reversion_rate_multiplier` scales mechanism loss in infection and carriage; and `run_pathway_microbiome_acquisition_multiplier` scales resistance-mechanism profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy scenarios can set `counterfactual_resistance_multiplier` to 0.0, which blocks resistance acquired through resistance-mechanism profile sampling, de novo emergence, microbiome-acquisition seeding, and HGT transfer in the counterfactual scenario. Acquisition-time floors and the MDR-TB rifampicin rule are described in Section 7.3.
 
 
 
 
-### 7.4 Resistance reversion and fitness costs
+### 7.5 Resistance reversion and fitness costs
 
 Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI & Hughes D, 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily **reversion rate**, used as an effective probability of removing the mechanism from carriage or demoting it from the dominant active-infection strain when no selecting antibiotic is present. Higher rates represent faster effective turnover; lower rates represent greater persistence. This is a compressed population/within-host approximation rather than a literal genetic back-mutation rate. In this calculation, per-mechanism reversion rates are scaled by `run_pathway_reversion_rate_multiplier` (default 1.0), with additional community-specific reversion multipliers for some bacteria.
 
@@ -1435,7 +1403,7 @@ The 0.01 gonococcal value reflects the durable population-level persistence of f
 
 The `mutation_siderophore_uptake` mechanism is the explicit category for chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake.
 
-### 7.5 Local finite-population mechanism persistence
+### 7.6 Local finite-population mechanism persistence
 
 At finite simulated population sizes, an uncommon but genuinely established mechanism can disappear from every active infection and every retained resistance-mechanism profile in a local reservoir by chance. The model represents established strains in the much larger population outside the simulation through a permanent local establishment archive. The archive contributes bounded sampling mass to the local human reservoir; it is not a hard lower bound on observed resistance prevalence.
 
@@ -1449,11 +1417,17 @@ At finite simulated population sizes, an uncommon but genuinely established mech
 
 **Pseudo-reservoir sampling.** Whenever an infection or carriage acquisition is already taking the path that samples a resistance-mechanism profile from the human reservoir, the model computes one archive probability from the total virtual mass and the size of the active candidate pool. All archived resistance-mechanism profiles share that single mass; on success, one candidate is selected uniformly and its complete resistance-mechanism profile is returned. The model does not repeat the draw for every drug or mechanism and does not combine archived mechanisms with an independently sampled active resistance-mechanism profile. The probability cap prevents the archive from dominating very sparse local collections.
 
+If the current candidate collection contains $N$ resistance-mechanism profiles and the archive has total virtual mass $K$, the probability of selecting the archive is:
+
+$$p_{archive} = \min\left(p_{max}, \frac{K}{N + K}\right).$$
+
+With the configured values $K = 10$ and $p_{max} = 0.10$, the archive contributes about 0.99% of draws beside a current collection of 1,000 resistance-mechanism profiles, 9.09% beside a collection of 100, and no more than 10% in a sparse or empty stratum.
+
 **Scope and interpretation.** Establishment does not cross regions, bacteria, or community/hospital strata. The pathway is not used for exogenous sources. It follows the same counterfactual scenario control as ordinary resistance-mechanism profile inheritance and can contribute to both active infection and carriage. Archived resistance-mechanism profiles do not count towards current circulating resistance-mechanism profile prevalence, prescribing knowledge, or ratchet peak calculations. Once incorporated into an active infection, however, the resistance-mechanism profile can re-enter the ordinary daily circulating resistance-mechanism profile library through the same predominant-strain resistance-mechanism profile collection process as any other circulating strain.
 
 **Diagnostics.** `local_persistence_profile_incorporations_total` reports the sum of `local_persistence_profile_incorporations_infection` and `local_persistence_profile_incorporations_carriage` in each output timestep. The infection count is incremented only after the infection survives the existing-therapy prevention check; the carriage count is incremented after the archived resistance-mechanism profile is recorded in the carriage compartment. Counterfactual-rejected resistance-mechanism profiles are not counted.
 
-Static environmental floors and the dynamic ratchet are independent exogenous pathways and do not contribute to the local establishment archive (Sections 7.7 and 7.8).
+Static environmental floors and the dynamic ratchet are independent exogenous pathways and do not contribute to the local establishment archive (Sections 7.8 and 7.9).
 
 **Details for specific example bacteria**
 
@@ -1469,7 +1443,7 @@ Enterococcus faecium. VRE clonal lineages (CC17) are globally disseminated hospi
 
 
 
-### 7.6 Mechanism-derived cross-drug effects
+### 7.7 Mechanism-derived cross-drug effects
 
 The mechanism-to-drug map described in Section 7.1 is the sole source of cross-drug resistance effects. Whenever a mechanism is acquired, inherited, transferred, promoted, or reverted, the model recalculates `any_r` and/or `microbiome_r` for every drug to which that mechanism is applicable. Multiple applicable mechanisms combine on the susceptible fraction, with mechanism- and drug-class-specific enhancement values determining the resulting resistance magnitude.
 
@@ -1481,9 +1455,9 @@ Drug-level resistance therefore always has a recorded mechanism basis. Potency s
 
 ---
 
-### 7.7 Environmental and Exogenous Mechanism Floors
+### 7.8 Environmental and Exogenous Mechanism Floors
 
-The model includes a dedicated family of **environmental / exogenous mechanism floors** that apply only to the non-human fraction of community acquisition. These are distinct from the local human-reservoir persistence archive in Section 7.5.
+The model includes a dedicated family of **environmental / exogenous mechanism floors** that apply only to the non-human fraction of community acquisition. These are distinct from the local human-reservoir persistence archive in Section 7.6.
 
 **What they represent.** The environmental floors are used when resistance can be maintained outside the local human circulating pool. In the classic case, this means agricultural, food-chain, wastewater, or other exogenous reservoirs that keep resistance present even when direct human treatment of that bacterium is weak. In the current configuration they also cover a small number of explicitly modelled non-agricultural exogenous pathways, most notably the rifampicin `rpoB` floors discussed below.
 
@@ -1512,7 +1486,7 @@ Every configured positive static floor is required to have an eligible bacterium
 
 ---
 
-### 7.8 Dynamic ratchet floor
+### 7.9 Dynamic ratchet floor
 
 **Motivation.** Even with long retention of previously observed resistance-mechanism profiles, a finite stored resistance-mechanism profile library can under-represent historically established resistance after current selection pressure falls. The ratchet preserves a coarse regional memory of high prevalence previously sampled from the community resistance-mechanism profile library and uses that memory to support later local exogenous acquisition of mechanisms with sufficiently low configured reversion rates.
 
@@ -1580,6 +1554,8 @@ Since the commensal microbiome is the principal reservoir in which resistance is
 
 As throughout the model, the microbiome layer is intentionally simplified. We represent the main ecological reservoirs and the policy-relevant consequences of bystander selection, endogenous infection, and within-host persistence, but not the full organism-by-organism spatial ecology that would be required for a dedicated colonisation model.
 
+**Individual-level quantities used and introduced in this section.** For each bacterium, carriage presence and its start day are recorded in `presence_microbiome[b]` and `date_microbiome_acquired[b]`, while `microbiome_disruption_level` represents accumulated ecological disruption from antibiotics. The carriage mechanism and drug-resistance records introduced in Section 7 (`mechanism_microbiome[b]` and `resistances[b][d].microbiome_r`) describe resistance within this compartment. Daily intermediate quantities govern carriage acquisition and clearance (`microbiome_acquisition_probability[b]` and `microbiome_clearance_probability[b]`), and `effective_carriage_activity[b,d]` represents antibiotic activity used in the carriage-clearance calculation. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+
 
 ### 8.1 Carriage compartments
 
@@ -1608,8 +1584,8 @@ Key dynamics:
 |---------|-----------|-------|---------------|
 | Resistance-mechanism profile sampling on acquisition | `run_pathway_microbiome_acquisition_multiplier` | 1.0 | Scales the probability that a new carriage episode samples a resistance-mechanism profile from the local circulating resistance-mechanism profile library. Hospital carriage uses this probability control directly; community carriage also applies the per-bacterium community dilution factor. A value of 1.0 is neutral rather than an independent 50% colonisation bottleneck. |
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
-| Mechanism-level reversion | `run_pathway_reversion_rate_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates, pathway multiplier, and potency-filtered eligibility rule as in the infection compartment (Section 7.4). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium-mechanism pair; selection for another mechanism does not block reversion. |
-| De-novo emergence under treatment | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` | Organism-mechanism specific | When at least one positive-level active drug applies to an absent carriage mechanism, that mechanism receives one daily emergence attempt via the microbiome pathway (Section 7.3), using the organism-mechanism baseline and counterfactual scaling. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
+| Mechanism-level reversion | `run_pathway_reversion_rate_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates, pathway multiplier, and potency-filtered eligibility rule as in the infection compartment (Section 7.5). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium-mechanism pair; selection for another mechanism does not block reversion. |
+| De-novo emergence under treatment | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` | Organism-mechanism specific | When at least one positive-level active drug applies to an absent carriage mechanism, that mechanism receives one daily emergence attempt via the microbiome pathway (Section 7.4), using the organism-mechanism baseline and counterfactual scaling. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
 | Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a new same-organism infection is established in a carrier, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3) |
 | Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | When both compartments are present and contain different mechanisms, a daily random probability check can trigger copying in both directions so that `mechanism_any` and `mechanism_microbiome` end up containing the combined resistance-mechanism profile. The drug-level resistance measures are then recalculated. |
 | HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event occurs, the mechanism is assigned only to recipient compartments where that bacterium is present: `mechanism_microbiome` for carriage and `mechanism_any` for active infection |
@@ -1622,6 +1598,8 @@ Horizontal gene transfer (HGT) — the interspecies sharing of resistance determ
 
 The HGT layer is necessarily schematic. We preserve the major ecological compatibilities and the main amplifiers of transfer risk, but we do not attempt plasmid-by-plasmid reconstruction, incompatibility typing, or ward-level contact-network modelling. At the scale of the present model, that additional detail would be difficult to support empirically and would add substantial runtime and calibration burden without clearly improving the policy comparisons of interest.
 
+**Individual-level quantity introduced in this section.** For each eligible recipient bacterium and resistance mechanism, `hgt_probability[recipient_b,m]` is the daily probability of horizontal transfer from compatible bacteria present in the same person. Successful transfer updates the recipient's active-infection or carriage mechanism record introduced in Sections 3 and 8. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+
 
 ### 9.1 Transfer compatibility
 
@@ -1633,7 +1611,7 @@ The pool mapping is:
 - **EntericGramNegative pool**: Enterobacterales, non-fermenters, and enteric pathogens
 - **RespiratoryGramNegative pool**: fastidious respiratory/genitourinary organisms
 - **Anaerobe pool**: anaerobes
-- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence rates (Section 7.3) handle de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
+- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence rates (Section 7.4) handle de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
 
 The baseline compatibility assignments are:
 
@@ -1673,6 +1651,8 @@ The absolute HGT probabilities are intentionally low and should be interpreted a
 ## 10. Mortality
 
 The model tracks mortality from three sources: background (non-infection) causes, **bacterial infection induced sepsis**, and **non-sepsis (bacterial) infection death** (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2020).
+
+**Individual-level quantities introduced in this section.** The model records the current daily background and infection-related death risks (`background_all_cause_mortality_rate` and `current_infection_related_death_risk`). Temporary probabilities separately represent death from background causes, drug toxicity, non-sepsis infection, and sepsis (`background_death_probability`, `toxicity_death_probability`, `non_sepsis_infection_death_probability`, and `sepsis_death_probability`). A resolved infection is assigned an `infection_resolution_type[b]`; a death records its simulation day and classified cause in `date_of_death` and `cause_of_death`. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 ### 10.1 Background mortality
 
