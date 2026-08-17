@@ -387,35 +387,38 @@ def _window_note(n: int) -> str:
 
 
 _HEADLINE_TARGET_SOURCE_NOTES = [
-    "Infection-death estimate: 6.4 million model-scope bacterial infection deaths per year. "
+    "Infection-death review-informed calibration target: 6.4 million model-scope bacterial "
+    "infection deaths per year. "
     "This is the rounded sum of per-organism mortality estimates after excluding "
     "<em>H. pylori</em> and MDR-TB, matching the Figure 1 simulation numerator. It is not "
     "an estimate of AMR-attributable mortality.",
-    "Antibiotic-use estimate: Klein EY et al. (2018). Global increase and geographic "
+    "Antibiotic-use review-informed calibration target: Klein EY et al. (2018). Global "
+    "increase and geographic "
     "convergence in antibiotic consumption between 2000 and 2015. <em>PNAS</em> "
     "115:E3463-E3470. The model uses a person-prevalence proxy for daily users, rather "
     "than DDD-equivalent consumption.",
-    "Infection-incidence and sepsis estimates: infection incidence is informed by Vos T "
-    "et al. (2020), <em>Lancet</em> 396:1204-1222; sepsis is informed by Rudd KE et al. "
-    "(2020), <em>Lancet</em> 395:200-211. The sepsis estimate applies to the modelled "
-    "bacterial subset rather than all-cause sepsis.",
+    "Infection-incidence and sepsis review-informed calibration targets: infection "
+    "incidence is informed by Vos T et al. (2020), <em>Lancet</em> 396:1204-1222; sepsis "
+    "is informed by Rudd KE et al. (2020), <em>Lancet</em> 395:200-211. The sepsis target "
+    "applies to the modelled bacterial subset rather than all-cause sepsis.",
 ]
 
 _RESISTANCE_TARGET_SOURCE_NOTES = [
-    "Resistance-prevalence values are evidence-informed calibration benchmarks. ECDC "
+    "Resistance-prevalence values are review-informed calibration targets. ECDC "
     "EARS-Net, WHO GLASS reports, and organism-drug literature informed the legacy matrix, "
     "but cell-level citations and harmonised denominator definitions were not retained.",
-    "Conditional mean any_r values are expert-assigned model benchmarks on the model's "
-    "unitless resistance scale; they are not MIC values or direct surveillance estimates.",
+    "Conditional mean any_r values are expert-assigned components of the review-informed "
+    "calibration targets on the model's unitless resistance scale; they are not MIC values "
+    "or direct surveillance estimates.",
     "The versioned target set distinguishes evidence-unresolved benchmarks, expert-informed "
     "placeholders, and structural priors. No v1 cell is classified as a direct empirical "
     "estimate with a recovered cell-level source, and no evidence-quality weight is assigned.",
-    "Both benchmark families compare with simulated active-infection person-days and should "
+    "Both target families compare with simulated active-infection person-days and should "
     "not be interpreted as a harmonised global clinical-isolate surveillance dataset.",
 ]
 
 _DRUG_CLASS_TARGET_SOURCE_NOTES = [
-    "The 28-class global composition is a source-informed calibration benchmark rather "
+    "The 28-class global composition is a review-informed calibration target rather "
     "than a directly observed global composition. WHO GLASS-AMU and the existing coarse "
     "class comparators inform the expert plausible ranges.",
     "Drug class codes follow the WHO ATC classification system (J01 antibacterials for "
@@ -423,7 +426,8 @@ _DRUG_CLASS_TARGET_SOURCE_NOTES = [
 ]
 
 _MORTALITY_TARGET_SOURCE_NOTES = [
-    "Review-informed infection-death estimates draw on GBD 2019/2020 cause-of-death "
+    "Review-informed calibration targets for infection deaths draw on GBD 2019/2020 "
+    "cause-of-death "
     "attributions, WHO mortality data, organism-specific literature, and explicit "
     "best-guess placeholders where direct estimates are unavailable.",
     "Bacterium-level estimates can sum to more than the headline all-cause bacterial "
@@ -432,9 +436,9 @@ _MORTALITY_TARGET_SOURCE_NOTES = [
 ]
 
 _CARRIAGE_TARGET_SOURCE_NOTES = [
-    "Review-informed carriage estimates combine published cross-sectional ranges, prevalence "
-    "proxies, and explicit best-guess placeholders; the range registry records which "
-    "interval treatment was used.",
+    "Review-informed calibration targets for carriage combine published cross-sectional "
+    "ranges, prevalence proxies, and explicit best-guess placeholders; the range registry "
+    "records which interval treatment was used.",
     "Carriage values are percentages of the world population carrying the organism "
     "asymptomatically in the modelled microbiome/carriage compartment.",
 ]
@@ -463,7 +467,7 @@ _TARGET_PLAUSIBLE_RANGE_FOOTNOTE = (
 )
 
 _RESISTANCE_POINT_TARGET_FOOTNOTE = (
-    "Figure 2 dark-grey bars are point calibration benchmarks. Target uncertainty "
+    "Figure 2 dark-grey bars show review-informed calibration targets. Target uncertainty "
     "bars are not shown because cell-level source intervals have not yet been "
     "recovered; their absence should not be interpreted as certainty."
 )
@@ -2808,7 +2812,8 @@ _TARGET_RANGE_LOOKUP_CACHE: dict[tuple[str, str, int], dict[str, object]] | None
 # Paper-facing colour scheme.
 _F2_COLOUR_SIM = "#8C1D40"        # burgundy - simulation
 _F2_COLOUR_SIM_ERROR = "#5E102A"  # darker burgundy - simulation uncertainty
-_F2_COLOUR_TARGET = "#4D4D4D"     # dark grey - calibration benchmark
+_F2_COLOUR_TARGET = "#4D4D4D"     # dark grey - review-informed calibration target
+_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL = "Review-informed calibration target"
 
 
 def _parse_interval_val(v: object) -> tuple[float, float, float] | None:
@@ -3757,7 +3762,11 @@ def _make_figure_2_calibration_resistance_fit_legacy(agg: dict, out_dir: Path) -
 
     # Figure-level legend and title
     sim_patch = mpatches.Patch(color=_F2_COLOUR_SIM,   alpha=0.85, label="Simulation")
-    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Calibration benchmark")
+    tgt_patch = mpatches.Patch(
+        color=_F2_COLOUR_TARGET,
+        alpha=0.85,
+        label=_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL,
+    )
     ci_note   = (
         f"Error bars: 5th–95th percentile across {n_runs} run{'s' if n_runs > 1 else ''}."
         if n_runs > 1 else "Single run; no uncertainty interval shown."
@@ -4065,7 +4074,11 @@ def make_figure_2_calibration_resistance_fit(
     else:
         sim_label = "Simulation mean" if mode == _F2_SUMMARY_MEAN_CI else "Simulation median"
     sim_patch = mpatches.Patch(color=_F2_COLOUR_SIM, alpha=0.85, label=sim_label)
-    tgt_patch = mpatches.Patch(color=_F2_COLOUR_TARGET, alpha=0.85, label="Calibration benchmark")
+    tgt_patch = mpatches.Patch(
+        color=_F2_COLOUR_TARGET,
+        alpha=0.85,
+        label=_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL,
+    )
     if mode == _F2_SUMMARY_MEAN_CI:
         ci_note = (
             "Error bars: 95% confidence interval for the mean across "
@@ -4116,15 +4129,17 @@ def make_figure_2_calibration_resistance_fit(
             figure_note = (
                 "Each panel shows the simulated (burgundy) "
                 f"{simulation_scope} resistance percentage and the Figure 2 "
-                "calibration benchmark (dark grey) by drug class for one bacterium. "
+                "review-informed calibration target (dark grey) by drug class for one "
+                "bacterium. "
                 "Simulation bars show the mean of run-level class means; error bars "
                 "show a two-sided 95% t confidence interval across stochastic runs. "
                 "Classes without usable simulation data are omitted."
             )
         else:
             figure_note = (
-                "Each panel shows the simulated (burgundy) and calibration-benchmark (dark grey) "
-                "infection resistance percentage by drug class for one bacterium. "
+                "Each panel shows the simulated (burgundy) and review-informed calibration "
+                "target (dark grey) infection resistance percentage by drug class for one "
+                "bacterium. "
                 "Simulation bars show the mean of run-level class means; error bars show "
                 "a two-sided 95% t confidence interval across stochastic runs. "
                 "Classes without data for a given bacterium are omitted."
@@ -4134,15 +4149,17 @@ def make_figure_2_calibration_resistance_fit(
             figure_note = (
                 "Each panel shows the simulated (burgundy) "
                 f"{simulation_scope} resistance percentage and the Figure 2 "
-                "calibration benchmark (dark grey) by drug class for one bacterium. "
+                "review-informed calibration target (dark grey) by drug class for one "
+                "bacterium. "
                 "Simulation bars show the median of run-level class means; error bars "
                 "show the 5th-95th percentile range across stochastic runs. Classes "
                 "without usable simulation data are omitted."
             )
         else:
             figure_note = (
-                "Each panel shows the simulated (burgundy) and calibration-benchmark (dark grey) "
-                "infection resistance percentage by drug class for one bacterium. "
+                "Each panel shows the simulated (burgundy) and review-informed calibration "
+                "target (dark grey) infection resistance percentage by drug class for one "
+                "bacterium. "
                 "Simulation bars show the mean across all drugs in the class using the "
                 "aggregated calibration-summary median; error bars retain the aggregated "
                 "5th-95th percentile range. Classes without data for a given bacterium "
@@ -4333,7 +4350,7 @@ def make_figure_2a_hospital_resistance_fit(
         setting="hospital",
         figure_label="Figure 2A",
         figure_title=(
-            "Figure 2A. Calibration benchmarks compared with resistance among "
+            "Figure 2A. Review-informed calibration targets compared with resistance among "
             "active-infection person-days while hospitalised, by bacterium and "
             "drug class"
         ),
@@ -4368,7 +4385,7 @@ def make_figure_2b_community_resistance_fit(
         setting="community",
         figure_label="Figure 2B",
         figure_title=(
-            "Figure 2B. Calibration benchmarks compared with resistance among "
+            "Figure 2B. Review-informed calibration targets compared with resistance among "
             "active-infection person-days while in the community, by bacterium "
             "and drug class"
         ),
@@ -4547,7 +4564,9 @@ def make_figure_1_calibration_headline_metrics(
             err_lo.append(max(0, sim_p[0] - sim_p[1]))
             err_hi.append(max(0, sim_p[2] - sim_p[0]))
         if tgt_p:
-            vals.append(tgt_p[0]); labels.append("Review-informed\nestimate"); colors.append(_F2_COLOUR_TARGET)
+            vals.append(tgt_p[0])
+            labels.append("Review-informed\ncalibration target")
+            colors.append(_F2_COLOUR_TARGET)
             err_lo.append(max(0, tgt_p[0] - tgt_p[1]))
             err_hi.append(max(0, tgt_p[2] - tgt_p[0]))
         if not vals:
@@ -4597,7 +4616,8 @@ def make_figure_1_calibration_headline_metrics(
         f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
-        "Dark-grey error bars show review-informed plausible ranges around the estimates."
+        "Dark-grey bars show review-informed calibration targets; their error bars show "
+        "review-informed plausible ranges."
     )
     _save_figure(
         fig, out_dir, "Figure_1__calibration_headline_metrics",
@@ -4747,7 +4767,7 @@ def make_figure_3_calibration_drug_class_share(
             bar_h,
             color=_F2_COLOUR_TARGET,
             alpha=0.85,
-            label="Review-informed estimate",
+            label=_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL,
             xerr=[tgt_err_lo, tgt_err_hi],
             error_kw={
                 "elinewidth": 0.9,
@@ -4773,7 +4793,7 @@ def make_figure_3_calibration_drug_class_share(
     estimate_patch = mpatches.Patch(
         color=_F2_COLOUR_TARGET,
         alpha=0.85,
-        label="Review-informed estimate",
+        label=_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL,
     )
     handles = [sim_patch, estimate_patch]
     ax.legend(
@@ -4792,7 +4812,8 @@ def make_figure_3_calibration_drug_class_share(
         f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
-        "Dark-grey error bars show review-informed plausible ranges around the estimates. "
+        "Dark-grey bars show review-informed calibration targets; their error bars show "
+        "review-informed plausible ranges. "
         "Shares use total active antibiotic drug-days across configured classes as the denominator."
     )
     _save_figure(
@@ -5116,7 +5137,7 @@ def make_figure_4_calibration_infection_deaths(
             bar_h,
             color=_F2_COLOUR_TARGET,
             alpha=0.85,
-            label="Review-informed estimate",
+            label=_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL,
             xerr=[tgt_err_lo, tgt_err_hi],
             error_kw={
                 "elinewidth": 0.9,
@@ -5143,9 +5164,10 @@ def make_figure_4_calibration_infection_deaths(
         f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
-        "Dark-grey error bars show review-informed plausible ranges around the estimates. "
+        "Dark-grey bars show review-informed calibration targets; their error bars show "
+        "review-informed plausible ranges. "
         "Bacteria for which both values are zero are omitted; rows are sorted by the "
-        "review-informed estimate where available, otherwise by the simulation."
+        "review-informed calibration target where available, otherwise by the simulation."
     )
     _save_figure(
         fig, out_dir, "Figure_4__calibration_infection_deaths_by_bacteria",
@@ -5271,7 +5293,7 @@ def make_figure_5_calibration_carriage_prevalence(
             bar_h,
             color=_F2_COLOUR_TARGET,
             alpha=0.85,
-            label="Review-informed estimate",
+            label=_REVIEW_INFORMED_CALIBRATION_TARGET_LABEL,
             xerr=[tgt_err_lo, tgt_err_hi],
             error_kw={
                 "elinewidth": 0.9,
@@ -5299,9 +5321,11 @@ def make_figure_5_calibration_carriage_prevalence(
         f"means across {n} independent stochastic run{'s' if n != 1 else ''}. "
     )
     uncertainty_note += (
-        "Dark-grey error bars show review-informed plausible ranges around the estimates. "
+        "Dark-grey bars show review-informed calibration targets; their error bars show "
+        "review-informed plausible ranges. "
         "Zero estimates are retained where they represent design constraints; rows are "
-        "sorted by the review-informed estimate where available, otherwise by the simulation."
+        "sorted by the review-informed calibration target where available, otherwise by "
+        "the simulation."
     )
 
     _save_figure(

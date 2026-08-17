@@ -1614,10 +1614,6 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
 
     let rows = vec![
         vec![
-            "default_clearance_delay_days".to_string(),
-            format_value(configured_value("default_clearance_delay_days", 3.0)),
-        ],
-        vec![
             "base_clearance_log_odds".to_string(),
             format_value(store.clearance.base_log_odds()),
         ],
@@ -1635,14 +1631,6 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
         ],
     ];
     md_table(&["Parameter", "Value"], &rows);
-
-    println!(
-        "`default_clearance_delay_days` and any bacterium-specific `*_clearance_delay_days` \
-         values are loaded for compatibility but are not consulted by the current clearance \
-         hazard. Eligibility is instead immediate after acquisition, and infection duration \
-         enters through the fixed +0.25 log-odds/day term."
-    );
-    println!();
 
     println!("#### Clearance Age Adjustments");
     println!();
@@ -1667,18 +1655,6 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
         }
     }
     md_table(&["Bacteria", "Log-odds adjustment"], &rows);
-
-    println!("#### Configured Per-Bacterium Clearance Delays");
-    println!();
-    println!(
-        "Only explicit overrides are shown. As noted above, these loaded values are currently \
-              inactive in the executable hazard."
-    );
-    println!();
-    let rows = configured_rows_matching(|key| {
-        key.ends_with("_clearance_delay_days") && key != "default_clearance_delay_days"
-    });
-    md_table(&["Parameter", "Days"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

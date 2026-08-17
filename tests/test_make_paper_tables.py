@@ -518,6 +518,8 @@ class Figure2PaperLayoutTests(unittest.TestCase):
 
         self.assertIn("runs: 2 accepted calibration runs", html)
         self.assertIn("across 2 stochastic runs", svg)
+        self.assertIn("Review-informed calibration target", svg)
+        self.assertIn("review-informed calibration target", html)
         self.assertNotIn("10 stochastic runs", html + svg)
 
 

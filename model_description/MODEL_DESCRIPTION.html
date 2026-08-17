@@ -602,13 +602,11 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <li><strong>Infection acquisition</strong>: if an individual is vaccinated against bacterium <em>b</em>, the model adds <code>log_odds_vaccinated</code> for that bacterium to the infection-acquisition log-odds.</li>
 <li><strong>Microbiome / carriage acquisition</strong>: the same log-odds adjustment is applied when modelling asymptomatic carriage acquisition.</li>
 </ul>
-<p>The organism-specific effects in the table are model-scale parameters, not direct estimates of clinical vaccine efficacy for a single product, serotype, endpoint, or dosing schedule. This distinction is particularly important because the model represents all <em>H. influenzae</em>, rather than Hib alone, and applies the pertussis effect to acquisition even though acellular pertussis vaccination can protect against disease more strongly than against colonisation. When no bacterium-specific value is supplied, the model uses <code>log_odds_vaccinated = -2.0</code>, corresponding to an odds multiplier of approximately \(e^{-2} \approx 0.135\).</p>
-<p>The vaccine terms and organism-specific acquisition baselines are treated as a joint parameterisation. The acquisition baselines are -12.31 for <em>S. pneumoniae</em>, -18.50 for <em>N. meningitidis</em>, -18.47 for <em>H. influenzae</em>, and -12.32 for <em>B. pertussis</em>. These values use a first-order adjustment for the configured birth-cohort coverage and the modelled distribution of acquisition events by age, intended to retain the 2025 acquisition scale. A full stochastic calibration is required to assess exact agreement with the 2025 incidence targets. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
+<p>The organism-specific effects in the table are model-scale parameters, not direct estimates of clinical vaccine efficacy for a single product, serotype, endpoint, or dosing schedule. This distinction is particularly important because the model represents all <em>H. influenzae</em>, rather than Hib alone, and applies the pertussis effect to acquisition even though acellular pertussis vaccination can protect against disease more strongly than against colonisation. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
 <h4 id="age-and-region-interactions">Age and region interactions</h4>
-<p>The current acquisition calculation uses additive log-odds across six age bands (<code>infant</code>, <code>preschool</code>, <code>school</code>, <code>young_adult</code>, <code>middle_age</code>, and <code>elderly</code>). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without applying a generic syndrome template as an active multiplier. Appendix B.6 is generated from the current configuration and lists the current bacterium-age and bacterium-region-age values.</p>
+<p>The current acquisition calculation uses additive log-odds across six age bands (<code>infant</code>, <code>preschool</code>, <code>school</code>, <code>young_adult</code>, <code>middle_age</code>, and <code>elderly</code>). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without applying a generic syndrome template as an active multiplier. Appendix B.6 lists the bacterium-age and bacterium-region-age values.</p>
 <h3 id="32-hospital-acquisition">3.2 Hospital acquisition</h3>
-<p>Since hospitals concentrate nosocomial pathogens — <em>Acinetobacter</em> and <em>Pseudomonas</em> on ventilators, <em>Staphylococcus</em> (including coagulase-negative staphylococci) and <em>Enterococcus</em> on central lines, <em>C. difficile</em> in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (<code>{bacteria}_log_odds_hospital_acquired</code>) for each species.</p>
-<p>These hospital-acquisition terms are best interpreted as semi-quantitative rankings of nosocomial exposure pressure rather than directly sourced empirical estimates. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (World Health Organization GLASS dashboard, accessed 2026; World Health Organization Global antibiotic resistance surveillance report, 2025).</p>
+<p>Since hospitals concentrate nosocomial pathogens the model uses separate hospital-specific acquisition parameters (<code>{bacteria}_log_odds_hospital_acquired</code>) for each species.  Healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (World Health Organization GLASS dashboard, accessed 2026; World Health Organization Global antibiotic resistance surveillance report, 2025).</p>
 <p>For pathogens whose transmission is overwhelmingly sexual or foodborne, the current configuration assumes effectively zero hospital acquisition risk.  So while organisms such as <em>C. trachomatis</em>, <em>N. gonorrhoeae</em>, <em>M. genitalium</em>, <em>T. pallidum</em>, and <em>Campylobacter</em> can still be diagnosed while a patient is in hospital, the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.</p>
 <h3 id="33-carrier-derived-infection">3.3 Carrier-derived infection</h3>
 <p>Asymptomatic carriage (see Section 8) can give rise to endogenous infection when commensal organisms transition to an active infection site. This pathway is important for AMR because:</p>
@@ -649,7 +647,8 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <li><strong>Prevention by existing therapy.</strong> For each antibiotic the person is already taking, the model calculates effective activity from baseline potency, current drug level, and the acquired resistance implied by the prospective resistance-mechanism profile. A sufficiently active drug can prevent establishment according to <code>antibiotic_infection_prevention_efficacy</code> (0.70). Acquired resistance can reduce activity and thereby permit breakthrough infection.</li>
 <li><strong>Establishment.</strong> If prevention occurs, the candidate infection and its prospective resistance mechanisms are discarded and no infection-acquisition event is recorded. Otherwise, the infection becomes established: <code>mechanism_any</code> and <code>mechanism_majority</code> are stored, and the drug-specific resistance measure <code>any_r</code> is calculated from the mechanisms in <code>mechanism_any</code> as described in Sections 7.2 and 7.3.</li>
 </ol>
-<h2 id="the-initial-candidate-acquisition-probability-is-therefore-independent-of-the-assigned-resistance-mechanism-profile-but-successful-establishment-is-not-the-corresponding-prevention-check-is-not-applied-to-carriage-acquisition">The initial candidate-acquisition probability is therefore independent of the assigned resistance-mechanism profile, but successful establishment is not. The corresponding prevention check is not applied to carriage acquisition.</h2>
+<p>The initial candidate-acquisition probability is therefore independent of the assigned resistance-mechanism profile, but successful establishment is not. The corresponding prevention check is not applied to carriage acquisition.</p>
+<hr />
 <h2 id="4-clinical-progression">4. Clinical Progression</h2>
 <p>Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparisons around antibiotic resistance rather than attempting to model the clinical course of each infection in high level detail.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> For each active infection, the model records the clinical syndrome (<code>infectious_syndrome[b]</code>), infection intensity (<code>level[b]</code>), and whether symptoms or another clinical-testing indication have occurred (<code>infection_has_caused_symptoms[b]</code>). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (<code>clearance_hazard[b]</code> and <code>clearance_ready_day[b]</code>). Sepsis status and timing are recorded in <code>sepsis[b]</code> and <code>sepsis_onset_day[b]</code>. Daily intermediate variables govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (<code>symptom_onset_probability[b]</code>, <code>sepsis_onset_probability[b]</code>, <code>sepsis_recovery_probability[b]</code>, and <code>new_bacteria_level[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
@@ -659,7 +658,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <li><strong>Empiric drug choice</strong> (prescribing guidelines differ by site — see Section 6.2)</li>
 <li><strong>Drug penetration</strong> (varies by tissue — see Section 6.4)</li>
 <li><strong>Replication rate</strong> (e.g. bloodstream supports rapid growth; bone does not)</li>
-<li><strong>Sepsis and mortality risk</strong> (bloodstream infections are far more dangerous than skin infections)</li>
+<li><strong>Sepsis and mortality risk</strong> (e.g. bloodstream infections are more dangerous than skin infections)</li>
 </ul>
 <p>The 10 syndromes correspond to the major infectious disease presentations encountered in clinical microbiology:</p>
 <table>
@@ -727,7 +726,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>Each syndrome modifies two key aspects of the infection:</p>
 <ul>
 <li><strong>Syndrome antibiotic-initiation odds ratio</strong> — how strongly symptoms at that site increase the odds of antibiotic initiation once the infection has become symptomatic. A patient with bacteraemia (×16) or meningitis (×14) is much more likely to start antibiotics than a patient with a simple UTI (×6).</li>
-<li><strong>Bacterial growth rate multiplier</strong> — how fast the bacteria replicate at that body site. Bacteria in the bloodstream (×1.4) multiply faster than bacteria embedded in bone (×0.85).</li>
+<li><strong>Bacterial growth rate multiplier</strong> — how fast the bacteria replicate at that body site; e.g. bacteria in the bloodstream (×1.4) multiply faster than bacteria embedded in bone (×0.85).</li>
 </ul>
 <table>
 <thead>
@@ -791,7 +790,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <td>Bone/joint</td>
 <td>×4.0</td>
 <td>×0.85</td>
-<td>Important to treat once recognised, but many bone and joint infections are slower and less immediately explosive</td>
+<td>Important to treat once recognised, but many bone and joint infections are slow to fully emerge</td>
 </tr>
 <tr>
 <td>Other</td>
@@ -844,7 +843,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <td>Age and bacterium-age interaction</td>
 <td><code>sepsis_age_log_odds_baseline</code>, <code>sepsis_age_log_odds_neonatal</code>, <code>sepsis_age_log_odds_pediatric</code>, <code>sepsis_age_log_odds_young_adult</code>, <code>sepsis_age_log_odds_elderly</code>, plus <code>&lt;bacterium&gt;_&lt;age_category&gt;_sepsis_log_odds</code></td>
 <td>General age terms: baseline 0.0; neonatal (≤28 days) +1.10; paediatric (&gt;28 days to 18 years) +0.18; young adult (&gt;18 to 65 years) 0.0; elderly (&gt;65 years) +0.69. Selected organisms add extra age-specific deltas, e.g. neonatal GBS, neonatal <em>E. coli</em>, paediatric pneumococcus/<em>H. influenzae</em>/<em>N. meningitidis</em>, elderly pneumococcus/<em>E. coli</em>/<em>Klebsiella</em>/<em>Pseudomonas</em>/<em>Acinetobacter</em>/VRE/<em>S. aureus</em>, and young-adult meningococcus/<em>S. aureus</em>.</td>
-<td>Captures both general host vulnerability and pathogen-specific age patterns. The detailed organism-age terms are calibration terms rather than direct empirical case-fatality estimates.</td>
+<td>Captures both general host vulnerability and pathogen-specific age patterns. The detailed organism-age terms are review-informed estimates rather than direct empirical case-fatality estimates.</td>
 </tr>
 <tr>
 <td>Syndrome / infection site</td>
@@ -886,18 +885,18 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </table>
 <p>The result is converted to a daily probability using the logistic function. These terms are calibrated model components designed to preserve plausible clinical ordering; the exact numeric values should not be read as direct empirical estimates of portable sepsis risk.</p>
 <h3 id="44-natural-clearance-and-microbiome-dynamics">4.4 Natural clearance and microbiome dynamics</h3>
-<p>This part of the model contains two related but distinct processes:</p>
+<p>This part of the model describes clearance in two distinct states: clearance of asymptomatic microbiome carriage and clearance of active infection. These are governed by separate calculations.</p>
 <ul>
-<li><strong>Microbiome or carriage clearance</strong>: <code>default_microbiome_clearance_probability_per_day</code> = 0.01 is the reference daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific values for organisms that are known to persist much longer or clear more quickly. This baseline 1% per-day clearance corresponds to an average carriage duration of ~100 days before spontaneous clearance, though many pathogens are configured with longer duration times.</li>
+<li><strong>Microbiome or carriage clearance</strong>: <code>default_microbiome_clearance_probability_per_day</code> = 0.01 is the reference daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific values for organisms that are known to persist much longer or clear more quickly. If applied alone as a constant daily probability, 1% per day would correspond to an average carriage duration of approximately 100 days. It is not the expected duration under the full model, because carriage duration and antibiotic activity also modify the daily clearance probability.</li>
 <li><strong>Duration penalty on carriage clearance</strong>: <code>carriage_duration_log_odds_coefficient</code> = −0.01 per day, capped by <code>carriage_duration_max_log_odds_effect</code> = −2.0, applies to microbiome carriage. The rationale is that long-established colonisation becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005), reflecting that a bacterium that has been carried for 200 days is substantially harder to clear spontaneously than one only acquired 1 day ago.</li>
-<li><strong>Drug-assisted carriage clearance</strong>: <code>microbiome_clearance_probability_on_drug_treatment</code> = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves. This means 80% of the time, when an infection is successfully treated with an antibiotic, the asymptomatic carriage compartment is also cleared; 20% of the time, the microbiome is not cleared and persists.</li>
-<li><strong>Microbiome acquisition on active drug therapy</strong>: The model tracks a separate indicator, <code>microbiome_acquired_on_drug_today</code>, that identifies when carriage is acquired while the individual is already on antibiotic treatment. This captures "opportunistic overgrowth" — bacteria that would normally be outcompeted but thrive in the antibiotic-disrupted microbiome (example: <em>Clostridioides difficile</em> overgrowth during broad-spectrum therapy). This is distinct from acquisition in the absence of treatment.</li>
+<li><strong>Antibiotic effects on carriage clearance</strong>: Antibiotics affect carriage clearance through two pathways. First, while carriage is present, activity from each antibiotic is calculated from its current level, baseline potency against the bacterium, and resistance in the carriage compartment. Activity above 0.1 increases the ordinary daily carriage-clearance log-odds by <code>antibiotic_clearance_log_odds_per_unit_activity</code> = 0.5 per unit of effective activity. Second, if an active infection resolves through drug-assisted clearance while the same bacterium remains in the carriage compartment, <code>microbiome_clearance_probability_on_drug_treatment</code> = 0.80 gives an additional 80% probability of clearing that carriage. If this additional draw does not clear carriage, the carriage compartment remains subject to the ordinary daily clearance calculation.</li>
+<li><strong>Antibiotic-associated carriage acquisition and reporting</strong>: Active antibiotic exposure adds drug-specific disruption increments to <code>microbiome_disruption_level</code>. This disruption reservoir decays over time and increases the log-odds of acquiring carriage, representing ecological opportunities such as <em>Clostridioides difficile</em> overgrowth in an antibiotic-disrupted microbiome. The separate <code>microbiome_acquired_on_drug_today</code> indicator records whether a carriage acquisition occurred while an antibiotic level exceeded 0.1. It is a reporting indicator and does not itself alter the acquisition probability.</li>
 </ul>
 <p><strong>Active-infection immune clearance</strong> is a separate daily logistic hazard. In the current model its log-odds are</p>
 <p>\[-4.2 + \text{bacterium adjustment} + \text{age adjustment} - 0.69\,I(\text{immunodeficient}) - 0.3\times\text{infection level} + 0.25\times\text{duration in days}.\]</p>
-<p>All current bacterium and age adjustments are zero. The <code>default_clearance_delay_days = 3</code> setting and optional bacterium-specific delay settings are present in <code>ClearanceParameters</code>, but they do not currently affect the calculation: clearance becomes eligible on the acquisition day (or is assigned retrospectively to that day for an infection recorded under an older model state), and the duration term is measured from that date. This distinction is important when interpreting short active-infection episodes and is stated explicitly here so the configured delay is not mistaken for behaviour currently represented by the model.</p>
-<p><strong>Infection resolution.</strong> Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level falls below 0.0001, or when an immune-clearance event occurs; this is not controlled by <code>default_microbiome_clearance_probability_per_day</code>. <em>H. pylori</em> uses this same active-infection clearance pathway and, uniquely among the 42 bacteria, has no separate microbiome/carriage state. Its configured microbiome-clearance value is consequently available to the model but is not applied to a distinct <em>H. pylori</em> carriage compartment.</p>
-<p>This distinction matters for AMR because there can be a delay between infection acquisition and symptom-driven treatment. During that untreated interval, bacteria continue replicating, and resistant subclones can emerge or expand within the infecting population before antibiotics are started. Before treatment begins, the dominant process is therefore untreated growth and diversification rather than antibiotic selection.</p>
+<p>All current bacterium and age adjustments are zero. The daily immune-clearance probability is evaluated from the day the infection is acquired, with infection duration counted from that day. Consequently, an infection can undergo immune clearance on its first simulated day.</p>
+<p><strong>Infection resolution.</strong> Infection level changes each day through configured bacterial growth, host characteristics that modify that growth, and any active antibiotic effect. Immune clearance is evaluated separately as a daily all-or-nothing event rather than as gradual host-driven suppression of the infection level. An infection resolves when the simulated bacterial level falls below 0.0001, or when an immune-clearance event occurs; this is not controlled by <code>default_microbiome_clearance_probability_per_day</code>. <em>H. pylori</em> uses this same active-infection clearance pathway and, uniquely among the 42 bacteria, has no separate microbiome/carriage state. Its configured microbiome-clearance value is consequently available to the model but is not applied to a distinct <em>H. pylori</em> carriage compartment.</p>
+<p>There can be a delay between infection acquisition and symptom-driven treatment. During that interval, infection level follows the untreated growth calculation. Acquired resistance mechanisms may already be present in the resistance-mechanism profile assigned at infection establishment, and eligible mechanisms can subsequently be transferred through horizontal gene transfer. However, the model's de novo emergence of resistance mechanisms and promotion of minority mechanisms require active applicable antibiotic pressure. It therefore does not apply antibiotic selection before antibiotic exposure begins.</p>
 <hr />
 <h2 id="5-diagnostic-testing">5. Diagnostic Testing</h2>
 <p>Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.</p>
@@ -31174,10 +31173,6 @@ their names describe the intended column structure, not downloaded observations.
 </thead>
 <tbody>
 <tr>
-<td>default_clearance_delay_days</td>
-<td style="text-align: right;">3</td>
-</tr>
-<tr>
 <td>base_clearance_log_odds</td>
 <td style="text-align: right;">-4.2</td>
 </tr>
@@ -31195,7 +31190,6 @@ their names describe the intended column structure, not downloaded observations.
 </tr>
 </tbody>
 </table>
-<p><code>default_clearance_delay_days</code> and any bacterium-specific <code>*_clearance_delay_days</code> values remain in the configuration for compatibility but do not affect the current clearance hazard. Eligibility is instead immediate after acquisition, and infection duration enters through the fixed +0.25 log-odds/day term.</p>
 <h4 id="clearance-age-adjustments">Clearance Age Adjustments</h4>
 <table>
 <thead>
@@ -31237,22 +31231,6 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <th>Bacteria</th>
 <th style="text-align: right;">Log-odds adjustment</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td></td>
-<td></td>
-</tr>
-</tbody>
-</table>
-<h4 id="configured-per-bacterium-clearance-delays">Configured Per-Bacterium Clearance Delays</h4>
-<p>Only explicitly specified values are shown. As noted above, these configuration values do not currently affect the clearance hazard.</p>
-<table>
-<thead>
-<tr>
-<th>Parameter</th>
-<th style="text-align: right;">Days</th>
 </tr>
 </thead>
 <tbody>

@@ -203,7 +203,10 @@ class FigureUncertaintyFootnoteTests(unittest.TestCase):
         self.assertIn("do not enter the calibration score", _TARGET_PLAUSIBLE_RANGE_FOOTNOTE)
 
     def test_figure_2_explains_absent_target_intervals(self) -> None:
-        self.assertIn("point calibration benchmarks", _RESISTANCE_POINT_TARGET_FOOTNOTE)
+        self.assertIn(
+            "review-informed calibration targets",
+            _RESISTANCE_POINT_TARGET_FOOTNOTE,
+        )
         self.assertIn("should not be interpreted as certainty", _RESISTANCE_POINT_TARGET_FOOTNOTE)
 
 

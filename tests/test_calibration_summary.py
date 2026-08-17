@@ -536,11 +536,11 @@ class ResistancePublicationTerminologyTests(unittest.TestCase):
 
         self.assertEqual(list(result.columns), ["Inf calibration benchmark (%)"])
 
-    def test_resistance_notes_state_benchmark_provenance(self) -> None:
+    def test_resistance_notes_state_target_provenance(self) -> None:
         notes = " ".join(_RESISTANCE_TARGET_SOURCE_NOTES)
 
-        self.assertIn("evidence-informed calibration benchmarks", notes)
-        self.assertIn("expert-assigned model benchmarks", notes)
+        self.assertIn("review-informed calibration targets", notes)
+        self.assertIn("expert-assigned components", notes)
         self.assertNotIn("WHO GLASS 2026", notes)
         self.assertNotIn("observed-estimate", notes)
 

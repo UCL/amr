@@ -2414,10 +2414,8 @@ impl BacteriaParameters {
 // log_odds = base + bacteria_effect + age_effect + immuno_effect + level_effect
 #[derive(Debug)]
 pub struct ClearanceParameters {
-    _base_delay_days: f64,
     // Logistic model parameters
     base_clearance_log_odds: f64,
-    _per_bacteria_delay_days: Vec<Option<f64>>,
     per_bacteria_log_odds_adjustment: Vec<f64>,
     age_log_odds_adjustments: [f64; AGE_BUCKET_COUNT],
     immunodeficient_log_odds_adjustment: f64,
@@ -2426,8 +2424,6 @@ pub struct ClearanceParameters {
 
 impl ClearanceParameters {
     fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
-        // Base post-infection delay before clearance can occur
-        let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
         // Logistic model: base log-odds for clearance probability
         // Default: log(0.015/0.985) = -4.2 (equivalent to 1.5% daily clearance)
         let base_clearance_log_odds = get_or_default(map, "default_clearance_base_log_odds", -4.2);
@@ -2439,13 +2435,8 @@ impl ClearanceParameters {
             age_log_odds_adjustments[idx] = get_or_default(map, &key, 0.0);
         }
 
-        let mut per_bacteria_delay_days = Vec::with_capacity(num_bacteria);
         let mut per_bacteria_log_odds_adjustment = Vec::with_capacity(num_bacteria);
         for &bacteria in BACTERIA_LIST.iter() {
-            per_bacteria_delay_days.push(
-                map.get(&format!("{}_clearance_delay_days", bacteria))
-                    .copied(),
-            );
             // Bacteria-specific log-odds adjustment (additive)
             per_bacteria_log_odds_adjustment.push(get_or_default(
                 map,
@@ -2463,22 +2454,12 @@ impl ClearanceParameters {
             get_or_default(map, "clearance_level_log_odds_per_unit", -0.3);
 
         ClearanceParameters {
-            _base_delay_days: base_delay_days,
             base_clearance_log_odds,
-            _per_bacteria_delay_days: per_bacteria_delay_days,
             per_bacteria_log_odds_adjustment: per_bacteria_log_odds_adjustment,
             age_log_odds_adjustments,
             immunodeficient_log_odds_adjustment,
             level_log_odds_per_unit,
         }
-    }
-
-    #[inline]
-    #[allow(dead_code)]
-    pub fn delay_days(&self, bacteria_idx: usize) -> f64 {
-        self._per_bacteria_delay_days[bacteria_idx]
-            .unwrap_or(self._base_delay_days)
-            .max(0.0)
     }
 
     #[inline]
@@ -3419,7 +3400,6 @@ lazy_static! {
         // ^^^^
         map.insert("community_mechanism_reversion_multiplier".to_string(), 0.1);  // 1.0  0.5
 
-        map.insert("default_clearance_delay_days".to_string(), 3.0);
         map.insert("default_clearance_base_log_odds".to_string(), -4.2);
         map.insert("clearance_immunodeficient_log_odds".to_string(), -0.69);
         map.insert("clearance_level_log_odds_per_unit".to_string(), -0.3);
