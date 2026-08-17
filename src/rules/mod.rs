@@ -9136,6 +9136,29 @@ mod tests {
     }
 
     #[test]
+    fn supported_vaccine_targets_use_organism_specific_acquisition_parameters() {
+        let store = parameter_store();
+        let expected = [
+            ("streptococcus_pneumoniae", -12.31, -1.4),
+            ("neisseria_meningitidis", -18.5, -2.0),
+            ("haemophilus_influenzae", -18.47, -1.8),
+            ("bordetella_pertussis", -12.32, -1.4),
+        ];
+
+        for (bacterium, expected_baseline, expected_vaccine_effect) in expected {
+            let idx = bacteria_idx(bacterium);
+            assert_eq!(
+                store.bacteria.acquisition_log_odds_baseline[idx], expected_baseline,
+                "unexpected acquisition baseline for {bacterium}"
+            );
+            assert_eq!(
+                store.bacteria.log_odds_vaccinated[idx], expected_vaccine_effect,
+                "unexpected vaccine effect for {bacterium}"
+            );
+        }
+    }
+
+    #[test]
     fn no_medical_care_preserves_configured_sepsis_penalties() {
         let (individual, _rng) = individual_with_seed(15);
         let globals = &parameter_store().globals;

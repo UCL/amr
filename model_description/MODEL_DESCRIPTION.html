@@ -74,8 +74,8 @@ a:hover { text-decoration: underline; }
 <p>We present a <strong>framework</strong> in the form of an <strong>individual-based model</strong> that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before antibacterial use, through 2025 in <strong>daily</strong> time steps; full policy comparison runs can extend through 2035 and beyond. We typically simulate 10 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, to augment the calibration, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.</p>
 <p>As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
 <p>The framework captures how bacterial resistance in the population of currently or previously actively infected people affects resistance in those newly infected in the same region, while also accounting for movement between regions. Infection acquisition hazards are externally parameterised by bacterium, age, region, vaccination, carriage, hospital status, sanitation, and selected organism-specific calendar-era effects, so the framework does not dynamically model infection transmission.</p>
-<p><strong>Meaning of potency and resistance.</strong> In this document, <em>potency</em> is a dimensionless model quantity for the baseline activity of a particular drug against a particular bacterial species when no modelled acquired resistance mechanism is present. It ranges from 0 (no baseline activity) to 1 (maximum baseline activity). Low or zero potency represents intrinsic or baseline non-susceptibility. Potency is not a dose, drug concentration, minimum inhibitory concentration (MIC), clinical breakpoint, or the activity achieved in a particular person; treatment activity also depends on systemic drug exposure, penetration to the infection site, and acquired resistance.</p>
-<p>Throughout this document, <em>resistance</em> means resistance conferred by the acquired resistance mechanisms represented in the model. An infection may already carry these mechanisms when it is acquired: "acquired" does not imply that they arose during the current infection or within the current person. Intrinsic or baseline non-susceptibility is represented through potency and is not included in <code>any_r</code> or the model's resistance-prevalence estimates.</p>
+<p><strong>Meaning of potency and resistance.</strong> In this document, <em>potency</em> is a dimensionless model quantity for the baseline activity of a particular drug against a particular bacterial species when no modelled acquired resistance mechanism is present. It ranges from 0 (no baseline activity) to 1 (maximum baseline activity). Low or zero potency represents intrinsic or baseline non-susceptibility. Treatment activity also depends on systemic drug exposure, penetration to the infection site, and acquired resistance.</p>
+<p>Throughout this document, <em>resistance</em> means resistance conferred by the acquired resistance mechanisms represented in the model. An infection may already carry these mechanisms when it is acquired: "acquired" does not imply that they necessarily arose during the current infection or within the current person. Intrinsic non-susceptibility is represented through potency and is not included in <code>any_r</code> or the model's resistance-prevalence estimates.</p>
 <p>The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of mechanistic rules. These rules govern the events that can happen to a person on any given day and include:</p>
 <ul>
 <li>Demographic processes (ageing, births, background mortality)</li>
@@ -151,11 +151,11 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </tr>
 </tbody>
 </table>
-<p>Each section describes the modelling choices, their rationale, and the specific rules and parameter values. Sections 2–10 also identify the principal individual-level quantities at the start of the section where they are first treated in detail. Exact identifiers are included in parentheses for traceability to <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>, which provides the complete variable dictionary and update-rule catalogue. Variables used only for output counting or to prevent duplicate reporting remain ony in Appendices C and D.</p>
+<p>Each section describes the modelling choices, their rationale, and the specific rules and parameter values. Sections 2–10 also identify the principal individual-level variables at the start of the section where they are first treated in detail. Exact identifiers are included in parentheses for traceability to <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>, which provides the complete variable dictionary and update-rule catalogue. Variables used only for output counting or to prevent duplicate reporting remain only in Appendices C and D.</p>
 <hr />
 <h2 id="2-population-and-demographics">2. Population and Demographics</h2>
 <p>This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immunodeficiency status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.  Future users may wish to add further details (variables) for each individual.</p>
-<p><strong>Individual-level quantities introduced in this section.</strong> Each person has an identifier (<code>id</code>), age in days (<code>age</code>), sex at birth (<code>sex_at_birth</code>), a home region (<code>region_living</code>), and a current region that can change during travel (<code>region_cur_in</code>, with <code>days_visiting</code> recording the duration of a visit). Current care setting is represented by <code>hospital_status</code> and <code>days_hospitalized</code>, and severe temporary or chronic immunodeficiency by <code>immunodeficiency_type</code>. Daily transition probabilities determine changes in immunodeficiency, hospital admission, and travel (<code>immunodeficiency_transition_probability</code>, <code>hospitalization_probability</code>, and <code>travel_probability</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> Each person has an identifier (<code>id</code>), age in days (<code>age</code>), sex at birth (<code>sex_at_birth</code>), a home region (<code>region_living</code>), and a current region that can change during travel (<code>region_cur_in</code>, with <code>days_visiting</code> recording the duration of a visit). Current care setting is represented by <code>hospital_status</code> and <code>days_hospitalized</code>, and severe temporary or chronic immunodeficiency by <code>immunodeficiency_type</code>. Daily transition probabilities determine changes in immunodeficiency, hospital admission, and travel (<code>immunodeficiency_transition_probability</code>, <code>hospitalization_probability</code>, and <code>travel_probability</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="21-initialisation">2.1 Initialisation</h3>
 <p>The population is created at day 0 (representing the calendar year 1930). Each individual is assigned:</p>
 <ul>
@@ -505,8 +505,8 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <hr />
 <h2 id="3-infection-acquisition-and-resistance-at-establishment">3. Infection Acquisition and Resistance at Establishment</h2>
 <p>This section describes how candidate bacterial infections arise and whether they become established. A candidate can originate from the community (e.g. human contacts, food, water), the hospital environment (e.g., ventilators, catheters, or other patients), or the person's own asymptomatic carriage. Before establishment, the model assembles the candidate infection's resistance-mechanism profile and evaluates whether any antibiotics the person is already taking prevent it. The model captures these distinctions through a deliberately compressed architecture suited to long-run AMR policy analysis rather than representing every route-specific exposure mechanism.</p>
-<p>Every resistance-mechanism profile in this section contains modelled acquired resistance mechanisms only. A resistance-mechanism profile with no mechanisms therefore means no modelled acquired resistance; it does not imply that every drug has baseline activity against the bacterium, because baseline activity is represented separately by potency.</p>
-<p><strong>Individual-level quantities introduced in this section.</strong> For each bacterium, the model records vaccination status (<code>vaccination_status[b]</code>), the calculated daily acquisition risk (<code>predicted_infection_risk[b]</code>), and the temporary probability used to generate a candidate infection (<code>infection_acquisition_probability[b]</code>). A successful episode records its start day and acquisition setting (<code>date_last_infected[b]</code>, <code>date_last_infected_keep[b]</code>, and <code>infection_hospital_acquired[b]</code>). For a candidate infection, <code>incoming_infection_mechanism_mask[b]</code> represents its prospective resistance-mechanism profile; if it becomes established, <code>mechanism_any[b]</code> records mechanisms present in any of the infecting bacteria strains, <code>mechanism_majority[b]</code> records resistance mechanisms in the predominant strain, and <code>resistances[b][d].any_r</code> records the resulting (acquired) resistance level for each drug. The model also records the probability and occurrence of prevention by existing therapy (<code>existing_therapy_prevention_probability[b]</code> and <code>infection_prevented_by_drug[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p>Every resistance-mechanism profile in this section contains modelled acquired resistance mechanisms only. A resistance-mechanism profile with no mechanisms therefore means no modelled acquired resistance; it does not imply that every necessarily drug has baseline activity against the bacterium, because baseline activity is represented separately by potency.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> For each bacterium, the model records vaccination status (<code>vaccination_status[b]</code>), the calculated daily acquisition risk (<code>predicted_infection_risk[b]</code>), and the temporary probability used to generate a candidate infection (<code>infection_acquisition_probability[b]</code>). A successful episode records its start day and acquisition setting (<code>date_last_infected[b]</code>, <code>date_last_infected_keep[b]</code>, and <code>infection_hospital_acquired[b]</code>). For a candidate infection, <code>incoming_infection_mechanism_mask[b]</code> represents its prospective resistance-mechanism profile; if it becomes established, <code>mechanism_any[b]</code> records mechanisms present in any of the infecting bacteria strains, <code>mechanism_majority[b]</code> records resistance mechanisms in the predominant strain, and <code>resistances[b][d].any_r</code> records the resulting (acquired) resistance level for each drug. The model also records the probability and occurrence of prevention by existing therapy (<code>existing_therapy_prevention_probability[b]</code> and <code>infection_prevented_by_drug[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="31-community-acquisition">3.1 Community acquisition</h3>
 <p>Each day, the model evaluates each of the 42 bacterial species separately. A person can acquire a bacterium if they are not already actively infected with that same bacterium; having another active infection does not block acquisition. Co-infections are therefore possible. The model calculates a separate probability for each species using a logistic model that combines:</p>
 <ul>
@@ -544,14 +544,18 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </tbody>
 </table>
 <h4 id="vaccination">Vaccination</h4>
-<p>Vaccination is represented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person therefore has a yes/no vaccination record (<code>vaccination_status</code> in the code) for every bacterium. Vaccination is assigned once, at cohort entry: at the start of the first active day, while a newborn's age is zero and before the daily age increment, the model considers the vaccines available in that year and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress. Once vaccination has been assigned, that status remains for the rest of the simulation; there is currently no waning, revaccination, booster, or catch-up campaign.</p>
-<p>The vaccine layer currently supports four bacterial vaccines:</p>
+<p>Vaccination is represented as a per-bacterium prevention intervention that acts before infection or carriage is acquired. Each person therefore has a yes/no vaccination record (<code>vaccination_status</code> in the code) for every bacterium.  We make the simplifying assumption of vaccination being at birth, considering the vaccines available in that year, and with a probability determined by the vaccine's rollout progress. Once vaccination has been assigned, that status remains for the rest of the simulation; there is currently no waning, revaccination, booster, or catch-up campaign explicitly modelled.</p>
+<p>The vaccine layer supports four bacterial vaccines. The acquisition effects are informed by evidence on disease and carriage, while recognising that the model uses a single compressed effect for each target bacterium (Cutts et al., 2005; Dagan et al., 2002; Daugla et al., 2014; Eskola et al., 1990; Giufrè et al., 2015; Read et al., 2014; Warfel et al., 2014).</p>
 <table>
 <thead>
 <tr>
 <th>Vaccine</th>
 <th>Target bacterium</th>
 <th style="text-align: right;">Availability year</th>
+<th style="text-align: right;">Target birth-cohort coverage</th>
+<th style="text-align: right;">Rollout (years)</th>
+<th style="text-align: right;">Acquisition log-odds effect</th>
+<th style="text-align: right;">Reduction in acquisition odds</th>
 </tr>
 </thead>
 <tbody>
@@ -559,21 +563,37 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <td>Pneumococcal</td>
 <td><em>Streptococcus pneumoniae</em></td>
 <td style="text-align: right;">2000</td>
+<td style="text-align: right;">75%</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">-1.4</td>
+<td style="text-align: right;">75.3%</td>
 </tr>
 <tr>
 <td>Meningococcal</td>
 <td><em>Neisseria meningitidis</em></td>
 <td style="text-align: right;">1981</td>
+<td style="text-align: right;">55%</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">-2.0</td>
+<td style="text-align: right;">86.5%</td>
 </tr>
 <tr>
 <td>Hib</td>
 <td><em>Haemophilus influenzae</em></td>
 <td style="text-align: right;">1985</td>
+<td style="text-align: right;">85%</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">-1.8</td>
+<td style="text-align: right;">83.5%</td>
 </tr>
 <tr>
 <td>Pertussis</td>
 <td><em>Bordetella pertussis</em></td>
 <td style="text-align: right;">1948</td>
+<td style="text-align: right;">82%</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">-1.4</td>
+<td style="text-align: right;">75.3%</td>
 </tr>
 </tbody>
 </table>
@@ -582,8 +602,8 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <li><strong>Infection acquisition</strong>: if an individual is vaccinated against bacterium <em>b</em>, the model adds <code>log_odds_vaccinated</code> for that bacterium to the infection-acquisition log-odds.</li>
 <li><strong>Microbiome / carriage acquisition</strong>: the same log-odds adjustment is applied when modelling asymptomatic carriage acquisition.</li>
 </ul>
-<p>When no bacterium-specific value is supplied, the model uses <code>log_odds_vaccinated = -2.0</code>, corresponding to an odds multiplier of approximately \(e^{-2} \approx 0.135\). Vaccination therefore reduces acquisition odds by about 86.5% for bacteria that use this value. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
-<p>Under the current reference parameter set, vaccination is enabled: each vaccine has a non-zero target birth-cohort coverage and a rollout duration.</p>
+<p>The organism-specific effects in the table are model-scale parameters, not direct estimates of clinical vaccine efficacy for a single product, serotype, endpoint, or dosing schedule. This distinction is particularly important because the model represents all <em>H. influenzae</em>, rather than Hib alone, and applies the pertussis effect to acquisition even though acellular pertussis vaccination can protect against disease more strongly than against colonisation. When no bacterium-specific value is supplied, the model uses <code>log_odds_vaccinated = -2.0</code>, corresponding to an odds multiplier of approximately \(e^{-2} \approx 0.135\).</p>
+<p>The vaccine terms and organism-specific acquisition baselines are treated as a joint parameterisation. The acquisition baselines are -12.31 for <em>S. pneumoniae</em>, -18.50 for <em>N. meningitidis</em>, -18.47 for <em>H. influenzae</em>, and -12.32 for <em>B. pertussis</em>. These values use a first-order adjustment for the configured birth-cohort coverage and the modelled distribution of acquisition events by age, intended to retain the 2025 acquisition scale. A full stochastic calibration is required to assess exact agreement with the 2025 incidence targets. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
 <h4 id="age-and-region-interactions">Age and region interactions</h4>
 <p>The current acquisition calculation uses additive log-odds across six age bands (<code>infant</code>, <code>preschool</code>, <code>school</code>, <code>young_adult</code>, <code>middle_age</code>, and <code>elderly</code>). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without applying a generic syndrome template as an active multiplier. Appendix B.6 is generated from the current configuration and lists the current bacterium-age and bacterium-region-age values.</p>
 <h3 id="32-hospital-acquisition">3.2 Hospital acquisition</h3>
@@ -632,7 +652,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <h2 id="the-initial-candidate-acquisition-probability-is-therefore-independent-of-the-assigned-resistance-mechanism-profile-but-successful-establishment-is-not-the-corresponding-prevention-check-is-not-applied-to-carriage-acquisition">The initial candidate-acquisition probability is therefore independent of the assigned resistance-mechanism profile, but successful establishment is not. The corresponding prevention check is not applied to carriage acquisition.</h2>
 <h2 id="4-clinical-progression">4. Clinical Progression</h2>
 <p>Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparisons around antibiotic resistance rather than attempting to model the clinical course of each infection in high level detail.</p>
-<p><strong>Individual-level quantities introduced in this section.</strong> For each active infection, the model records the clinical syndrome (<code>infectious_syndrome[b]</code>), infection intensity (<code>level[b]</code>), and whether symptoms or another clinical-testing indication have occurred (<code>infection_has_caused_symptoms[b]</code>). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (<code>clearance_hazard[b]</code> and <code>clearance_ready_day[b]</code>). Sepsis status and timing are recorded in <code>sepsis[b]</code> and <code>sepsis_onset_day[b]</code>. Daily intermediate quantities govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (<code>symptom_onset_probability[b]</code>, <code>sepsis_onset_probability[b]</code>, <code>sepsis_recovery_probability[b]</code>, and <code>new_bacteria_level[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> For each active infection, the model records the clinical syndrome (<code>infectious_syndrome[b]</code>), infection intensity (<code>level[b]</code>), and whether symptoms or another clinical-testing indication have occurred (<code>infection_has_caused_symptoms[b]</code>). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (<code>clearance_hazard[b]</code> and <code>clearance_ready_day[b]</code>). Sepsis status and timing are recorded in <code>sepsis[b]</code> and <code>sepsis_onset_day[b]</code>. Daily intermediate variables govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (<code>symptom_onset_probability[b]</code>, <code>sepsis_onset_probability[b]</code>, <code>sepsis_recovery_probability[b]</code>, and <code>new_bacteria_level[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="41-syndrome-assignment">4.1 Syndrome assignment</h3>
 <p>When a person develops an active infection, the model assigns an <strong>anatomical syndrome</strong>. This assignment is consequential because syndrome determines:</p>
 <ul>
@@ -883,7 +903,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.</p>
 <p>We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, MIC levels, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.</p>
 <p>Within this simplified pathway, AST is an error-prone report of the model's mechanism-derived acquired resistance. It does not assess the potency matrix. A zero reported resistance value therefore means that no modelled acquired resistance was reported for that drug; it does not establish that the drug has baseline activity against the bacterium or will be clinically effective.</p>
-<p><strong>Individual-level quantities introduced in this section.</strong> For each active infection, <code>test_identified_infection[b]</code> records whether bacterial identification is complete, while <code>test_for_resistance[b]</code> records whether the antimicrobial susceptibility testing (AST) panel is available and <code>resistance_test_initiated_day[b]</code> records when AST began. The corresponding daily identification and AST-initiation probabilities are <code>bacterial_identification_probability[b]</code> and <code>resistance_testing_probability[b]</code>. Once available, <code>resistances[b][d].test_r</code> records the reported acquired-resistance result for each drug; <code>serious_resistance_test_positive</code> summarises whether the completed panel meets the model's serious-resistance definition. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> For each active infection, <code>test_identified_infection[b]</code> records whether bacterial identification is complete, while <code>test_for_resistance[b]</code> records whether the antimicrobial susceptibility testing (AST) panel is available and <code>resistance_test_initiated_day[b]</code> records when AST began. The corresponding daily identification and AST-initiation probabilities are <code>bacterial_identification_probability[b]</code> and <code>resistance_testing_probability[b]</code>. Once available, <code>resistances[b][d].test_r</code> records the reported acquired-resistance result for each drug; <code>serious_resistance_test_positive</code> summarises whether the completed panel meets the model's serious-resistance definition. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="51-historical-introduction">5.1 Historical introduction</h3>
 <p>The framework treats routine bacterial identification and antimicrobial susceptibility testing as unavailable at the 1930 epoch and activates them at configured dates:</p>
 <table>
@@ -1107,7 +1127,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <h2 id="6-antibiotic-treatment">6. Antibiotic Treatment</h2>
 <p>This section covers the entire antibiotic prescribing process as the model simulates it — from the decision to start an antibiotic, through drug selection and dosing, to stopping the course. Antibiotic use drives the selection pressure that causes resistance to emerge and spread.</p>
 <p>The model aims to reproduce how antibiotics are prescribed in clinical practice — including imperfect decisions, regional variation in drug access, and the distinction between empiric therapy (before microbiology results are available) and targeted therapy (guided by culture and susceptibility results). Here especially, the intention is not to encode every clinical nuance of antimicrobial decision-making, but to represent the prescribing features most likely to change AMR trajectories under different policy environments.</p>
-<p><strong>Individual-level quantities introduced in this section.</strong> Prescribing can depend on perceived penicillin allergy (<code>perceived_penicillin_allergy</code>) and on the person's current clinical and care context. For each drug, current use, treatment context, systemic exposure, initiation date, and prior use are recorded in <code>cur_use_drug[d]</code>, <code>drug_use_context[d]</code>, <code>cur_level_drug[d]</code>, <code>date_drug_initiated[d]</code>, and <code>ever_taken_drug[d]</code>; <code>current_number_of_drugs</code> records concurrent treatment. Daily intermediate quantities govern treatment initiation, drug selection, and cessation (<code>antibiotic_initiation_probability</code>, <code>drug_selection_score[d]</code>, and <code>drug_cessation_probability[d]</code>). Effective activity against each infection is recorded in <code>resistances[b][d].activity_r</code>. Treatment response is followed through infection intensity at treatment start, days on treatment, failure assessment, and the individual response multiplier (<code>bacteria_level_at_drug_start[b]</code>, <code>days_on_current_treatment[b]</code>, <code>treatment_failure_assessed[b]</code>, and <code>drug_activity_response_multiplier[b]</code>), with additional variables recording cessation and restart eligibility. Drug toxicity is represented by <code>drug_toxicity_reservoir[d]</code> and <code>current_toxicity_hazard</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> Prescribing can depend on perceived penicillin allergy (<code>perceived_penicillin_allergy</code>) and on the person's current clinical and care context. For each drug, current use, treatment context, systemic exposure, initiation date, and prior use are recorded in <code>cur_use_drug[d]</code>, <code>drug_use_context[d]</code>, <code>cur_level_drug[d]</code>, <code>date_drug_initiated[d]</code>, and <code>ever_taken_drug[d]</code>; <code>current_number_of_drugs</code> records concurrent treatment. Daily intermediate variables govern treatment initiation, drug selection, and cessation (<code>antibiotic_initiation_probability</code>, <code>drug_selection_score[d]</code>, and <code>drug_cessation_probability[d]</code>). Effective activity against each infection is recorded in <code>resistances[b][d].activity_r</code>. Treatment response is followed through infection intensity at treatment start, days on treatment, failure assessment, and the individual response multiplier (<code>bacteria_level_at_drug_start[b]</code>, <code>days_on_current_treatment[b]</code>, <code>treatment_failure_assessed[b]</code>, and <code>drug_activity_response_multiplier[b]</code>), with additional variables recording cessation and restart eligibility. Drug toxicity is represented by <code>drug_toxicity_reservoir[d]</code> and <code>current_toxicity_hazard</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="61-treatment-initiation-deciding-to-start-antibiotics">6.1 Treatment initiation — deciding to start antibiotics</h3>
 <p>Each day, the model decides whether to start a new antibiotic course for each person, using a logistic model (see Section 1.2). The probability of starting antibiotics depends on the person's clinical state:</p>
 <table>
@@ -2257,7 +2277,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <h2 id="7-resistance-dynamics">7. Resistance Dynamics</h2>
 <p>This section describes how the model represents the biology of resistance emergence and spread. The model tracks resistance at the level of individual <strong>mechanisms</strong>. This matters because the same phenotype (e.g., "carbapenem-resistant <em>K. pneumoniae</em>") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.</p>
 <p>All resistance terms in this section refer to acquired, mechanism-mediated resistance. This includes mechanisms already present in a resistance-mechanism profile sampled when infection or carriage is acquired; it does not mean that resistance necessarily arose de novo within the current person. Intrinsic or baseline non-susceptibility is encoded through low or zero potency and is not part of the mechanism records, <code>any_r</code>, or <code>microbiome_r</code>.</p>
-<p><strong>Individual-level quantities used in this section.</strong> The active-infection mechanism records and derived drug resistance introduced in Section 3 (<code>mechanism_any[b]</code>, <code>mechanism_majority[b]</code>, and <code>resistances[b][d].any_r</code>) are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in <code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>; the wider carriage state is described in Section 8. At acquisition, <code>local_profile_sampling_probability[b]</code> is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (<code>de_novo_emergence_probability[b,m]</code>, <code>minority_promotion_probability[b,m]</code>, and <code>mechanism_reversion_probability[b,m]</code>). Optional provenance tracking is recorded in <code>how_resistance_acquired[b][d]</code>. Population-level resistance-mechanism profile libraries and historical prevalence records are described here but are not individual-level variables. Full definitions and update rules for the individual-level quantities are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables used in this section.</strong> The active-infection mechanism records and derived drug resistance introduced in Section 3 (<code>mechanism_any[b]</code>, <code>mechanism_majority[b]</code>, and <code>resistances[b][d].any_r</code>) are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in <code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>; the wider carriage state is described in Section 8. At acquisition, <code>local_profile_sampling_probability[b]</code> is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (<code>de_novo_emergence_probability[b,m]</code>, <code>minority_promotion_probability[b,m]</code>, and <code>mechanism_reversion_probability[b,m]</code>). Optional provenance tracking is recorded in <code>how_resistance_acquired[b][d]</code>. Population-level resistance-mechanism profile libraries and historical prevalence records are described here but are not individual-level variables. Full definitions and update rules for the individual-level variables are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <p><strong>Mechanism-centred architecture.</strong> For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code these three records are <code>mechanism_any</code>, <code>mechanism_majority</code>, and <code>mechanism_microbiome</code>, while the derived summary resistance measures are <code>any_r</code> and <code>microbiome_r</code>. At population level, <code>MechanismCache</code> maintains the circulating resistance-mechanism profile library and prevalence estimates described in Section 7.3, the bounded local establishment archive described in Section 7.6, and the historical peak-prevalence records used by the ratchet in Section 7.9.</p>
 <p>The architecture is primarily mechanism-by-mechanism for <strong>de novo</strong> emergence under active drug pressure. Every bacterium-mechanism pair also has a route classification used by the model, determined from the reviewed host-mechanism correspondence, the explicit bacterium-mechanism emergence rate, and whether the mechanism is horizontally transferable:</p>
 <ul>
@@ -3465,7 +3485,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <h2 id="8-microbiome-and-carriage">8. Microbiome and Carriage</h2>
 <p>Since the commensal microbiome is the principal reservoir in which resistance is stored, selected by bystander antibiotic exposure, and exchanged between species (Werner G et al., 2008; van Schaik W, 2015; McInnes RS et al., 2020), the model tracks microbiome carriage as a distinct compartment from active infection. A patient treated with ciprofloxacin weeks earlier may still carry fluoroquinolone-resistant <em>E. coli</em> in the gut; if that strain subsequently causes a UTI, empiric therapy may fail.</p>
 <p>As throughout the model, the microbiome layer is intentionally simplified. We represent the main ecological reservoirs and the policy-relevant consequences of bystander selection, endogenous infection, and within-host persistence, but not the full organism-by-organism spatial ecology that would be required for a dedicated colonisation model.</p>
-<p><strong>Individual-level quantities used and introduced in this section.</strong> For each bacterium, carriage presence and its start day are recorded in <code>presence_microbiome[b]</code> and <code>date_microbiome_acquired[b]</code>, while <code>microbiome_disruption_level</code> represents accumulated ecological disruption from antibiotics. The carriage mechanism and drug-resistance records introduced in Section 7 (<code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>) describe resistance within this compartment. Daily intermediate quantities govern carriage acquisition and clearance (<code>microbiome_acquisition_probability[b]</code> and <code>microbiome_clearance_probability[b]</code>), and <code>effective_carriage_activity[b,d]</code> represents antibiotic activity used in the carriage-clearance calculation. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables used and introduced in this section.</strong> For each bacterium, carriage presence and its start day are recorded in <code>presence_microbiome[b]</code> and <code>date_microbiome_acquired[b]</code>, while <code>microbiome_disruption_level</code> represents accumulated ecological disruption from antibiotics. The carriage mechanism and drug-resistance records introduced in Section 7 (<code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>) describe resistance within this compartment. Daily intermediate variables govern carriage acquisition and clearance (<code>microbiome_acquisition_probability[b]</code> and <code>microbiome_clearance_probability[b]</code>), and <code>effective_carriage_activity[b,d]</code> represents antibiotic activity used in the carriage-clearance calculation. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="81-carriage-compartments">8.1 Carriage compartments</h3>
 <p>Each bacterium in the model has a designated ecological niche — where it naturally lives in (or on) the body:</p>
 <table>
@@ -3565,7 +3585,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <h2 id="9-horizontal-gene-transfer-hgt">9. Horizontal Gene Transfer (HGT)</h2>
 <p>Horizontal gene transfer (HGT) — the interspecies sharing of resistance determinants, as seen when the same ESBL plasmids appear across <em>E. coli</em>, <em>Klebsiella</em>, and <em>Proteus</em>  — is a major driver of resistance spread and is modelled explicitly.</p>
 <p>The HGT layer is necessarily schematic. We preserve the major ecological compatibilities and the main amplifiers of transfer risk, but we do not attempt plasmid-by-plasmid reconstruction, incompatibility typing, or ward-level contact-network modelling. At the scale of the present model, that additional detail would be difficult to support empirically and would add substantial runtime and calibration burden without clearly improving the policy comparisons of interest.</p>
-<p><strong>Individual-level quantity introduced in this section.</strong> For each eligible recipient bacterium and resistance mechanism, <code>hgt_probability[recipient_b,m]</code> is the daily probability of horizontal transfer from compatible bacteria present in the same person. Successful transfer updates the recipient's active-infection or carriage mechanism record introduced in Sections 3 and 8. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variable introduced in this section.</strong> For each eligible recipient bacterium and resistance mechanism, <code>hgt_probability[recipient_b,m]</code> is the daily probability of horizontal transfer from compatible bacteria present in the same person. Successful transfer updates the recipient's active-infection or carriage mechanism record introduced in Sections 3 and 8. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="91-transfer-compatibility">9.1 Transfer compatibility</h3>
 <p>Not all bacteria can exchange genes equally. Transfer compatibility is not represented as a single species-to-species reference table. Instead, each bacterium group is assigned to a <strong>plasmid pool</strong>, and the baseline pairwise HGT hazard is generated from that pool structure before the Section 9.2 multipliers are applied.</p>
 <p>The pool mapping is:</p>
@@ -3679,7 +3699,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p>The absolute HGT probabilities are intentionally low and should be interpreted as effective daily hazards at the model scale. Their main purpose is to preserve plausible relative ordering between low-contact community settings, antibiotic-stressed microbiomes, and high-contact hospital environments.</p>
 <h2 id="10-mortality">10. Mortality</h2>
 <p>The model tracks mortality from three sources: background (non-infection) causes, <strong>bacterial infection induced sepsis</strong>, and <strong>non-sepsis (bacterial) infection death</strong> (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2020).</p>
-<p><strong>Individual-level quantities introduced in this section.</strong> The model records the current daily background and infection-related death risks (<code>background_all_cause_mortality_rate</code> and <code>current_infection_related_death_risk</code>). Temporary probabilities separately represent death from background causes, drug toxicity, non-sepsis infection, and sepsis (<code>background_death_probability</code>, <code>toxicity_death_probability</code>, <code>non_sepsis_infection_death_probability</code>, and <code>sepsis_death_probability</code>). A resolved infection is assigned an <code>infection_resolution_type[b]</code>; a death records its simulation day and classified cause in <code>date_of_death</code> and <code>cause_of_death</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> The model records the current daily background and infection-related death risks (<code>background_all_cause_mortality_rate</code> and <code>current_infection_related_death_risk</code>). Temporary probabilities separately represent death from background causes, drug toxicity, non-sepsis infection, and sepsis (<code>background_death_probability</code>, <code>toxicity_death_probability</code>, <code>non_sepsis_infection_death_probability</code>, and <code>sepsis_death_probability</code>). A resolved infection is assigned an <code>infection_resolution_type[b]</code>; a death records its simulation day and classified cause in <code>date_of_death</code> and <code>cause_of_death</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="101-background-mortality">10.1 Background mortality</h3>
 <p>Every individual faces a baseline daily death risk shaped by age, sex, region, immune status, and the simulated calendar year. The probability is computed via a logistic model whose total log-odds sum the following components:</p>
 <table>
@@ -7547,8 +7567,8 @@ their names describe the intended column structure, not downloaded observations.
 </tr>
 <tr>
 <td>streptococcus_pneumoniae</td>
-<td style="text-align: right;">-12.25</td>
-<td style="text-align: right;">-2</td>
+<td style="text-align: right;">-12.31</td>
+<td style="text-align: right;">-1.4</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">3.5</td>
 <td style="text-align: right;">0.01</td>
@@ -7651,8 +7671,8 @@ their names describe the intended column structure, not downloaded observations.
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
-<td style="text-align: right;">-18.4</td>
-<td style="text-align: right;">-2</td>
+<td style="text-align: right;">-18.47</td>
+<td style="text-align: right;">-1.8</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">0.01</td>
@@ -7820,8 +7840,8 @@ their names describe the intended column structure, not downloaded observations.
 </tr>
 <tr>
 <td>bordetella_pertussis</td>
-<td style="text-align: right;">-12.15</td>
-<td style="text-align: right;">-2</td>
+<td style="text-align: right;">-12.32</td>
+<td style="text-align: right;">-1.4</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">0.01</td>
@@ -55511,7 +55531,7 @@ and therefore survive later same-day clearance, recovery, or death.</p>
 <hr />
 <h2 id="appendix-d-individual-level-variable-dictionary">Appendix D — Individual-level Variable Dictionary</h2>
 <p>This appendix documents the person-level state and scientifically meaningful
-person-level intermediate quantities used by the current model.</p>
+person-level intermediate variables used by the current model.</p>
 <p>The appendix uses two linked tables:</p>
 <ol>
 <li><strong>Table D1</strong> is a compact dictionary of meaning, persistence, scope, and
@@ -57573,6 +57593,15 @@ rule used by the model rather than a configurable parameter.</p>
 <p>* Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of <em>Stenotrophomonas maltophilia</em> reveals an organism heavily shielded by drug resistance determinants. <em>Genome Biol.</em> 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74</p>
 </li>
 <li>
+<p>Cutts FT, Zaman SMA, Enwere G, et al. Efficacy of nine-valent pneumococcal conjugate vaccine against pneumonia and invasive pneumococcal disease in The Gambia: randomised, double-blind, placebo-controlled trial. <em>Lancet.</em> 2005;365(9465):1139–1146. doi:10.1016/S0140-6736(05)71876-6</p>
+</li>
+<li>
+<p>Dagan R, Givon-Lavi N, Zamir O, et al. Reduction of nasopharyngeal carriage of <em>Streptococcus pneumoniae</em> after administration of a 9-valent pneumococcal conjugate vaccine to toddlers attending day care centers. <em>J Infect Dis.</em> 2002;185(7):927–936. doi:10.1086/339525</p>
+</li>
+<li>
+<p>Daugla DM, Gami JP, Gamougam K, et al. Effect of a serogroup A meningococcal conjugate vaccine (PsA-TT) on serogroup A meningococcal meningitis and carriage in Chad: a community study. <em>Lancet.</em> 2014;383(9911):40–47. doi:10.1016/S0140-6736(13)61612-8</p>
+</li>
+<li>
 <p>* Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. <em>Cochrane Database Syst Rev.</em> 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4</p>
 </li>
 <li>
@@ -57591,6 +57620,9 @@ rule used by the model rather than a configurable parameter.</p>
 <p>* European Committee on Antimicrobial Susceptibility Testing (EUCAST). <em>Breakpoint tables for interpretation of MICs and zone diameters.</em> Version 13.0; 2023. https://www.eucast.org/clinical_breakpoints</p>
 </li>
 <li>
+<p>Eskola J, Käyhty H, Takala AK, et al. A randomized, prospective field trial of a conjugate vaccine in the protection of infants and young children against invasive <em>Haemophilus influenzae</em> type b disease. <em>N Engl J Med.</em> 1990;323(20):1381–1387. doi:10.1056/NEJM199011153232004</p>
+</li>
+<li>
 <p>Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. <em>Intensive Care Med.</em> 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y</p>
 </li>
 <li>
@@ -57607,6 +57639,9 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>GBD 2021 Antimicrobial Resistance Collaborators. Global burden of bacterial antimicrobial resistance 1990–2021: a systematic analysis with forecasts to 2050. <em>Lancet.</em> 2024;404(10459):1199–1226. doi:10.1016/S0140-6736(24)01867-1</p>
+</li>
+<li>
+<p>Giufrè M, Daprai L, Cardines R, et al. Carriage of <em>Haemophilus influenzae</em> in the oropharynx of young children and molecular epidemiology of the isolates after fifteen years of <em>H. influenzae</em> type b vaccination in Italy. <em>Vaccine.</em> 2015;33(46):6227–6234. doi:10.1016/j.vaccine.2015.09.082</p>
 </li>
 <li>
 <p>Gorrie CL, Mirčeta M, Wick RR, et al. Gastrointestinal carriage is a major reservoir of <em>Klebsiella pneumoniae</em> infection in intensive care patients. <em>Clin Infect Dis.</em> 2017;65(2):208–215. doi:10.1093/cid/cix270</p>
@@ -57691,6 +57726,9 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>Poolman JT, Wacker M. Extraintestinal pathogenic <em>Escherichia coli</em>, a common human pathogen: challenges for vaccine development and progress in the field. <em>J Infect Dis.</em> 2016;213(1):6–13. doi:10.1093/infdis/jiv429</p>
+</li>
+<li>
+<p>Read RC, Baxter D, Chadwick DR, et al. Effect of a quadrivalent meningococcal ACWY glycoconjugate or a serogroup B meningococcal vaccine on meningococcal carriage: an observer-blind, phase 3 randomised clinical trial. <em>Lancet.</em> 2014;384(9960):2123–2131. doi:10.1016/S0140-6736(14)60842-4</p>
 </li>
 <li>
 <p>* Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. <em>Intensive Care Med.</em> 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6</p>
@@ -57784,6 +57822,9 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>* Wain J, Kilmarx PH, eds. <em>Practical Laboratory Manual for National Tuberculosis Programmes.</em> Geneva: WHO; 2006.</p>
+</li>
+<li>
+<p>Warfel JM, Zimmerman LI, Merkel TJ. Acellular pertussis vaccines protect against disease but fail to prevent infection and transmission in a nonhuman primate model. <em>Proc Natl Acad Sci USA.</em> 2014;111(2):787–792. doi:10.1073/pnas.1314688110</p>
 </li>
 <li>
 <p>Watkins DA, Johnson CO, Colquhoun SM, et al. Global, regional, and national burden of rheumatic heart disease, 1990–2015. <em>N Engl J Med.</em> 2017;377(8):713–722. doi:10.1056/NEJMoa1603693</p>

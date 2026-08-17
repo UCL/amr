@@ -7444,9 +7444,9 @@ lazy_static! {
         map.insert("acquisition_log_odds_baseline".to_string(), -17.0);
 
         map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -18.4);
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -18.47);
         map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.15);
+        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.32);
         map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -17.7);
         map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -12.8);
@@ -7480,12 +7480,16 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); // Expert best-guess placeholder
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -15.9);
-        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.25); // Underlying baseline; vaccination is applied separately
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.31); // Jointly parameterized with the vaccine effect below
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -14.4);
         map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -12.7);
         map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.65);
         map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -16.6);
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
+        map.insert("streptococcus_pneumoniae_log_odds_vaccinated".to_string(), -1.4);
+        map.insert("neisseria_meningitidis_log_odds_vaccinated".to_string(), -2.0);
+        map.insert("haemophilus_influenzae_log_odds_vaccinated".to_string(), -1.8);
+        map.insert("bordetella_pertussis_log_odds_vaccinated".to_string(), -1.4);
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Effect of existing carriage on infection acquisition
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
 
