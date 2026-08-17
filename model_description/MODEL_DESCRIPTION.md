@@ -41,11 +41,15 @@
 
 ### 1.1 Framework structure
 
-We present a **framework** in the form of an **individual-based model** that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before widespread antibacterial use, through 2025 in **daily** time steps; full policy runs can extend through 2035. We typically simulate 3 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.
+We present a **framework** in the form of an **individual-based model** that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before antibacterial use, through 2025 in **daily** time steps; full policy comparison runs can extend through 2035 and beyond. We typically simulate 10 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, to augment the calibration, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.
 
-As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
+As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
-The framework aims to capture how bacterial resistance in one individual can affect resistance-mechanism profiles in others in the same region, while also accounting for movement between regions. It does not dynamically model infection transmission or make incidence depend on prevalence. Infection acquisition hazards are externally parameterised by bacterium, age, region, vaccination, carriage, hospital status, sanitation, and selected organism-specific calendar-era effects.
+The framework captures how bacterial resistance in the population of currently or previously actively infected people affects resistance in those newly infected in the same region, while also accounting for movement between regions. Infection acquisition hazards are externally parameterised by bacterium, age, region, vaccination, carriage, hospital status, sanitation, and selected organism-specific calendar-era effects, so the framework does not dynamically model infection transmission.
+
+**Meaning of potency and resistance.** In this document, *potency* is a dimensionless model quantity for the baseline activity of a particular drug against a particular bacterial species when no modelled acquired resistance mechanism is present. It ranges from 0 (no baseline activity) to 1 (maximum baseline activity). Low or zero potency represents intrinsic or baseline non-susceptibility. Treatment activity also depends on systemic drug exposure, penetration to the infection site, and acquired resistance.
+
+Throughout this document, *resistance* means resistance conferred by the acquired resistance mechanisms represented in the model. An infection may already carry these mechanisms when it is acquired: "acquired" does not imply that they necessarily arose during the current infection or within the current person. Intrinsic non-susceptibility is represented through potency and is not included in `any_r` or the model's resistance-prevalence estimates.
 
 The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of mechanistic rules. These rules govern the events that can happen to a person on any given day and include:
 
@@ -57,22 +61,14 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 - Resistance emergence via de novo mutation or horizontal gene transfer
 - Mortality from infection, sepsis, or drug toxicity
 
-**Order of events within a simulated day.** In the current model, `apply_rules()` evaluates: age and living status and birth-cohort vaccination; clearing of daily microbiome indicators; immunodeficiency onset or recovery; hospital admission or discharge; travel; sepsis onset or clearance for currently active infections; antibiotic stopping, pharmacokinetic decay, and new drug initiation and selection; toxicity and treatment-failure or restart checks; mortality and sepsis recovery; and then, separately for each bacterium, new acquisition, microbiome acquisition or clearance, resistance emergence, reversion and floors, infection growth, symptoms, clearance, testing, and finally HGT. This order matters: sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.
+**Order of events within a simulated day.** In the current model, `apply_rules()` evaluates: age and vaccination status; clearing of daily microbiome indicators; immunodeficiency onset or recovery; hospital admission and discharge; travel; sepsis onset or clearance for currently active infections; antibiotic stopping, pharmacokinetic decay, and new drug initiation and selection; toxicity and treatment-failure or restart checks; mortality and sepsis recovery; and then, separately for each bacterium, new acquisition, microbiome acquisition or clearance, resistance emergence, reversion and floors, infection growth, symptoms, clearance, testing, and horizontal gene transfer (HGT). Thus sepsis onset is evaluated before new infections acquired later that same day, and new acquisition is evaluated separately for each bacterium rather than skipped because the person already has another active infection.
 
-**Stochastic processes.** The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a *probability* for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories.
+**Stochastic processes.** The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a *probability* for each event and then samples whether that event occurs. Repeated runs therefore produce somewhat different trajectories.
 
-**Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter, selected against a mixture of observed quantities, transformed comparisons, and transparent expert placeholders. Resistance calibration uses evidence-informed benchmarks drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD), but the current matrix does not retain cell-level provenance sufficient to call every value an observed estimate. Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
+**Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter which provide approximate calibration to review-informed estimates. Resistance calibration uses evidence-informed estimates drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD). We recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
 
-**Resistance calibration quantities.** Figure 2 in the main paper defines simulated resistance prevalence as the proportion of active-infection person-days for which the bacterium-drug `any_r` value is greater than zero. Resistance severity is represented separately by the mean `any_r` among those positive infection-days.  These are policy-scale model quantities rather than literal clinical breakpoint categories. The model does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because the additional pharmacokinetic, laboratory, and breakpoint parameterisation would be disproportionate to its all-bacteria policy-comparison purpose.
-
-**Surveillance ascertainment.** Many of the evidence sources informing the
-resistance benchmarks are based on cultured clinical isolates and may overrepresent
-infections that are tested, severe, persistent, invasive, or healthcare-associated
-relative to all simulated active-infection person-days. This is a difference between
-the model output and the evidence used for calibration. It should not be interpreted
-as the operational meaning of `community_resistance_dilution_factor`, which instead
-controls whether a community infection or carriage acquisition attempts to inherit
-a resistance-mechanism profile from the local human circulating resistance-mechanism profile library.
+**Resistance calibration quantities.** Figure 2 in the main paper defines simulated resistance prevalence as the proportion of active-infection person-days for which the bacteria has any acquired drug resistance to the drug (i.e. the `any_r` value is greater than zero). Resistance severity is represented separately by the mean `any_r` among those positive infection-days.  We note that many of the evidence sources informing the
+review-informed resistance estimates are based on cultured clinical isolates and may overrepresent infections that are tested, severe, persistent, invasive, or healthcare-associated relative to all simulated active-infection person-days. The framework does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because we consider that the additional complexity would be disproportionate to its all-bacteria policy-comparison purpose.
 
 
 ### 1.2 Document structure
@@ -81,8 +77,8 @@ The document is organised to follow the progression of an individual through the
 
 | Section | Content |
 |---------|---------------|
-| **2. Population** | Who the simulated people are — age, sex, region, immune status |
-| **3. Infection Acquisition and Resistance at Establishment** | How candidate infections arise, acquire resistance-mechanism profiles, and either become established or are prevented by existing therapy |
+| **2. Population** | Who the simulated people are — age, sex, region, immunodeficiency status |
+| **3. Infection Acquisition and Resistance at Establishment** | How potential new infections arise, acquire resistance-mechanism profiles, and either become established or are prevented by existing therapy |
 | **4. Clinical Progression** | What happens once infected — symptoms, syndromes, sepsis |
 | **5. Diagnostic Testing** | When and how bacteria and resistance are identified |
 | **6. Antibiotic Treatment** | How drugs are started, chosen, dosed, and stopped (empiric and targeted prescribing) |
@@ -95,14 +91,14 @@ The document is organised to follow the progression of an individual through the
 | **Appendices** | Reference tables of bacteria, drugs, parameters, individual-level variables, and outputs |
 
 
-Each section describes the modelling choices, their rationale, and the specific rules and parameter values. Sections 2–10 also identify the principal individual-level quantities at the start of the section where they are first treated in detail. Exact identifiers are included in parentheses for traceability to [Appendix D](#appendix-d-individual-level-variable-dictionary), which provides the complete variable dictionary and update-rule catalogue. Variables used only for output counting or to prevent duplicate reporting remain in Appendices C and D rather than being foregrounded in the scientific narrative.
+Each section describes the modelling choices, their rationale, and the specific rules and parameter values. Sections 2–10 also identify the principal individual-level quantities at the start of the section where they are first treated in detail. Exact identifiers are included in parentheses for traceability to [Appendix D](#appendix-d-individual-level-variable-dictionary), which provides the complete variable dictionary and update-rule catalogue. Variables used only for output counting or to prevent duplicate reporting remain ony in Appendices C and D.
 
 ---
 
 
 ## 2. Population and Demographics
 
-This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immune status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.  Future users may wish to add further details (variables) for each individual.
+This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immunodeficiency status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.  Future users may wish to add further details (variables) for each individual.
 
 **Individual-level quantities introduced in this section.** Each person has an identifier (`id`), age in days (`age`), sex at birth (`sex_at_birth`), a home region (`region_living`), and a current region that can change during travel (`region_cur_in`, with `days_visiting` recording the duration of a visit). Current care setting is represented by `hospital_status` and `days_hospitalized`, and severe temporary or chronic immunodeficiency by `immunodeficiency_type`. Daily transition probabilities determine changes in immunodeficiency, hospital admission, and travel (`immunodeficiency_transition_probability`, `hospitalization_probability`, and `travel_probability`). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
@@ -118,16 +114,18 @@ The six regions and their approximate population shares determine the starting g
 
 Where a table in this document includes a **Citation / source** column, that citation should usually be read as support for the presence, direction, or broad ordering of the modelled effect rather than as a claim that the exact tuned numeric value is taken directly from a single empirical estimate.
 
-| Region | Population Share | Citation / source |
-|--------|------------------|-------------------|
-| Asia | ~55% | UN DESA Population Division, 2024 |
-| Europe | ~15% | UN DESA Population Division, 2024 |
-| Africa | ~12% | UN DESA Population Division, 2024 |
-| North America | ~9% | UN DESA Population Division, 2024 |
-| South America | ~6% | UN DESA Population Division, 2024 |
-| Oceania | ~3% | UN DESA Population Division, 2024 |
+| Region | Population Share |
+|--------|------------------|
+| Asia | ~55% |
+| Europe | ~15% |
+| Africa | ~12% |
+| North America | ~9% |
+| South America | ~6% |
+| Oceania | ~3% |
 
-These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations World Population Prospects 2024, which provides official demographic estimates and projections across global regions and countries (UN DESA Population Division, 2024).
+*Table source: UN DESA Population Division, 2024.*
+
+These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations World Population Prospects 2024, which provides official demographic estimates and projections across global regions and countries.
 
 The regions differ in antibiotic availability, hospital capacity, testing rates, and the prevalence of specific pathogens. A person's region shapes nearly every aspect of their simulated clinical journey.
 
@@ -201,12 +199,6 @@ Clinically, severely immunocompromised patients often also receive broader empir
 
 ***Log-odds**. Many sections of this document describe probabilities using log-odds (also called logit values), which is standard in medical statistics. In parameter names, effects of covariates are labelled `log_odds`, although these additive effects are strictly log odds ratios:
 
-- A probability of 50% corresponds to log-odds of 0.
-- Negative log-odds mean the event is unlikely (log-odds of −2 ≈ 12% probability; −4 ≈ 2%).
-- Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).
-- The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.
-
-For example, the daily probability of starting antibiotics for a hospitalised septic immunocompromised patient with symptoms includes: *baseline log-odds (−5.5) + symptomatic infection (+6.2) + sepsis (+6.5) + hospitalised (+0.7) + immunodeficiency (+0.2) = +8.1*, yielding near-certainty because the acute clinical syndrome dominates the decision.
 
 ### 2.4 Hospitalisation
 
@@ -226,26 +218,24 @@ Given the concentration of resistant organisms, broad-spectrum antibiotic use, a
 Independent of this baseline logistic admission process, starting a **hospital-managed antibiotic** also triggers inpatient management. In the current model this includes a broad set of parenteral hospital drugs plus a narrow oral reserve subset (`linezolid`, `tedizolid`) used as a proxy for infections that would usually be managed in hospital. This is a simplification: in real practice, some prolonged IV courses are delivered through outpatient parenteral antimicrobial therapy (OPAT), especially in higher-income settings and particularly for infections such as bone and joint disease that may require 4-6 weeks of IV treatment.
 
 
-**Length of stay:** Once admitted, patients face a baseline discharge hazard of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. This baseline applies only to relatively uncomplicated admissions. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; in the current model, septic patients therefore remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any hospital-managed treatment course has finished. Real systems are less rigid because some patients complete part of a prolonged IV course via OPAT rather than remaining continuously hospitalised. The `0.28` figure should therefore be interpreted as an **effective all-cause discharge hazard for clinically stable inpatients**, not as a claim that sepsis admissions average only 3.6 days or that every real-world admission has the same geometric length-of-stay distribution.
+**Length of stay:** Once admitted, patients face a baseline discharge hazard of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. This baseline applies only to relatively uncomplicated admissions. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; in the current model, septic patients therefore remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any hospital-managed treatment course has finished.  The `0.28` figure should therefore be interpreted as an **effective all-cause discharge hazard for clinically stable inpatients**, not as a claim that sepsis admissions average only 3.6 days or that every real-world admission has the same geometric length-of-stay distribution.
 
 **Regional healthcare access:**
 
 Hospital access varies substantially across regions. The model uses regional modifiers that adjust the admission threshold:
 
-| Region | Modifier | Interpretation | Citation / source |
-|--------|----------|---------------|-------------------|
-| Europe | +0.6 | Highest access (universal healthcare systems) | WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| North America | +0.5 | Good access | WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| Oceania | +0.4 | Good access in developed areas | WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| Asia | 0.0 | Reference baseline (mixed access) | WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| South America | −0.2 | Variable access | WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| Africa | −0.5 | Most limited hospital capacity | WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS` |
+| Region | Modifier | Interpretation |
+|--------|----------|----------------|
+| Europe | +0.6 | Highest access (universal healthcare systems) |
+| North America | +0.5 | Good access |
+| Oceania | +0.4 | Good access in developed areas |
+| Asia | 0.0 | Reference baseline (mixed access) |
+| South America | −0.2 | Variable access |
+| Africa | −0.5 | Most limited hospital capacity |
 
+*Table sources: WHO UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS`.*
 
-
-These modifiers should be read as a qualitative ordering of effective hospital access rather than literal estimates of admission probabilities. The ranking is consistent with broad cross-country differences in service coverage and infrastructure documented by WHO's universal health coverage monitoring framework and the World Bank's hospital-bed indicator, which show persistent between-country variation in effective access to care and inpatient capacity even as global service coverage has improved over time (World Health Organization UHC fact sheet, 2025; World Bank, `SH.MED.BEDS.ZS`).
-
-Negative values mean patients are *less* likely to be admitted — not because they are less sick, but because hospital bed capacity is limited. This matters for AMR because patients who cannot access hospital care may not receive appropriate antibiotics or diagnostics, whereas international sepsis-care programmes have associated better structured in-hospital and ICU bundle delivery with lower hospital mortality (Evans L et al., 2021; Levy MM et al., 2010).
+The ranking is consistent with broad cross-country differences in service coverage and infrastructure documented by WHO's universal health coverage monitoring framework and the World Bank's hospital-bed indicator, which show persistent between-country variation in effective access to care and inpatient capacity even as global service coverage has improved over time.  People who cannot access hospital care may not receive appropriate antibiotics or diagnostics, whereas international sepsis-care programmes have associated better structured in-hospital and ICU bundle delivery with lower hospital mortality (Evans L et al., 2021; Levy MM et al., 2010).
 
 
 
@@ -256,7 +246,7 @@ The model captures pathogen-specific increased risk of infection acquisition for
 
 | Pathogen group | Current pattern in the reference configuration | Clinical context |
 |----------|-----------------------------------------|-----------------|
-| Classic nosocomial opportunists | Strongly positive bacterium-specific hospital-acquisition terms | *A. baumannii*, *P. aeruginosa*, *S. maltophilia*, and related device-associated pathogens remain heavily hospital-enriched |
+| Nosocomial opportunists | Strongly positive bacterium-specific hospital-acquisition terms | *A. baumannii*, *P. aeruginosa*, *S. maltophilia*, and related device-associated pathogens remain heavily hospital-enriched |
 | Hospital-enriched Enterobacterales and enterococci | Moderate-to-strong positive bacterium-specific hospital-acquisition terms | Reflects line infections, postoperative infections, ICU outbreaks, and ward-level amplification |
 | Mixed hospital/community organisms | Small positive or near-neutral tuned values depending on calibration | Captures organisms such as *S. aureus*, *E. coli*, and respiratory pathogens that remain important in both settings |
 | Primarily community or STI pathogens | Neutral or only modestly positive tuned values | These organisms are still more often acquired in community transmission networks than from ward ecology |
@@ -268,27 +258,25 @@ Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) 
 
 ### 2.5 Travel
 
-Since international travel is a well-established vector for AMR importation — as illustrated by ESBL-producing *E. coli* acquired by European travellers in South and South-East Asia (Arcilla MS et al., 2017) — the framework needs a cross-region mixing mechanism.
+Since international travel is a well-established vector for AMR importation — as illustrated by ESBL-producing *E. coli* acquired by European travellers in South and South-East Asia (Arcilla MS et al., 2017) — the framework has a cross-region mixing mechanism.
 
 The framework simulates this by giving each person a daily probability of travelling to another region (`0.0002` per day).  Travel frequency varies by region of origin, reflecting real-world patterns:
 
-| Region | Travel multiplier | Rationale | 
-|--------|------------------|-----------|
-| Europe | ×3.5 | High international travel rates | 
-| North America | ×3.0 | High travel, large business travel | 
-| Oceania | ×2.5 | Geographic distance drives air travel | 
-| Asia | ×1.5 | Rapidly growing travel volumes | 
-| South America | ×0.8 | Moderate travel rates | 
-| Africa | ×0.3 | Lowest international travel rates | 
+| Region | Travel multiplier |
+|--------|------------------|
+| Europe | ×3.5 |
+| North America | ×3.0 |
+| Oceania | ×2.5 |
+| Asia | ×1.5 |
+| South America | ×0.8 |
+| Africa | ×0.3 |
 
 Source:  UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` 
 
 
-These multipliers are intended as a semi-quantitative ranking of cross-region mixing intensity, not as literal estimates of per-capita trip counts. The ordering is supported by broad regional patterns in UN Tourism's global and regional tourism dashboard and World Bank indicators for international tourism departures and air passenger volumes, which collectively show very high international mobility in Europe and North America, strong air-travel dependence in Oceania, rapid growth but substantial heterogeneity across Asia, intermediate volumes in South America, and lower outbound tourism and aviation intensity across much of Africa (UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR`).
+When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. In the current model, travel can only start while the person is at home and not hospitalised. A trip lasts 30 days, then the person returns to their home region. Destinations are sampled from a fixed origin-specific matrix.
 
-When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. In the current model, travel can only start while the person is at home and not hospitalised. A trip lasts 30 days, then the person returns to their home region. Destinations are sampled from a fixed origin-specific matrix and the home region is excluded from the candidate destinations for that trip.
-
-**Age-specific travel risk.** Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of *Salmonella enterica* serovar Typhi (+0.8 log-odds) and *Shigella* spp. (+0.5 log-odds), while *V. cholerae* risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens but no risk for sexually transmitted infections acquired during travel.
+**Age-specific travel risk.** Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of *Salmonella enterica* serovar Typhi (+0.8 log-odds) and *Shigella* spp. (+0.5 log-odds), while *V. cholerae* risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens.
 
 ---
 
@@ -296,9 +284,11 @@ When a person travels, they are temporarily exposed to the infection risks and d
 
 ## 3. Infection Acquisition and Resistance at Establishment
 
-This section describes how candidate bacterial infections arise and whether they become established. A candidate can originate from the community (e.g., food, water, or close contacts), the hospital environment (e.g., ventilators, catheters, or other patients), or the person's own asymptomatic carriage. Before establishment, the model assembles the candidate infection's resistance-mechanism profile and evaluates whether antibiotics the person is already taking prevent it. The model captures these distinctions through a deliberately compressed architecture suited to long-run AMR policy analysis rather than representing every route-specific exposure mechanism.
+This section describes how candidate bacterial infections arise and whether they become established. A candidate can originate from the community (e.g. human contacts, food, water), the hospital environment (e.g., ventilators, catheters, or other patients), or the person's own asymptomatic carriage. Before establishment, the model assembles the candidate infection's resistance-mechanism profile and evaluates whether any antibiotics the person is already taking prevent it. The model captures these distinctions through a deliberately compressed architecture suited to long-run AMR policy analysis rather than representing every route-specific exposure mechanism.
 
-**Individual-level quantities introduced in this section.** For each bacterium, the model records vaccination status (`vaccination_status[b]`), the calculated daily acquisition risk (`predicted_infection_risk[b]`), and the temporary probability used to generate a candidate infection (`infection_acquisition_probability[b]`). A successful episode records its start day and acquisition setting (`date_last_infected[b]`, `date_last_infected_keep[b]`, and `infection_hospital_acquired[b]`). For a candidate infection, `incoming_infection_mechanism_mask[b]` represents its prospective resistance-mechanism profile; if it becomes established, `mechanism_any[b]` records mechanisms present in any represented strain, `mechanism_majority[b]` records those in the predominant strain, and `resistances[b][d].any_r` records the resulting resistance severity for each drug. The model also records the probability and occurrence of prevention by existing therapy (`existing_therapy_prevention_probability[b]` and `infection_prevented_by_drug[b]`). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+Every resistance-mechanism profile in this section contains modelled acquired resistance mechanisms only. A resistance-mechanism profile with no mechanisms therefore means no modelled acquired resistance; it does not imply that every necessarily drug has baseline activity against the bacterium, because baseline activity is represented separately by potency.
+
+**Individual-level quantities introduced in this section.** For each bacterium, the model records vaccination status (`vaccination_status[b]`), the calculated daily acquisition risk (`predicted_infection_risk[b]`), and the temporary probability used to generate a candidate infection (`infection_acquisition_probability[b]`). A successful episode records its start day and acquisition setting (`date_last_infected[b]`, `date_last_infected_keep[b]`, and `infection_hospital_acquired[b]`). For a candidate infection, `incoming_infection_mechanism_mask[b]` represents its prospective resistance-mechanism profile; if it becomes established, `mechanism_any[b]` records mechanisms present in any of the infecting bacteria strains, `mechanism_majority[b]` records resistance mechanisms in the predominant strain, and `resistances[b][d].any_r` records the resulting (acquired) resistance level for each drug. The model also records the probability and occurrence of prevention by existing therapy (`existing_therapy_prevention_probability[b]` and `infection_prevented_by_drug[b]`). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 3.1 Community acquisition
@@ -361,7 +351,7 @@ For pathogens whose transmission is overwhelmingly sexual or foodborne, the curr
 
 Asymptomatic carriage (see Section 8) can give rise to endogenous infection when commensal organisms transition to an active infection site. This pathway is important for AMR because:
 
-- The carried bacteria may already be resistant (having been selected by previous antibiotic courses)
+- The carried bacteria may already contain acquired resistance mechanisms (having been selected by previous antibiotic courses)
 - Resistance mechanisms in the person's carriage resistance-mechanism profile can pass from carriage to infection, with each mechanism present in the carriage compartment considered independently for transfer to the prospective infection
 
 This pathway is governed by two parameters:
@@ -384,7 +374,7 @@ The sequence is:
 1. **Candidate acquisition.** The model calculates the bacterium-specific acquisition probability and samples whether a candidate infection arises. This probability depends on the epidemiological factors described in Sections 3.1–3.3, not on the resistance-mechanism profile that will subsequently be assigned.
 2. **Resistance source.** After a candidate arises, the model selects the applicable source pathway. A candidate may inherit a complete resistance-mechanism profile from the local human circulating reservoir, including its bounded local persistence archive, or follow an exogenous route on which configured environmental or historical reseeding probabilities may assign mechanisms. Candidate hospital infections use the local human-reservoir pathway with any configured hospital enrichment. Section 7.3 describes these population-level resistance sources.
 3. **Completion of the prospective resistance-mechanism profile.** The model adds any mechanisms supplied by the MDR-TB rule and, where the person carries the same organism, by the same-person carriage pathway described in Section 3.3. These mechanisms remain prospective at this stage and are not yet stored as an active infection.
-4. **Prevention by existing therapy.** For each antibiotic the person is already taking, the model calculates effective activity from drug potency, current drug level, and the resistance implied by the prospective resistance-mechanism profile. A sufficiently active drug can prevent establishment according to `antibiotic_infection_prevention_efficacy` (0.70). Resistance can reduce activity and thereby permit breakthrough infection.
+4. **Prevention by existing therapy.** For each antibiotic the person is already taking, the model calculates effective activity from baseline potency, current drug level, and the acquired resistance implied by the prospective resistance-mechanism profile. A sufficiently active drug can prevent establishment according to `antibiotic_infection_prevention_efficacy` (0.70). Acquired resistance can reduce activity and thereby permit breakthrough infection.
 5. **Establishment.** If prevention occurs, the candidate infection and its prospective resistance mechanisms are discarded and no infection-acquisition event is recorded. Otherwise, the infection becomes established: `mechanism_any` and `mechanism_majority` are stored, and the drug-specific resistance measure `any_r` is calculated from the mechanisms in `mechanism_any` as described in Sections 7.2 and 7.3.
 
 The initial candidate-acquisition probability is therefore independent of the assigned resistance-mechanism profile, but successful establishment is not. The corresponding prevention check is not applied to carriage acquisition.
@@ -509,7 +499,9 @@ Since the transition from empiric to targeted prescribing depends on laboratory 
 
 We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, MIC levels, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.
 
-**Individual-level quantities introduced in this section.** For each active infection, `test_identified_infection[b]` records whether bacterial identification is complete, while `test_for_resistance[b]` records whether the antimicrobial susceptibility testing (AST) panel is available and `resistance_test_initiated_day[b]` records when AST began. The corresponding daily identification and AST-initiation probabilities are `bacterial_identification_probability[b]` and `resistance_testing_probability[b]`. Once available, `resistances[b][d].test_r` records the reported resistance result for each drug; `serious_resistance_test_positive` summarises whether the completed panel meets the model's serious-resistance definition. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+Within this simplified pathway, AST is an error-prone report of the model's mechanism-derived acquired resistance. It does not assess the potency matrix. A zero reported resistance value therefore means that no modelled acquired resistance was reported for that drug; it does not establish that the drug has baseline activity against the bacterium or will be clinically effective.
+
+**Individual-level quantities introduced in this section.** For each active infection, `test_identified_infection[b]` records whether bacterial identification is complete, while `test_for_resistance[b]` records whether the antimicrobial susceptibility testing (AST) panel is available and `resistance_test_initiated_day[b]` records when AST began. The corresponding daily identification and AST-initiation probabilities are `bacterial_identification_probability[b]` and `resistance_testing_probability[b]`. Once available, `resistances[b][d].test_r` records the reported acquired-resistance result for each drug; `serious_resistance_test_positive` summarises whether the completed panel meets the model's serious-resistance definition. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 5.1 Historical introduction
@@ -538,7 +530,7 @@ Once testing is available and ordered, the model simulates a laboratory workflow
 
 
 
-AST has three explicit states: not ordered, ordered but pending, and result ready. A ready fully susceptible panel contains zero resistance values, so panel readiness is recorded separately and is not inferred from whether any reported resistance value is positive. Reporting error is sampled once when the complete panel becomes ready, and those reported results are retained unchanged until the infection clears. Until bacterial identification and the subsequent AST delay have elapsed, treatment proceeds without patient-specific susceptibility information.
+AST has three explicit states: not ordered, ordered but pending, and result ready. A ready panel with no detected modelled acquired resistance contains zero resistance values, so panel readiness is recorded separately and is not inferred from whether any reported resistance value is positive. Reporting error is sampled once when the complete panel becomes ready, and those reported results are retained unchanged until the infection clears. Until bacterial identification and the subsequent AST delay have elapsed, treatment proceeds without patient-specific susceptibility information.
 
 
 ### 5.3 Testing criteria and rates
@@ -558,20 +550,21 @@ Since culture ordering rates vary by care setting and clinical urgency — from 
 
 **Regional differences:** Laboratory capacity varies dramatically around the world. Many hospitals in sub-Saharan Africa lack the microbiological infrastructure that is routine in European hospitals (Jacobs J et al., 2019). The model captures this with regional testing multipliers:
 
-| Region | Testing multiplier | Context | Citation / source |
-|--------|-------------------|---------|-------------------|
-| Europe | ×1.2 | Highest testing density | Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026 |
-| North America | ×1.1 | High infrastructure | Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026 |
-| Oceania | ×0.8 | Geographically dispersed | Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026 |
-| Asia | ×0.7 | Highly variable by country | Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026 |
-| South America | ×0.6 | Variable access | Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026 |
-| Africa | ×0.3 | Very limited lab infrastructure in many settings | Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026 |
+| Region | Testing multiplier | Context |
+|--------|-------------------|---------|
+| Europe | ×1.2 | Highest testing density |
+| North America | ×1.1 | High infrastructure |
+| Oceania | ×0.8 | Geographically dispersed |
+| Asia | ×0.7 | Highly variable by country |
+| South America | ×0.6 | Variable access |
+| Africa | ×0.3 | Very limited lab infrastructure in many settings |
 
+*Table sources: Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026.*
 
 
 These regional differences have direct consequences for AMR: in settings where testing is rare, patients are more likely to continue on ineffective empiric therapy, creating selection pressure for resistance without the feedback loop of culture results to guide narrower prescribing.
 
-As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasised by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings (Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026).
+As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasised by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings.
 
 
 ### 5.4 Serious resistance marker drugs
@@ -917,18 +910,20 @@ Penetration values range from 0.0 (no drug reaches the site) to 1.0 (full system
 
 
 
-These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if the bacterium is fully susceptible.
+These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if its baseline potency is high and the bacterium has no modelled acquired resistance.
 
 
 ### 6.5 Drug potency matrix
 
-Since intrinsic susceptibility differs by organism, the model encodes a **potency matrix** — a 42×62 table (42 bacteria × 62 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.
+The model encodes **potency** as a 42×62 matrix (42 bacteria × 62 named drugs). Each cell represents the baseline activity of that drug against that bacterial species when no modelled acquired resistance mechanism is present. Resistance mechanisms are applied separately through the 39-class enhancement system described in Section 7.2.
 
-Values range from 0.0 (no activity) to 1.0 (maximum activity). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $< 0.15$, the `minimal_potency_threshold_for_drug_selection` parameter), the model strictly prevents any *acquired* resistance mechanisms from being assigned to that organism-drug pair — for example, *Mycoplasma*, which lacks a cell wall, cannot acquire PBP mutations against penicillins.
+Potency values range from 0.0 (no baseline activity) to 1.0 (maximum baseline activity). They are dimensionless model quantities informed by published MIC data, clinical breakpoints, microbiological knowledge, and clinical use; they are not MICs or breakpoint classifications. Potency does not include the person's drug exposure or penetration to the infection site. Effective activity during treatment combines potency with those factors and with the remaining susceptibility after acquired resistance is applied.
+
+For an organism–drug pair with intrinsic or baseline non-susceptibility (baseline potency $< 0.15$, the `minimal_potency_threshold_for_drug_selection` parameter), the default applicability rule prevents an acquired resistance mechanism from adding a further resistance effect for that pair unless an explicit override is configured. For example, PBP mechanisms do not create additional penicillin resistance in *Mycoplasma*, which lacks a cell wall.
 
 Prescribing preference signals are represented through the `initiation_multiplier` parameter (e.g., fidaxomicin for *C. difficile* receives `initiation_multiplier = 1.05`).
 
-A key modelling principle is that intrinsic resistance must be represented exclusively through low or zero potency.
+A key modelling principle is that intrinsic or baseline non-susceptibility is represented exclusively through low or zero potency, rather than through the acquired-resistance variables.
 
 | Drug class | Organisms | Basis for zeroing |
 |---|---|---|
@@ -1014,7 +1009,7 @@ Toxicity can cause two outcomes:
 
 ### 6.8 Antibiotic infection prevention
 
-Patients who are already receiving an effective antibiotic are partially protected against candidate new infections becoming established (Bratzler DW et al., 2013). After the initial infection-acquisition draw and assembly of the prospective resistance mechanisms, the model evaluates each current drug using its potency against the bacterium, the person's current drug level, and the resistance implied by those mechanisms. Each drug with effective activity above 0.5 has a 70% chance of preventing establishment (`antibiotic_infection_prevention_efficacy` = 0.7). Resistance reduces effective activity and can therefore allow breakthrough, so patients taking antibiotics are selectively more likely to establish resistant rather than susceptible infections. This prevention check acts after, rather than as a multiplier on, the initial acquisition probability.
+Patients who are already receiving an effective antibiotic are partially protected against candidate new infections becoming established (Bratzler DW et al., 2013). After the initial infection-acquisition draw and assembly of the prospective resistance mechanisms, the model evaluates each current drug using its potency against the bacterium, the person's current drug level, and the acquired resistance implied by those mechanisms. Each drug with effective activity above 0.5 has a 70% chance of preventing establishment (`antibiotic_infection_prevention_efficacy` = 0.7). Acquired resistance reduces effective activity and can therefore allow breakthrough, so patients taking antibiotics are selectively more likely to establish infections carrying acquired resistance mechanisms than infections carrying none. This prevention check acts after, rather than as a multiplier on, the initial acquisition probability.
 
 
 ---
@@ -1023,6 +1018,8 @@ Patients who are already receiving an effective antibiotic are partially protect
 ## 7. Resistance Dynamics
 
 This section describes how the model represents the biology of resistance emergence and spread. The model tracks resistance at the level of individual **mechanisms**. This matters because the same phenotype (e.g., "carbapenem-resistant *K. pneumoniae*") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.
+
+All resistance terms in this section refer to acquired, mechanism-mediated resistance. This includes mechanisms already present in a resistance-mechanism profile sampled when infection or carriage is acquired; it does not mean that resistance necessarily arose de novo within the current person. Intrinsic or baseline non-susceptibility is encoded through low or zero potency and is not part of the mechanism records, `any_r`, or `microbiome_r`.
 
 **Individual-level quantities used in this section.** The active-infection mechanism records and derived drug resistance introduced in Section 3 (`mechanism_any[b]`, `mechanism_majority[b]`, and `resistances[b][d].any_r`) are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in `mechanism_microbiome[b]` and `resistances[b][d].microbiome_r`; the wider carriage state is described in Section 8. At acquisition, `local_profile_sampling_probability[b]` is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (`de_novo_emergence_probability[b,m]`, `minority_promotion_probability[b,m]`, and `mechanism_reversion_probability[b,m]`). Optional provenance tracking is recorded in `how_resistance_acquired[b][d]`. Population-level resistance-mechanism profile libraries and historical prevalence records are described here but are not individual-level variables. Full definitions and update rules for the individual-level quantities are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
@@ -1102,7 +1099,7 @@ Each mechanism a bacterium has **reduces** drug efficacy by a specific amount. T
 
 - **0.0** = the mechanism has no effect on this drug (e.g., a tetracycline efflux pump does nothing against meropenem)
 - **0.95** = the mechanism eliminates 95% of the drug's activity (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)
-- **1.0** = complete resistance - the mechanism being present means the drug has no effect (the same as if it had potency 0 (ie. maximal "intrinsic resistance"))
+- **1.0** = complete acquired resistance - the mechanism being present removes all of the drug's baseline activity (the same final loss of activity as a potency of 0)
 
 There are 46 mechanisms × 39 drug classes = 1,794 underlying mechanism-class values. A non-zero value affects a simulated bacterium-drug pair only when the mechanism is permitted for the bacterial host and the drug-specific `mechanism_applies_to_drug` condition is met. Values for non-applicable pairs have no effect. The table below shows the **global reference** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):
 
@@ -1576,7 +1573,7 @@ These compartment assignments are simplified ecological defaults rather than a f
 
 ### 8.2 Resistance in the microbiome
 
-The microbiome serves as a hidden reservoir of resistance. For each organism carried asymptomatically, the model records which resistance mechanisms are present in the carriage compartment. It then calculates a drug-level microbiome resistance measure from those mechanisms using the same multiplicative susceptibility formula used for active infection (Section 7.2). In the code, the carriage mechanism record is `mechanism_microbiome`, the active-infection record is `mechanism_any`, and the derived carriage resistance measure is `microbiome_r`. This keeps carriage and infection resistance biologically aligned rather than tracking them as separate unrelated numerical scores. Clearing a carriage episode resets `mechanism_microbiome` and `microbiome_r` together without altering active-infection mechanisms or `any_r`.
+The microbiome serves as a hidden reservoir of acquired resistance. For each organism carried asymptomatically, the model records which acquired resistance mechanisms are present in the carriage compartment. It then calculates a drug-level microbiome acquired-resistance measure from those mechanisms using the same multiplicative susceptibility formula used for active infection (Section 7.2). In the code, the carriage mechanism record is `mechanism_microbiome`, the active-infection record is `mechanism_any`, and the derived carriage resistance measure is `microbiome_r`. This keeps carriage and infection resistance biologically aligned rather than tracking them as separate unrelated numerical scores. Intrinsic or baseline non-susceptibility remains represented by potency. Clearing a carriage episode resets `mechanism_microbiome` and `microbiome_r` together without altering active-infection mechanisms or `any_r`.
 
 Key dynamics:
 
@@ -1994,7 +1991,7 @@ Bacterial identification currently requires an active infection to have met the 
 
 ### 12.15 Resistance-effect prevalence versus phenotypic resistance
 
-The default resistance-prevalence output records the proportion of active-infection person-days for which at least one represented mechanism produces a non-zero effect on a drug (any_r > 0). This is not equivalent to the proportion of laboratory isolates classified resistant using organism–drug MIC or zone-diameter breakpoints. A shared mechanism can consequently produce the same positive-prevalence estimate for two drugs while having markedly different enhancement values and therefore different effects on treatment activity. The circulating resistance-mechanism profile prevalence used in regional prescribing feedback follows a related mechanism-presence definition. The reference configuration is therefore intended for broad policy-scale resistance comparisons; applications that depend on categorical susceptibility distinctions between closely related drugs may require an alternative mapping from mechanism-derived resistance to phenotype, or additional mechanism granularity.
+The default acquired-resistance-prevalence output records the proportion of active-infection person-days for which at least one represented acquired resistance mechanism produces a non-zero effect on a drug (`any_r > 0`). Intrinsic or baseline non-susceptibility encoded through potency is not included. This output is not equivalent to the proportion of laboratory isolates classified resistant using organism–drug MIC or zone-diameter breakpoints. A shared mechanism can consequently produce the same positive-prevalence estimate for two drugs while having markedly different enhancement values and therefore different effects on treatment activity. The circulating resistance-mechanism profile prevalence used in regional prescribing feedback follows a related mechanism-presence definition. The reference configuration is therefore intended for broad policy-scale resistance comparisons; applications that depend on categorical susceptibility distinctions between closely related drugs may require an alternative mapping from mechanism-derived resistance to phenotype, or additional mechanism granularity.
 
 ---
 
@@ -2808,7 +2805,7 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 
 #### Clinical Outcomes and Resistance Ecology
 
-| Bacteria | Sepsis base log-odds | Sepsis log-odds/level | Sepsis log-odds/day | Non-sepsis death log-odds | Organism-specific sepsis-death adjustment | Mechanismless reversion/day | Community human-reservoir resistance-mechanism profile probability | Hospital fully susceptible resistance-mechanism profiles removed (%) | Community mechanism-reversion multiplier |
+| Bacteria | Sepsis base log-odds | Sepsis log-odds/level | Sepsis log-odds/day | Non-sepsis death log-odds | Organism-specific sepsis-death adjustment | Mechanismless reversion/day | Community human-reservoir resistance-mechanism profile probability | Hospital resistance-mechanism profiles with no modelled acquired resistance removed (%) | Community mechanism-reversion multiplier |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | acinetobacter_baumannii | -5.1 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 0.3 | 75 | 3 |
 | citrobacter_spp. | -8.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
@@ -2862,11 +2859,11 @@ Only explicitly specified bacterium-specific dates are shown; all other organism
 
 ### B.4 Drug–Bacteria Potency Matrix
 
-Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 62 drugs = 2604 entries.
+Dimensionless baseline potency when no modelled acquired resistance is present, and initiation multiplier (stewardship weighting for drug selection), for each drug–bacteria pair. Low or zero potency represents intrinsic or baseline non-susceptibility. The values are informed by MICs, clinical breakpoints, microbiological knowledge, and clinical use but are not themselves MICs or breakpoint classifications. 42 bacteria × 62 drugs = 2604 entries.
 
 See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).
 
-| Bacteria | Drug | Potency (no R) | Init multiplier |
+| Bacteria | Drug | Potency (no acquired R) | Init multiplier |
 | --- | ---: | ---: | ---: |
 | acinetobacter_baumannii | sulfanilamide | 0.1 | 0.02 |
 | acinetobacter_baumannii | penicillin_g | 0.05 | 0.01 |
@@ -11402,6 +11399,8 @@ See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT 
 
 The simulation produces a single large CSV file per run. This appendix describes the column structure so you can interpret the output data.
 
+In this appendix, resistance outputs refer to modelled acquired, mechanism-derived resistance. Intrinsic or baseline non-susceptibility is represented through potency and is not included in `any_r` or resistance-prevalence outputs.
+
 
 
 ### C.1 Output File
@@ -11491,10 +11490,10 @@ In the type column, `int` means a whole number and `float` means a number that m
 
 | Pattern | Description |
 |---------|-------------|
-| `{bacteria}_{drug}_activity_r` and related summaries | Resistance/activity state summaries; these are distinct from the applied-stage activity sums above |
+| `{bacteria}_{drug}_activity_r` and related summaries | Treatment-activity state summaries; these are distinct from the applied-stage activity sums above |
 | `{bacteria}_{drug}_infected_and_standardized_mic_lt2` and related summaries | Treatment-relevant susceptible-infection summaries |
 | `{bacteria}_{drug}_currently_on_drug` and related summaries | Drug exposure by organism-drug pair |
-| `{bacteria}_{drug}_any_r`, `microbiome_r_positive`, and split hospital/community variants | Mechanism-derived resistance summaries. Predominant-strain mechanism state is used internally and exposed through these mechanism-derived summaries. |
+| `{bacteria}_{drug}_any_r`, `microbiome_r_positive`, and split hospital/community variants | Mechanism-derived acquired-resistance summaries. Predominant-strain mechanism state is used internally and exposed through these summaries. |
 
 
 
@@ -11615,6 +11614,7 @@ counts, and previously located parameter references.
 - "Persistent" means retained on the individual between daily updates.
 - "Temporary" means recalculated during an update and not stored on
   `Individual`.
+- "Resistance" means modelled acquired, mechanism-derived resistance unless stated otherwise. Intrinsic or baseline non-susceptibility is represented through potency.
 - `MISSING_EVENT_DATE` is the special value `-1`, meaning that no event date has
   been recorded. Drug dates that use the alternative special value `i32::MIN`
   are identified explicitly.
@@ -11684,13 +11684,13 @@ counts, and previously located parameter references.
 | [`drug_toxicity_reservoir[d]`](#rule-drug-toxicity-reservoir) | Persistent value for each drug | Accumulated unitless toxicity burden attributable to each drug. | `0`. | Accumulates under exposure and decays after exposure. | Toxicity |
 | [`current_toxicity_hazard`](#rule-current-toxicity-hazard) | Persistent single value retained for reporting | Sum of current per-drug toxicity reservoirs before person-level modifiers. | `0`. | Recalculated daily. | Toxicity |
 | [`mortality_risk_current_toxicity`](#rule-mortality-risk-current-toxicity) | Persistent single value retained for reporting | Daily toxicity-death probability after person-level modifiers. | `0`. | Recalculated daily. | Toxicity and mortality |
-| [`resistances[b][d].microbiome_r`](#rule-resistance-microbiome-r) | Persistent value for each bacterium-drug pair | Carriage resistance severity, bounded by `max_resistance_level`. | `0`. | Derived from `mechanism_microbiome`; cleared with carriage. | Resistance |
-| [`resistances[b][d].test_r`](#rule-resistance-test-r) | Persistent value for each bacterium-drug pair | Completed AST-reported resistance result, from `0` to `1`. | `0`, also used while no result is available. | Reset when AST state is cleared; readiness is tracked separately. | Diagnostics and resistance |
-| [`resistances[b][d].activity_r`](#rule-resistance-activity-r) | Persistent value for each bacterium-drug pair | Effective drug activity after potency, exposure, site penetration, and resistance; not a resistance fraction. | `0`. | Recalculated daily and reset when exposure or infection is absent. | Treatment response |
-| [`resistances[b][d].any_r`](#rule-resistance-any-r) | Persistent value for each bacterium-drug pair | Active-infection resistance severity, bounded by `max_resistance_level`. | `0`. | Derived from `mechanism_any`; reset on infection clearance. | Resistance |
-| [`mechanism_any[b]`](#rule-mechanism-any) | Persistent set of mechanisms for each bacterium | Mechanisms present in any represented active-infection strain. | No mechanisms present. | Updated by acquisition, emergence, HGT, and clearance. | Resistance |
-| [`mechanism_majority[b]`](#rule-mechanism-majority) | Persistent set of mechanisms for each bacterium | Mechanisms in the represented predominant infection strain. | No mechanisms present. | Updated by acquisition, promotion, reversion, and clearance. | Resistance |
-| [`mechanism_microbiome[b]`](#rule-mechanism-microbiome) | Persistent set of mechanisms for each bacterium | Mechanisms represented in carriage. | No mechanisms present. | Updated by carriage acquisition, HGT, reversion, and clearance. | Resistance and carriage |
+| [`resistances[b][d].microbiome_r`](#rule-resistance-microbiome-r) | Persistent value for each bacterium-drug pair | Acquired-resistance severity in carriage, bounded by `max_resistance_level`. | `0`. | Derived from `mechanism_microbiome`; cleared with carriage. | Resistance |
+| [`resistances[b][d].test_r`](#rule-resistance-test-r) | Persistent value for each bacterium-drug pair | Completed AST-reported acquired-resistance result, from `0` to `1`. | `0`, also used while no result is available. | Reset when AST state is cleared; readiness is tracked separately. | Diagnostics and resistance |
+| [`resistances[b][d].activity_r`](#rule-resistance-activity-r) | Persistent value for each bacterium-drug pair | Effective drug activity after potency, exposure, site penetration, and acquired resistance; not a resistance fraction. | `0`. | Recalculated daily and reset when exposure or infection is absent. | Treatment response |
+| [`resistances[b][d].any_r`](#rule-resistance-any-r) | Persistent value for each bacterium-drug pair | Active-infection acquired-resistance severity, bounded by `max_resistance_level`. | `0`. | Derived from `mechanism_any`; reset on infection clearance. | Resistance |
+| [`mechanism_any[b]`](#rule-mechanism-any) | Persistent set of mechanisms for each bacterium | Acquired resistance mechanisms present in any represented active-infection strain. | No mechanisms present. | Updated by acquisition, emergence, HGT, and clearance. | Resistance |
+| [`mechanism_majority[b]`](#rule-mechanism-majority) | Persistent set of mechanisms for each bacterium | Acquired resistance mechanisms in the represented predominant infection strain. | No mechanisms present. | Updated by acquisition, promotion, reversion, and clearance. | Resistance |
+| [`mechanism_microbiome[b]`](#rule-mechanism-microbiome) | Persistent set of mechanisms for each bacterium | Acquired resistance mechanisms represented in carriage. | No mechanisms present. | Updated by carriage acquisition, HGT, reversion, and clearance. | Resistance and carriage |
 | [`how_resistance_acquired[b][d]`](#rule-how-resistance-acquired) | Optional persistent category for each bacterium-drug pair | Resistance-acquisition provenance category. | No values stored when provenance tracking is disabled; otherwise `None`. | Updated only in provenance-enabled runs and cleared with the corresponding compartment. | Optional diagnostics |
 | [`infection_resolution_this_timestep[b][resolution]`](#rule-infection-resolution-this-timestep) | Persistent daily count for each bacterium and resolution type | Counts infection resolutions by immune clearance, drug-assisted clearance, or death pathway. | All counts `0`. | Reset at the start of each day after aggregation. | Outcome reporting |
 | [`day_7_since_last_infection_drug_used[b]`](#rule-day-7-since-last-infection-drug-used) | Persistent optional yes/no value for each bacterium | Whether any antibiotic began within seven days of infection onset. | `None`. | Set once on day seven; reset for a new infection. | Treatment reporting |
@@ -11815,10 +11815,10 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-drug-toxicity-reservoir"></a>`drug_toxicity_reservoir[d]` | Previous reservoir, current drug exposure, treatment duration. | Drug-specific toxicity accumulation and decay or half-life families. | Accumulates under exposure and decays when exposure falls. | Separate reservoir per drug; it contributes to current toxicity hazard. | Toxicity block in `rules::apply_rules` |
 | <a id="rule-current-toxicity-hazard"></a>`current_toxicity_hazard` | All `drug_toxicity_reservoir[d]`, age, immunodeficiency and hospital status. | Drug toxicity-risk families and person-level toxicity modifiers. | Recalculated daily as the current combined toxicity hazard. | Hazard is kept distinct from the sampled daily death probability. | Toxicity block in `rules::apply_rules` |
 | <a id="rule-mortality-risk-current-toxicity"></a>`mortality_risk_current_toxicity` | `current_toxicity_hazard`. | Toxicity hazard-to-risk rule. | Recalculated before the toxicity-death draw. | This is the daily toxicity-attributed mortality risk. | Toxicity and mortality blocks in `rules::apply_rules` |
-| <a id="rule-resistance-microbiome-r"></a>`resistances[b][d].microbiome_r` | `mechanism_microbiome[b]`, drug class. | `resistance_mechanism_{mechanism}_enhancement_{drug_class}` with the mechanism-wide value used when no class-specific value is supplied; `max_resistance_level`. | Recomputed from the set of carriage mechanisms after carriage resistance changes. | Continuous susceptibility reduction among carried bacteria; zero does not mean the bacterium is absent. | Resistance recalculation functions in `rules`; `population::Resistance` |
-| <a id="rule-resistance-test-r"></a>`resistances[b][d].test_r` | Completed AST timing, current `any_r[b][d]`, test-error draw. | `resistance_test_result_delay_days`; `test_r_error_prob`; `test_r_error_value`. | When the result is ready, records current resistance with the configured error process. | Zero is a valid result value; result availability must be established from test state and timing. | AST result and result-availability calculations in `rules` |
-| <a id="rule-resistance-activity-r"></a>`resistances[b][d].activity_r` | Drug exposure, no-resistance potency, syndrome penetration, `any_r[b][d]`. | `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; `syndrome_{id}_drug_{drug}_penetration`; `max_resistance_level`. | Recalculated for active infection as potency times exposure times penetration times remaining susceptibility. | A treatment-activity quantity, not resistance prevalence or an MIC. | Drug-activity calculation in `rules::apply_rules` |
-| <a id="rule-resistance-any-r"></a>`resistances[b][d].any_r` | `mechanism_any[b]`, drug class. | `resistance_mechanism_{mechanism}_enhancement_{drug_class}` with the mechanism-wide value used when no class-specific value is supplied; `max_resistance_level`. | Recomputed after infection mechanism acquisition, emergence, transfer, promotion or reversion. | Mechanism effects multiply remaining susceptibility and are bounded by `max_resistance_level`. | Resistance recalculation functions in `rules`; `population::Resistance` |
+| <a id="rule-resistance-microbiome-r"></a>`resistances[b][d].microbiome_r` | `mechanism_microbiome[b]`, drug class. | `resistance_mechanism_{mechanism}_enhancement_{drug_class}` with the mechanism-wide value used when no class-specific value is supplied; `max_resistance_level`. | Recomputed from the set of carriage mechanisms after carriage resistance changes. | Continuous reduction in susceptibility caused by acquired resistance mechanisms; zero does not mean the bacterium is absent or that baseline potency is positive. | Resistance recalculation functions in `rules`; `population::Resistance` |
+| <a id="rule-resistance-test-r"></a>`resistances[b][d].test_r` | Completed AST timing, current `any_r[b][d]`, test-error draw. | `resistance_test_result_delay_days`; `test_r_error_prob`; `test_r_error_value`. | When the result is ready, records current acquired resistance with the configured error process. | Zero is a valid result value; result availability must be established from test state and timing, and zero does not establish positive baseline potency. | AST result and result-availability calculations in `rules` |
+| <a id="rule-resistance-activity-r"></a>`resistances[b][d].activity_r` | Drug exposure, no-acquired-resistance potency, syndrome penetration, `any_r[b][d]`. | `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; `syndrome_{id}_drug_{drug}_penetration`; `max_resistance_level`. | Recalculated for active infection as potency times exposure times penetration times remaining susceptibility after acquired resistance. | A treatment-activity quantity, not resistance prevalence or an MIC. | Drug-activity calculation in `rules::apply_rules` |
+| <a id="rule-resistance-any-r"></a>`resistances[b][d].any_r` | `mechanism_any[b]`, drug class. | `resistance_mechanism_{mechanism}_enhancement_{drug_class}` with the mechanism-wide value used when no class-specific value is supplied; `max_resistance_level`. | Recomputed after acquired resistance mechanism acquisition, emergence, transfer, promotion or reversion. | Mechanism effects multiply remaining susceptibility and are bounded by `max_resistance_level`; intrinsic or baseline non-susceptibility is excluded. | Resistance recalculation functions in `rules`; `population::Resistance` |
 | <a id="rule-mechanism-any"></a>`mechanism_any[b]` | Incoming infection resistance-mechanism profile, de novo emergence, HGT, minority promotion and reversion. | Mechanism applicability; de novo, HGT, promotion and reversion parameters. | The set is updated when any represented infection strain carries or loses a mechanism. | Includes minority mechanisms; `mechanism_majority` contains only the predominant strain's resistance-mechanism profile. | Resistance acquisition and evolution blocks in `rules::apply_rules` |
 | <a id="rule-mechanism-majority"></a>`mechanism_majority[b]` | Incoming predominant-strain resistance-mechanism profile, minority promotion and predominant-strain reversion. | `majority_r_evolution_rate_per_day_when_drug_present`; reversion parameters. | Updated when mechanisms enter, establish in, or leave the resistance-mechanism profile of the represented predominant infection strain. | Must remain a subset of `mechanism_any[b]`. | Resistance acquisition and evolution blocks in `rules::apply_rules` |
 | <a id="rule-mechanism-microbiome"></a>`mechanism_microbiome[b]` | Incoming carriage resistance-mechanism profile, HGT and carriage reversion. | Resistance-mechanism profile source for carriage, HGT and reversion parameter families. | Set at carriage acquisition and updated during carriage resistance evolution; reset at clearance. | Separate from the resistance-mechanism profiles of active infections. | Carriage acquisition, evolution and clearance blocks in `rules::apply_rules` |
@@ -11872,7 +11872,7 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-bacterial-identification-probability"></a>`bacterial_identification_probability[b]` | Active symptomatic infection, duration, year, hospital status, region, immunodeficiency and sepsis. | Bacterial-testing delay, availability, base rate, adoption, hospital, region, immunosuppression, sepsis and policy parameters. | Recomputed for eligible unidentified infections before the daily testing draw. | Adoption uses a fixed 40-year sigmoid. | Diagnostic-testing block in `rules::apply_rules` |
 | <a id="rule-resistance-testing-probability"></a>`resistance_testing_probability[b]` | Bacterial identification, active infection, year, hospital status and policy state. | AST availability, base rate, initial adoption, maximum temporal, hospital and policy multipliers. | Recomputed for eligible uninitiated AST before the daily initiation draw. | Adoption uses a fixed 50-year sigmoid; result delivery occurs later. | Resistance-testing block in `rules::apply_rules` |
 | <a id="rule-infection-resolution-type"></a>`infection_resolution_type[b]` | Resolution cause, treatment exposure, sepsis and fatal pathway. | Fixed resolution categories. | Assigned when an infection clears or ends in death and immediately converted to a daily count. | Temporary classification avoids counting one episode in multiple resolution categories. | Resolution and mortality blocks in `rules::apply_rules` |
-| <a id="rule-effective-carriage-activity"></a>`effective_carriage_activity[b,d]` | Drug exposure, no-resistance potency and `microbiome_r[b][d]`. | `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; `max_resistance_level`; fixed exposure and activity thresholds of 0.1. | Recomputed during carriage and contributes to antibiotic-associated clearance log-odds. | Carriage activity does not use an infection syndrome penetration term. | Carriage-clearance activity code in `rules::apply_rules` |
+| <a id="rule-effective-carriage-activity"></a>`effective_carriage_activity[b,d]` | Drug exposure, no-acquired-resistance potency and `microbiome_r[b][d]`. | `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; `max_resistance_level`; fixed exposure and activity thresholds of 0.1. | Recomputed during carriage and contributes to antibiotic-associated clearance log-odds. | Carriage activity does not use an infection syndrome penetration term. | Carriage-clearance activity code in `rules::apply_rules` |
 | <a id="rule-applied-activity-observation"></a>`applied_activity_observation[b]` | Active infection, all drug exposures, potency, penetration, `any_r`, and treatment contexts. | Same potency, penetration and resistance parameters as dynamic activity; fixed observation values. | Aggregates applied, potential, pure and best activity when drug exposure exists, then records a daily rule event. | Used only for reporting; dynamic level change uses the underlying activity calculation directly. | `rules::applied_activity_observation`; event aggregation in `simulation` |
 | <a id="rule-restart-treatment-eligibility"></a>`restart_treatment_eligibility[b]` | Cessation day and level, current level, stopped drug, prior assessment and current activity. | `restart_window_enabled`; `restart_window_days`; `restart_bacteria_level_threshold`; `restart_window_probability`; `minimal_potency_threshold_for_drug_selection`; fixed high-level threshold 2.0 used when no other threshold applies, and active-level threshold 0.1. | Recomputed within the post-cessation window before any probabilistic restart action. | Evaluated once per tracked cessation episode. | Restart-window calculation and treatment-selection code in `rules` |
 | <a id="rule-treatment-failure-indicator"></a>`treatment_failure_indicator[b]` | Level at drug start, current level, days on treatment and prior assessment. | `treatment_failure_enabled`; `treatment_failure_assessment_day`; `treatment_failure_threshold`; `{bacterium}_treatment_failure_no_second_line_probability`; `drug_failure_memory_days`; selection potency and temperature parameters. | Evaluated once at the eligible assessment time and converted to failure history and, where selected, treatment change. | Acute syndromes 3 to 6 use a fixed 2 to 3 day window; MDR-TB has a 10-day minimum; *H. pylori* and syndrome 9 have a 6-day minimum. | `rules::assess_treatment_failure`; treatment-failure block |
