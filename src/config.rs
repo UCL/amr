@@ -8022,7 +8022,7 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_mutation_liafsr_cls_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_emergence_rate".to_string(), 30.0             ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_escherichia_coli_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 0.15    ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
+        map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 0.1     ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.1           ); // classes: ag; aminoglycoside-modifying enzyme route
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0 - blaZ is restricted to staphylococci
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.000_001); // classes: pen; low residual TEM-1-family rate; BLI resistance uses AmpC/ESBL/KPC routes
@@ -8188,33 +8188,33 @@ lazy_static! {
 
       // E. cloacae - Gram-negative, Enterobacterales
       // Band 8 (x150)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.003             ); // classes: pen, flu, ceph, mono
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.003            ); // classes: pen, flu, ceph, mono
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.003             ); // classes: pen, flu, ceph, mono
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.002             ); // classes: pen, flu, ceph, mono
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.002            ); // classes: pen, flu, ceph, mono
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.002             ); // classes: pen, flu, ceph, mono
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.0   ); // plasmid AmpC should mainly enter via HGT; derepression handled separately
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.0   ); // plasmid AmpC should mainly enter via HGT; derepression handled separately
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_ampc_derepression_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, mono; derepressed chromosomal AmpC
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_03          ); // classes: pen, flu, bli, ceph, carb, mono
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_03           ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_03           ); // classes: pen, flu, bli, ceph, carb
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_01          ); // classes: pen, flu, bli, ceph, carb, mono
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_01           ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_01           ); // classes: pen, flu, bli, ceph, carb
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.5        ); // classes: chl
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.02 ); // classes: ag
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.015 ); // classes: ag
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1    ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1    ); // classes: fq
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.07   ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.07   ); // classes: fq
     map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.1   ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01     ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01    ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
+    map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.007   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
     map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0; OmpK35/36 is modelled only for K. pneumoniae
     map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0; OprD is modelled only for P. aeruginosa
     map.insert("bacteria_enterobacter_cloacae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.1  ); // classes: poly
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.1 ); // classes: poly; chromosomal colistin resistance
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03        ); // classes: sulf
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.02        ); // classes: sulf
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.2  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_fos_emergence_rate".to_string(), 2.0       ); // classes: other (fosfomycin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
@@ -8222,7 +8222,7 @@ lazy_static! {
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001  ); // classes: other (rifampicin, fidaxomicin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.002  ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.02 ); // classes: ag
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.015  ); // classes: ag
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0 - blaZ is restricted to staphylococci
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.000_01    ); // classes: pen; low residual TEM-1-family rate in an AmpC-dominated organism
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.000_002    ); // mphA documented in Enterobacter cloacae;
@@ -8583,9 +8583,9 @@ lazy_static! {
         // For Shigella, ESBLs cover both cephalosporins and BLI combinations such as
         // amoxicillin/clavulanate and piperacillin/tazobactam. AmpC also covers
         // ceftolozane/tazobactam, so each of these routes contributes to multiple outputs.
-        map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.002 ); // classes: pen, flu, BLI*shigella, ceph; dominant modeled Shigella ESBL route
-        map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.002 ); // classes: pen, flu, BLI*shigella, ceph; secondary modeled Shigella ESBL route
-        map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.002 ); // classes: pen, flu, BLI*shigella, ceph; less common modeled Shigella ESBL route
+        map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001_5 ); // classes: pen, flu, BLI*shigella, ceph; dominant modeled Shigella ESBL route
+        map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001_5 ); // classes: pen, flu, BLI*shigella, ceph; secondary modeled Shigella ESBL route
+        map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001_5 ); // classes: pen, flu, BLI*shigella, ceph; less common modeled Shigella ESBL route
         map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001_5 ); // classes: pen, flu, bli, ceph, mono; uncommon modeled Shigella AmpC route
         map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001_5 ); // classes: pen, flu, bli, ceph, mono - as above
         map.insert("bacteria_shigella_spp._mechanism_mutation_ampc_derepression_emergence_rate".to_string(), 0.0); // tier 0 — Shigella lacks inducible chromosomal AmpC (no ampC gene subject to derepression in this lineage; distinct from Enterobacter/Citrobacter/Serratia)
@@ -9441,8 +9441,8 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.2             ); // classes: mls
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 1.0                 ); // classes: oxa, lin, chl, pleuro
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 1.0             ); // classes: mls
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 10.0                 ); // classes: oxa, lin, chl, pleuro
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.3           ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.3          ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
@@ -9453,7 +9453,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0; OprD is modelled only for P. aeruginosa
         map.insert("bacteria_streptococcus_pyogenes_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 3.0       ); // classes: sulf
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0       ); // classes: sulf
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_fos_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.03            ); // configured class: other (daptomycin); positive rate is currently blocked by the executable host gate
@@ -9466,7 +9466,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.0); // tier 0 - Gram-negative penicillinase route
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // tier 0 (EnzymeMphA: Enterobacterales + EntericPathogen only)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.3           ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 1.0           ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // de novo rate currently 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
@@ -9490,14 +9490,14 @@ lazy_static! {
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_1        ); // configured classes: pen, flu, bli, ceph, carb, mono; positive rate is currently blocked by the executable host gate
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.01         ); // classes: glyc
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.01         ); // classes: glyc
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_erm_b_emergence_rate".to_string(), 15.0    ); // classes: mls  quin_dalfo
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_erm_b_emergence_rate".to_string(), 30.0    ); // classes: mls  quin_dalfo
         map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_cfr_emergence_rate".to_string(), 30.0          ); // classes: oxa, lin, chl, pleuro
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.3        ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.3          ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1        ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1          ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin — double GyrA+ParC step confers high-level FQ resistance)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.3        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0        ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_streptococcus_agalactiae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0; OmpK35/36 is modelled only for K. pneumoniae
         map.insert("bacteria_streptococcus_agalactiae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0; OprD is modelled only for P. aeruginosa
         map.insert("bacteria_streptococcus_agalactiae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
@@ -9539,7 +9539,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_cat_emergence_rate".to_string(), 30.0       ); // classes: chl
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_01      ); // configured classes: pen, flu, bli, ceph, carb, mono; positive rate is currently blocked by the executable host gate
+        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_005     ); // configured classes: pen, flu, bli, ceph, carb, mono; positive rate is currently blocked by the executable host gate
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.01   ); // classes: glyc, lipoglyc (vancomycin, teicoplanin, dalbavancin)
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.005   ); // classes: glyc
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 30.0       ); // classes: macrolides and lincosamides
