@@ -605,6 +605,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>The organism-specific effects in the table are model-scale parameters, not direct estimates of clinical vaccine efficacy for a single product, serotype, endpoint, or dosing schedule. This distinction is particularly important because the model represents all <em>H. influenzae</em>, rather than Hib alone, and applies the pertussis effect to acquisition even though acellular pertussis vaccination can protect against disease more strongly than against colonisation. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
 <h4 id="age-and-region-interactions">Age and region interactions</h4>
 <p>The current acquisition calculation uses additive log-odds across six age bands (<code>infant</code>, <code>preschool</code>, <code>school</code>, <code>young_adult</code>, <code>middle_age</code>, and <code>elderly</code>). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without applying a generic syndrome template as an active multiplier. Appendix B.6 lists the bacterium-age and bacterium-region-age values.</p>
+<p><strong>2026 enteric-incidence recalibration.</strong> The active-infection acquisition intercepts for <em>E. coli</em>, <em>Shigella</em> spp., and <em>C. jejuni</em> were increased by <code>ln(new incidence target / previous incidence target)</code>: +0.247, +0.773, and +1.085 log-odds, respectively. Their configured baselines are therefore -11.353, -11.827, and -11.915. Because the same baseline also enters the separate carriage-acquisition calculation, each organism's <code>{bacterium}_log_odds_microbiome_vs_infection</code> value was reduced by the same amount. This leaves its combined carriage intercept unchanged while making the intended first-order change to active-infection acquisition. Realised incidence is still nonlinear because the rule also includes age, region, vaccination, existing carriage, hospital status, and prevention by current treatment, so the new targets require verification in fresh stochastic calibration runs.</p>
 <h3 id="32-hospital-acquisition">3.2 Hospital acquisition</h3>
 <p>Since hospitals concentrate nosocomial pathogens the model uses separate hospital-specific acquisition parameters (<code>{bacteria}_log_odds_hospital_acquired</code>) for each species.  Healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (World Health Organization GLASS dashboard, accessed 2026; World Health Organization Global antibiotic resistance surveillance report, 2025).</p>
 <p>For pathogens whose transmission is overwhelmingly sexual or foodborne, the current configuration assumes effectively zero hospital acquisition risk.  So while organisms such as <em>C. trachomatis</em>, <em>N. gonorrhoeae</em>, <em>M. genitalium</em>, <em>T. pallidum</em>, and <em>Campylobacter</em> can still be diagnosed while a patient is in hospital, the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.</p>
@@ -4234,10 +4235,10 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td>Annual bacterial infection incidence</td>
-<td>15% of world population per year</td>
-<td>GBD/GRAM burden estimates, WHO STI estimates, WHO FERG/Havelaar et al., 2015, WHO Global Tuberculosis Report 2025</td>
+<td>20% of world population per year (derived plausible range 15-30%)</td>
+<td>WHO FERG 2021-2025 / Majowicz SE et al., 2026; GBD/GRAM burden estimates; WHO STI estimates; WHO Global Tuberculosis Report 2025</td>
 <td>Derived calibration benchmark with high uncertainty</td>
-<td>No single global surveillance system directly counts all bacterial infections across syndromes; this target is used to keep the all-organism acquisition scale in a plausible range.</td>
+<td>The 42 organism targets sum to 22.34% after selectively updating <em>E. coli</em>, <em>Shigella</em>, and <em>Campylobacter</em>. The person-level headline counts at most one acquisition day per person and therefore allows for same-day polymicrobial acquisitions. It is not a published all-bacteria incidence estimate.</td>
 </tr>
 <tr>
 <td>Incident bacterial sepsis</td>
@@ -4249,9 +4250,9 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tr>
 <td>Per-bacteria infection incidence</td>
 <td>Per-organism annual infection targets in the calibration summary</td>
-<td>Ikuta KS et al., 2022; Murray CJL et al., 2022; Rowley J et al., 2019; WHO STI fact sheet, 2025; Havelaar AH et al., 2015; WHO Global Tuberculosis Report 2025</td>
+<td>Majowicz SE et al., 2026; Ikuta KS et al., 2022; Murray CJL et al., 2022; Rowley J et al., 2019; WHO STI fact sheet, 2025; Havelaar AH et al., 2015; WHO Global Tuberculosis Report 2025</td>
 <td>Mix of direct disease estimates and derived calibration benchmarks</td>
-<td>Common pathogens and named diseases are better supported; smaller healthcare-associated organisms use placeholder estimates with high uncertainty.</td>
+<td>WHO FERG 2021 estimates selectively inform <em>Shigella</em> (426 million illnesses), <em>Campylobacter</em> (291 million), and <em>E. coli</em> through a conservative ETEC floor (260 million). The source covers thermotolerant <em>Campylobacter</em> spp. and ETEC, whereas the corresponding model categories are <em>C. jejuni</em> and broader all-syndrome <em>E. coli</em>. Smaller healthcare-associated organisms retain placeholders with high uncertainty.</td>
 </tr>
 <tr>
 <td>Per-bacteria mortality</td>
@@ -4295,14 +4296,16 @@ method for each model organism, making direct matches, allocated categories, pro
 non-GBD review-informed targets explicit.</p>
 <p>For the headline metrics, the first registry version uses the published GBD 2019 bacterial
 mortality estimate of 7.7 million deaths with its 5.7-10.2 million 95% uncertainty interval,
-70-150 million people taking antibiotics on an average day, 10-25% annual bacterial infection
+70-150 million people taking antibiotics on an average day, 15-30% annual bacterial infection
 incidence, and 50-100 million incident bacterial sepsis cases around a 70 million central target. The infection-death estimate and
 interval are retained unchanged; the difference between the 2019 GBD organism set and the model's
 2025 reporting scope is handled as an interpretation caveat rather than a precision-implying
 numerical correction. The sepsis target and range are explicit model-scope assumptions informed by
 the GBD 2021 estimate of 166 million all-cause cases (95% uncertainty interval 135-201 million), not
-a published estimate or interval for bacterial sepsis. The antibiotic-use and all-bacteria-incidence
-bounds remain expert plausible ranges because their model numerators have no direct global observed
+a published estimate or interval for bacterial sepsis. The all-bacteria-incidence range is a
+source-informed derived range around a 20% central target: organism-specific targets sum to 22.34%,
+while the person-level headline counts same-day polymicrobial acquisitions once. The antibiotic-use
+bounds remain an expert plausible range because their model numerator has no direct global observed
 counterpart.</p>
 <p>For target rows without a recoverable interval, the registry applies documented broad range tiers
 and explicit organism-level values where the reference target note contains a quantitative
@@ -57660,6 +57663,9 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>Magill SS, O'Leary E, Janelle SJ, et al. Changes in prevalence of health care–associated infections in U.S. hospitals. <em>N Engl J Med.</em> 2018;379(18):1732–1744. doi:10.1056/NEJMoa1801550</p>
+</li>
+<li>
+<p>Majowicz SE, Colston JM, Kirk MD, et al., on behalf of the Foodborne Disease Burden Epidemiology Reference Group for 2021-2025. WHO estimates of the global, regional, and national burden of 14 foodborne diarrhoeal enteric hazards, 2000-21: an updated data synthesis. <em>Lancet Glob Health.</em> 2026. doi:10.1016/j.langlo.2026.103997</p>
 </li>
 <li>
 <p>Martinson ML, Lapham J. Prevalence of immunosuppression among US adults. <em>JAMA.</em> 2024;331(10):880–882. doi:10.1001/jama.2023.28019</p>

@@ -162,6 +162,46 @@ class CalibrationTargetRangeRegistryTests(unittest.TestCase):
             "gbd_2021_global_sepsis_2025_bacterial_subset",
         )
 
+    def test_infection_incidence_targets_use_updated_who_ferg_estimates(self) -> None:
+        headline = self.registry.loc[
+            self.registry["target_key"].eq("annual_infection_incidence_percent")
+        ].iloc[0]
+        self.assertEqual(
+            (
+                headline["central_value"],
+                headline["plausible_lower"],
+                headline["plausible_upper"],
+            ),
+            (20.0, 15.0, 30.0),
+        )
+        self.assertEqual(headline["interval_kind"], "derived_plausible_range")
+        self.assertEqual(
+            headline["source_id"],
+            "model_scope_pathogen_incidence_synthesis_who_ferg_2021",
+        )
+
+        incidence = self.registry.loc[
+            self.registry["target_family"].eq("infection_incidence")
+        ].set_index("target_key")
+        expected = {
+            "escherichia coli": (0.032, 0.0185, 0.0516),
+            "shigella spp.": (0.052, 0.0285, 0.0868),
+            "campylobacter jejuni": (0.0355, 0.0206, 0.0560),
+        }
+        for key, bounds in expected.items():
+            row = incidence.loc[key]
+            self.assertEqual(
+                (
+                    row["central_value"],
+                    row["plausible_lower"],
+                    row["plausible_upper"],
+                ),
+                bounds,
+            )
+            self.assertEqual(row["source_id"], "who_ferg_2021_diarrhoeal_hazards")
+
+        self.assertAlmostEqual(incidence["central_value"].sum(), 0.223414, places=12)
+
     def test_mortality_mapping_has_documented_direct_derived_and_expert_rows(self) -> None:
         deaths = self.registry.loc[self.registry["target_family"].eq("infection_deaths")]
         self.assertEqual(
@@ -233,6 +273,14 @@ class SimulationMeanConfidenceIntervalTests(unittest.TestCase):
 
 
 class FigureUncertaintyFootnoteTests(unittest.TestCase):
+    def test_figure_1_incidence_note_documents_derived_target_and_source(self) -> None:
+        notes = " ".join(_HEADLINE_TARGET_SOURCE_NOTES)
+        self.assertIn("20% per year", notes)
+        self.assertIn("15-30%", notes)
+        self.assertIn("22.34%", notes)
+        self.assertIn("Majowicz SE et al. (2026)", notes)
+        self.assertIn("not a published all-bacteria estimate", notes)
+
     def test_figure_1_sepsis_note_distinguishes_gbd_estimate_from_model_target(self) -> None:
         notes = " ".join(_HEADLINE_TARGET_SOURCE_NOTES)
         self.assertIn("166 million all-cause sepsis cases", notes)

@@ -99,7 +99,8 @@
       "key": "annual_infection_incidence_percent",
       "label": "Incidence of bacterial infection per year (%)",
       "unit": "percent",
-      "target": 15.0
+      "target": 20.0,
+      "rationale": "Derived model-scope benchmark after selectively updating E. coli, Shigella, and Campylobacter incidence targets from the WHO FERG 2021-2025 estimates published by Majowicz et al. (2026; PMID 42296981). The 42 organism-specific targets sum to 22.34% of world population; the 20% person-level target allows for same-day polymicrobial acquisitions, which the headline counts once. It is not a published estimate of all global bacterial infections."
     },
     {
       "key": "sepsis_incident_cases_millions",

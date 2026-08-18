@@ -398,9 +398,18 @@ _HEADLINE_TARGET_SOURCE_NOTES = [
     "convergence in antibiotic consumption between 2000 and 2015. <em>PNAS</em> "
     "115:E3463-E3470. The model uses a person-prevalence proxy for daily users, rather "
     "than DDD-equivalent consumption.",
-    "Infection-incidence and sepsis review-informed calibration targets: infection "
-    "incidence is informed by Vos T et al. (2020), <em>Lancet</em> 396:1204-1222; sepsis "
-    "is informed by the GBD 2021 Global Sepsis Collaborators (2025), <em>Lancet Global "
+    "Infection-incidence review-informed calibration target: 20% per year (derived "
+    "plausible range 15-30%). The 42 organism targets sum to 22.34%; the person-level "
+    "headline allows for same-day polymicrobial acquisitions. Updated targets use the "
+    "WHO FERG 2021 estimates of 426 million Shigella illnesses (95% uncertainty interval "
+    "234-711 million), 291 million Campylobacter illnesses (169-459 million), and "
+    "260 million ETEC illnesses (152-423 million). Majowicz SE et al. (2026), "
+    "<em>Lancet Global Health</em>, doi:10.1016/j.langlo.2026.103997. ETEC is a "
+    "conservative floor for the model's broader E. coli category, and the source's "
+    "Campylobacter category is broader than the model's C. jejuni category. The 20% "
+    "value is a derived model-scope benchmark, not a published all-bacteria estimate.",
+    "Sepsis review-informed calibration target: informed by the GBD 2021 Global Sepsis "
+    "Collaborators (2025), <em>Lancet Global "
     "Health</em> 13:e2013-e2026. GBD estimated 166 million all-cause sepsis cases in 2021 "
     "(95% uncertainty interval 135-201 million). The model's 70 million target and "
     "50-100 million plausible range are explicit bacterial-subset assumptions, not the "
@@ -802,7 +811,7 @@ def make_t2(agg: dict, out_dir: Path) -> None:
             if 'antibiotics' in lo:
                 return 'Klein et al. 2018 (ref 2)'
             if 'incidence' in lo and 'infection' in lo:
-                return 'Vos et al. 2020 (ref 3)'
+                return 'Majowicz et al. 2026 (ref 3)'
             if 'sepsis' in lo:
                 return 'GBD 2021 Global Sepsis Collaborators 2025 (ref 4)'
             return '—'
@@ -845,8 +854,15 @@ def make_t2(agg: dict, out_dir: Path) -> None:
         "reports DDD-based consumption rather than unique people on treatment. The revised "
         "target is a person-prevalence proxy that sits below the DDD-equivalent total after "
         "allowing for dose intensity, stock-sales mismatch, and wastage.",
-        "Vos T et al. (2020). Global burden of 369 diseases and injuries in 204 countries "
-        "and territories, 1990–2019. <em>Lancet</em> 396:1204–1222.",
+        "Majowicz SE et al. (2026). WHO estimates of the global, regional, and national "
+        "burden of 14 foodborne diarrhoeal enteric hazards, 2000-21: an updated data "
+        "synthesis. <em>Lancet Global Health</em>. doi:10.1016/j.langlo.2026.103997. "
+        "The 2021 all-route estimates were 426 million Shigella illnesses (95% uncertainty "
+        "interval 234-711 million), 291 million Campylobacter illnesses (169-459 million), "
+        "and 260 million ETEC illnesses (152-423 million). These selectively inform three "
+        "organism targets. The resulting 42-target sum is 22.34%; the 20% person-level "
+        "headline and 15-30% plausible range allow for same-day polymicrobial acquisitions "
+        "and cross-source uncertainty and are not published all-bacteria estimates.",
         "GBD 2021 Global Sepsis Collaborators (2025). Global, regional, and national sepsis "
         "incidence and mortality, 1990–2021. <em>Lancet Global Health</em> 13:e2013–e2026. "
         "GBD estimated 166 million all-cause sepsis cases in 2021 (95% uncertainty interval "

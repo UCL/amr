@@ -338,6 +338,44 @@ fn parameters_initializer_has_no_duplicate_literal_keys() {
 }
 
 #[test]
+fn enteric_incidence_recalibration_preserves_carriage_intercepts() {
+    let cases = [
+        (
+            "escherichia_coli_acquisition_log_odds_baseline",
+            -11.353,
+            "escherichia_coli_log_odds_microbiome_vs_infection",
+            6.253,
+            -5.1,
+        ),
+        (
+            "shigella_spp._acquisition_log_odds_baseline",
+            -11.827,
+            "shigella_spp._log_odds_microbiome_vs_infection",
+            -1.573,
+            -13.4,
+        ),
+        (
+            "campylobacter_jejuni_acquisition_log_odds_baseline",
+            -11.915,
+            "campylobacter_jejuni_log_odds_microbiome_vs_infection",
+            1.415,
+            -10.5,
+        ),
+    ];
+
+    for (baseline_key, expected_baseline, carriage_key, expected_shift, expected_sum) in cases {
+        let baseline = PARAMETERS[baseline_key];
+        let carriage_shift = PARAMETERS[carriage_key];
+        assert_eq!(baseline, expected_baseline, "unexpected {baseline_key}");
+        assert_eq!(carriage_shift, expected_shift, "unexpected {carriage_key}");
+        assert!(
+            (baseline + carriage_shift - expected_sum).abs() < 1e-12,
+            "{baseline_key} and {carriage_key} no longer preserve the carriage intercept"
+        );
+    }
+}
+
+#[test]
 fn retired_resistance_parameter_names_are_absent() {
     for key in [
         "any_r_emergence_level_on_first_emergence",

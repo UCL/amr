@@ -57,6 +57,7 @@ WHO_ANTIBIOTIC_USE_URL = (
 GLOBAL_ANTIBIOTIC_USE_URL = "https://pmc.ncbi.nlm.nih.gov/articles/PMC8654683/"
 WHO_GLASS_2022_URL = "https://www.who.int/publications/i/item/9789240108127"
 WHO_CHOLERA_URL = "https://www.who.int/news-room/fact-sheets/detail/cholera"
+WHO_FERG_2021_DIARRHOEAL_URL = "https://pubmed.ncbi.nlm.nih.gov/42296981/"
 
 
 def _round_significant(value: float, digits: int = 2) -> float:
@@ -146,17 +147,22 @@ HEADLINE_RANGES = {
         ),
     },
     "annual_infection_incidence_percent": {
-        "lower": 10.0,
-        "upper": 25.0,
-        "interval_kind": "expert_plausible_range",
-        "provenance_class": "expert_best_guess_placeholder",
-        "source_id": "model_scope_pathogen_incidence_synthesis",
-        "source_url": "",
-        "range_method": "Expert range around the all-bacteria model-scope incidence anchor.",
+        "lower": 15.0,
+        "upper": 30.0,
+        "interval_kind": "derived_plausible_range",
+        "provenance_class": "source_informed_transformed",
+        "source_id": "model_scope_pathogen_incidence_synthesis_who_ferg_2021",
+        "source_url": WHO_FERG_2021_DIARRHOEAL_URL,
+        "last_reviewed": "2026-08-18",
+        "range_method": (
+            "Derived model-scope range around selectively updated organism targets, "
+            "allowing for same-day polymicrobial acquisition and cross-source uncertainty."
+        ),
         "rationale": (
-            "No harmonised global count exists for all modelled bacterial infection "
-            "episodes. The range reflects heterogeneous pathogen and syndrome estimates "
-            "and uncertainty in same-day polymicrobial episode counting."
+            "The 42 organism targets sum to 22.34% after updating E. coli, Shigella, and "
+            "Campylobacter from WHO FERG 2021 estimates. The 20% headline counts each "
+            "person at most once per day and therefore allows for same-day polymicrobial "
+            "acquisition. It is a derived benchmark, not a published all-bacteria estimate."
         ),
     },
     "sepsis_incident_cases_millions": {
@@ -242,13 +248,23 @@ CARRIAGE_RANGE_OVERRIDES = {
 
 
 INCIDENCE_RANGE_OVERRIDES = {
+    "escherichia coli": (0.0185, 0.0516),
     "salmonella enterica serovar typhi": (0.0008, 0.0015),
+    "shigella spp.": (0.0285, 0.0868),
     "neisseria gonorrhoeae": (0.007, 0.013),
     "chlamydia trachomatis": (0.012, 0.02),
     "vibrio cholerae": (0.00015, 0.0006),
     "treponema pallidum": (0.0007, 0.0013),
     "bordetella pertussis": (0.001, 0.003),
     "mdr mycobacterium tuberculosis": (0.00004, 0.00007),
+    "campylobacter jejuni": (0.0206, 0.0560),
+}
+
+
+WHO_FERG_2021_INCIDENCE_KEYS = {
+    "escherichia coli",
+    "shigella spp.",
+    "campylobacter jejuni",
 }
 
 
@@ -448,6 +464,15 @@ def _burden_rows(
                 "specific source estimate to use an explicit, rounded plausible interval."
             )
 
+        if family == "infection_incidence" and key in WHO_FERG_2021_INCIDENCE_KEYS:
+            source_id = "who_ferg_2021_diarrhoeal_hazards"
+            source_url = WHO_FERG_2021_DIARRHOEAL_URL
+            method = (
+                "Published 2021 illness uncertainty bounds divided by 8.2 billion and "
+                "treated as a source-informed model-category range."
+            )
+            rationale = notes
+
         if (
             not has_explicit_range
             and family == "infection_deaths"
@@ -482,6 +507,12 @@ def _burden_rows(
                 source_url=source_url,
                 range_method=method,
                 rationale=rationale,
+                last_reviewed=(
+                    "2026-08-18"
+                    if family == "infection_incidence"
+                    and key in WHO_FERG_2021_INCIDENCE_KEYS
+                    else LAST_REVIEWED
+                ),
             )
         )
     return rows

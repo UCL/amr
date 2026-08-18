@@ -7428,7 +7428,7 @@ lazy_static! {
         map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.32);
         map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -17.7);
-        map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -13.0);
+        map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -11.915);
         map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -12.8);
         map.insert("mycoplasma_genitalium_acquisition_log_odds_baseline".to_string(), -12.1);
         map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.0); // Periodic epidemics
@@ -7440,7 +7440,7 @@ lazy_static! {
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.8);
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.1);
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.7);
-        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.6);
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.353);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
         map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.7);
@@ -7455,7 +7455,7 @@ lazy_static! {
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.8);
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -12.6);
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -11.827);
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.7);
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); // Expert best-guess placeholder
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
@@ -7856,7 +7856,9 @@ lazy_static! {
     // Bacterium-specific shifts applied to carriage-acquisition log-odds.
     // Despite the historical key name, these do not partition a single event
     // between carriage and infection; the two acquisition processes are separate.
-    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 6.5);
+    // The E. coli, Shigella, and Campylobacter shifts offset their incidence-target
+    // baseline changes so the corresponding carriage intercepts remain unchanged.
+    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 6.253);
     map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 11.0);
     map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 9.6);
     map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 7.4);
@@ -7880,9 +7882,9 @@ lazy_static! {
     map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), -8.0);
     map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), -1.0);
     map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), 3.2);
-    map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), -0.8);
+    map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), -1.573);
     map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 0.3);
-    map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 2.5);
+    map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 1.415);
     map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 5.5);
     map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 12.5);
     map.insert("p_stuartii_log_odds_microbiome_vs_infection".to_string(), 8.7);
