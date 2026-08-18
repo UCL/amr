@@ -491,7 +491,7 @@ class CalibrationTargetDataTests(unittest.TestCase):
             pd.read_csv(data_root / "deaths_by_bacteria.csv"),
         )
 
-    def test_typhoid_targets_use_current_who_central_estimates(self) -> None:
+    def test_typhoid_death_target_uses_gbd_2019_estimate(self) -> None:
         incidence, _, deaths = self._burden_tables()
         bacterium = "salmonella enterica serovar typhi"
 
@@ -499,9 +499,20 @@ class CalibrationTargetDataTests(unittest.TestCase):
         death_row = deaths.loc[deaths["Bacteria"] == bacterium].iloc[0]
 
         self.assertAlmostEqual(incidence_row["annual_infection_proportion"], 0.0011)
-        self.assertAlmostEqual(death_row["annual_deaths_millions"], 0.11)
+        self.assertAlmostEqual(death_row["annual_deaths_millions"], 0.182)
         self.assertIn("2019", incidence_row["notes"])
         self.assertIn("2019", death_row["notes"])
+
+    def test_gbd_enterobacter_target_is_conserved_across_model_split(self) -> None:
+        _, _, deaths = self._burden_tables()
+        split = deaths.loc[
+            deaths["Bacteria"].isin(["enterobacter spp.", "enterobacter cloacae"])
+        ]
+
+        self.assertAlmostEqual(split["annual_deaths_millions"].sum(), 0.324)
+        self.assertAlmostEqual(split["plausible_lower"].sum(), 0.211)
+        self.assertAlmostEqual(split["plausible_upper"].sum(), 0.468)
+        self.assertEqual(set(split["mapping_method"]), {"allocated_legacy_ratio"})
 
     def test_enterobacter_target_categories_are_mutually_exclusive(self) -> None:
         for table in self._burden_tables():
@@ -577,7 +588,7 @@ class HeadlineNumeratorTests(unittest.TestCase):
                 {
                     "key": "infection_deaths_millions",
                     "label": "Infection deaths",
-                    "target": 6.4,
+                    "target": 7.7,
                     "unit": "millions",
                 }
             ]

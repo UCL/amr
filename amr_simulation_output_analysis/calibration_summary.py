@@ -5054,19 +5054,17 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         # Footnotes
         handle.write("\n---\nFootnotes\n\n")
         handle.write(
-            "(1) Infection deaths target: 6.4 million model-scope bacterial infection deaths per year.\n"
-            "    The target is aligned to a person-level simulation numerator: sepsis-related plus\n"
+            "(1) Infection deaths target: 7.7 million deaths associated with 33 bacterial\n"
+            "    pathogens (GBD 2019; published 95% uncertainty interval 5.7-10.2 million).\n"
+            "    The published central estimate is used unchanged as a pragmatic benchmark for\n"
+            "    the model's 2025 output rather than applying a small, precision-implying scope\n"
+            "    adjustment. The simulation numerator counts person-level sepsis-related plus\n"
             "    non-sepsis infection deaths with at least one contributing infection other than\n"
-            "    H. pylori or MDR-TB. Concurrent excluded infections do not remove an otherwise\n"
-            "    in-scope death. GBD 2019 estimated 13.7 million\n"
-            "    total infection-related deaths globally, including viral, parasitic, and fungal\n"
-            "    causes. The 33-pathogen bacterial analysis estimated approximately 7.7 million\n"
-            "    bacterial-pathogen-associated deaths, while Murray et al. (2022, Lancet 399:629-655,\n"
-            "    GRAM study) estimated 4.95 million deaths associated with bacterial AMR specifically.\n"
-            "    The per-organism mortality targets encoded for this model sum to about 7.39 million\n"
-            "    including H. pylori gastric-cancer mortality and MDR-TB. Excluding those two\n"
-            "    out-of-scope categories gives 6.40 million, used here as the like-for-like headline\n"
-            "    calibration target.\n"
+            "    H. pylori or MDR-TB; concurrent excluded infections do not remove an otherwise\n"
+            "    in-scope death. The model organism set and taxonomic resolution differ slightly\n"
+            "    from the GBD 33-pathogen analysis, and the source estimate is for 2019. These\n"
+            "    differences are documented as interpretation limits. The target is not an\n"
+            "    estimate of deaths attributable to antimicrobial resistance.\n"
         )
         handle.write(
             "\n(2) Antibiotic use target: 100 million people on antibiotics on an average day.\n"
@@ -5132,15 +5130,16 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    model design (infection-only pathway, no microbiome colonization).\n"
         )
         handle.write(
-            "\n(7) Per-bacteria death targets sourced primarily from: Antimicrobial Resistance\n"
-            "    Collaborators (2022, Lancet 399:629-655, GRAM study) for major pathogens\n"
-            "    including S. aureus (1.1M associated deaths), E. coli (0.83M), K. pneumoniae\n"
-            "    (0.71M), S. pneumoniae (0.65M), A. baumannii (0.38M), and P. aeruginosa\n"
-            "    (0.33M); IARC/GBD for H. pylori gastric cancer deaths (0.8M); WHO Global\n"
-            "    TB Report 2024 for MDR-TB (0.19M); WHO 2019 estimates for typhoid (0.11M),\n"
-            "    cholera (0.1M), and pertussis (0.16M); GBD 2019 for diarrhoeal deaths\n"
-            "    (Shigella 0.2M). Smaller healthcare-associated organisms use placeholder\n"
-            "    estimates extrapolated from case-fatality rates applied to incidence data.\n"
+            "\n(7) Per-bacteria mortality targets use the GBD 2019 33-pathogen central\n"
+            "    estimates and published 95% uncertainty intervals where definitions align.\n"
+            "    Broader GBD categories are allocated or used as proxies where model\n"
+            "    taxonomies differ; organisms outside that study retain explicitly labelled\n"
+            "    review-informed estimates. Enterobacter spp is divided between the model's\n"
+            "    non-cloacae and separately modelled E. cloacae rows using their previous\n"
+            "    7:4 target ratio. Bacterium-specific model death counters are non-additive\n"
+            "    in polymicrobial deaths and should not be summed to reconstruct the\n"
+            "    person-level headline. H. pylori and MDR-TB remain visible in the organism\n"
+            "    breakdown but are excluded from the 7.7 million headline comparison.\n"
         )
         handle.write(
             "\n(8) Drug class share targets derived from multiple surveillance sources. ECDC\n"

@@ -387,11 +387,12 @@ def _window_note(n: int) -> str:
 
 
 _HEADLINE_TARGET_SOURCE_NOTES = [
-    "Infection-death review-informed calibration target: 6.4 million model-scope bacterial "
-    "infection deaths per year. "
-    "This is the rounded sum of per-organism mortality estimates after excluding "
-    "<em>H. pylori</em> and MDR-TB, matching the Figure 1 simulation numerator. It is not "
-    "an estimate of AMR-attributable mortality.",
+    "Infection-death review-informed calibration target: the published GBD 2019 estimate "
+    "of 7.7 million deaths associated with 33 bacterial pathogens (95% uncertainty "
+    "interval 5.7-10.2 million). It is used unchanged as a pragmatic benchmark for the "
+    "model's 2025 output. The model organism set and taxonomic resolution differ slightly "
+    "from GBD; <em>H. pylori</em> and MDR-TB are reported separately and excluded from the "
+    "Figure 1 person-level numerator. This is not an estimate of AMR-attributable mortality.",
     "Antibiotic-use review-informed calibration target: Klein EY et al. (2018). Global "
     "increase and geographic "
     "convergence in antibiotic consumption between 2000 and 2015. <em>PNAS</em> "
@@ -426,13 +427,16 @@ _DRUG_CLASS_TARGET_SOURCE_NOTES = [
 ]
 
 _MORTALITY_TARGET_SOURCE_NOTES = [
-    "Review-informed calibration targets for infection deaths draw on GBD 2019/2020 "
-    "cause-of-death "
-    "attributions, WHO mortality data, organism-specific literature, and explicit "
-    "best-guess placeholders where direct estimates are unavailable.",
-    "Bacterium-level estimates can sum to more than the headline all-cause bacterial "
-    "death estimate because polymicrobial deaths may be attributed to all contributing "
-    "pathogens.",
+    "Bacterium-specific death targets use the GBD 2019 central estimates and published "
+    "95% uncertainty intervals where model and GBD definitions align. Broader GBD groups "
+    "are allocated or used as proxies where taxonomic definitions differ; organisms not "
+    "reported in the GBD 33-pathogen analysis retain explicitly labelled review-informed "
+    "estimates.",
+    "These are calibration benchmarks for 2025 model output based primarily on 2019 burden "
+    "estimates. Bacterium-level model outputs can count a polymicrobial death against more "
+    "than one organism and therefore should not be summed to reconstruct the person-level "
+    "7.7 million headline target. <em>H. pylori</em> and MDR-TB are reported separately and "
+    "excluded from that headline comparison.",
 ]
 
 _CARRIAGE_TARGET_SOURCE_NOTES = [
@@ -791,7 +795,7 @@ def make_t2(agg: dict, out_dir: Path) -> None:
         def _ref_for_metric(renamed: str) -> str:
             lo = renamed.lower()
             if 'infection deaths' in lo:
-                return 'Murray et al. 2022 (ref 1)'
+                return 'Ikuta et al. 2022 (ref 1)'
             if 'antibiotics' in lo:
                 return 'Klein et al. 2018 (ref 2)'
             if 'incidence' in lo and 'infection' in lo:
@@ -826,11 +830,12 @@ def make_t2(agg: dict, out_dir: Path) -> None:
     )
 
     footnotes = [
-        "Infection deaths: the headline target is set to 6.4 million model-scope bacterial "
-        "infection deaths per year, matching the simulation numerator by excluding H. pylori "
-        "and MDR-TB. The broader GBD/33-pathogen central estimate is approximately 7.7 "
-        "million bacterial-pathogen-associated deaths; AMR-specific deaths are a separate "
-        "subset.",
+        "Infection deaths: Ikuta KS et al. (2022) estimated 7.7 million deaths associated "
+        "with 33 bacterial pathogens in 2019 (95% uncertainty interval 5.7-10.2 million). "
+        "The published estimate is used unchanged as a pragmatic benchmark for the model's "
+        "2025 output. The model organism set differs slightly; H. pylori and MDR-TB are "
+        "reported separately and excluded from the person-level headline numerator. "
+        "AMR-attributable deaths are a separate subset.",
         "Klein EY et al. (2018). Global increase and geographic convergence in antibiotic "
         "consumption between 2000 and 2015. <em>PNAS</em> 115:E3463–E3470. The antibiotic "
         "headline target is set to 100 million daily users, not 130 million, because Klein "
@@ -1159,10 +1164,10 @@ def make_s1(agg: dict, out_dir: Path) -> None:
         _window_note(n),
         "Deaths are scaled to the global population using the run-specific population scale "
         "factor and annualised to yearly equivalents.",
-        "Death estimates are based on GBD 2019/2020 cause-of-death attributions, WHO mortality "
-        "data, and organism-specific published literature. Organism-level totals sum to more "
-        "than the headline all-cause bacterial death estimate because polymicrobial deaths are "
-        "attributed to all contributing pathogens.",
+        "Death targets use GBD 2019 pathogen estimates where definitions align, documented "
+        "GBD category allocations or proxies where they differ, and review-informed values "
+        "for organisms outside the GBD 33-pathogen analysis. Organism-level model outputs are "
+        "not additive because polymicrobial deaths can be attributed to multiple pathogens.",
     ]
 
     body  = _html_head("S1 — Infection Deaths per Organism")
@@ -4617,7 +4622,8 @@ def make_figure_1_calibration_headline_metrics(
     )
     uncertainty_note += (
         "Dark-grey bars show review-informed calibration targets; their error bars show "
-        "review-informed plausible ranges."
+        "published uncertainty intervals or review-informed plausible ranges, as documented "
+        "in the target registry."
     )
     _save_figure(
         fig, out_dir, "Figure_1__calibration_headline_metrics",
@@ -5165,7 +5171,7 @@ def make_figure_4_calibration_infection_deaths(
     )
     uncertainty_note += (
         "Dark-grey bars show review-informed calibration targets; their error bars show "
-        "review-informed plausible ranges. "
+        "published GBD uncertainty intervals or review-informed plausible ranges. "
         "Bacteria for which both values are zero are omitted; rows are sorted by the "
         "review-informed calibration target where available, otherwise by the simulation."
     )

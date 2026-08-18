@@ -139,9 +139,13 @@ python amr_simulation_output_analysis/counterfactual_2025_death_rates.py
 The script reports mean annual model-scope infection deaths, population-scaled
 to the same world-population target used by `calibration_summary.py`, over
 2022-2025 for policy 0 and policy 2. It also reports deaths per 100,000
-person-years. It accepts output from either `Full25Counterfactual` or
-`Partial25Counterfactual`. A CSV path supplied on the command line overrides
-`SIMULATION_CSV`.
+person-years and the corresponding bacterium-associated values for every
+organism under each policy. The terminal report is also written to
+`output_graphs/counterfactual_2025_death_rates_NNNNNN.txt`, where `NNNNNN` is
+the run ID in the simulation CSV filename. It accepts output from either
+`Full25Counterfactual` or `Partial25Counterfactual`. A CSV path supplied on the
+command line overrides `SIMULATION_CSV`; `--output-dir` overrides the report
+directory.
 
 ### Reproducible Seeds
 

@@ -118,15 +118,41 @@ class CalibrationTargetRangeRegistryTests(unittest.TestCase):
             for key, expected_value in expected.items():
                 self.assertAlmostEqual(actual[key], expected_value, places=12)
 
-    def test_only_named_source_range_uses_published_interval_label(self) -> None:
+    def test_gbd_mortality_rows_use_published_interval_label(self) -> None:
         published = self.registry.loc[
             self.registry["interval_kind"].eq("published_uncertainty_range")
         ]
-        self.assertEqual(len(published), 1)
-        row = published.iloc[0]
-        self.assertEqual(row["target_family"], "infection_deaths")
-        self.assertEqual(row["target_key"], "vibrio cholerae")
-        self.assertTrue(str(row["source_url_or_doi"]).startswith("https://"))
+        self.assertEqual(len(published), 24)
+        self.assertEqual(set(published["target_family"]), {"headline", "infection_deaths"})
+        self.assertTrue(
+            published["source_id"].eq("gbd_33_bacterial_pathogens_2019").all()
+        )
+        self.assertTrue(
+            published["source_url_or_doi"].astype(str).str.startswith("https://").all()
+        )
+
+        headline = published.loc[
+            published["target_key"].eq("infection_deaths_millions")
+        ].iloc[0]
+        self.assertEqual(
+            (
+                headline["central_value"],
+                headline["plausible_lower"],
+                headline["plausible_upper"],
+            ),
+            (7.7, 5.7, 10.2),
+        )
+
+    def test_mortality_mapping_has_documented_direct_derived_and_expert_rows(self) -> None:
+        deaths = self.registry.loc[self.registry["target_family"].eq("infection_deaths")]
+        self.assertEqual(
+            deaths["interval_kind"].value_counts().to_dict(),
+            {
+                "published_uncertainty_range": 23,
+                "expert_plausible_range": 11,
+                "derived_plausible_range": 8,
+            },
+        )
 
     def test_plot_lookup_scales_proportion_ranges_to_percent(self) -> None:
         self.assertEqual(len(_load_target_range_lookup()), 158)

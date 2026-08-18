@@ -116,17 +116,18 @@ def _make_row(
 
 HEADLINE_RANGES = {
     "infection_deaths_millions": {
-        "lower": 4.7,
-        "upper": 8.5,
-        "interval_kind": "derived_plausible_range",
-        "provenance_class": "source_informed_transformed",
+        "lower": 5.7,
+        "upper": 10.2,
+        "interval_kind": "published_uncertainty_range",
+        "provenance_class": "published_source_range",
         "source_id": "gbd_33_bacterial_pathogens_2019",
         "source_url": GBD_BACTERIAL_MORTALITY_URL,
-        "range_method": "Scale the published 5.7-10.2 million UI by 6.4/7.7.",
+        "range_method": "Published GBD 2019 95% uncertainty interval.",
         "rationale": (
-            "The point target is the model-scope organism-target sum, not the published "
-            "GBD total. Scaling the published interval preserves its relative width while "
-            "matching the model numerator; the result is a derived plausible range."
+            "The published 7.7 million estimate is used unchanged as a pragmatic "
+            "calibration benchmark. The model's organism set and target year differ "
+            "slightly; those differences are documented rather than encoded as a "
+            "precision-implying numerical adjustment."
         ),
     },
     "people_on_antibiotics_millions": {
@@ -401,7 +402,37 @@ def _burden_rows(
             "it is a display-only plausible range, not a statistical confidence interval."
         )
 
-        if key in overrides:
+        explicit_lower = pd.to_numeric(target.get("plausible_lower"), errors="coerce")
+        explicit_upper = pd.to_numeric(target.get("plausible_upper"), errors="coerce")
+        has_explicit_range = bool(
+            pd.notna(explicit_lower) and pd.notna(explicit_upper)
+        )
+        if has_explicit_range:
+            lower = float(explicit_lower)
+            upper = float(explicit_upper)
+            interval_kind = str(target.get("interval_kind") or interval_kind)
+            provenance_class = str(
+                target.get("provenance_class") or provenance_class
+            )
+            source_id = str(target.get("source_id") or source_id)
+            source_url_value = target.get("source_url_or_doi")
+            source_url = "" if pd.isna(source_url_value) else str(source_url_value).strip()
+            mapping_method = str(target.get("mapping_method") or "").strip()
+            if interval_kind == "published_uncertainty_range":
+                method = "Published GBD 2019 95% uncertainty interval."
+            elif source_id == "gbd_33_bacterial_pathogens_2019":
+                method = (
+                    "GBD 2019 estimate and interval transferred using the documented "
+                    f"model mapping ({mapping_method})."
+                )
+            else:
+                method = (
+                    "Explicit review-informed plausible range from the canonical "
+                    "target file."
+                )
+            rationale = notes
+
+        if not has_explicit_range and key in overrides:
             lower, upper = overrides[key]
             interval_kind = "derived_plausible_range"
             provenance_class = "source_informed_transformed"
@@ -412,7 +443,11 @@ def _burden_rows(
                 "specific source estimate to use an explicit, rounded plausible interval."
             )
 
-        if family == "infection_deaths" and key == "vibrio cholerae":
+        if (
+            not has_explicit_range
+            and family == "infection_deaths"
+            and key == "vibrio cholerae"
+        ):
             interval_kind = "published_uncertainty_range"
             provenance_class = "published_source_range"
             source_id = "who_cholera_global_deaths"

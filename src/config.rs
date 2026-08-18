@@ -11454,45 +11454,45 @@ lazy_static! {
 
         // Bacterium-specific sepsis baseline log-odds. These are calibrated
         // best-guess placeholders rather than direct empirical probabilities.
-        let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-            ("acinetobacter_baumannii", -5.1),
-            ("citrobacter_spp.", -8.6),
-            ("enterobacter_spp.", -6.0),
-            ("enterococcus_faecalis", -5.2),
-            ("enterococcus_faecium", -4.2),
-            ("escherichia_coli", -10.5),
-            ("klebsiella_pneumoniae", -8.1),
-            ("morganella_spp.", -7.1),
-            ("proteus_spp.", -6.8),
-            ("serratia_spp.", -7.3),
-            ("pseudomonas_aeruginosa", -5.0),
-            ("stenotrophomonas_maltophilia", -7.3),
-            ("staphylococcus_aureus", -9.3),
-            ("staphylococcus_epidermidis", -7.3),
-            ("streptococcus_pneumoniae", -9.9),
-            ("salmonella_enterica_serovar_typhi", -8.4),
-            ("salmonella_enterica_serovar_paratyphi_a", -8.7),
-            ("invasive_non-typhoidal_salmonella_spp.", -8.5),
-            ("shigella_spp.", -22.5),
-            ("neisseria_gonorrhoeae", -23.3),
-            ("streptococcus_pyogenes", -6.0),
-            ("streptococcus_agalactiae", -6.1),
-            ("haemophilus_influenzae", -8.5),
-            ("chlamydia_trachomatis", -18.3),
-            ("vibrio_cholerae", -7.0),
-            ("neisseria_meningitidis", -7.2),
-            ("listeria_monocytogenes", -7.3),
-            ("clostridioides_difficile", -9.8),
-            ("campylobacter_jejuni", -20.2),
-            ("enterobacter_cloacae", -6.0),
-            ("yersinia_enterocolitica", -8.8),
-            ("moraxella_catarrhalis", -12.4),
-            ("treponema_pallidum", -10.3),
-            ("bordetella_pertussis", -500.0),
-            ("helicobacter_pylori", -500.0),
-            ("mdr_mycobacterium_tuberculosis", -38.0),
-            ("mycoplasma_pneumoniae",-18.0),
-        ];
+    let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
+    ("acinetobacter_baumannii", -4.4),
+    ("citrobacter_spp.", -7.9),
+    ("enterobacter_spp.", -5.3),
+    ("enterococcus_faecalis", -4.5),
+    ("enterococcus_faecium", -3.5),
+    ("escherichia_coli", -9.8),
+    ("klebsiella_pneumoniae", -7.4),
+    ("morganella_spp.", -6.4),
+    ("proteus_spp.", -6.1),
+    ("serratia_spp.", -6.6),
+    ("pseudomonas_aeruginosa", -4.3),
+    ("stenotrophomonas_maltophilia", -6.6),
+    ("staphylococcus_aureus", -8.6),
+    ("staphylococcus_epidermidis", -6.6),
+    ("streptococcus_pneumoniae", -9.2),
+    ("salmonella_enterica_serovar_typhi", -7.7),
+    ("salmonella_enterica_serovar_paratyphi_a", -8.0),
+    ("invasive_non-typhoidal_salmonella_spp.", -7.8),
+    ("shigella_spp.", -21.8),
+    ("neisseria_gonorrhoeae", -22.6),
+    ("streptococcus_pyogenes", -5.3),
+    ("streptococcus_agalactiae", -5.4),
+    ("haemophilus_influenzae", -7.8),
+    ("chlamydia_trachomatis", -17.6),
+    ("vibrio_cholerae", -6.3),
+    ("neisseria_meningitidis", -6.5),
+    ("listeria_monocytogenes", -6.6),
+    ("clostridioides_difficile", -9.1),
+    ("campylobacter_jejuni", -19.5),
+    ("enterobacter_cloacae", -5.3),
+    ("yersinia_enterocolitica", -8.1),
+    ("moraxella_catarrhalis", -11.7),
+    ("treponema_pallidum", -9.6),
+    ("bordetella_pertussis", -499.3),
+    ("helicobacter_pylori", -499.3),
+    ("mdr_mycobacterium_tuberculosis", -37.3),
+    ("mycoplasma_pneumoniae", -17.3),
+];
 
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
         map.insert(format!("{}_sepsis_baseline_log_odds", bacteria), *log_odds);
@@ -11641,7 +11641,10 @@ lazy_static! {
         // Sepsis death logistic model parameters (log-odds scale)
         // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
         // where log_odds = base + age_effect + region_effect + immuno_effect + level_effect + duration_effect + care_effect
-        map.insert("sepsis_death_base_log_odds".to_string(), -5.2 );
+
+        // ^^^^^
+        map.insert("sepsis_death_base_log_odds".to_string(), -5.9 );
+        
         map.insert("sepsis_death_log_odds_age_infant".to_string(), 1.1); // Infants: +1.1 log-odds (~3x baseline)
         map.insert("sepsis_death_log_odds_age_child".to_string(), -0.7); // Children: -0.7 log-odds (~0.5x baseline)
         map.insert("sepsis_death_log_odds_age_adult".to_string(), 0.0); // Adults: reference category

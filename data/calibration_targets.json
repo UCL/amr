@@ -85,8 +85,8 @@
       "key": "infection_deaths_millions",
       "label": "Infection deaths (millions)",
       "unit": "millions",
-      "target": 6.4,
-      "rationale": "Model-scope bacterial infection deaths exclude H. pylori and MDR-TB to match the simulation numerator. This 6.4M target is the rounded sum of per-organism annual death targets after those two exclusions; it sits below the 7.7M GBD/33-pathogen central estimate and avoids calibrating the model to out-of-scope gastric-cancer and tuberculosis mortality."
+      "target": 7.7,
+      "rationale": "Published GBD 2019 estimate of deaths associated with 33 bacterial pathogens (95% uncertainty interval 5.7-10.2 million), used as a pragmatic review-informed benchmark for the model's 2025 output. The model organism set and taxonomic resolution differ slightly from GBD; H. pylori and MDR-TB are reported separately and remain excluded from the person-level headline numerator."
     },
     {
       "key": "people_on_antibiotics_millions",
