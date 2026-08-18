@@ -602,16 +602,16 @@ This section covers the antibiotic prescribing process — from the decision to 
 
 Each day, the model decides whether to start a new antibiotic course for each person, using a logistic model (see Section 1.2). The probability of starting antibiotics depends on the person's clinical state:
 
-| Factor | Log-odds | Approximate effect | Clinical rationale |
+| Factor | Log-odds | Rationale |
 |--------|----------|-------------------|-------------------|
-| Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Represents the fact that the person may not have presented for care, so represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016) |
-| Symptomatic infection | +6.2 | Jumps to ~67% before syndrome and regional terms | Once a patient has an indication for testing or treatment, prescribing becomes likely |
-| Sepsis | +6.5 | Strong additional increase | Sepsis is a medical emergency requiring immediate antibiotics |
-| Hospitalised | +0.7 | ~2× higher odds | Inpatient care increases access to and opportunity for treatment |
-| Immunodeficiency | +0.2 | weak positive effect in isolation | Immunodeficiency alone is not usually a stand-alone treatment indication; symptoms, sepsis, test confirmation, and the constrained prophylaxis pool drive most starts |
-| No clinical indication | −1.1 | ~3× lower odds | Background prescribing remains possible without an active modelled bacterial infection, but is suppressed |
-| Lab-confirmed infection | +0.92 | ~2.5× more likely | Positive culture results prompt targeted therapy |
-| Already on an antibiotic | +0.18 | ~1.2× more likely | People taking an antibiotic may be started on an additional agent (combination therapy) |
+| Baseline (no symptoms) | −5.5 | Represents the fact that the person may not have presented for care, so represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016) |
+| Symptomatic infection | +6.2 | Once a patient has an indication for testing or treatment, prescribing becomes likely |
+| Sepsis | +6.5 | Sepsis is a medical emergency |
+| Hospitalised | +0.7 | Inpatient care increases access to and opportunity for treatment |
+| Immunodeficiency | +0.2 | Weak positive effect in isolation | 
+| No clinical indication | −1.1 | Background prescribing remains possible without an active modelled bacterial infection |
+| Lab-confirmed infection | +0.92 | Positive culture results prompt targeted therapy |
+| Already on an antibiotic | +0.18 | People taking an antibiotic may be started on an additional agent (combination therapy) |
 
 
 **Syndrome antibiotic-initiation odds ratios.** The parameters named `syndrome_<id>_initiation_multiplier` belong to this start-any-antibiotic step. They are odds ratios, not drug-choice scores. In the Rust code, the model looks across the person's active infectious syndromes, takes the largest configured syndrome multiplier, converts it to a log-odds increment with `ln(multiplier)`, and adds that to the treatment-initiation log-odds. Taking the maximum rather than multiplying all syndromes together prevents polymicrobial or multi-site infections from inflating the initiation probability simply because several syndrome records are present.
