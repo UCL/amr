@@ -105,8 +105,8 @@
       "key": "sepsis_incident_cases_millions",
       "label": "Incident cases of sepsis (millions)",
       "unit": "millions",
-      "target": 30.0,
-      "rationale": "Revised from 35M to 30M because Rudd et al. reports all-cause sepsis, whereas the model is bacteria-only. A 30M target preserves a large global sepsis burden while allowing for the substantial viral, fungal, and parasitic share outside model scope."
+      "target": 70.0,
+      "rationale": "Derived bacterial-sepsis calibration benchmark informed by the GBD 2021 Global Sepsis Collaborators' estimate of 166 million all-cause sepsis cases in 2021 (95% uncertainty interval 135-201 million). The model excludes viral, fungal, and parasitic sepsis and does not represent the full sepsis burden complicating non-infectious disease. The 70M central target is therefore an explicit model-scope assumption, not a published GBD point estimate."
     }
   ],
   "microbiome_resistance": {

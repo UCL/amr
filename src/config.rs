@@ -11449,7 +11449,7 @@ lazy_static! {
 
 
         // Logistic sepsis risk parameters.
-        map.insert("sepsis_baseline_log_odds".to_string(), -12.0); // Fallback for organisms without an explicit intercept
+        map.insert("sepsis_baseline_log_odds".to_string(), -11.3); // Fallback raised by 0.7, matching the ~2x odds adjustment to explicit intercepts
 
 
         // Bacterium-specific sepsis baseline log-odds. These are calibrated
@@ -11642,9 +11642,8 @@ lazy_static! {
         // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
         // where log_odds = base + age_effect + region_effect + immuno_effect + level_effect + duration_effect + care_effect
 
-        // ^^^^^
-        map.insert("sepsis_death_base_log_odds".to_string(), -5.9 );
-        
+        map.insert("sepsis_death_base_log_odds".to_string(), -5.9);
+
         map.insert("sepsis_death_log_odds_age_infant".to_string(), 1.1); // Infants: +1.1 log-odds (~3x baseline)
         map.insert("sepsis_death_log_odds_age_child".to_string(), -0.7); // Children: -0.7 log-odds (~0.5x baseline)
         map.insert("sepsis_death_log_odds_age_adult".to_string(), 0.0); // Adults: reference category

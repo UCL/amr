@@ -5095,14 +5095,16 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    represents a mid-range estimate for global annual bacterial infection incidence.\n"
         )
         handle.write(
-            "\n(4) Sepsis target: 30 million incident cases per year (bacterial sepsis only).\n"
-            "    This target was revised downward because Rudd et al. (2020, Lancet 395:200-211)\n"
-            "    estimated 48.9 million all-cause sepsis cases globally, whereas this model only\n"
-            "    simulates bacterial infections. The previous 35 million target forced the model\n"
-            "    too close to the all-cause literature for a bacteria-only system and left too little\n"
-            "    room for viral, fungal, and parasitic sepsis outside model scope. A 30 million\n"
-            "    target keeps the implied bacterial share near 60% of the Rudd total, which is still\n"
-            "    substantial, but is a more defensible central benchmark for a bacteria-only model.\n"
+            "\n(4) Sepsis target: 70 million incident cases per year (bacterial sepsis only),\n"
+            "    with a derived plausible range of 50-100 million. The GBD 2021 Global Sepsis\n"
+            "    Collaborators (2025, Lancet Global Health 13:e2013-e2026) estimated 166 million\n"
+            "    all-cause sepsis cases in 2021 (95% uncertainty interval 135-201 million). That\n"
+            "    estimate includes sepsis outside this bacteria-only model's scope, including\n"
+            "    viral, fungal, and parasitic sepsis and the wider burden of sepsis complicating\n"
+            "    non-infectious disease. The 70 million target and 50-100 million range are thus\n"
+            "    explicit model-scope assumptions informed by GBD, not a published GBD bacterial-\n"
+            "    sepsis point estimate or 95% uncertainty interval. The 2021 estimate is used as\n"
+            "    a pragmatic benchmark for the model's 2025 output.\n"
         )
         handle.write(
             "\n(5) Per-bacteria infection incidence targets sourced primarily from: Antimicrobial\n"

@@ -1685,50 +1685,50 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 
 | Bacterium | Sepsis baseline log odds | Clinical rationale |
 |-----------|----------------|-------------------|
-| *Acinetobacter baumannii* | -5.1 | Healthcare-associated invasive pathogen, especially ventilator-associated pneumonia and ICU bacteraemia; often severe and drug-resistant |
-| *Citrobacter* spp. | -8.6 | Opportunistic Enterobacterales; can cause invasive infection but less commonly than *E. coli* or *Klebsiella* |
-| *Enterobacter* spp. | -6.0 | Opportunistic hospital-associated Enterobacterales with meaningful bloodstream-infection potential |
-| *Enterococcus faecalis* | -5.2 | Endocarditis and line-related bacteraemia |
-| *Enterococcus faecium* | -4.2 | Hospital-acquired bloodstream infections, especially VRE |
-| *Escherichia coli* | -10.3 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe than highly invasive ICU pathogens (Poolman JT et al., 2016) |
-| *Klebsiella pneumoniae* | -7.8 | Gram-negative sepsis; carbapenem-resistant strains carry high mortality (Xu L et al., 2017) |
-| *Morganella* spp. | -7.1 | Opportunistic Enterobacterales associated with urinary, wound, and healthcare-associated invasive infection |
-| *Proteus* spp. | -6.4 | UTI-associated Enterobacterales with potential for urosepsis, especially in older or catheterised patients |
-| *Serratia* spp. | -7.3 | Opportunistic healthcare-associated Enterobacterales with bloodstream-infection potential |
-| *Providencia stuartii* | -12.0 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Pseudomonas aeruginosa* | -5.0 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
-| *Stenotrophomonas maltophilia* | -7.3 | Opportunistic non-fermenter, mainly in severely ill or immunocompromised patients |
-| *Staphylococcus aureus* | -8.8 | Aggressive bloodstream pathogen; 20-30% mortality in bacteraemia (Tong SYC et al., 2015) |
-| *Staphylococcus epidermidis* | -7.3 | Device-associated and line-related infection; lower virulence than *S. aureus* but clinically important in hospitalised patients |
-| *Streptococcus pneumoniae* | -9.5 | Invasive pneumococcal disease can cause sepsis, but many infections are respiratory and non-bacteraemic |
-| *Salmonella enterica* serovar Typhi | -8.4 | Enteric fever with potential for systemic invasive disease |
-| *Salmonella enterica* serovar Paratyphi A | -8.7 | Enteric fever with occasional septic complications |
-| Invasive non-typhoidal *Salmonella* spp. | -8.5 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2019) |
-| *Shigella* spp. | -20.5 | Primarily dysentery/dehydration mortality; sepsis is not the dominant pathway |
-| *Neisseria gonorrhoeae* | -23.3 | Disseminated gonococcal infection is rare |
-| *Streptococcus pyogenes* | -6.0 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS can be highly lethal (Carapetis JR et al., 2005) |
-| *Streptococcus agalactiae* | -6.1 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2013) |
-| *Haemophilus influenzae* | -8.5 | Invasive respiratory pathogen, especially in young children, older adults, and unvaccinated populations |
-| *Chlamydia trachomatis* | -18.3 | STI; essentially never causes classic bacterial sepsis |
-| *Mycoplasma genitalium* | -12.0 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Vibrio cholerae* | -7.0 | Mortality is usually dehydration-mediated, but severe systemic illness is possible in vulnerable hosts |
-| *Neisseria meningitidis* | -7.2 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC (Tunkel AR et al., 2004; van de Beek D et al., 2012) |
-| *Listeria monocytogenes* | -7.3 | Invasive disease in neonates, pregnancy, older adults, and immunocompromised patients |
-| *Clostridioides difficile* | -9.8 | Deaths are often toxin-mediated colitis rather than classic bloodstream sepsis |
-| *Bacteroides fragilis* | -12.0 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Campylobacter jejuni* | -20.2 | Usually enteritis; bacteraemia/sepsis is rare |
-| *Enterobacter cloacae* | -6.0 | Opportunistic hospital-associated Enterobacterales with bloodstream-infection potential |
-| *Yersinia enterocolitica* | -8.8 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
-| *Moraxella catarrhalis* | -12.4 | Usually respiratory mucosal infection; invasive sepsis is uncommon |
-| *Treponema pallidum* | -10.3 | Syphilis mortality is typically chronic, congenital, or cardiovascular/neurologic rather than acute sepsis |
-| *Bordetella pertussis* | -500.0 | Classic sepsis is suppressed; pertussis mortality is represented through the non-sepsis respiratory-failure pathway |
-| *Helicobacter pylori* | -500.0 | Gastric pathogen; a fixed model rule sets sepsis risk to zero when this is the sole active infection |
-| MDR *Mycobacterium tuberculosis* | -38.0 | Chronic mycobacterial disease rather than acute bacterial sepsis |
-| *Mycoplasma pneumoniae* | -12.0 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Legionella pneumophila* | -12.0 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Burkholderia cepacia* complex | -12.0 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Acinetobacter baumannii* | -4.4 | Healthcare-associated invasive pathogen, especially ventilator-associated pneumonia and ICU bacteraemia; often severe and drug-resistant |
+| *Citrobacter* spp. | -7.9 | Opportunistic Enterobacterales; can cause invasive infection but less commonly than *E. coli* or *Klebsiella* |
+| *Enterobacter* spp. | -5.3 | Opportunistic hospital-associated Enterobacterales with meaningful bloodstream-infection potential |
+| *Enterococcus faecalis* | -4.5 | Endocarditis and line-related bacteraemia |
+| *Enterococcus faecium* | -3.5 | Hospital-acquired bloodstream infections, especially VRE |
+| *Escherichia coli* | -9.8 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe than highly invasive ICU pathogens (Poolman JT et al., 2016) |
+| *Klebsiella pneumoniae* | -7.4 | Gram-negative sepsis; carbapenem-resistant strains carry high mortality (Xu L et al., 2017) |
+| *Morganella* spp. | -6.4 | Opportunistic Enterobacterales associated with urinary, wound, and healthcare-associated invasive infection |
+| *Proteus* spp. | -6.1 | UTI-associated Enterobacterales with potential for urosepsis, especially in older or catheterised patients |
+| *Serratia* spp. | -6.6 | Opportunistic healthcare-associated Enterobacterales with bloodstream-infection potential |
+| *Providencia stuartii* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Pseudomonas aeruginosa* | -4.3 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
+| *Stenotrophomonas maltophilia* | -6.6 | Opportunistic non-fermenter, mainly in severely ill or immunocompromised patients |
+| *Staphylococcus aureus* | -8.6 | Aggressive bloodstream pathogen; 20-30% mortality in bacteraemia (Tong SYC et al., 2015) |
+| *Staphylococcus epidermidis* | -6.6 | Device-associated and line-related infection; lower virulence than *S. aureus* but clinically important in hospitalised patients |
+| *Streptococcus pneumoniae* | -9.2 | Invasive pneumococcal disease can cause sepsis, but many infections are respiratory and non-bacteraemic |
+| *Salmonella enterica* serovar Typhi | -7.7 | Enteric fever with potential for systemic invasive disease |
+| *Salmonella enterica* serovar Paratyphi A | -8.0 | Enteric fever with occasional septic complications |
+| Invasive non-typhoidal *Salmonella* spp. | -7.8 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2019) |
+| *Shigella* spp. | -21.8 | Primarily dysentery/dehydration mortality; sepsis is not the dominant pathway |
+| *Neisseria gonorrhoeae* | -22.6 | Disseminated gonococcal infection is rare |
+| *Streptococcus pyogenes* | -5.3 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS can be highly lethal (Carapetis JR et al., 2005) |
+| *Streptococcus agalactiae* | -5.4 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2013) |
+| *Haemophilus influenzae* | -7.8 | Invasive respiratory pathogen, especially in young children, older adults, and unvaccinated populations |
+| *Chlamydia trachomatis* | -17.6 | STI; essentially never causes classic bacterial sepsis |
+| *Mycoplasma genitalium* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Vibrio cholerae* | -6.3 | Mortality is usually dehydration-mediated, but severe systemic illness is possible in vulnerable hosts |
+| *Neisseria meningitidis* | -6.5 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC (Tunkel AR et al., 2004; van de Beek D et al., 2012) |
+| *Listeria monocytogenes* | -6.6 | Invasive disease in neonates, pregnancy, older adults, and immunocompromised patients |
+| *Clostridioides difficile* | -9.1 | Deaths are often toxin-mediated colitis rather than classic bloodstream sepsis |
+| *Bacteroides fragilis* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Campylobacter jejuni* | -19.5 | Usually enteritis; bacteraemia/sepsis is rare |
+| *Enterobacter cloacae* | -5.3 | Opportunistic hospital-associated Enterobacterales with bloodstream-infection potential |
+| *Yersinia enterocolitica* | -8.1 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
+| *Moraxella catarrhalis* | -11.7 | Usually respiratory mucosal infection; invasive sepsis is uncommon |
+| *Treponema pallidum* | -9.6 | Syphilis mortality is typically chronic, congenital, or cardiovascular/neurologic rather than acute sepsis |
+| *Bordetella pertussis* | -499.3 | Classic sepsis is suppressed; pertussis mortality is represented through the non-sepsis respiratory-failure pathway |
+| *Helicobacter pylori* | -499.3 | Gastric pathogen; a fixed model rule sets sepsis risk to zero when this is the sole active infection |
+| MDR *Mycobacterium tuberculosis* | -37.3 | Chronic mycobacterial disease rather than acute bacterial sepsis |
+| *Mycoplasma pneumoniae* | -17.3 | Atypical respiratory pathogen; acute bacterial sepsis is uncommon |
+| *Legionella pneumophila* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Burkholderia cepacia* complex | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
 
-Rows marked as using the global value use `sepsis_baseline_log_odds = -12.0` because no organism-specific `{bacterium}_sepsis_baseline_log_odds` value is configured in `src/config.rs`.
+Rows marked as using the global value use `sepsis_baseline_log_odds = -11.3` because no organism-specific `{bacterium}_sepsis_baseline_log_odds` value is configured in `src/config.rs`. To align sepsis incidence calibration with the updated bacterial-sepsis target, all entry intercepts were increased by 0.7 relative to the preceding calibration, multiplying sepsis-onset odds by approximately `exp(0.7) = 2.01`. The global sepsis-death intercept was reduced from -5.2 to -5.9 at the same time, multiplying daily death odds conditional on the other predictors by approximately `exp(-0.7) = 0.50`. Because both models are logistic and sepsis duration and competing outcomes also change, these are odds multipliers rather than guarantees that realised incidence doubles or case fatality halves.
 
 
 
@@ -1843,7 +1843,7 @@ The calibration summary generated by the code reports a small number of headline
 | Infection deaths | 7.7 million deaths associated with 33 bacterial pathogens (95% uncertainty interval 5.7-10.2 million) | Ikuta KS et al., 2022 | Published GBD 2019 estimate used as a pragmatic calibration benchmark | The estimate is for 2019 but is used unchanged as a benchmark for the Figure 1 2025 model output. The person-level simulation numerator is sepsis plus non-sepsis infection deaths with at least one contributing infection other than H. pylori or MDR-TB. The model organism set and taxonomic resolution differ slightly from GBD; these differences are disclosed rather than encoded as a small numerical adjustment. This is bacterial-pathogen-associated mortality, not AMR-attributable mortality. |
 | People on antibiotics on an average day | 100 million people | WHO Collaborating Centre for Drug Statistics Methodology, accessed 2026; Browne AJ et al., 2021; Klein EY et al., 2018; ECDC ESAC-Net, 2024; World Health Organization GLASS-AMU report, 2025 | Derived person-day calibration benchmark | Derived from DDD-based consumption evidence and class-use patterns, but DDDs are not identical to unique people treated because dose, duration, combination therapy, stock buffering, wastage, and non-human channels differ by setting. |
 | Annual bacterial infection incidence | 15% of world population per year | GBD/GRAM burden estimates, WHO STI estimates, WHO FERG/Havelaar et al., 2015, WHO Global Tuberculosis Report 2025 | Derived calibration benchmark with high uncertainty | No single global surveillance system directly counts all bacterial infections across syndromes; this target is used to keep the all-organism acquisition scale in a plausible range. |
-| Incident bacterial sepsis | 30 million cases per year | Rudd KE et al., 2020 | Derived bacterial-subset assumption | Rudd et al. estimate all-cause sepsis; the model simulates bacterial infections only, so this is a bacterial subset benchmark rather than a direct observed global count. The headline numerator counts each person once when they transition from no active sepsis to active sepsis; per-bacterium onset counters remain separate descriptive outputs. |
+| Incident bacterial sepsis | 70 million cases per year (derived plausible range 50-100 million) | GBD 2021 Global Sepsis Collaborators, 2025 | Derived bacterial-subset assumption | GBD estimated 166 million all-cause sepsis cases in 2021 (95% uncertainty interval 135-201 million). The model simulates bacterial infections only and does not represent the full sepsis burden complicating non-infectious disease, so the 70 million target and 50-100 million range are explicit model-scope assumptions rather than a published GBD bacterial-sepsis estimate or interval. The headline numerator counts each person once when they transition from no active sepsis to active sepsis; per-bacterium onset counters remain separate descriptive outputs. The 2021 estimate is used as a pragmatic benchmark for 2025 model output. |
 | Per-bacteria infection incidence | Per-organism annual infection targets in the calibration summary | Ikuta KS et al., 2022; Murray CJL et al., 2022; Rowley J et al., 2019; WHO STI fact sheet, 2025; Havelaar AH et al., 2015; WHO Global Tuberculosis Report 2025 | Mix of direct disease estimates and derived calibration benchmarks | Common pathogens and named diseases are better supported; smaller healthcare-associated organisms use placeholder estimates with high uncertainty. |
 | Per-bacteria mortality | Per-organism death targets in the calibration summary | Primarily Ikuta KS et al., 2022; supplemented by WHO and organism-specific literature for organisms outside the GBD 33-pathogen analysis | Published GBD estimates where definitions align; documented allocations or proxies where taxonomies differ; review-informed estimates for model-only organisms | Direct matches retain the published GBD central estimate and 95% uncertainty interval. Broader GBD categories are allocated or used as proxies where necessary. Model bacterium-specific death counters can attribute one polymicrobial death to multiple organisms, so these rows are not expected to sum to the person-level headline. H. pylori and MDR-TB are shown separately and excluded from that headline. |
 | Carriage prevalence | Per-organism carriage target percentages | Human Microbiome Project Consortium, 2012; Wertheim HFL et al., 2005; Bogaert D et al., 2004; Gorrie CL et al., 2017; Verani JR et al., 2010; Forslund K et al., 2013 | Mix of colonisation estimates and model-design benchmarks | Some entries are model-design zeros or structural reservoirs rather than direct carriage prevalence estimates; microbiome resistance prevalence is a simulated state, not a direct target for every species. |
@@ -1864,11 +1864,12 @@ non-GBD review-informed targets explicit.
 For the headline metrics, the first registry version uses the published GBD 2019 bacterial
 mortality estimate of 7.7 million deaths with its 5.7-10.2 million 95% uncertainty interval,
 70-150 million people taking antibiotics on an average day, 10-25% annual bacterial infection
-incidence, and 20-47 million incident bacterial sepsis cases. The infection-death estimate and
+incidence, and 50-100 million incident bacterial sepsis cases around a 70 million central target. The infection-death estimate and
 interval are retained unchanged; the difference between the 2019 GBD organism set and the model's
 2025 reporting scope is handled as an interpretation caveat rather than a precision-implying
-numerical correction. The sepsis range combines the published all-cause sepsis interval with an
-explicit broad assumption about the bacterial share. The antibiotic-use and all-bacteria-incidence
+numerical correction. The sepsis target and range are explicit model-scope assumptions informed by
+the GBD 2021 estimate of 166 million all-cause cases (95% uncertainty interval 135-201 million), not
+a published estimate or interval for bacterial sepsis. The antibiotic-use and all-bacteria-incidence
 bounds remain expert plausible ranges because their model numerators have no direct global observed
 counterpart.
 
@@ -11945,6 +11946,8 @@ References marked with \* are retained for completeness but are not explicitly c
 - GBD 2019 Lower Respiratory Infections Collaborators. Age-sex differences in the global burden of lower respiratory infections and risk factors, 1990–2019: results from the Global Burden of Disease Study 2019. *Lancet Infect Dis.* 2022;22(11):1626–1647. doi:10.1016/S1473-3099(22)00510-2
 
 - GBD 2021 Antimicrobial Resistance Collaborators. Global burden of bacterial antimicrobial resistance 1990–2021: a systematic analysis with forecasts to 2050. *Lancet.* 2024;404(10459):1199–1226. doi:10.1016/S0140-6736(24)01867-1
+
+- GBD 2021 Global Sepsis Collaborators. Global, regional, and national sepsis incidence and mortality, 1990–2021: a systematic analysis. *Lancet Glob Health.* 2025;13(12):e2013–e2026. doi:10.1016/S2214-109X(25)00356-0
 
 - Giufrè M, Daprai L, Cardines R, et al. Carriage of *Haemophilus influenzae* in the oropharynx of young children and molecular epidemiology of the isolates after fifteen years of *H. influenzae* type b vaccination in Italy. *Vaccine.* 2015;33(46):6227–6234. doi:10.1016/j.vaccine.2015.09.082
 

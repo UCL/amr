@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from amr_simulation_output_analysis.make_paper_tables import (
+    _HEADLINE_TARGET_SOURCE_NOTES,
     _RESISTANCE_POINT_TARGET_FOOTNOTE,
     _SIMULATION_MEAN_CI_FOOTNOTE,
     _SIMULATION_PERCENTILE_RANGE_FOOTNOTE,
@@ -143,6 +144,24 @@ class CalibrationTargetRangeRegistryTests(unittest.TestCase):
             (7.7, 5.7, 10.2),
         )
 
+    def test_sepsis_target_is_derived_bacterial_subset_of_gbd_all_cause_estimate(self) -> None:
+        sepsis = self.registry.loc[
+            self.registry["target_key"].eq("sepsis_incident_cases_millions")
+        ].iloc[0]
+        self.assertEqual(
+            (
+                sepsis["central_value"],
+                sepsis["plausible_lower"],
+                sepsis["plausible_upper"],
+            ),
+            (70.0, 50.0, 100.0),
+        )
+        self.assertEqual(sepsis["interval_kind"], "derived_plausible_range")
+        self.assertEqual(
+            sepsis["source_id"],
+            "gbd_2021_global_sepsis_2025_bacterial_subset",
+        )
+
     def test_mortality_mapping_has_documented_direct_derived_and_expert_rows(self) -> None:
         deaths = self.registry.loc[self.registry["target_family"].eq("infection_deaths")]
         self.assertEqual(
@@ -214,6 +233,13 @@ class SimulationMeanConfidenceIntervalTests(unittest.TestCase):
 
 
 class FigureUncertaintyFootnoteTests(unittest.TestCase):
+    def test_figure_1_sepsis_note_distinguishes_gbd_estimate_from_model_target(self) -> None:
+        notes = " ".join(_HEADLINE_TARGET_SOURCE_NOTES)
+        self.assertIn("166 million all-cause sepsis cases", notes)
+        self.assertIn("70 million target", notes)
+        self.assertIn("50-100 million plausible range", notes)
+        self.assertIn("not the published GBD point estimate or interval", notes)
+
     def test_simulation_mean_ci_footnote_defines_scope(self) -> None:
         self.assertIn("95% t confidence intervals", _SIMULATION_MEAN_CI_FOOTNOTE)
         self.assertIn("independent stochastic runs", _SIMULATION_MEAN_CI_FOOTNOTE)

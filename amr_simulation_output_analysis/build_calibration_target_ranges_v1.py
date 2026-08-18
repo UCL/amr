@@ -48,7 +48,7 @@ FIELDNAMES = [
 ]
 
 GBD_BACTERIAL_MORTALITY_URL = "https://pubmed.ncbi.nlm.nih.gov/36423648/"
-RUDD_SEPSIS_URL = "https://pubmed.ncbi.nlm.nih.gov/31954465/"
+GBD_2021_SEPSIS_URL = "https://pubmed.ncbi.nlm.nih.gov/41135560/"
 WHO_ANTIBIOTIC_USE_URL = (
     "https://www.who.int/data/gho/data/indicators/indicator-details/GHO/"
     "antibacterial-consumption--total-consumption-of-antibacterials-expressed-as-"
@@ -81,6 +81,7 @@ def _make_row(
     source_url: str,
     range_method: str,
     rationale: str,
+    last_reviewed: str = LAST_REVIEWED,
 ) -> dict[str, Any]:
     if not math.isfinite(central) or not math.isfinite(lower) or not math.isfinite(upper):
         raise ValueError(f"Non-finite target range for {family}/{key}")
@@ -110,7 +111,7 @@ def _make_row(
         "source_url_or_doi": source_url,
         "range_method": range_method,
         "rationale": rationale,
-        "last_reviewed": LAST_REVIEWED,
+        "last_reviewed": last_reviewed,
     }
 
 
@@ -159,20 +160,23 @@ HEADLINE_RANGES = {
         ),
     },
     "sepsis_incident_cases_millions": {
-        "lower": 20.0,
-        "upper": 47.0,
+        "lower": 50.0,
+        "upper": 100.0,
         "interval_kind": "derived_plausible_range",
         "provenance_class": "source_informed_transformed",
-        "source_id": "rudd_global_sepsis_2017_bacterial_subset",
-        "source_url": RUDD_SEPSIS_URL,
+        "source_id": "gbd_2021_global_sepsis_2025_bacterial_subset",
+        "source_url": GBD_2021_SEPSIS_URL,
+        "last_reviewed": "2026-08-18",
         "range_method": (
-            "Apply a broad 50%-75% bacterial-share assumption to the published "
-            "38.9-62.9 million all-cause sepsis UI."
+            "Use a broad 50-100 million bacterial-subset range within the published "
+            "135-201 million all-cause sepsis UI for 2021."
         ),
         "rationale": (
-            "Rudd et al. estimate all-cause sepsis, whereas the model includes bacterial "
-            "infections only. This is therefore a transformed plausible range, not a "
-            "published 95% interval for bacterial sepsis."
+            "GBD estimates 166 million all-cause sepsis cases in 2021. The model is "
+            "bacteria-only and excludes viral, fungal, and parasitic sepsis while not "
+            "representing the full burden of sepsis complicating non-infectious causes. "
+            "The 70 million central target and 50-100 million range are explicit "
+            "model-scope assumptions, not a published GBD point estimate or interval."
         ),
     },
 }
@@ -335,6 +339,7 @@ def _headline_rows() -> list[dict[str, Any]]:
                 source_url=str(spec["source_url"]),
                 range_method=str(spec["range_method"]),
                 rationale=str(spec["rationale"]),
+                last_reviewed=str(spec.get("last_reviewed", LAST_REVIEWED)),
             )
         )
     return rows

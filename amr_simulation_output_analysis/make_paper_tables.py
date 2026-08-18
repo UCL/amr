@@ -400,8 +400,11 @@ _HEADLINE_TARGET_SOURCE_NOTES = [
     "than DDD-equivalent consumption.",
     "Infection-incidence and sepsis review-informed calibration targets: infection "
     "incidence is informed by Vos T et al. (2020), <em>Lancet</em> 396:1204-1222; sepsis "
-    "is informed by Rudd KE et al. (2020), <em>Lancet</em> 395:200-211. The sepsis target "
-    "applies to the modelled bacterial subset rather than all-cause sepsis.",
+    "is informed by the GBD 2021 Global Sepsis Collaborators (2025), <em>Lancet Global "
+    "Health</em> 13:e2013-e2026. GBD estimated 166 million all-cause sepsis cases in 2021 "
+    "(95% uncertainty interval 135-201 million). The model's 70 million target and "
+    "50-100 million plausible range are explicit bacterial-subset assumptions, not the "
+    "published GBD point estimate or interval.",
 ]
 
 _RESISTANCE_TARGET_SOURCE_NOTES = [
@@ -801,7 +804,7 @@ def make_t2(agg: dict, out_dir: Path) -> None:
             if 'incidence' in lo and 'infection' in lo:
                 return 'Vos et al. 2020 (ref 3)'
             if 'sepsis' in lo:
-                return 'Rudd et al. 2020 (ref 4)'
+                return 'GBD 2021 Global Sepsis Collaborators 2025 (ref 4)'
             return '—'
 
         hm["Metric"] = hm["Metric"].apply(_rename_metric)
@@ -844,11 +847,13 @@ def make_t2(agg: dict, out_dir: Path) -> None:
         "allowing for dose intensity, stock-sales mismatch, and wastage.",
         "Vos T et al. (2020). Global burden of 369 diseases and injuries in 204 countries "
         "and territories, 1990–2019. <em>Lancet</em> 396:1204–1222.",
-        "Rudd KE et al. (2020). Global, regional, and national sepsis incidence and mortality, "
-        "1990–2017. <em>Lancet</em> 395:200–211. The sepsis headline target is set to 30 "
-        "million, not 35 million, because Rudd reports all-cause sepsis whereas the model is "
-        "bacteria-only; the revised target preserves a large bacterial burden without forcing "
-        "the simulation up to an all-cause benchmark.",
+        "GBD 2021 Global Sepsis Collaborators (2025). Global, regional, and national sepsis "
+        "incidence and mortality, 1990–2021. <em>Lancet Global Health</em> 13:e2013–e2026. "
+        "GBD estimated 166 million all-cause sepsis cases in 2021 (95% uncertainty interval "
+        "135–201 million). The model's 70 million headline target and 50–100 million "
+        "plausible range are explicit bacterial-subset assumptions, not a published GBD "
+        "bacterial-sepsis estimate or uncertainty interval; the 2021 estimate is used as a "
+        "pragmatic benchmark for 2025 model output.",
     ]
 
     body  = _html_head("Table 2 — Comparison of simulation outputs with observed data")
