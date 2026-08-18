@@ -273,6 +273,19 @@ class SimulationMeanConfidenceIntervalTests(unittest.TestCase):
 
 
 class FigureUncertaintyFootnoteTests(unittest.TestCase):
+    def test_figure_1_death_note_has_complete_source_and_scope(self) -> None:
+        notes = " ".join(_HEADLINE_TARGET_SOURCE_NOTES)
+        self.assertIn("Ikuta KS et al. (2022)", notes)
+        self.assertIn("10.1016/S0140-6736(22)02185-7", notes)
+        self.assertIn("not AMR-attributable mortality", notes)
+
+    def test_figure_1_antibiotic_note_explains_person_prevalence_conversion(self) -> None:
+        notes = " ".join(_HEADLINE_TARGET_SOURCE_NOTES)
+        self.assertIn("Browne AJ et al. (2021)", notes)
+        self.assertIn("14.3 DDD per 1,000 people per day", notes)
+        self.assertIn("about 117 million DDD per day", notes)
+        self.assertIn("not a published unique-user estimate", notes)
+
     def test_figure_1_incidence_note_documents_derived_target_and_source(self) -> None:
         notes = " ".join(_HEADLINE_TARGET_SOURCE_NOTES)
         self.assertIn("20% per year", notes)

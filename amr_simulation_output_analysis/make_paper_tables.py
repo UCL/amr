@@ -387,17 +387,26 @@ def _window_note(n: int) -> str:
 
 
 _HEADLINE_TARGET_SOURCE_NOTES = [
-    "Infection-death review-informed calibration target: the published GBD 2019 estimate "
-    "of 7.7 million deaths associated with 33 bacterial pathogens (95% uncertainty "
-    "interval 5.7-10.2 million). It is used unchanged as a pragmatic benchmark for the "
-    "model's 2025 output. The model organism set and taxonomic resolution differ slightly "
-    "from GBD; <em>H. pylori</em> and MDR-TB are reported separately and excluded from the "
-    "Figure 1 person-level numerator. This is not an estimate of AMR-attributable mortality.",
-    "Antibiotic-use review-informed calibration target: Klein EY et al. (2018). Global "
-    "increase and geographic "
-    "convergence in antibiotic consumption between 2000 and 2015. <em>PNAS</em> "
-    "115:E3463-E3470. The model uses a person-prevalence proxy for daily users, rather "
-    "than DDD-equivalent consumption.",
+    "Infection-death review-informed calibration target: Ikuta KS et al. (2022), Global "
+    "mortality associated with 33 bacterial pathogens in 2019, <em>Lancet</em> "
+    "400:2221-2248, doi:10.1016/S0140-6736(22)02185-7, estimated 7.7 million deaths "
+    "(95% uncertainty interval 5.7-10.2 million). The published 2019 value is used "
+    "unchanged as a pragmatic benchmark for the model's 2025 output. The model organism "
+    "set and taxonomic resolution differ slightly from GBD; <em>H. pylori</em> and MDR-TB "
+    "are reported separately and excluded from the Figure 1 person-level numerator. This "
+    "is bacterial-pathogen-associated mortality, not AMR-attributable mortality.",
+    "Antibiotic-use review-informed calibration target: 100 million unique people on "
+    "antibiotics on an average day (derived plausible range 70-150 million). Browne AJ "
+    "et al. (2021), <em>Lancet Planetary Health</em> 5:e893-e904, "
+    "doi:10.1016/S2542-5196(21)00280-1, estimated global consumption of 14.3 DDD per "
+    "1,000 people per day in 2018 (95% uncertainty interval 13.2-15.6), equivalent to "
+    "about 117 million DDD per day at a population of 8.2 billion. The WHO ATC/DDD "
+    "Toolkit, DDD Indicators (accessed 2026; https://www.who.int/tools/atc-ddd-toolkit/"
+    "indicators), notes that DDD per 1,000 people per day is only a rough proxy for the "
+    "number treated. The 100 million "
+    "target is therefore an explicit person-prevalence conversion allowing for prescribed "
+    "dose intensity, combination treatment, stock-versus-use differences, and wastage; it "
+    "is not a published unique-user estimate.",
     "Infection-incidence review-informed calibration target: 20% per year (derived "
     "plausible range 15-30%). The 42 organism targets sum to 22.34%; the person-level "
     "headline allows for same-day polymicrobial acquisitions. Updated targets use the "
@@ -809,7 +818,7 @@ def make_t2(agg: dict, out_dir: Path) -> None:
             if 'infection deaths' in lo:
                 return 'Ikuta et al. 2022 (ref 1)'
             if 'antibiotics' in lo:
-                return 'Klein et al. 2018 (ref 2)'
+                return 'Browne et al. 2021; Klein et al. 2018 (ref 2)'
             if 'incidence' in lo and 'infection' in lo:
                 return 'Majowicz et al. 2026 (ref 3)'
             if 'sepsis' in lo:
@@ -848,12 +857,18 @@ def make_t2(agg: dict, out_dir: Path) -> None:
         "2025 output. The model organism set differs slightly; H. pylori and MDR-TB are "
         "reported separately and excluded from the person-level headline numerator. "
         "AMR-attributable deaths are a separate subset.",
-        "Klein EY et al. (2018). Global increase and geographic convergence in antibiotic "
-        "consumption between 2000 and 2015. <em>PNAS</em> 115:E3463–E3470. The antibiotic "
-        "headline target is set to 100 million daily users, not 130 million, because Klein "
-        "reports DDD-based consumption rather than unique people on treatment. The revised "
-        "target is a person-prevalence proxy that sits below the DDD-equivalent total after "
-        "allowing for dose intensity, stock-sales mismatch, and wastage.",
+        "Browne AJ et al. (2021). Global antibiotic consumption and usage in humans, "
+        "2000-18: a spatial modelling study. <em>Lancet Planetary Health</em> "
+        "5:e893-e904. doi:10.1016/S2542-5196(21)00280-1. The estimated 14.3 DDD per "
+        "1,000 people per day (95% uncertainty interval 13.2-15.6) corresponds to about "
+        "117 million DDD per day at a population of 8.2 billion. The WHO ATC/DDD Toolkit, "
+        "DDD Indicators (accessed 2026), describes this metric as only a rough proxy for "
+        "people treated. The 100 million target and "
+        "70-150 million plausible range are therefore explicit person-prevalence "
+        "conversions allowing for prescribed dose intensity, combination therapy, "
+        "stock-versus-use differences, and wastage; they are not published unique-user "
+        "estimates. Klein EY et al. (2018), <em>PNAS</em> 115:E3463-E3470, provides "
+        "additional historical global consumption context.",
         "Majowicz SE et al. (2026). WHO estimates of the global, regional, and national "
         "burden of 14 foodborne diarrhoeal enteric hazards, 2000-21: an updated data "
         "synthesis. <em>Lancet Global Health</em>. doi:10.1016/j.langlo.2026.103997. "

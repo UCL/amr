@@ -4668,8 +4668,6 @@ impl Simulation {
 
             let mic_lt2_thresholds = &self.mic_lt2_majority_r_thresholds;
             let potency_matrix = &self.potency_matrix;
-            let bacteria_indices = &self.bacteria_indices;
-            let drug_indices = &self.drug_indices;
             let param_cache = &self.param_cache;
             let _relevant_drugs_by_bacteria = &self.relevant_drugs_by_bacteria;
             let threads = rayon::current_num_threads().max(1);
@@ -4929,8 +4927,6 @@ impl Simulation {
                         t,
                         &mut lt.rng,
                         mechanism_cache,
-                        bacteria_indices,
-                        drug_indices,
                         param_cache,
                         &policy,
                     );

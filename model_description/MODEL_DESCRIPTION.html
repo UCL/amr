@@ -1102,9 +1102,8 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>MDR <em>M. tuberculosis</em> is excluded from this classification because rifampicin resistance is part of the definition of MDR-TB. Additional resistance within MDR-TB would require a separate measure.</p>
 <hr />
 <h2 id="6-antibiotic-treatment">6. Antibiotic Treatment</h2>
-<p>This section covers the entire antibiotic prescribing process as the model simulates it — from the decision to start an antibiotic, through drug selection and dosing, to stopping the course. Antibiotic use drives the selection pressure that causes resistance to emerge and spread.</p>
-<p>The model aims to reproduce how antibiotics are prescribed in clinical practice — including imperfect decisions, regional variation in drug access, and the distinction between empiric therapy (before microbiology results are available) and targeted therapy (guided by culture and susceptibility results). Here especially, the intention is not to encode every clinical nuance of antimicrobial decision-making, but to represent the prescribing features most likely to change AMR trajectories under different policy environments.</p>
-<p><strong>Individual-level variables introduced in this section.</strong> Prescribing can depend on perceived penicillin allergy (<code>perceived_penicillin_allergy</code>) and on the person's current clinical and care context. For each drug, current use, treatment context, systemic exposure, initiation date, and prior use are recorded in <code>cur_use_drug[d]</code>, <code>drug_use_context[d]</code>, <code>cur_level_drug[d]</code>, <code>date_drug_initiated[d]</code>, and <code>ever_taken_drug[d]</code>; <code>current_number_of_drugs</code> records concurrent treatment. Daily intermediate variables govern treatment initiation, drug selection, and cessation (<code>antibiotic_initiation_probability</code>, <code>drug_selection_score[d]</code>, and <code>drug_cessation_probability[d]</code>). Effective activity against each infection is recorded in <code>resistances[b][d].activity_r</code>. Treatment response is followed through infection intensity at treatment start, days on treatment, failure assessment, and the individual response multiplier (<code>bacteria_level_at_drug_start[b]</code>, <code>days_on_current_treatment[b]</code>, <code>treatment_failure_assessed[b]</code>, and <code>drug_activity_response_multiplier[b]</code>), with additional variables recording cessation and restart eligibility. Drug toxicity is represented by <code>drug_toxicity_reservoir[d]</code> and <code>current_toxicity_hazard</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p>This section covers the antibiotic prescribing process — from the decision to start an antibiotic, including initial drug selection, possible modification of treatment and stopping the course. Antibiotic use drives the selection pressure that causes resistance to first emerge.  We aim to reproduce aspects such as imperfect decisions, regional variation in drug access, and the distinction between empiric therapy (before microbiology results are available) and targeted therapy (guided by culture and susceptibility results). The intent is to represent the prescribing features most likely to change AMR trajectories under different policy environments.</p>
+<p><strong>Individual-level variables introduced in this section.</strong> Prescribing can depend on perceived penicillin allergy (<code>perceived_penicillin_allergy</code>) and on the person's current clinical and care context. For each drug, current use, treatment context, systemic exposure, initiation date, and prior use are recorded in <code>cur_use_drug[d]</code>, <code>drug_use_context[d]</code>, <code>cur_level_drug[d]</code>, <code>date_drug_initiated[d]</code>, and <code>ever_taken_drug[d]</code>; <code>current_number_of_drugs</code> records concurrent treatment.  Effective activity against each infection is recorded in <code>resistances[b][d].activity_r</code>. Treatment response is followed through infection intensity at treatment start, days on treatment, failure assessment, and the individual response multiplier (<code>bacteria_level_at_drug_start[b]</code>, <code>days_on_current_treatment[b]</code>, <code>treatment_failure_assessed[b]</code>, and <code>drug_activity_response_multiplier[b]</code>), with additional variables recording cessation and restart eligibility. Drug toxicity is represented by <code>drug_toxicity_reservoir[d]</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="61-treatment-initiation-deciding-to-start-antibiotics">6.1 Treatment initiation — deciding to start antibiotics</h3>
 <p>Each day, the model decides whether to start a new antibiotic course for each person, using a logistic model (see Section 1.2). The probability of starting antibiotics depends on the person's clinical state:</p>
 <table>
@@ -1283,21 +1282,25 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>These access barriers produce a well-recognised tension: in settings where antibiotics are hard to obtain, selection pressure for resistance is lower, but people die of treatable infections. The model captures both sides. The regional prescribing modifiers should therefore be read as <strong>effective access-and-behaviour terms</strong> combining healthcare access, affordability, dispensing practice, and care-seeking, rather than as pure pharmacy-supply measurements (Klein EY et al., 2018).</p>
 <h3 id="62-drug-selection-choosing-which-antibiotic-to-use">6.2 Drug selection — choosing which antibiotic to use</h3>
 <p>Once it is decided that a person is being started on an antibiotic it must choose <em>which</em> antibiotic. The choice depends on the information available at the time of prescribing and on the reason the start was triggered.</p>
-<p><strong>Two modes of prescribing:</strong></p>
+<p><strong>Three diagnostic information stages:</strong></p>
 <ol>
 <li>
 <p><strong>Empiric therapy</strong> — the treater (or individual self-treating in some situations) has no lab results (yet) and must choose a drug on syndromic grounds. The model uses syndrome-specific scoring templates (see below) to approximate this guideline-anchored prescribing, and does not use hidden knowledge of the true causative bacterium or the bacterium-drug potency matrix at this stage. If there is no positive syndrome-specific empiric prescribing signal, the candidate drug is heavily penalised as having no usual empiric role for that syndrome, rather than being allowed to compete only because it is broad-spectrum or widely available. In the current model, a positive empiric signal means a syndrome-template score above the neutral baseline; a score of 1.0 is neutral/background and is not treated as positive. This is distinct from intrinsic bacterium-drug potency, which is used once the organism is identified.</p>
 </li>
 <li>
-<p><strong>Targeted therapy</strong> — lab results have identified the bacterium and its susceptibility profile. The model can now use intrinsic bacterium-drug potency and the simulated susceptibility profile to identify drugs with adequate activity. It strongly rewards narrow-spectrum choices at this stage (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.45 penalty), reflecting the principle of antibiotic de-escalation that sits at the core of antimicrobial stewardship guidance and is supported by hospital stewardship evidence from Europe and Asia (Barlam TF et al., 2016; Schuts EC et al., 2016; Lee CF et al., 2018).</p>
+<p><strong>Bacterium identified, AST pending</strong> — the model can use the identified bacterium, its baseline drug potency, organism-specific prescribing preferences, and relevant regional resistance surveillance. It does not use the bacterium's underlying modelled acquired resistance or an AST result that is not yet available.</p>
+</li>
+<li>
+<p><strong>Susceptibility-informed therapy</strong> — once AST is available, the reported results are added to the information used for drug selection. A drug reported as resistant is excluded. The underlying modelled resistance remains distinct from the reported result and is not supplied directly to prescribing.</p>
 </li>
 </ol>
+<p>The second and third stages are both recorded as <code>Targeted</code> treatment in the current output categories. Identified treatment strongly rewards narrow-spectrum choices (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.45 penalty), reflecting the principle of antibiotic de-escalation that sits at the core of antimicrobial stewardship guidance and is supported by hospital stewardship evidence from Europe and Asia (Barlam TF et al., 2016; Schuts EC et al., 2016; Lee CF et al., 2018).</p>
 <p><strong>Drug scoring algorithm:</strong></p>
 <p>For each candidate drug, the model calculates a score based on several factors. The final candidate scores are converted into weighted probabilities rather than choosing the single highest-scoring drug every time. The configuration parameter <code>drug_selection_temperature</code> is best read as a <strong>prescribing-variability setting</strong>. With the baseline value of <strong>0.55</strong>, the model usually selects one of the highest-scoring drugs, but it can still choose another clinically plausible option. Smaller values reduce this variability; larger values make prescribing more dispersed across available options.</p>
 <p>The current model also records the <strong>context</strong> in which a course starts. This is important for interpreting drug-use outputs:</p>
 <ul>
 <li>A symptomatic infection without organism identification is recorded as <code>Empiric</code> and uses the active syndrome templates.</li>
-<li>A symptomatic, identified infection is recorded as <code>Targeted</code> and uses potency, susceptibility, and organism-specific prescribing preferences.</li>
+<li>A symptomatic, identified infection is recorded as <code>Targeted</code> and uses organism-specific potency and prescribing preferences, with reported susceptibility results added when available.</li>
 <li>An immunodeficient person without symptomatic infection enters a small <code>Prophylaxis</code> pool rather than the general empiric pool.</li>
 <li>A person with an active modelled bacterial infection that has not caused symptoms can still start treatment through the background syndrome-0 scoring path, but the course is recorded as <code>OtherActiveAsymptomaticModelledBacterialInfection</code>. The unobserved infection syndrome is not supplied to drug selection.</li>
 <li>A start with <strong>no active modelled bacterial infection</strong> and no prophylaxis indication is recorded as <code>OtherNoActiveModelledInfection</code> and uses syndrome 0 as a background prescribing template.</li>
@@ -1310,7 +1313,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <tr>
 <th>Scoring factor</th>
 <th>Empiric phase</th>
-<th>Targeted phase</th>
+<th>Bacterium-identified phase</th>
 <th>What it captures</th>
 </tr>
 </thead>
@@ -1337,7 +1340,13 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <td>Insufficient intrinsic bacterium-drug activity</td>
 <td>—</td>
 <td>Near-zero score (×0.001) or exclusion when potency is below the targeted threshold</td>
-<td>Once the organism is identified, potency and susceptibility guide whether the drug can work</td>
+<td>Once the organism is identified, baseline potency guides whether the drug can work</td>
+</tr>
+<tr>
+<td>Reported resistance</td>
+<td>Not used</td>
+<td>The drug is excluded once a positive AST result is available</td>
+<td>Susceptibility information available to the prescriber</td>
 </tr>
 <tr>
 <td>Drug-bacterium initiation multiplier</td>
@@ -1702,6 +1711,11 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>Reserve agents have separate eligibility conditions. In targeted therapy, reserve drugs are strongly discouraged unless there is recent treatment failure or a severe hospitalised Gram-negative context. In empiric therapy, reserve use is stricter: recent failure or severe hospitalised Gram-negative disease must be present, and population resistance pressure can still prevent escalation. After this eligibility check, the global reserve penalty is applied (<code>reserve_drug_score_penalty = 0.35</code>).</p>
 <p>Drug choice also remembers recent drug toxicities. If toxicity stops a drug (toxicity as modelled is non-specific), that drug receives an approximately 1000-fold avoidance penalty for the configured avoidance window. When targeted therapy starts, ineffective existing drugs are stopped if they have been found to have no activity against any identified active infection. In non-severe empiric starts, a new empiric drug generally replaces existing empiric therapy rather than stacking indefinitely; people with sepsis can still retain combination therapy.</p>
 <p>Starting hospital-managed therapy can itself trigger admission. Always-inpatient drugs and hospital-restricted reserve drugs force admission and block discharge while active. OPAT-eligible drugs such as selected cephalosporins, ertapenem, dalbavancin, and vancomycin trigger admission probabilistically (<code>opat_admission_probability = 0.70</code>) but do not block discharge once the patient is otherwise eligible.</p>
+<h4 id="treatment-modification-after-inadequate-response">Treatment modification after inadequate response</h4>
+<p>The model can modify treatment when an active infection has not fallen sufficiently from its intensity at the start of treatment. Failure is assessed once for each tracked treatment episode. The usual assessment is after four days; selected acute syndromes are assessed after two to three days, <em>H. pylori</em> and syndrome 9 after at least six days, and MDR-TB after at least ten days. Treatment is considered to have failed if infection intensity remains at least 50% of its starting value.</p>
+<p>Clinical non-response can therefore prompt a treatment change before bacterial identification or AST. The replacement drug is selected using only the information available at that time: syndrome-based empiric information before identification, bacterium-specific information after identification, and reported resistance only after AST is available. The hidden causative bacterium and its underlying modelled acquired resistance are not used to choose a pre-identification replacement.</p>
+<p>When immediate replacement is indicated, the model selects another drug without repeating the ordinary daily decision about whether to initiate treatment. Drugs in the failed regimen, and drugs used within the preceding 14 days, are excluded from the replacement candidates. Once an alternative is selected, the active regimen is replaced as a whole because drugs are not attributed to individual concurrent infections. If no eligible alternative is available, the existing regimen continues. For <em>H. pylori</em>, the configured 80% probability of no immediate second-line treatment instead stops the failed regimen without starting a replacement.</p>
+<p>If treatment was stopped while infection remained active, subsequent persistence or worsening can prompt a return to treatment during the configured restart window. Restarted treatment passes through the same diagnostic information stages. The previously stopped drug is preferred only if it remains eligible under the information currently available; otherwise another eligible drug is selected.</p>
 <h3 id="63-drug-pharmacokinetics">6.3 Drug pharmacokinetics</h3>
 <p>The model uses a simplified pharmacokinetic representation in which each drug has a <strong>half-life</strong> and a <strong>starting level</strong> at administration. Since the mutant selection window — where sub-therapeutic concentrations select for resistance rather than clearing it — is a key driver of emergence (see Section 7.4), the shape of the drug-level decay matters for downstream resistance dynamics.</p>
 <table>
@@ -4228,10 +4242,10 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td>People on antibiotics on an average day</td>
-<td>100 million people</td>
-<td>WHO Collaborating Centre for Drug Statistics Methodology, accessed 2026; Browne AJ et al., 2021; Klein EY et al., 2018; ECDC ESAC-Net, 2024; World Health Organization GLASS-AMU report, 2025</td>
+<td>100 million people (derived plausible range 70-150 million)</td>
+<td>World Health Organization ATC/DDD Toolkit, accessed 2026; WHO Collaborating Centre for Drug Statistics Methodology, accessed 2026; Browne AJ et al., 2021; Klein EY et al., 2018; ECDC ESAC-Net, 2024; World Health Organization GLASS-AMU report, 2025</td>
 <td>Derived person-day calibration benchmark</td>
-<td>Derived from DDD-based consumption evidence and class-use patterns, but DDDs are not identical to unique people treated because dose, duration, combination therapy, stock buffering, wastage, and non-human channels differ by setting.</td>
+<td>Browne et al. estimated 14.3 DDD per 1,000 people per day globally in 2018 (95% uncertainty interval 13.2-15.6), equivalent to about 117 million DDD per day at a population of 8.2 billion. WHO describes DDD per 1,000 people per day as only a rough proxy for people treated. The 100 million target is an explicit conversion to unique daily users allowing for prescribed dose intensity, combination treatment, stock-versus-use differences, and wastage; it is not a published unique-user estimate.</td>
 </tr>
 <tr>
 <td>Annual bacterial infection incidence</td>
@@ -57478,18 +57492,18 @@ rule used by the model rather than a configurable parameter.</p>
 <tr>
 <td><a id="rule-restart-treatment-eligibility"></a><code>restart_treatment_eligibility[b]</code></td>
 <td>Cessation day and level, current level, stopped drug, prior assessment and current activity.</td>
-<td><code>restart_window_enabled</code>; <code>restart_window_days</code>; <code>restart_bacteria_level_threshold</code>; <code>restart_window_probability</code>; <code>minimal_potency_threshold_for_drug_selection</code>; fixed high-level threshold 2.0 used when no other threshold applies, and active-level threshold 0.1.</td>
-<td>Recomputed within the post-cessation window before any probabilistic restart action.</td>
-<td>Evaluated once per tracked cessation episode.</td>
-<td>Restart-window calculation and treatment-selection code in <code>rules</code></td>
+<td><code>restart_window_enabled</code>; <code>restart_window_days</code>; <code>restart_bacteria_level_threshold</code>; <code>restart_window_probability</code>; fixed high-level threshold 2.0 and active-level threshold 0.1.</td>
+<td>Recomputed within the post-cessation window and, when selected, converted into a treatment-selection request using the currently available diagnostic information.</td>
+<td>Evaluated once per tracked cessation episode; the stopped drug is preferred only if it remains eligible in the ordinary selector.</td>
+<td><code>rules::assess_restart_window</code>; antibiotic-selection block in <code>rules::apply_rules</code></td>
 </tr>
 <tr>
 <td><a id="rule-treatment-failure-indicator"></a><code>treatment_failure_indicator[b]</code></td>
 <td>Level at drug start, current level, days on treatment and prior assessment.</td>
-<td><code>treatment_failure_enabled</code>; <code>treatment_failure_assessment_day</code>; <code>treatment_failure_threshold</code>; <code>{bacterium}_treatment_failure_no_second_line_probability</code>; <code>drug_failure_memory_days</code>; selection potency and temperature parameters.</td>
-<td>Evaluated once at the eligible assessment time and converted to failure history and, where selected, treatment change.</td>
-<td>Acute syndromes 3 to 6 use a fixed 2 to 3 day window; MDR-TB has a 10-day minimum; <em>H. pylori</em> and syndrome 9 have a 6-day minimum.</td>
-<td><code>rules::assess_treatment_failure</code>; treatment-failure block</td>
+<td><code>treatment_failure_enabled</code>; <code>treatment_failure_assessment_day</code>; <code>treatment_failure_threshold</code>; <code>{bacterium}_treatment_failure_no_second_line_probability</code>; <code>drug_failure_memory_days</code>; ordinary drug-selection parameters appropriate to the current diagnostic stage.</td>
+<td>Evaluated once at the eligible assessment time and converted to failure history and, where selected, a forced treatment-selection request.</td>
+<td>Acute syndromes 3 to 6 use a fixed 2 to 3 day window; MDR-TB has a 10-day minimum; <em>H. pylori</em> and syndrome 9 have a 6-day minimum. Before identification, replacement choice does not use the hidden bacterium or its underlying resistance.</td>
+<td><code>rules::assess_treatment_failure</code>; antibiotic-selection block in <code>rules::apply_rules</code></td>
 </tr>
 </tbody>
 </table>
@@ -57807,6 +57821,9 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>WHO Collaborating Centre for Drug Statistics Methodology. <em>DDD: definition and general considerations.</em> Accessed June 22, 2026. https://atcddd.fhi.no/ddd/definition_and_general_considera/</p>
+</li>
+<li>
+<p>World Health Organization. <em>ATC/DDD Toolkit: DDD indicators.</em> Accessed August 18, 2026. https://www.who.int/tools/atc-ddd-toolkit/indicators</p>
 </li>
 <li>
 <p>* Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. <em>MMWR Recomm Rep.</em> 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1</p>

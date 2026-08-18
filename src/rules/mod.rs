@@ -1237,21 +1237,36 @@ fn hgt_context_multiplier(
     multiplier
 }
 
-/// Assess an eligible infection for treatment failure and, when possible, replace the regimen.
-/// Returns true only when a replacement drug is started.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TreatmentFailureOutcome {
+    NoFailure,
+    ReplacementRequired,
+    StopWithoutReplacement,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RestartTreatmentRequest {
+    preferred_drug_idx: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DrugSelectionTrigger {
+    Routine,
+    TreatmentFailure,
+    Restart { preferred_drug_idx: Option<usize> },
+}
+
+/// Assess an eligible infection for treatment failure without choosing a drug.
 fn assess_treatment_failure(
     individual: &mut Individual,
     time_step: usize,
     bacteria_idx: usize,
-    bacteria_indices: &HashMap<&'static str, usize>,
-    _drug_indices: &HashMap<&'static str, usize>,
-    param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
-) -> bool {
+) -> TreatmentFailureOutcome {
     let store = parameter_store();
 
     if !store.globals.treatment_failure_enabled {
-        return false;
+        return TreatmentFailureOutcome::NoFailure;
     }
 
     let bacteria_name = BACTERIA_LIST[bacteria_idx];
@@ -1261,18 +1276,18 @@ fn assess_treatment_failure(
         treatment_failure_assessment_day_for(bacteria_name, syndrome_id, base_assessment_day);
 
     if individual.days_on_current_treatment[bacteria_idx] < assessment_day {
-        return false;
+        return TreatmentFailureOutcome::NoFailure;
     }
 
     if individual.treatment_failure_assessed[bacteria_idx] {
-        return false;
+        return TreatmentFailureOutcome::NoFailure;
     }
 
     let Some(bacteria_initial_level) = individual.bacteria_level_at_drug_start[bacteria_idx] else {
-        return false;
+        return TreatmentFailureOutcome::NoFailure;
     };
     if individual.level[bacteria_idx] <= 0.0 {
-        return false;
+        return TreatmentFailureOutcome::NoFailure;
     }
     let current_level = individual.level[bacteria_idx];
 
@@ -1284,120 +1299,22 @@ fn assess_treatment_failure(
     individual.treatment_failure_assessed[bacteria_idx] = true;
 
     if !treatment_failed {
-        return false;
+        return TreatmentFailureOutcome::NoFailure;
     }
 
     individual.date_last_drug_failure[bacteria_idx] = time_step as i32;
 
-    // Active drugs are not attributed to individual infections, so every active drug is
-    // treated as part of the regimen being replaced.
-    let current_drugs: Vec<usize> = individual
-        .cur_use_drug
-        .iter()
-        .enumerate()
-        .filter(|(_, &is_taking)| is_taking)
-        .map(|(drug_idx, _)| drug_idx)
-        .collect();
-
-    if current_drugs.is_empty() {
-        return false;
+    if !individual.cur_use_drug.iter().any(|&is_taking| is_taking) {
+        return TreatmentFailureOutcome::NoFailure;
     }
 
-    // A bacterium-specific probability can stop the failed regimen without initiating
-    // rescue treatment. Subsequent infection transitions still determine persistence.
     let no_second_line_prob =
         store.bacteria.treatment_failure_no_second_line_probability[bacteria_idx];
     if no_second_line_prob > 0.0 && rng.gen_bool(no_second_line_prob.clamp(0.0, 1.0)) {
-        for &current_drug_idx in &current_drugs {
-            stop_drug_course(individual, current_drug_idx);
-        }
-        return false;
+        return TreatmentFailureOutcome::StopWithoutReplacement;
     }
 
-    // Rescue treatment uses a simplified potency-and-preference score. Because failure
-    // history is not stored by drug, recent initiation is used as the exclusion proxy.
-    let failure_memory_days = store.globals.drug_failure_memory_days;
-
-    let mut alternative_scores = Vec::new();
-
-    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-        if current_drugs.contains(&drug_idx) {
-            continue;
-        }
-
-        // Exclude any drug initiated within the configured lookback period.
-        if individual.date_drug_initiated_keep[drug_idx] != i32::MIN {
-            let days_since_last_use =
-                (time_step as i32) - individual.date_drug_initiated_keep[drug_idx];
-            if days_since_last_use >= 0 && days_since_last_use < failure_memory_days {
-                continue;
-            }
-        }
-
-        if !is_drug_available(
-            drug_idx,
-            drug_name,
-            individual.region_cur_in.as_str(),
-            individual.region_living.as_str(),
-            time_step,
-            param_cache,
-        ) {
-            continue;
-        }
-
-        let mut score = 0.0;
-
-        let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
-            continue;
-        };
-        let potency = store
-            .drug_bacteria
-            .potency(bacteria_idx_for_cache, drug_idx);
-        if potency >= store.globals.minimal_potency_threshold_for_drug_selection {
-            score += potency;
-        }
-
-        let preference_multiplier =
-            param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
-        if preference_multiplier != 1.0 {
-            score *= preference_multiplier;
-        }
-
-        if score > 0.0 {
-            alternative_scores.push((drug_idx, score));
-        }
-    }
-
-    if !alternative_scores.is_empty() {
-        // Lower temperatures concentrate choices on higher scores.
-        let selection_temperature = store.globals.drug_selection_temperature;
-        let weights: Vec<f64> = alternative_scores
-            .iter()
-            .map(|(_, score)| score.powf(1.0 / selection_temperature))
-            .collect();
-
-        if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
-            let new_drug_idx = alternative_scores[chosen_idx].0;
-
-            for &current_drug_idx in &current_drugs {
-                stop_drug_course(individual, current_drug_idx);
-            }
-
-            let course_context = active_infection_course_context(individual, bacteria_idx);
-            start_drug_course(individual, new_drug_idx, time_step, course_context);
-
-            update_drug_counter(individual);
-
-            let drug_initial_level = store.drug.initial_level(new_drug_idx);
-            individual.cur_level_drug[new_drug_idx] = drug_initial_level;
-
-            mark_new_treatment_course(individual, bacteria_idx, current_level, rng);
-
-            return true;
-        }
-    }
-
-    false
+    TreatmentFailureOutcome::ReplacementRequired
 }
 
 fn treatment_failure_assessment_day_for(
@@ -1472,24 +1389,6 @@ fn stop_drug_course(individual: &mut Individual, drug_idx: usize) {
 }
 
 #[inline]
-fn active_infection_course_context(
-    individual: &Individual,
-    bacteria_idx: usize,
-) -> AntibioticUseContext {
-    if individual.level[bacteria_idx] <= INFECTION_EPS {
-        AntibioticUseContext::OtherNoActiveModelledInfection
-    } else if individual.test_identified_infection[bacteria_idx]
-        && individual.infection_has_caused_symptoms[bacteria_idx]
-    {
-        AntibioticUseContext::Targeted
-    } else if individual.infection_has_caused_symptoms[bacteria_idx] {
-        AntibioticUseContext::Empiric
-    } else {
-        AntibioticUseContext::OtherActiveAsymptomaticModelledBacterialInfection
-    }
-}
-
-#[inline]
 fn mark_new_treatment_course(
     individual: &mut Individual,
     bacteria_idx: usize,
@@ -1520,14 +1419,12 @@ fn assess_restart_window(
     individual: &mut Individual,
     time_step: usize,
     bacteria_idx: usize,
-    bacteria_indices: &HashMap<&'static str, usize>,
-    param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
-) -> bool {
+) -> Option<RestartTreatmentRequest> {
     let store = parameter_store();
 
     if !store.globals.restart_window_enabled {
-        return false;
+        return None;
     }
 
     if let Some(cessation_day) = individual.drug_stopped_with_infection_day[bacteria_idx] {
@@ -1542,7 +1439,7 @@ fn assess_restart_window(
             individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
             individual.stopped_drug_index[bacteria_idx] = None;
             individual.restart_window_assessed[bacteria_idx] = false;
-            return false;
+            return None;
         }
 
         if days_since_cessation >= 1 && days_since_cessation <= restart_window_days {
@@ -1568,19 +1465,9 @@ fn assess_restart_window(
                         if rng.gen_bool(return_probability) {
                             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
                             individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
-                            let stopped_drug_idx = individual.stopped_drug_index[bacteria_idx];
-                            individual.stopped_drug_index[bacteria_idx] = None;
-
-                            // Prefer the stopped drug when it remains available and potent.
-                            return start_restart_treatment(
-                                individual,
-                                time_step,
-                                bacteria_idx,
-                                stopped_drug_idx,
-                                bacteria_indices,
-                                param_cache,
-                                rng,
-                            );
+                            let preferred_drug_idx =
+                                individual.stopped_drug_index[bacteria_idx].take();
+                            return Some(RestartTreatmentRequest { preferred_drug_idx });
                         }
                     }
                 }
@@ -1593,137 +1480,7 @@ fn assess_restart_window(
         }
     }
 
-    false
-}
-
-/// Restart treatment after early cessation, preferring the stopped drug when eligible.
-fn start_restart_treatment(
-    individual: &mut Individual,
-    time_step: usize,
-    bacteria_idx: usize,
-    stopped_drug_idx: Option<usize>,
-    bacteria_indices: &HashMap<&'static str, usize>,
-    param_cache: &ParameterKeyCache,
-    rng: &mut impl Rng,
-) -> bool {
-    let store = parameter_store();
-
-    let bacteria_name = BACTERIA_LIST[bacteria_idx];
-    let minimal_potency_threshold = store.globals.minimal_potency_threshold_for_drug_selection;
-
-    if let Some(prev_drug_idx) = stopped_drug_idx {
-        let prev_drug_name = DRUG_SHORT_NAMES[prev_drug_idx];
-
-        let drug_avail = is_drug_available(
-            prev_drug_idx,
-            prev_drug_name,
-            individual.region_cur_in.as_str(),
-            individual.region_living.as_str(),
-            time_step,
-            param_cache,
-        );
-
-        if drug_avail && !individual.cur_use_drug[prev_drug_idx] {
-            let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
-                return false;
-            };
-            let potency = store
-                .drug_bacteria
-                .potency(bacteria_idx_for_cache, prev_drug_idx);
-            if potency >= minimal_potency_threshold {
-                let course_context = active_infection_course_context(individual, bacteria_idx);
-                start_drug_course(individual, prev_drug_idx, time_step, course_context);
-
-                update_drug_counter(individual);
-
-                let initial_level = store.drug.initial_level(prev_drug_idx);
-                individual.cur_level_drug[prev_drug_idx] = initial_level;
-
-                mark_new_treatment_course(
-                    individual,
-                    bacteria_idx,
-                    individual.level[bacteria_idx],
-                    rng,
-                );
-
-                return true;
-            }
-        }
-    }
-
-    // Otherwise use the same simplified potency-and-preference score as rescue treatment.
-    let mut drug_scores = Vec::new();
-
-    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-        if individual.cur_use_drug[drug_idx] {
-            continue;
-        }
-
-        if !is_drug_available(
-            drug_idx,
-            drug_name,
-            individual.region_cur_in.as_str(),
-            individual.region_living.as_str(),
-            time_step,
-            param_cache,
-        ) {
-            continue;
-        }
-
-        let mut score = 0.0;
-
-        let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
-            continue;
-        };
-        let potency = store
-            .drug_bacteria
-            .potency(bacteria_idx_for_cache, drug_idx);
-        if potency >= minimal_potency_threshold {
-            score += potency;
-        }
-
-        let preference_multiplier =
-            param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
-        if preference_multiplier != 1.0 {
-            score *= preference_multiplier;
-        }
-
-        if score > 0.0 {
-            drug_scores.push((drug_idx, score));
-        }
-    }
-
-    if !drug_scores.is_empty() {
-        // Lower temperatures concentrate choices on higher scores.
-        let selection_temperature = store.globals.drug_selection_temperature;
-        let weights: Vec<f64> = drug_scores
-            .iter()
-            .map(|(_, score)| score.powf(1.0 / selection_temperature))
-            .collect();
-
-        if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
-            let new_drug_idx = drug_scores[chosen_idx].0;
-
-            let course_context = active_infection_course_context(individual, bacteria_idx);
-            start_drug_course(individual, new_drug_idx, time_step, course_context);
-
-            update_drug_counter(individual);
-
-            let initial_level = store.drug.initial_level(new_drug_idx);
-            individual.cur_level_drug[new_drug_idx] = initial_level;
-
-            mark_new_treatment_course(
-                individual,
-                bacteria_idx,
-                individual.level[bacteria_idx],
-                rng,
-            );
-
-            return true;
-        }
-    }
-
-    false
+    None
 }
 
 /// Parameter data precomputed for the daily simulation loop.
@@ -2386,8 +2143,6 @@ pub(crate) fn apply_rules(
     time_step: usize,
     rng: &mut impl Rng,
     mechanism_cache: &MechanismCache,
-    bacteria_indices: &HashMap<&'static str, usize>,
-    drug_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
 ) -> RuleEvents {
@@ -2846,15 +2601,11 @@ pub(crate) fn apply_rules(
         .enumerate()
         .any(|(b_idx, &identified)| identified && individual.infection_has_caused_symptoms[b_idx]);
 
-    let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
-
     let mut syndrome_administration_multiplier: f64 = 1.0;
     for &syndrome_id in active_syndrome_ids {
         let multiplier = store.syndrome.initiation_multiplier(syndrome_id);
         syndrome_administration_multiplier = syndrome_administration_multiplier.max(multiplier);
     }
-
-    let mut drugs_initiated_this_time_step: usize = 0;
 
     // Drug cessation.
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
@@ -2981,6 +2732,64 @@ pub(crate) fn apply_rules(
         }
     }
 
+    // Detect non-response before selecting another drug. The failed bacterium remains
+    // available for internal outcome tracking but is not supplied to drug scoring unless
+    // it has been identified through the diagnostic pathway.
+    let mut failure_replacement_required = false;
+    let mut stop_without_replacement = false;
+    for bacteria_idx in 0..BACTERIA_LIST.len() {
+        if individual.level[bacteria_idx] > 0.0
+            && individual.bacteria_level_at_drug_start[bacteria_idx].is_some()
+        {
+            individual.days_on_current_treatment[bacteria_idx] += 1;
+            match assess_treatment_failure(individual, time_step, bacteria_idx, rng) {
+                TreatmentFailureOutcome::NoFailure => {}
+                TreatmentFailureOutcome::ReplacementRequired => {
+                    failure_replacement_required = true;
+                }
+                TreatmentFailureOutcome::StopWithoutReplacement => {
+                    stop_without_replacement = true;
+                }
+            }
+        }
+    }
+
+    // A failure requiring rescue takes precedence when another concurrent infection also
+    // draws the organism-specific no-rescue outcome.
+    if stop_without_replacement && !failure_replacement_required {
+        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+            if individual.cur_use_drug[drug_idx] {
+                stop_drug_course(individual, drug_idx);
+            }
+        }
+        update_drug_counter(individual);
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            clear_treatment_tracking(individual, bacteria_idx);
+        }
+    }
+
+    let mut restart_request = None;
+    if !failure_replacement_required && !stop_without_replacement {
+        for bacteria_idx in 0..BACTERIA_LIST.len() {
+            if restart_request.is_none() {
+                restart_request = assess_restart_window(individual, time_step, bacteria_idx, rng);
+            }
+        }
+    }
+
+    let selection_trigger = if failure_replacement_required {
+        DrugSelectionTrigger::TreatmentFailure
+    } else if let Some(request) = restart_request {
+        DrugSelectionTrigger::Restart {
+            preferred_drug_idx: request.preferred_drug_idx,
+        }
+    } else {
+        DrugSelectionTrigger::Routine
+    };
+    let forced_selection = !matches!(selection_trigger, DrugSelectionTrigger::Routine);
+    let suppress_selection = stop_without_replacement && !failure_replacement_required;
+    let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
+
     // Drug initiation first decides whether to prescribe, then selects a drug.
     let region_cur_str = individual.region_cur_in.as_str();
     let region_liv_str = individual.region_living.as_str();
@@ -3011,7 +2820,10 @@ pub(crate) fn apply_rules(
     };
 
     // No individual can exceed three concurrent antibiotics.
-    if num_drugs_currently_used + drugs_initiated_this_time_step < 3 && available_drugs_count > 0 {
+    if !suppress_selection
+        && (forced_selection || num_drugs_currently_used < 3)
+        && available_drugs_count > 0
+    {
         // Daily initiation follows a logistic model:
         // P(initiation) = 1 / (1 + exp(-log_odds))
         // log_odds = base + sum of applicable effects (additive in log-odds space)
@@ -3037,7 +2849,7 @@ pub(crate) fn apply_rules(
             log_odds += antibiotic_init_log_odds_test_identified;
         }
 
-        if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
+        if initial_on_any_antibiotic {
             log_odds += antibiotic_init_log_odds_already_on_drug;
         }
 
@@ -3072,9 +2884,13 @@ pub(crate) fn apply_rules(
             log_odds += drug_initiation_rate_multiplier.fast_ln();
         }
 
-        let start_any_antibiotic_prob = 1.0 / (1.0 + (-log_odds).fast_exp());
+        let start_any_antibiotic_prob = if forced_selection {
+            1.0
+        } else {
+            1.0 / (1.0 + (-log_odds).fast_exp())
+        };
 
-        if rng.gen_bool(start_any_antibiotic_prob) {
+        if forced_selection || rng.gen_bool(start_any_antibiotic_prob) {
             // Retain the highest-level infection for event attribution.
             let mut primary_bacteria_idx = -1i32;
             let mut highest_bacteria_level = 0.0;
@@ -3145,6 +2961,20 @@ pub(crate) fn apply_rules(
                 && (!targeted_selection || severe_hospital_gram_negative_target);
             for &drug_idx in available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                if matches!(selection_trigger, DrugSelectionTrigger::TreatmentFailure) {
+                    if individual.cur_use_drug[drug_idx] {
+                        continue;
+                    }
+                    let last_started = individual.date_drug_initiated_keep[drug_idx];
+                    if last_started != i32::MIN {
+                        let days_since_last_use = (time_step as i32) - last_started;
+                        if days_since_last_use >= 0
+                            && days_since_last_use < store.globals.drug_failure_memory_days
+                        {
+                            continue;
+                        }
+                    }
+                }
                 let prophylaxis_score = if prophylaxis_candidate {
                     match drug_name {
                         // Generic immunodeficiency prophylaxis uses this restricted candidate set.
@@ -4456,7 +4286,19 @@ pub(crate) fn apply_rules(
                 }
                 let weights = &weights_buf[..drug_scores.len()];
 
-                if let Some(chosen_idx) = sample_weighted_index(weights, rng) {
+                let preferred_restart_idx = match selection_trigger {
+                    DrugSelectionTrigger::Restart { preferred_drug_idx } => preferred_drug_idx,
+                    _ => None,
+                };
+                let chosen_idx = preferred_restart_idx
+                    .and_then(|preferred_idx| {
+                        drug_scores
+                            .iter()
+                            .position(|(drug_idx, _)| *drug_idx == preferred_idx)
+                    })
+                    .or_else(|| sample_weighted_index(weights, rng));
+
+                if let Some(chosen_idx) = chosen_idx {
                     let chosen_drug_idx = drug_scores[chosen_idx].0;
 
                     let drug_name = DRUG_SHORT_NAMES[chosen_drug_idx];
@@ -4492,9 +4334,19 @@ pub(crate) fn apply_rules(
                     };
                     start_drug_course(individual, chosen_drug_idx, time_step, course_context);
 
-                    // In targeted care, stop existing drugs whose baseline potency is below
-                    // threshold for every identified bacterium.
-                    if !identified_bacteria.is_empty() {
+                    if matches!(selection_trigger, DrugSelectionTrigger::TreatmentFailure) {
+                        // Active drugs are not attributed to individual infections, so the
+                        // failed regimen is replaced as a whole once an alternative is found.
+                        for existing_drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                            if existing_drug_idx != chosen_drug_idx
+                                && individual.cur_use_drug[existing_drug_idx]
+                            {
+                                stop_drug_course(individual, existing_drug_idx);
+                            }
+                        }
+                    } else if !identified_bacteria.is_empty() {
+                        // In targeted care, stop existing drugs whose baseline potency is below
+                        // threshold for every identified bacterium.
                         let min_potency =
                             store.globals.minimal_potency_threshold_for_drug_selection;
                         for existing_drug_idx in 0..DRUG_SHORT_NAMES.len() {
@@ -4559,11 +4411,7 @@ pub(crate) fn apply_rules(
                     }
 
                     update_drug_counter(individual);
-                    drugs_initiated_this_time_step += 1;
-                    debug_assert!(
-                        num_drugs_currently_used + drugs_initiated_this_time_step <= 3,
-                        "Exceeded max concurrent drug starts in one timestep"
-                    );
+                    debug_assert!(individual.current_number_of_drugs <= 3);
                     log::debug!(
                         "mod.rs   started {} for individual {} - two-stage rate of starting was {:.4} (score: {:.3})",
                         drug_name,
@@ -4589,6 +4437,15 @@ pub(crate) fn apply_rules(
                                 individual.level[bacteria_idx],
                                 rng,
                             );
+                        }
+                    }
+
+                    if matches!(selection_trigger, DrugSelectionTrigger::Restart { .. }) {
+                        for bacteria_idx in 0..BACTERIA_LIST.len() {
+                            individual.drug_stopped_with_infection_day[bacteria_idx] = None;
+                            individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
+                            individual.stopped_drug_index[bacteria_idx] = None;
+                            individual.restart_window_assessed[bacteria_idx] = false;
                         }
                     }
                 }
@@ -4723,23 +4580,9 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // Treatment failure and restart assessment.
+    // Clear treatment-response and restart state after infection resolution.
     for bacteria_idx in 0..BACTERIA_LIST.len() {
-        if individual.level[bacteria_idx] > 0.0 {
-            if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
-                individual.days_on_current_treatment[bacteria_idx] += 1;
-
-                assess_treatment_failure(
-                    individual,
-                    time_step,
-                    bacteria_idx,
-                    bacteria_indices,
-                    drug_indices,
-                    param_cache,
-                    rng,
-                );
-            }
-        } else {
+        if individual.level[bacteria_idx] <= 0.0 {
             clear_treatment_tracking(individual, bacteria_idx);
 
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
@@ -4747,15 +4590,6 @@ pub(crate) fn apply_rules(
             individual.stopped_drug_index[bacteria_idx] = None;
             individual.restart_window_assessed[bacteria_idx] = false;
         }
-
-        assess_restart_window(
-            individual,
-            time_step,
-            bacteria_idx,
-            bacteria_indices,
-            param_cache,
-            rng,
-        );
     }
 
     // Mortality.
@@ -6910,12 +6744,13 @@ impl FastMath for f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        applied_activity_observation, apply_rules, carriage_profile_sampling_probability,
-        clear_microbiome_compartment, collect_active_symptomatic_syndromes,
-        collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
-        emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
-        exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
-        hgt_context_multiplier, hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
+        applied_activity_observation, apply_rules, assess_restart_window, assess_treatment_failure,
+        carriage_profile_sampling_probability, clear_microbiome_compartment,
+        collect_active_symptomatic_syndromes, collect_regional_surveillance_bacteria,
+        complete_resistance_test_if_ready, emerge_microbiome_mechanisms_once,
+        existing_therapy_prevents_incoming_infection, exogenous_mechanism_floor_probability,
+        has_serious_resistance_test_positive, hgt_context_multiplier,
+        hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
         identified_resistance_results_ready, infection_acquisition_event, is_under_medical_care,
         mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
         not_under_medical_care_log_odds, prepare_individual_for_active_day,
@@ -6924,7 +6759,7 @@ mod tests {
         record_sampled_microbiome_profile, reset_resistance_test_state,
         resistance_pathway_probability, revert_unselected_microbiome_mechanisms,
         sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
-        ParameterKeyCache, RuleEvents,
+        ParameterKeyCache, RuleEvents, TreatmentFailureOutcome,
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
@@ -6935,7 +6770,6 @@ mod tests {
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
     use rand::SeedableRng;
-    use std::collections::HashMap;
 
     fn individual_with_seed(seed: u64) -> (Individual, SmallRng) {
         let mut rng = SmallRng::seed_from_u64(seed);
@@ -6957,20 +6791,6 @@ mod tests {
             .unwrap_or_else(|| panic!("missing drug {name}"))
     }
 
-    fn test_indices() -> (HashMap<&'static str, usize>, HashMap<&'static str, usize>) {
-        let bacteria_indices = BACTERIA_LIST
-            .iter()
-            .enumerate()
-            .map(|(idx, &name)| (name, idx))
-            .collect();
-        let drug_indices = DRUG_SHORT_NAMES
-            .iter()
-            .enumerate()
-            .map(|(idx, &name)| (name, idx))
-            .collect();
-        (bacteria_indices, drug_indices)
-    }
-
     fn test_policy_adjustments() -> PolicyAdjustments {
         PolicyAdjustments {
             policy_option: 0,
@@ -6985,6 +6805,177 @@ mod tests {
             drug_cessation_rate_multiplier: None,
             equalize_regional_access: false,
         }
+    }
+
+    const FAILURE_SELECTION_TEST_DAY: usize = 95 * 365;
+
+    fn treatment_failure_case(
+        base: &Individual,
+        bacteria_name: &str,
+        identified: bool,
+        ast_resistant_drug: Option<&str>,
+    ) -> Individual {
+        let mut individual = base.clone();
+        let bacteria_idx = bacteria_idx(bacteria_name);
+        let current_drug_idx = drug_idx("amoxicillin");
+
+        individual.region_living = Region::NorthAmerica;
+        individual.region_cur_in = Region::NorthAmerica;
+        individual.level[bacteria_idx] = 1.0;
+        individual.infection_has_caused_symptoms[bacteria_idx] = true;
+        individual.infectious_syndrome[bacteria_idx] = 1;
+        individual.date_last_infected[bacteria_idx] = FAILURE_SELECTION_TEST_DAY as i32 - 10;
+        individual.date_last_infected_keep[bacteria_idx] = FAILURE_SELECTION_TEST_DAY as i32 - 10;
+        individual.test_identified_infection[bacteria_idx] = identified;
+        individual.cur_use_drug[current_drug_idx] = true;
+        individual.cur_level_drug[current_drug_idx] =
+            parameter_store().drug.initial_level(current_drug_idx);
+        individual.date_drug_initiated[current_drug_idx] = FAILURE_SELECTION_TEST_DAY as i32 - 1;
+        individual.date_drug_initiated_keep[current_drug_idx] =
+            FAILURE_SELECTION_TEST_DAY as i32 - 1;
+        individual.current_number_of_drugs = 1;
+        individual.bacteria_level_at_drug_start[bacteria_idx] = Some(1.0);
+        individual.days_on_current_treatment[bacteria_idx] = 3;
+        individual.treatment_failure_assessed[bacteria_idx] = false;
+        individual.drug_score_on_selection_day.fill(-1.0);
+
+        if let Some(drug_name) = ast_resistant_drug {
+            let resistant_drug_idx = drug_idx(drug_name);
+            individual.test_for_resistance[bacteria_idx] = true;
+            individual.resistances[bacteria_idx][resistant_drug_idx].test_r = store_float(1.0);
+        }
+
+        individual
+    }
+
+    fn run_treatment_failure_case(mut individual: Individual, seed: u64) -> Individual {
+        let param_cache = ParameterKeyCache::new();
+        let mechanism_cache =
+            MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
+        let policy = test_policy_adjustments();
+        let mut rng = SmallRng::seed_from_u64(seed);
+
+        apply_rules(
+            &mut individual,
+            FAILURE_SELECTION_TEST_DAY,
+            &mut rng,
+            &mechanism_cache,
+            &param_cache,
+            &policy,
+        );
+        individual
+    }
+
+    #[test]
+    fn prediagnostic_failure_replacement_does_not_use_hidden_bacterium() {
+        let (base, _) = individual_with_seed(1001);
+        let e_coli = run_treatment_failure_case(
+            treatment_failure_case(&base, "escherichia_coli", false, None),
+            2001,
+        );
+        let klebsiella = run_treatment_failure_case(
+            treatment_failure_case(&base, "klebsiella_pneumoniae", false, None),
+            2001,
+        );
+
+        assert_eq!(
+            e_coli.drug_score_on_selection_day,
+            klebsiella.drug_score_on_selection_day
+        );
+        assert!(e_coli
+            .drug_score_on_selection_day
+            .iter()
+            .any(|&score| score > 0.0));
+        assert_eq!(
+            e_coli.date_last_drug_failure[bacteria_idx("escherichia_coli")],
+            FAILURE_SELECTION_TEST_DAY as i32
+        );
+        assert_eq!(
+            klebsiella.date_last_drug_failure[bacteria_idx("klebsiella_pneumoniae")],
+            FAILURE_SELECTION_TEST_DAY as i32
+        );
+        assert!(!e_coli.cur_use_drug[drug_idx("amoxicillin")]);
+        assert!(!klebsiella.cur_use_drug[drug_idx("amoxicillin")]);
+    }
+
+    #[test]
+    fn failure_replacement_uses_reported_resistance_only_when_ast_is_ready() {
+        let (base, _) = individual_with_seed(1002);
+        let without_ast = run_treatment_failure_case(
+            treatment_failure_case(&base, "escherichia_coli", true, None),
+            2002,
+        );
+        let with_ast = run_treatment_failure_case(
+            treatment_failure_case(&base, "escherichia_coli", true, Some("ceftriaxone")),
+            2002,
+        );
+        let ceftriaxone_idx = drug_idx("ceftriaxone");
+
+        assert!(without_ast.drug_score_on_selection_day[ceftriaxone_idx] > 0.0);
+        assert_eq!(with_ast.drug_score_on_selection_day[ceftriaxone_idx], -1.0);
+    }
+
+    #[test]
+    fn ast_pending_failure_replacement_ignores_underlying_resistance() {
+        let (base, _) = individual_with_seed(1004);
+        let without_resistance = treatment_failure_case(&base, "escherichia_coli", true, None);
+        let mut with_hidden_resistance = without_resistance.clone();
+        let bacteria_idx = bacteria_idx("escherichia_coli");
+        let ceftriaxone_idx = drug_idx("ceftriaxone");
+        with_hidden_resistance.resistances[bacteria_idx][ceftriaxone_idx].any_r = store_float(1.0);
+
+        let without_resistance = run_treatment_failure_case(without_resistance, 2004);
+        let with_hidden_resistance = run_treatment_failure_case(with_hidden_resistance, 2004);
+
+        assert_eq!(
+            without_resistance.drug_score_on_selection_day,
+            with_hidden_resistance.drug_score_on_selection_day
+        );
+    }
+
+    #[test]
+    fn restart_assessment_returns_preferred_drug_without_hidden_potency_check() {
+        let (mut individual, _) = individual_with_seed(1003);
+        let bacteria_idx = bacteria_idx("escherichia_coli");
+        let preferred_drug_idx = drug_idx("rifampicin");
+        individual.level[bacteria_idx] = 1.0;
+        individual.drug_stopped_with_infection_day[bacteria_idx] =
+            Some(FAILURE_SELECTION_TEST_DAY as i32 - 1);
+        individual.bacteria_level_at_drug_cessation[bacteria_idx] = Some(0.5);
+        individual.stopped_drug_index[bacteria_idx] = Some(preferred_drug_idx);
+        individual.restart_window_assessed[bacteria_idx] = false;
+        let mut rng = StepRng::new(0, 0);
+
+        let request = assess_restart_window(
+            &mut individual,
+            FAILURE_SELECTION_TEST_DAY,
+            bacteria_idx,
+            &mut rng,
+        )
+        .expect("persistent infection should request restart treatment");
+
+        assert_eq!(request.preferred_drug_idx, Some(preferred_drug_idx));
+    }
+
+    #[test]
+    fn helicobacter_failure_can_still_stop_without_immediate_rescue() {
+        let (mut individual, _) = individual_with_seed(1005);
+        let bacteria_idx = bacteria_idx("helicobacter_pylori");
+        let drug_idx = drug_idx("clarithromycin");
+        individual.level[bacteria_idx] = 1.0;
+        individual.bacteria_level_at_drug_start[bacteria_idx] = Some(1.0);
+        individual.days_on_current_treatment[bacteria_idx] = 6;
+        individual.cur_use_drug[drug_idx] = true;
+        let mut rng = StepRng::new(0, 0);
+
+        let outcome = assess_treatment_failure(
+            &mut individual,
+            FAILURE_SELECTION_TEST_DAY,
+            bacteria_idx,
+            &mut rng,
+        );
+
+        assert_eq!(outcome, TreatmentFailureOutcome::StopWithoutReplacement);
     }
 
     #[test]
@@ -7102,7 +7093,6 @@ mod tests {
         individual.predicted_infection_risk[e_coli_idx] = 0.375;
         individual.infection_resolution_this_timestep[e_coli_idx].fill(0);
 
-        let (bacteria_indices, drug_indices) = test_indices();
         let param_cache = ParameterKeyCache::new();
         let mechanism_cache =
             MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
@@ -7114,8 +7104,6 @@ mod tests {
             time_step,
             &mut rng,
             &mechanism_cache,
-            &bacteria_indices,
-            &drug_indices,
             &param_cache,
             &policy,
         );
@@ -7138,7 +7126,6 @@ mod tests {
         let (mut individual, _) = individual_with_seed(91);
         let e_coli_idx = bacteria_idx("escherichia_coli");
         let amoxicillin_idx = drug_idx("amoxicillin");
-        let (bacteria_indices, drug_indices) = test_indices();
         let param_cache = ParameterKeyCache::new();
         let evaluation_day = usize::try_from(param_cache.drug_evaluation_days)
             .expect("drug evaluation delay must be non-negative");
@@ -7155,8 +7142,6 @@ mod tests {
             evaluation_day,
             &mut rng,
             &mechanism_cache,
-            &bacteria_indices,
-            &drug_indices,
             &param_cache,
             &policy,
         );
