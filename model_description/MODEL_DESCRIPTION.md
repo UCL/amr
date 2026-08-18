@@ -603,7 +603,7 @@ This section covers the antibiotic prescribing process — from the decision to 
 Each day, the model decides whether to start a new antibiotic course for each person, using a logistic model (see Section 1.2). The probability of starting antibiotics depends on the person's clinical state:
 
 | Factor | Log-odds | Rationale |
-|--------|----------|-------------------|-------------------|
+|--------|----------|-----------|
 | Baseline (no symptoms) | −5.5 | Represents the fact that the person may not have presented for care, so represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016) |
 | Symptomatic infection | +6.2 | Once a patient has an indication for testing or treatment, prescribing becomes likely |
 | Sepsis | +6.5 | Sepsis is a medical emergency |
@@ -612,24 +612,18 @@ Each day, the model decides whether to start a new antibiotic course for each pe
 | No clinical indication | −1.1 | Background prescribing remains possible without an active modelled bacterial infection |
 | Lab-confirmed infection | +0.92 | Positive culture results prompt targeted therapy |
 | Already on an antibiotic | +0.18 | People taking an antibiotic may be started on an additional agent (combination therapy) |
+| UTI syndrome (odds ratio 6.0) | +1.79 | Common symptomatic outpatient presentation |
+| Skin/soft-tissue syndrome (odds ratio 6.0) | +1.79 | Cellulitis, wounds, and abscesses commonly prompt treatment |
+| Respiratory syndrome (odds ratio 10.0) | +2.30 | Pneumonia-like presentations often prompt antibiotics |
+| Bloodstream syndrome (odds ratio 16.0) | +2.77 | Bacteraemia creates a strong treatment imperative |
+| Intra-abdominal syndrome (odds ratio 10.0) | +2.30 | Severe abdominal infection usually requires prompt systemic treatment |
+| CNS syndrome (odds ratio 14.0) | +2.64 | Meningitis or brain abscess should trigger urgent antibiotics |
+| GI syndrome (odds ratio 8.0) | +2.08 | Severe diarrhoeal illness and dehydration drive presentation |
+| Genital/pelvic syndrome (odds ratio 12.0) | +2.48 | STI/PID syndromes often have guideline-driven treatment |
+| Bone/joint syndrome (odds ratio 4.0) | +1.39 | Important but often less immediately explosive |
+| Other syndrome (odds ratio 4.0) | +1.39 | Modest increase for recognised infectious presentations |
 
-
-**Syndrome antibiotic-initiation odds ratios.** The parameters named `syndrome_<id>_initiation_multiplier` belong to this start-any-antibiotic step. They are odds ratios, not drug-choice scores. In the Rust code, the model looks across the person's active infectious syndromes, takes the largest configured syndrome multiplier, converts it to a log-odds increment with `ln(multiplier)`, and adds that to the treatment-initiation log-odds. Taking the maximum rather than multiplying all syndromes together prevents polymicrobial or multi-site infections from inflating the initiation probability simply because several syndrome records are present.
-
-| Syndrome parameter | Current value | Log-odds contribution | Interpretation |
-|--------------------|------------|----------------------|----------------|
-| `syndrome_1_initiation_multiplier` (UTI) | 6.0 | +1.79 | Common symptomatic outpatient presentation |
-| `syndrome_2_initiation_multiplier` (skin/soft tissue) | 6.0 | +1.79 | Cellulitis, wounds, and abscesses commonly prompt treatment |
-| `syndrome_3_initiation_multiplier` (respiratory) | 10.0 | +2.30 | Pneumonia-like presentations often prompt antibiotics |
-| `syndrome_4_initiation_multiplier` (bloodstream) | 16.0 | +2.77 | Bacteraemia creates a strong treatment imperative |
-| `syndrome_5_initiation_multiplier` (intra-abdominal) | 10.0 | +2.30 | Severe abdominal infection usually requires prompt systemic treatment |
-| `syndrome_6_initiation_multiplier` (CNS) | 14.0 | +2.64 | Meningitis or brain abscess should trigger urgent antibiotics |
-| `syndrome_7_initiation_multiplier` (GI) | 8.0 | +2.08 | Severe diarrhoeal illness and dehydration drive presentation |
-| `syndrome_8_initiation_multiplier` (genital/pelvic) | 12.0 | +2.48 | STI/PID syndromes often have guideline-driven treatment |
-| `syndrome_9_initiation_multiplier` (bone/joint) | 4.0 | +1.39 | Important but often less immediately explosive |
-| `syndrome_10_initiation_multiplier` (other) | 4.0 | +1.39 | Modest boost for recognised infectious presentations |
-
-These syndrome-level initiation multipliers are separate from the drug-bacterium `initiation_multiplier` values described in Section 6.2. The former answers "how likely is any antibiotic to be started today?"; the latter answers "if a drug is being selected for an identified organism, how much does prescribing practice favour this drug-organism pairing?"
+If more than one infectious syndrome is active, the model applies only the largest syndrome odds ratio, converted to a log-odds contribution. These effects influence whether any antibiotic is started; the separate drug–bacterium `initiation_multiplier` values in Section 6.2 influence which drug is selected.
 
 
 For a 65-year-old immunosuppressed inpatient with a symptomatic *E. coli* UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.2 (symptomatic) + 0.7 (hospitalised) + 0.2 (immunodeficiency) + ln(6.0) for the UTI syndrome antibiotic-initiation odds ratio = +3.39 before regional access modifiers, which is a high probability of starting antibiotics that day. If the same patient also has sepsis, a further +6.5 is added.
