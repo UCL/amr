@@ -2137,6 +2137,42 @@ fn applied_activity_observation(
     has_active_exposure.then_some(observation)
 }
 
+fn targeted_initiation_multiplier(
+    store: &ParameterStore,
+    identified_bacteria: &[usize],
+    drug_idx: usize,
+    current_year: f64,
+) -> f64 {
+    identified_bacteria
+        .iter()
+        .copied()
+        .filter(|&b_idx| {
+            store
+                .bacteria
+                .treatment_recognition_year(b_idx)
+                .is_none_or(|recognition_year| current_year >= recognition_year)
+        })
+        .map(|b_idx| {
+            store
+                .drug_bacteria
+                .initiation_multiplier_at_year(b_idx, drug_idx, current_year)
+        })
+        .reduce(f64::max)
+        .unwrap_or(1.0)
+}
+
+fn immunodeficiency_prophylaxis_score(drug_name: &str) -> f64 {
+    match drug_name {
+        "trim_sulf" => 0.45,
+        "azithromycin" => 1.0,
+        "ciprofloxacin" => 1.2,
+        "levofloxacin" => 0.9,
+        // Represents oral penicillin/beta-lactam prophylaxis; penicillin V is not modelled.
+        "amoxicillin" => 0.2,
+        _ => 0.0,
+    }
+}
+
 /// Apply one day of model rules to an individual.
 pub(crate) fn apply_rules(
     individual: &mut Individual,
@@ -2976,14 +3012,7 @@ pub(crate) fn apply_rules(
                     }
                 }
                 let prophylaxis_score = if prophylaxis_candidate {
-                    match drug_name {
-                        // Generic immunodeficiency prophylaxis uses this restricted candidate set.
-                        "trim_sulf" => 0.45,
-                        "azithromycin" => 1.0,
-                        "ciprofloxacin" => 1.2,
-                        "levofloxacin" => 0.9,
-                        _ => 0.0,
-                    }
+                    immunodeficiency_prophylaxis_score(drug_name)
                 } else {
                     0.0
                 };
@@ -3859,24 +3888,13 @@ pub(crate) fn apply_rules(
                         score *= 1.1;
                     }
 
-                    let mut max_bacteria_specific_multiplier: f64 = 1.0;
-                    for &b_idx in identified_bacteria {
-                        let current_year = 1930.0 + (time_step as f64 / 365.0);
-                        if let Some(recognition_year) =
-                            store.bacteria.treatment_recognition_year(b_idx)
-                        {
-                            if current_year < recognition_year {
-                                continue;
-                            }
-                        }
-
-                        let specific_multiplier = store
-                            .drug_bacteria
-                            .initiation_multiplier_at_year(b_idx, drug_idx, current_year);
-                        max_bacteria_specific_multiplier =
-                            max_bacteria_specific_multiplier.max(specific_multiplier);
-                    }
-                    score *= max_bacteria_specific_multiplier;
+                    let current_year = 1930.0 + (time_step as f64 / 365.0);
+                    score *= targeted_initiation_multiplier(
+                        store,
+                        identified_bacteria,
+                        drug_idx,
+                        current_year,
+                    );
                 }
 
                 // A candidate with a positive ready result was excluded above. If every identified
@@ -6751,15 +6769,16 @@ mod tests {
         existing_therapy_prevents_incoming_infection, exogenous_mechanism_floor_probability,
         has_serious_resistance_test_positive, hgt_context_multiplier,
         hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
-        identified_resistance_results_ready, infection_acquisition_event, is_under_medical_care,
-        mechanism_applies_to_drug, mechanism_resistance_level_for_mask,
-        not_under_medical_care_log_odds, prepare_individual_for_active_day,
-        promote_minority_mechanisms_once, propagate_mechanism_resistance, ratchet_floor_from_peak,
-        ratchet_mechanism_is_eligible, record_hgt_mechanism_in_present_compartments,
-        record_sampled_microbiome_profile, reset_resistance_test_state,
-        resistance_pathway_probability, revert_unselected_microbiome_mechanisms,
-        sample_unselected_mechanism_reversions, vaccination_acquisition_log_odds,
-        ParameterKeyCache, RuleEvents, TreatmentFailureOutcome,
+        identified_resistance_results_ready, immunodeficiency_prophylaxis_score,
+        infection_acquisition_event, is_under_medical_care, mechanism_applies_to_drug,
+        mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
+        prepare_individual_for_active_day, promote_minority_mechanisms_once,
+        propagate_mechanism_resistance, ratchet_floor_from_peak, ratchet_mechanism_is_eligible,
+        record_hgt_mechanism_in_present_compartments, record_sampled_microbiome_profile,
+        reset_resistance_test_state, resistance_pathway_probability,
+        revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
+        targeted_initiation_multiplier, vaccination_acquisition_log_odds, ParameterKeyCache,
+        RuleEvents, TreatmentFailureOutcome,
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
@@ -6805,6 +6824,90 @@ mod tests {
             drug_cessation_rate_multiplier: None,
             equalize_regional_access: false,
         }
+    }
+
+    #[test]
+    fn targeted_initiation_multiplier_respects_the_configured_range() {
+        let store = parameter_store();
+        let current_year = 2025.0;
+        let cases = [
+            ("escherichia_coli", "nalidixic_acid", 0.0),
+            ("neisseria_gonorrhoeae", "trim_sulf", 0.04),
+            ("salmonella_enterica_serovar_typhi", "ampicillin", 1.0),
+            ("stenotrophomonas_maltophilia", "trim_sulf", 5.0),
+        ];
+
+        for (bacterium, drug, expected) in cases {
+            let actual = targeted_initiation_multiplier(
+                store,
+                &[bacteria_idx(bacterium)],
+                drug_idx(drug),
+                current_year,
+            );
+            assert_eq!(actual, expected, "{bacterium} / {drug}");
+        }
+    }
+
+    #[test]
+    fn targeted_initiation_multiplier_uses_the_maximum_without_a_neutral_floor() {
+        let store = parameter_store();
+        let bacteria = [
+            bacteria_idx("neisseria_gonorrhoeae"),
+            bacteria_idx("escherichia_coli"),
+        ];
+
+        assert_eq!(
+            targeted_initiation_multiplier(store, &bacteria, drug_idx("trim_sulf"), 2025.0),
+            0.06
+        );
+    }
+
+    #[test]
+    fn targeted_initiation_multiplier_applies_era_overrides() {
+        let store = parameter_store();
+        let bacteria = [bacteria_idx("escherichia_coli")];
+        let drug = drug_idx("nalidixic_acid");
+
+        assert_eq!(
+            targeted_initiation_multiplier(store, &bacteria, drug, 1985.0),
+            7.0
+        );
+        assert_eq!(
+            targeted_initiation_multiplier(store, &bacteria, drug, 2025.0),
+            0.0
+        );
+    }
+
+    #[test]
+    fn targeted_initiation_multiplier_is_neutral_without_an_applicable_bacterium() {
+        assert_eq!(
+            targeted_initiation_multiplier(parameter_store(), &[], drug_idx("amoxicillin"), 2025.0),
+            1.0
+        );
+    }
+
+    #[test]
+    fn immunodeficiency_prophylaxis_pool_is_constrained_and_includes_amoxicillin() {
+        let candidates: Vec<&str> = DRUG_SHORT_NAMES
+            .iter()
+            .copied()
+            .filter(|drug| immunodeficiency_prophylaxis_score(drug) > 0.0)
+            .collect();
+
+        assert_eq!(
+            candidates,
+            vec![
+                "amoxicillin",
+                "azithromycin",
+                "ciprofloxacin",
+                "levofloxacin",
+                "trim_sulf"
+            ]
+        );
+        assert!(
+            immunodeficiency_prophylaxis_score("amoxicillin")
+                < immunodeficiency_prophylaxis_score("trim_sulf")
+        );
     }
 
     const FAILURE_SELECTION_TEST_DAY: usize = 95 * 365;

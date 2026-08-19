@@ -610,7 +610,7 @@ Each day, the model decides whether to start a new antibiotic course for each pe
 | Symptomatic infection | +6.2 (odds ratio 500) | Once a patient has an indication for testing or treatment, prescribing becomes likely |
 | Sepsis | +6.5 (odds ratio 650) | Sepsis is a medical emergency |
 | Hospitalised | +0.7 (odds ratio 2.0 ) | Inpatient care increases access to and opportunity for treatment |
-| Immunodeficiency | +0.2 (odds ratio 1.25) | Weak positive effect in isolation | 
+| Immunodeficiency | +0.2 (odds ratio 1.25) | Weak positive effect in isolation |
 | No clinical indication | −1.1 (odds ratio 0.33) | Background prescribing remains possible without an active modelled bacterial infection |
 | Lab-confirmed infection | +0.92 (odds ratio 2.5 ) | Positive culture results prompt targeted therapy |
 | Already on an antibiotic | +0.18 (odds ratio 1.2 ) | People taking an antibiotic may be started on an additional agent (combination therapy) |
@@ -656,7 +656,11 @@ The second and third stages are both recorded as `Targeted` treatment in the cur
 
 **Drug scoring algorithm:**
 
-For each candidate drug at a given stage, the model calculates a score based on several factors. The final candidate scores are converted into weighted probabilities (including with use of a power term that enhances or reduces the impact of the score on selection chances: `drug_selection_temperature` = current value 0.55).  
+For each eligible candidate drug, the model calculates a score, *s*. It converts this to a selection weight using `w = s^(1/T)`, where *T* is `drug_selection_temperature`, and samples a drug in proportion to these weights. At *T* = 1, the scores are used directly as weights. The current value, 0.55, increases the influence of score differences; lower values concentrate selection further on high-scoring drugs, whereas higher values produce more varied choices.
+
+The empiric syndrome-drug score values are listed in [Appendix B.7](#non-default-syndrome-empiric-drug-scores), with their [historical values](#time-varying-syndrome-empiric-score-values). Identified-organism drug-choice multipliers are in the `Init multiplier` column of [Appendix B.4](#b4-drugbacteria-potency-matrix), followed by their [historical values](#time-varying-drug-initiation-values).
+
+For identified-organism drug-choice multipliers, 1 is neutral, values below 1 reduce the score, 0 excludes the drug, and values above 1 increase the score. If more than one bacterium is identified, the largest applicable multiplier is used.
 
 The model also records the **context** in which a course starts:
 
@@ -666,25 +670,14 @@ The model also records the **context** in which a course starts:
 - A person with an active modelled bacterial infection that has not caused symptoms can still start treatment through the background prescribing template (internally, syndrome 0), but the course is recorded as `OtherActiveAsymptomaticModelledBacterialInfection`. The unobserved infection syndrome is not supplied to drug selection.
 - A start with **no active modelled bacterial infection** and no prophylaxis indication is recorded as `OtherNoActiveModelledInfection` and uses the same background prescribing template.
 
-As introduced in [Section 4.1](#41-syndrome-assignment), this background template is not an eleventh clinical infection syndrome. It is a background / off-model prescribing distribution for situations such as diagnostic uncertainty, viral-like illness, non-modelled infections, dental or procedural use, self-medication, and pharmacy supply without prescription. Its per-drug scores are relative weights, not probabilities. They shape drug choice only after the model has already sampled a start-any-antibiotic event, and they still pass through the usual era, regional availability, allergy, age contraindication, reserve-drug, and compartment/niche-drug restrictions. The current background template strongly favours common community oral agents and assigns trace scores to hospital-only, reserve, and novel agents so these do not compete meaningfully in no-active-infection starts.
+As introduced in [Section 4.1](#41-syndrome-assignment), syndrome 0 is a background prescribing distribution for situations such as diagnostic uncertainty, viral-like illness, non-modelled infections, self-medication, and pharmacy supply without prescription.
 
-**Historical empiric syndrome-era scores.** Empiric prescribing templates can also have time-varying syndrome-drug values of the form `syndrome_<id>_empiric_drug_<drug>_score_before_<YYYY>`. These are used only in the empiric scenario, before organism identification. They allow the model to represent historical syndromic prescribing practice without giving the clinician hidden knowledge of the true organism. For example, genital/STI syndrome prescribing can favour sulfonamides, penicillin, tetracyclines, fluoroquinolones, cephalosporins, or azithromycin in the eras when those drugs were used empirically for urethritis/cervicitis/PID or suspected gonorrhoea. The same naming pattern can be used for other syndromes in future if their empiric guideline history needs to vary by era.
+**Historical empiric syndrome-era scores.** Empiric prescribing templates can also have time-varying syndrome-drug values of the form `syndrome_<id>_empiric_drug_<drug>_score_before_<YYYY>`. These are used only in the empiric scenario, before organism identification. They allow the model to represent historical syndromic prescribing practice. For example, genital/STI syndrome prescribing can favour sulfonamides, penicillin, tetracyclines, fluoroquinolones, cephalosporins, or azithromycin in the eras when those drugs were used empirically for urethritis/cervicitis/PID or suspected gonorrhoea.
 
-These syndrome-era scores are separate from drug-bacterium `initiation_multiplier_before_<YYYY>` values. Syndrome-era scores answer "what was commonly chosen empirically for this clinical syndrome before microbiology results?"; drug-bacterium multipliers answer "once a bacterium is identified, how strongly does prescribing favour this drug-organism pair?". Drug introduction dates and regional availability restrictions still apply to both pathways, so an era score cannot make a drug available before it exists in the simulation.
-
-| Scoring factor | Empiric phase | Bacterium-identified phase | What it captures |
-|---------------|---------------|----------------------------|-----------------|
-| Syndrome-specific template score | Primary driver; may be static or era-specific; scores >1.0 count as positive empiric signals | Not used directly | How well this drug matches usual empiric prescribing for the infection site and calendar era |
-| Spectrum width | Slight bonus (×1.15) for broad-spectrum | Penalty (×0.45) for broad-spectrum | Empiric phase favours broader coverage; targeted phase rewards spectrum minimisation |
-| No usual empiric role for syndrome | Strong penalty (×0.001) when no positive syndrome-template signal is present | — | Prevents drugs from competing empirically on generic breadth or availability alone; this is not a claim about intrinsic activity against the hidden true organism |
-| Insufficient intrinsic bacterium-drug activity | — | Near-zero score (×0.001) or exclusion when potency is below the targeted threshold | Once the organism is identified, baseline potency guides whether the drug can work |
-| Reported resistance | Not used | The drug is excluded once a positive AST result is available | Susceptibility information available to the prescriber |
-| Drug-bacterium initiation multiplier | — | Score multiplier, default 1.0 | Organism-specific prescribing preference for identified infections; distinct from potency and susceptibility |
-| Narrow-spectrum bonus | — | ×5.0 | Reward de-escalation to targeted therapy |
+**Considerations in candidate-drug scoring.** Candidate drugs may first be excluded because they are unavailable in the region or era, are inappropriate for the person's age, allergy or treatment context, have inadequate intrinsic activity against an identified bacterium, or have a reported resistant AST result. Among eligible drugs, scores take account of syndrome- and era-specific empiric practice; the identified bacterium and baseline potency; usual first- or second-line role; spectrum breadth; regional resistance surveillance; documented treatment failure; reserve-drug status; previous toxicity; care setting; and availability. Some drugs also have explicit restrictions to their clinically plausible uses, as described below.
 
 
-
-**Restricted niche agents:** Some drugs are hard-blocked outside their clinically plausible niche, reflecting that such drugs are not used broadly despite their activity in vitro.
+**Restricted niche agents:** Some drugs are not used at all outside their clinical niche:.
 
 - **Retapamulin** is restricted to **skin/soft-tissue prescribing contexts only**. It is excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, bloodstream infections, and all non-skin systemic syndromes. In targeted (organism-identified) therapy, it is only allowed when the pathogen is *Staphylococcus aureus* or *Streptococcus pyogenes* and the syndrome is skin/soft-tissue. This reflects retapamulin's approval and clinical use as a topical agent for impetigo and other superficial skin infections (Stevens DL et al., 2014).
 
@@ -694,30 +687,22 @@ These syndrome-era scores are separate from drug-bacterium `initiation_multiplie
 
 - **Fosfomycin** is also kept within lower-UTI prescribing contexts in the current model, including situations where prior cultures or resistance history would make ESBL-active oral cover attractive (e.g., ESBL-producing *E. coli* UTI where oral options are limited). Both nitrofurantoin and fosfomycin remain excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts (Gupta K et al., 2011).
 
-- **Furazolidone** is modelled as a **GI-local agent** rather than a urinary agent. It is only eligible in gastrointestinal syndromes and is excluded from sepsis, bloodstream infection, and all non-GI prescribing contexts. This keeps compartment-limited agents from competing as generic systemic therapy when their clinical role is anatomically narrow.
+- **Furazolidone** is modelled as a **GI-local agent** rather than a urinary agent. It is only eligible in gastrointestinal syndromes and is excluded from sepsis, bloodstream infection, and all non-GI prescribing contexts.
 
-These restrictions substantially reduce empiric broad-spectrum therapy by preventing niche agents from out-competing more appropriate choices in syndromes where they are never used clinically.
+**Immunodeficiency prophylaxis.** A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool and it does not use syndrome 0. The candidate pool comprises `trim_sulf`, `azithromycin`, `ciprofloxacin`, `levofloxacin`, and `amoxicillin`. This is an aggregate representation of antibacterial prophylaxis across the model's composite immunodeficiency state. Fluoroquinolone prophylaxis is blocked for people younger than 18 years.
 
-**Immunodeficiency prophylaxis.** A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool and it does not use syndrome 0. The only candidate drugs are `trim_sulf` (score 1.2), `azithromycin` (3.5), `ciprofloxacin` (2.0), and `levofloxacin` (1.5). Reserve drugs are excluded, broad-spectrum drugs are penalised, lower-spectrum drugs receive a modest bonus, and fluoroquinolone prophylaxis is blocked for people younger than 18 years.
+**Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model suppresses empiric use of that drug. For symptomatic empiric treatment, surveillance is restricted to bacteria in the model's clinical-presentation table that can plausibly cause the person's observed syndromes. Prophylaxis, asymptomatic active infection, and background/no-active-infection starts have no observed syndrome and therefore do not receive this syndrome-based resistance adjustment. Once a bacterium is identified but AST is still pending, surveillance instead uses the identified active organism or organisms. 
 
-**Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds. For symptomatic empiric treatment, surveillance is restricted to bacteria in the model's clinical-presentation table that can plausibly cause at least one of the person's observed syndromes; it never uses the person's hidden infecting organism. With multiple observed syndromes, the plausible-organism sets are combined. The strongest applicable penalty is retained. Prophylaxis, asymptomatic active infection, and background/no-active-infection starts have no observed syndrome and therefore do not receive this syndrome-based resistance adjustment. Once a bacterium is identified but AST is still pending, surveillance instead uses the identified active organism or organisms. The same information boundary is used when regional resistance is considered as justification for empiric reserve-drug escalation.
-
-| Local resistance rate | Empiric score penalty | Clinical parallel |
+| Local acquired resistance prevalence | Empiric score penalty | Clinical parallel |
 |----------------------|----------------------|------------------|
 | >60% resistant | ×0.3 | Drug dropped from guidelines (e.g., ciprofloxacin for *E. coli* UTI in South-East Asia) |
 | >45% resistant | ×0.5 | Drug used cautiously, alternatives preferred |
 | >10% resistant | ×0.8 | Drug still used but with awareness of resistance risk |
 
 
-
-The syndrome scoring tables below are therefore stylised prescribing-preference weights, not literal market-share estimates for each antibiotic. They are designed to preserve broad world-recognisable clinical tendencies such as narrower outpatient UTI therapy, broader empiric treatment for sepsis and intra-abdominal infection, and de-escalation after microbiology results, while allowing the realised prescribing mix to emerge from access constraints, testing availability, and resistance feedback.
-
-
 #### Treatment cessation — stopping antibiotics
 
-People stop antibiotics based on several factors.
-
-These values are best interpreted as **daily probabilities of prematurely stopping treatment**, not as the inverse of total course length. They are dropout hazards calibrated so that most patients remain on therapy through a guideline-like treatment window, recognising that shorter courses may often be preferred (Llewelyn MJ et al., 2017).
+People stop antibiotics based on several factors.  We define daily probabilities of prematurely stopping treatment. They are defined such that most people remain on therapy through a guideline-like treatment window, recognising that shorter courses may often be preferred (Llewelyn MJ et al., 2017).
 
 | Scenario | Daily stop probability | Approximate implication | Real-world parallel |
 |----------|----------------------|-------------------------|-------------------|
@@ -733,17 +718,11 @@ A constant daily stop probability of 0.45% does not imply an average course of 1
 
 #### Syndrome-specific empiric scoring templates
 
-The authoritative empiric score templates are defined in `src/config.rs` under `empiric_syndrome_templates` and are reproduced in Appendix B.7. The current UTI template, for example, strongly favours nitrofurantoin and fosfomycin, while retaining lower scores for alternative oral and hospital agents. These are relative prescribing weights before availability, age, syndrome restrictions, regional access, resistance surveillance, targeted-therapy modifiers, reserve-drug eligibility conditions, toxicity avoidance, and the final weighted probabilistic draw are applied.
+The empiric drug scores (defined in `src/config.rs` under `empiric_syndrome_templates`) are shown in Appendix B.7. The current UTI template, for example, strongly favours nitrofurantoin and fosfomycin, while retaining lower scores for alternative oral and hospital agents. These are relative prescribing weights before availability, age, syndrome restrictions, regional access, resistance surveillance, targeted-therapy modifiers, reserve-drug eligibility conditions, toxicity avoidance, and the final weighted probabilistic draw are applied.
 
 #### Species-specific and time-varying prescribing multipliers
 
-The syndrome-level empiric tables above describe population-wide prescribing tendencies; they are agnostic to which organism is causing the infection because this is unknown to the treating clinician at the time. Once an organism is identified, targeted therapy uses a second parameter family named `drug_<drug>_for_bacteria_<bacterium>_initiation_multiplier`. These are **drug-choice score multipliers** for identified infections. They do not decide whether any antibiotic is started, and they are not measures of intrinsic drug activity.
-
-Conceptually, bacterium-drug potency answers "can this drug work against this organism if there is no acquired resistance?", while the drug-bacterium initiation multiplier answers "given that this organism has been identified, how strongly would prescribing practice favour this drug?" This lets the model represent first-line guideline choices, alternative drugs, combination-regimen components, historical prescribing practice, and stewardship suppression separately from MIC-derived potency and simulated susceptibility results.
-
-In the targeted-selection calculation, each candidate drug receives the largest applicable drug-bacterium initiation multiplier across the currently identified active infections. That maximum is multiplied into the candidate drug score after potency checks and organism-specific guideline rules. The maximum is used rather than multiplying all identified organisms together, so polymicrobial infections do not automatically create very large score inflation. For any drug-organism pair with no explicitly specified value, the multiplier is 1.0, meaning no modification.
-
-Multipliers greater than 1 increase a drug's score for that organism; values less than 1 reduce it. Very small values such as 0.01 make a drug very unlikely to be chosen unless another fixed rule has already excluded it. A high initiation multiplier cannot by itself make an unavailable drug available, make a drug with insufficient intrinsic potency eligible, supersede a known resistant susceptibility result, or bypass fixed niche or reserve-drug restrictions. It is a prescribing-preference term, not a biological efficacy term.
+The syndrome-specific empiric prescribing scores described above and listed in Appendix B.7 represent relative drug-choice preferences before the causative bacterium has been identified. If and when a bacterium is identified, the model modifies candidate-drug scores using organism-specific prescribing multipliers (drug_<drug>_for_bacteria_<bacterium>_initiation_multiplier). These multipliers influence which eligible drug is selected.
 
 **Time-varying era-specific values.** For many organisms the preferred drug changed substantially during the simulation period — not because of drug licensing (that is handled separately by `DRUG_INTRODUCTION_DATES`) but because of guideline shifts driven by accumulating clinical evidence or emerging resistance. The model represents this using `_before_YYYY` suffix keys, such as `drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007`. For a given drug-organism pair, the model uses the earliest cutoff year that is still later than the current simulation year; if no cutoff applies, the base multiplier is used. This allows one configuration to describe a continuous temporal arc without adding separate year-by-year rules to the prescribing calculation.
 

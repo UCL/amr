@@ -654,14 +654,14 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparisons around antibiotic resistance rather than attempting to model the clinical course of each infection in high level detail.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> For each active infection, the model records the clinical syndrome (<code>infectious_syndrome[b]</code>), infection intensity (<code>level[b]</code>), and whether symptoms or another clinical-testing indication have occurred (<code>infection_has_caused_symptoms[b]</code>). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (<code>clearance_hazard[b]</code> and <code>clearance_ready_day[b]</code>). Sepsis status and timing are recorded in <code>sepsis[b]</code> and <code>sepsis_onset_day[b]</code>. Daily intermediate variables govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (<code>symptom_onset_probability[b]</code>, <code>sepsis_onset_probability[b]</code>, <code>sepsis_recovery_probability[b]</code>, and <code>new_bacteria_level[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="41-syndrome-assignment">4.1 Syndrome assignment</h3>
-<p>When a person develops an active infection, the model assigns an <strong>anatomical syndrome</strong>. This assignment is consequential because syndrome determines:</p>
+<p>When a person develops an active infection, the model assigns one of ten <strong>anatomical clinical syndromes</strong> (IDs 1–10). This assignment is consequential because syndrome determines:</p>
 <ul>
 <li><strong>Empiric drug choice</strong> (prescribing guidelines differ by site — see Section 6.2)</li>
 <li><strong>Drug penetration</strong> (varies by tissue — see Section 6.4)</li>
 <li><strong>Replication rate</strong> (e.g. bloodstream supports rapid growth; bone does not)</li>
 <li><strong>Sepsis and mortality risk</strong> (e.g. bloodstream infections are more dangerous than skin infections)</li>
 </ul>
-<p>The 10 syndromes correspond to the major infectious disease presentations encountered in clinical microbiology:</p>
+<p>The ten clinical syndromes correspond to the major infectious disease presentations encountered in clinical microbiology:</p>
 <table>
 <thead>
 <tr>
@@ -723,6 +723,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </tr>
 </tbody>
 </table>
+<p><strong>Reserved value 0 — no observed clinical syndrome.</strong> ID 0 is not an eleventh clinical syndrome and should not be confused with “Other” (ID 10). It has two technical uses. In <code>infectious_syndrome[b]</code>, 0 is the initial or reset value meaning that no active syndrome is recorded. In drug selection, the syndrome-0 template provides background prescribing weights when an antibiotic is started without an observed symptomatic syndrome—for example, with no active modelled infection or with an active but asymptomatic infection. When an active but asymptomatic infection follows this background path, its stored anatomical syndrome and causative bacterium are not supplied to empiric selection. Immunodeficiency prophylaxis uses a separate process.</p>
 <h4 id="how-syndromes-affect-disease-behaviour">How syndromes affect disease behaviour</h4>
 <p>Each syndrome modifies two key aspects of the infection:</p>
 <ul>
@@ -1111,203 +1112,140 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <tr>
 <th>Factor</th>
 <th>Log-odds</th>
-<th>Approximate effect</th>
-<th>Clinical rationale</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Baseline (no symptoms)</td>
-<td>−5.5</td>
-<td>~0.4% daily chance</td>
-<td>Represents the fact that the person may not have presented for care, so represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016)</td>
-</tr>
-<tr>
-<td>Symptomatic infection</td>
-<td>+6.2</td>
-<td>Jumps to ~67% before syndrome and regional terms</td>
-<td>Once a patient has an indication for testing or treatment, prescribing becomes likely</td>
-</tr>
-<tr>
-<td>Sepsis</td>
-<td>+6.5</td>
-<td>Strong additional increase</td>
-<td>Sepsis is a medical emergency requiring immediate antibiotics</td>
-</tr>
-<tr>
-<td>Hospitalised</td>
-<td>+0.7</td>
-<td>~2× higher odds</td>
-<td>Inpatient care increases access to and opportunity for treatment</td>
-</tr>
-<tr>
-<td>Immunodeficiency</td>
-<td>+0.2</td>
-<td>weak positive effect in isolation</td>
-<td>Immunodeficiency alone is not usually a stand-alone treatment indication; symptoms, sepsis, test confirmation, and the constrained prophylaxis pool drive most starts</td>
-</tr>
-<tr>
-<td>No clinical indication</td>
-<td>−1.1</td>
-<td>~3× lower odds</td>
-<td>Background prescribing remains possible without an active modelled bacterial infection, but is suppressed</td>
-</tr>
-<tr>
-<td>Lab-confirmed infection</td>
-<td>+0.92</td>
-<td>~2.5× more likely</td>
-<td>Positive culture results prompt targeted therapy</td>
-</tr>
-<tr>
-<td>Already on an antibiotic</td>
-<td>+0.18</td>
-<td>~1.2× more likely</td>
-<td>People taking an antibiotic may be started on an additional agent (combination therapy)</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Syndrome antibiotic-initiation odds ratios.</strong> The parameters named <code>syndrome_&lt;id&gt;_initiation_multiplier</code> belong to this start-any-antibiotic step. They are odds ratios, not drug-choice scores. In the Rust code, the model looks across the person's active infectious syndromes, takes the largest configured syndrome multiplier, converts it to a log-odds increment with <code>ln(multiplier)</code>, and adds that to the treatment-initiation log-odds. Taking the maximum rather than multiplying all syndromes together prevents polymicrobial or multi-site infections from inflating the initiation probability simply because several syndrome records are present.</p>
-<table>
-<thead>
-<tr>
-<th>Syndrome parameter</th>
-<th>Current value</th>
-<th>Log-odds contribution</th>
-<th>Interpretation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>syndrome_1_initiation_multiplier</code> (UTI)</td>
-<td>6.0</td>
-<td>+1.79</td>
-<td>Common symptomatic outpatient presentation</td>
-</tr>
-<tr>
-<td><code>syndrome_2_initiation_multiplier</code> (skin/soft tissue)</td>
-<td>6.0</td>
-<td>+1.79</td>
-<td>Cellulitis, wounds, and abscesses commonly prompt treatment</td>
-</tr>
-<tr>
-<td><code>syndrome_3_initiation_multiplier</code> (respiratory)</td>
-<td>10.0</td>
-<td>+2.30</td>
-<td>Pneumonia-like presentations often prompt antibiotics</td>
-</tr>
-<tr>
-<td><code>syndrome_4_initiation_multiplier</code> (bloodstream)</td>
-<td>16.0</td>
-<td>+2.77</td>
-<td>Bacteraemia creates a strong treatment imperative</td>
-</tr>
-<tr>
-<td><code>syndrome_5_initiation_multiplier</code> (intra-abdominal)</td>
-<td>10.0</td>
-<td>+2.30</td>
-<td>Severe abdominal infection usually requires prompt systemic treatment</td>
-</tr>
-<tr>
-<td><code>syndrome_6_initiation_multiplier</code> (CNS)</td>
-<td>14.0</td>
-<td>+2.64</td>
-<td>Meningitis or brain abscess should trigger urgent antibiotics</td>
-</tr>
-<tr>
-<td><code>syndrome_7_initiation_multiplier</code> (GI)</td>
-<td>8.0</td>
-<td>+2.08</td>
-<td>Severe diarrhoeal illness and dehydration drive presentation</td>
-</tr>
-<tr>
-<td><code>syndrome_8_initiation_multiplier</code> (genital/pelvic)</td>
-<td>12.0</td>
-<td>+2.48</td>
-<td>STI/PID syndromes often have guideline-driven treatment</td>
-</tr>
-<tr>
-<td><code>syndrome_9_initiation_multiplier</code> (bone/joint)</td>
-<td>4.0</td>
-<td>+1.39</td>
-<td>Important but often less immediately explosive</td>
-</tr>
-<tr>
-<td><code>syndrome_10_initiation_multiplier</code> (other)</td>
-<td>4.0</td>
-<td>+1.39</td>
-<td>Modest boost for recognised infectious presentations</td>
-</tr>
-</tbody>
-</table>
-<p>These syndrome-level initiation multipliers are separate from the drug-bacterium <code>initiation_multiplier</code> values described in Section 6.2. The former answers "how likely is any antibiotic to be started today?"; the latter answers "if a drug is being selected for an identified organism, how much does prescribing practice favour this drug-organism pairing?"</p>
-<p>For a 65-year-old immunosuppressed inpatient with a symptomatic <em>E. coli</em> UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.2 (symptomatic) + 0.7 (hospitalised) + 0.2 (immunodeficiency) + ln(6.0) for the UTI syndrome antibiotic-initiation odds ratio = +3.39 before regional access modifiers, which is a high probability of starting antibiotics that day. If the same patient also has sepsis, a further +6.5 is added.</p>
-<p><strong>Regional variation in antibiotic access:</strong></p>
-<p>Not everyone who needs antibiotics can get them. The model captures the large global gradients in antibiotic access documented by consumption surveys (Klein EY et al., 2018):</p>
-<table>
-<thead>
-<tr>
-<th>Region</th>
-<th>Log-odds modifier</th>
-<th>Effect on prescribing</th>
 <th>Rationale</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>North America, Europe, Oceania</td>
-<td>0.0</td>
-<td>Reference</td>
-<td>Good pharmaceutical access</td>
+<td>Baseline (no symptoms)</td>
+<td>−5.5 (baseline odds 0.0041)</td>
+<td>Represents the fact that the person may not have presented for care, so represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016)</td>
 </tr>
 <tr>
-<td>Asia</td>
-<td>−0.5</td>
-<td>~38% reduction</td>
-<td>Variable access across countries</td>
+<td>Symptomatic infection</td>
+<td>+6.2 (odds ratio 500)</td>
+<td>Once a patient has an indication for testing or treatment, prescribing becomes likely</td>
 </tr>
 <tr>
-<td>South America</td>
-<td>−0.8</td>
-<td>~55% reduction</td>
-<td>Limited access in some settings</td>
+<td>Sepsis</td>
+<td>+6.5 (odds ratio 650)</td>
+<td>Sepsis is a medical emergency</td>
 </tr>
 <tr>
-<td>Africa</td>
-<td>−1.4</td>
-<td>~75% reduction</td>
-<td>Major access barriers in many countries</td>
+<td>Hospitalised</td>
+<td>+0.7 (odds ratio 2.0 )</td>
+<td>Inpatient care increases access to and opportunity for treatment</td>
+</tr>
+<tr>
+<td>Immunodeficiency</td>
+<td>+0.2 (odds ratio 1.25)</td>
+<td>Weak positive effect in isolation</td>
+</tr>
+<tr>
+<td>No clinical indication</td>
+<td>−1.1 (odds ratio 0.33)</td>
+<td>Background prescribing remains possible without an active modelled bacterial infection</td>
+</tr>
+<tr>
+<td>Lab-confirmed infection</td>
+<td>+0.92 (odds ratio 2.5 )</td>
+<td>Positive culture results prompt targeted therapy</td>
+</tr>
+<tr>
+<td>Already on an antibiotic</td>
+<td>+0.18 (odds ratio 1.2 )</td>
+<td>People taking an antibiotic may be started on an additional agent (combination therapy)</td>
+</tr>
+<tr>
+<td>UTI syndrome</td>
+<td>+1.79 (odds ratio 6.0)</td>
+<td>Common symptomatic outpatient presentation</td>
+</tr>
+<tr>
+<td>Skin/soft-tissue syndrome</td>
+<td>+1.79 (odds ratio 6.0)</td>
+<td>Cellulitis, wounds, and abscesses commonly prompt treatment</td>
+</tr>
+<tr>
+<td>Respiratory syndrome</td>
+<td>+2.30 (odds ratio 10.0)</td>
+<td>Pneumonia-like presentations often prompt antibiotics</td>
+</tr>
+<tr>
+<td>Bloodstream syndrome</td>
+<td>+2.77 (odds ratio 16.0)</td>
+<td>Bacteraemia creates a strong treatment imperative</td>
+</tr>
+<tr>
+<td>Intra-abdominal syndrome</td>
+<td>+2.30 (odds ratio 10.0)</td>
+<td>Severe abdominal infection usually requires prompt systemic treatment</td>
+</tr>
+<tr>
+<td>CNS syndrome</td>
+<td>+2.64 (odds ratio 14.0)</td>
+<td>Meningitis or brain abscess should trigger urgent antibiotics</td>
+</tr>
+<tr>
+<td>GI syndrome</td>
+<td>+2.08 (odds ratio 8.0)</td>
+<td>Severe diarrhoeal illness and dehydration drive presentation</td>
+</tr>
+<tr>
+<td>Genital/pelvic syndrome</td>
+<td>+2.48 (odds ratio 12.0)</td>
+<td>STI/PID syndromes often have guideline-driven treatment</td>
+</tr>
+<tr>
+<td>Bone/joint syndrome</td>
+<td>+1.39 (odds ratio 4.0)</td>
+<td>Important but often less immediately explosive</td>
+</tr>
+<tr>
+<td>Other syndrome</td>
+<td>+1.39 (odds ratio 4.0)</td>
+<td>Modest increase for recognised infectious presentations</td>
 </tr>
 </tbody>
 </table>
-<p>These access barriers produce a well-recognised tension: in settings where antibiotics are hard to obtain, selection pressure for resistance is lower, but people die of treatable infections. The model captures both sides. The regional prescribing modifiers should therefore be read as <strong>effective access-and-behaviour terms</strong> combining healthcare access, affordability, dispensing practice, and care-seeking, rather than as pure pharmacy-supply measurements (Klein EY et al., 2018).</p>
+<p>If more than one infectious syndrome is active, the model applies only the largest syndrome odds ratio. These effects influence whether any antibiotic is started; the separate drug–bacterium <code>initiation_multiplier</code> values in Section 6.2 influence which drug is selected.</p>
+<p><strong>Regional variation in antibiotic access:</strong></p>
+<p>The model captures the large global gradients in antibiotic access (Klein EY et al., 2018):</p>
+<p>| Region | Log-odds modifier | Effect on prescribing | 
+|--------|------------------|----------------------|-----------|
+| North America, Europe, Oceania | 0.0 | Reference | 
+| Asia | −0.5 | ~38% reduction | 
+| South America | −0.8 | ~55% reduction | 
+| Africa | −1.4 | ~75% reduction | </p>
 <h3 id="62-drug-selection-choosing-which-antibiotic-to-use">6.2 Drug selection — choosing which antibiotic to use</h3>
-<p>Once it is decided that a person is being started on an antibiotic it must choose <em>which</em> antibiotic. The choice depends on the information available at the time of prescribing and on the reason the start was triggered.</p>
-<p><strong>Three diagnostic information stages:</strong></p>
+<p>The choice of drug depends on the information available at the time of prescribing and on the reason the start was triggered.</p>
+<p><strong>Diagnostic information stages:</strong></p>
 <ol>
 <li>
-<p><strong>Empiric therapy</strong> — the treater (or individual self-treating in some situations) has no lab results (yet) and must choose a drug on syndromic grounds. The model uses syndrome-specific scoring templates (see below) to approximate this guideline-anchored prescribing, and does not use hidden knowledge of the true causative bacterium or the bacterium-drug potency matrix at this stage. If there is no positive syndrome-specific empiric prescribing signal, the candidate drug is heavily penalised as having no usual empiric role for that syndrome, rather than being allowed to compete only because it is broad-spectrum or widely available. In the current model, a positive empiric signal means a syndrome-template score above the neutral baseline; a score of 1.0 is neutral/background and is not treated as positive. This is distinct from intrinsic bacterium-drug potency, which is used once the organism is identified.</p>
+<p><strong>Empiric therapy</strong> — the treater (or individual self-treating in some situations) has no lab results and must choose a drug on syndromic (and availability) grounds. The model assigns syndrome-specific scores for each drug representing the relative probability they would be expected to be chosen, and then selects a drug at random taking these into account.</p>
 </li>
 <li>
-<p><strong>Bacterium identified, AST pending</strong> — the model can use the identified bacterium, its baseline drug potency, organism-specific prescribing preferences, and relevant regional resistance surveillance. It does not use the bacterium's underlying modelled acquired resistance or an AST result that is not yet available.</p>
+<p><strong>Bacterium identified, AST pending</strong> — the treater can use the identified bacterium, knowledge of the potency of each drug against the bacteria (when no resistance present), organism-specific prescribing preferences, and relevant regional resistance surveillance information. It does not use the bacterium's underlying modelled acquired resistance without an AST result being available.</p>
 </li>
 <li>
-<p><strong>Susceptibility-informed therapy</strong> — once AST is available, the reported results are added to the information used for drug selection. A drug reported as resistant is excluded. The underlying modelled resistance remains distinct from the reported result and is not supplied directly to prescribing.</p>
+<p><strong>Susceptibility-informed therapy</strong> — once AST is available, the reported results are added to the information used for drug selection. A drug reported as resistant is excluded from consideration. The underlying modelled resistance remains distinct from the reported result (which is subject to some possible error) and is not supplied directly to prescribing.</p>
 </li>
 </ol>
-<p>The second and third stages are both recorded as <code>Targeted</code> treatment in the current output categories. Identified treatment strongly rewards narrow-spectrum choices (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.45 penalty), reflecting the principle of antibiotic de-escalation that sits at the core of antimicrobial stewardship guidance and is supported by hospital stewardship evidence from Europe and Asia (Barlam TF et al., 2016; Schuts EC et al., 2016; Lee CF et al., 2018).</p>
+<p>The second and third stages are both recorded as <code>Targeted</code> treatment in the current output categories. Identified treatment strongly rewards narrow-spectrum choices (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.45 penalty), reflecting the principle of antibiotic de-escalation and stewardship guidance (Barlam TF et al., 2016; Schuts EC et al., 2016; Lee CF et al., 2018).</p>
 <p><strong>Drug scoring algorithm:</strong></p>
-<p>For each candidate drug, the model calculates a score based on several factors. The final candidate scores are converted into weighted probabilities rather than choosing the single highest-scoring drug every time. The configuration parameter <code>drug_selection_temperature</code> is best read as a <strong>prescribing-variability setting</strong>. With the baseline value of <strong>0.55</strong>, the model usually selects one of the highest-scoring drugs, but it can still choose another clinically plausible option. Smaller values reduce this variability; larger values make prescribing more dispersed across available options.</p>
-<p>The current model also records the <strong>context</strong> in which a course starts. This is important for interpreting drug-use outputs:</p>
+<p>For each eligible candidate drug, the model calculates a score, <em>s</em>. It converts this to a selection weight using <code>w = s^(1/T)</code>, where <em>T</em> is <code>drug_selection_temperature</code>, and samples a drug in proportion to these weights. At <em>T</em> = 1, the scores are used directly as weights. The current value, 0.55, increases the influence of score differences; lower values concentrate selection further on high-scoring drugs, whereas higher values produce more varied choices.</p>
+<p>The empiric syndrome-drug score values are listed in <a href="#non-default-syndrome-empiric-drug-scores">Appendix B.7</a>, with their <a href="#time-varying-syndrome-empiric-score-values">historical values</a>. Identified-organism drug-choice multipliers are in the <code>Init multiplier</code> column of <a href="#b4-drugbacteria-potency-matrix">Appendix B.4</a>, followed by their <a href="#time-varying-drug-initiation-values">historical values</a>.</p>
+<p>The model also records the <strong>context</strong> in which a course starts:</p>
 <ul>
 <li>A symptomatic infection without organism identification is recorded as <code>Empiric</code> and uses the active syndrome templates.</li>
 <li>A symptomatic, identified infection is recorded as <code>Targeted</code> and uses organism-specific potency and prescribing preferences, with reported susceptibility results added when available.</li>
 <li>An immunodeficient person without symptomatic infection enters a small <code>Prophylaxis</code> pool rather than the general empiric pool.</li>
-<li>A person with an active modelled bacterial infection that has not caused symptoms can still start treatment through the background syndrome-0 scoring path, but the course is recorded as <code>OtherActiveAsymptomaticModelledBacterialInfection</code>. The unobserved infection syndrome is not supplied to drug selection.</li>
-<li>A start with <strong>no active modelled bacterial infection</strong> and no prophylaxis indication is recorded as <code>OtherNoActiveModelledInfection</code> and uses syndrome 0 as a background prescribing template.</li>
+<li>A person with an active modelled bacterial infection that has not caused symptoms can still start treatment through the background prescribing template (internally, syndrome 0), but the course is recorded as <code>OtherActiveAsymptomaticModelledBacterialInfection</code>. The unobserved infection syndrome is not supplied to drug selection.</li>
+<li>A start with <strong>no active modelled bacterial infection</strong> and no prophylaxis indication is recorded as <code>OtherNoActiveModelledInfection</code> and uses the same background prescribing template.</li>
 </ul>
-<p>Syndrome 0 is therefore not an eleventh clinical infection syndrome. It is a background / off-model prescribing distribution for situations such as diagnostic uncertainty, viral-like illness, non-modelled infections, dental or procedural use, self-medication, and pharmacy supply without prescription. Its per-drug scores are relative weights, not probabilities. They shape drug choice only after the model has already sampled a start-any-antibiotic event, and they still pass through the usual era, regional availability, allergy, age contraindication, reserve-drug, and compartment/niche-drug restrictions. The current syndrome 0 template strongly favours common community oral agents and assigns trace scores to hospital-only, reserve, and novel agents so these do not compete meaningfully in no-active-infection starts.</p>
-<p><strong>Historical empiric syndrome-era scores.</strong> Empiric prescribing templates can also have time-varying syndrome-drug values of the form <code>syndrome_&lt;id&gt;_empiric_drug_&lt;drug&gt;_score_before_&lt;YYYY&gt;</code>. These are used only in the empiric scenario, before organism identification. They allow the model to represent historical syndromic prescribing practice without giving the clinician hidden knowledge of the true organism. For example, genital/STI syndrome prescribing can favour sulfonamides, penicillin, tetracyclines, fluoroquinolones, cephalosporins, or azithromycin in the eras when those drugs were used empirically for urethritis/cervicitis/PID or suspected gonorrhoea. The same naming pattern can be used for other syndromes in future if their empiric guideline history needs to vary by era.</p>
-<p>These syndrome-era scores are separate from drug-bacterium <code>initiation_multiplier_before_&lt;YYYY&gt;</code> values. Syndrome-era scores answer "what was commonly chosen empirically for this clinical syndrome before microbiology results?"; drug-bacterium multipliers answer "once a bacterium is identified, how strongly does prescribing favour this drug-organism pair?". Drug introduction dates and regional availability restrictions still apply to both pathways, so an era score cannot make a drug available before it exists in the simulation.</p>
+<p>As introduced in <a href="#41-syndrome-assignment">Section 4.1</a>, syndrome 0 is a background prescribing distribution for situations such as diagnostic uncertainty, viral-like illness, non-modelled infections, self-medication, and pharmacy supply without prescription.</p>
+<p><strong>Historical empiric syndrome-era scores.</strong> Empiric prescribing templates can also have time-varying syndrome-drug values of the form <code>syndrome_&lt;id&gt;_empiric_drug_&lt;drug&gt;_score_before_&lt;YYYY&gt;</code>. These are used only in the empiric scenario, before organism identification. They allow the model to represent historical syndromic prescribing practice. For example, genital/STI syndrome prescribing can favour sulfonamides, penicillin, tetracyclines, fluoroquinolones, cephalosporins, or azithromycin in the eras when those drugs were used empirically for urethritis/cervicitis/PID or suspected gonorrhoea.</p>
+<p><strong>Factors used to score candidate drugs.</strong></p>
 <table>
 <thead>
 <tr>
@@ -27659,7 +27597,7 @@ their names describe the intended column structure, not downloaded observations.
 </tbody>
 </table>
 <h3 id="b7-syndrome-parameters">B.7 Syndrome Parameters</h3>
-<p>Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.</p>
+<p>Infection-site (syndrome) specific parameters. The ten clinical syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other. ID 0 (<code>none</code>) is a reserved no-syndrome value rather than an eleventh clinical syndrome; it also identifies the background prescribing template described in <a href="#41-syndrome-assignment">Section 4.1</a>.</p>
 <p>See: <a href="#41-syndrome-assignment">§4.1 Syndrome assignment</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#64-drug-penetration-by-syndrome">§6.4 Drug penetration by syndrome</a>.</p>
 <h4 id="syndrome-level-clinical-numeric-parameters">Syndrome-Level Clinical Numeric Parameters</h4>
 <table>
