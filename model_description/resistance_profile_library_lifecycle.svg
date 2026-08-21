@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="843" viewBox="0 0 1400 1180" role="img" aria-labelledby="title description">
+  <title id="title">How the circulating resistance-profile library is built and maintained</title>
+  <desc id="description">Feedback-loop diagram showing how active infection-days provide predominant-strain resistance profiles, how profiles are grouped and blended into bounded circulating libraries each day, how the libraries support complete-profile sampling and prevalence estimates, and how a separate local persistence archive can reseed profiles without contributing to current prevalence.</desc>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7656a7"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .title { font: 700 32px "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px "Segoe UI", Arial, sans-serif; fill: #526579; }
+      .box-title { font: 700 20px "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .box-text { font: 400 17px "Segoe UI", Arial, sans-serif; fill: #26394d; }
+      .small { font: 400 15px "Segoe UI", Arial, sans-serif; fill: #526579; }
+      .label { font: 700 16px "Segoe UI", Arial, sans-serif; fill: #475569; }
+      .arrow { fill: none; stroke: #475569; stroke-width: 3; marker-end: url(#arrow); }
+      .archive-arrow { fill: none; stroke: #7656a7; stroke-width: 3; stroke-dasharray: 9 7; marker-end: url(#arrow-purple); }
+      .panel { stroke-width: 2.5; filter: url(#shadow); }
+    </style>
+  </defs>
+
+  <rect width="1400" height="1180" fill="#f8fafc"/>
+
+  <text x="700" y="48" text-anchor="middle" class="title">How the circulating resistance-profile library is maintained</text>
+  <text x="700" y="79" text-anchor="middle" class="subtitle">Active-infection profiles are collected and blended into the stored libraries after every simulated day</text>
+
+  <rect x="285" y="105" width="830" height="58" rx="18" fill="#e8f1fb" stroke="#3973a5" stroke-width="2"/>
+  <text x="700" y="141" text-anchor="middle" style="font: 700 18px 'Segoe UI', Arial, sans-serif; fill: #234f76;">A separate library is maintained for each region × current care setting × bacterium</text>
+
+  <rect x="30" y="220" width="310" height="250" rx="16" fill="#eaf7ef" stroke="#3d8a60" class="panel"/>
+  <text x="185" y="258" text-anchor="middle" class="box-title">Active infection-days</text>
+  <text x="185" y="298" text-anchor="middle" class="box-text">
+    <tspan x="185" dy="0">Every active infection-day</tspan>
+    <tspan x="185" dy="24">is eligible to contribute.</tspan>
+    <tspan x="185" dy="34">Record the predominant strain's</tspan>
+    <tspan x="185" dy="24">complete mechanism profile.</tspan>
+    <tspan x="185" dy="34" class="small">An empty profile is included.</tspan>
+    <tspan x="185" dy="23" class="small">An ongoing infection remains eligible</tspan>
+    <tspan x="185" dy="21" class="small">on each subsequent day.</tspan>
+  </text>
+
+  <path d="M 340 345 L 380 345" class="arrow"/>
+  <rect x="380" y="220" width="310" height="250" rx="16" fill="#e8f1fb" stroke="#3973a5" class="panel"/>
+  <text x="535" y="258" text-anchor="middle" class="box-title">Today's profile collections</text>
+  <text x="535" y="298" text-anchor="middle" class="box-text">
+    <tspan x="535" dy="0">Group profiles by effective region,</tspan>
+    <tspan x="535" dy="24">the person's current care setting,</tspan>
+    <tspan x="535" dy="24">and bacterium.</tspan>
+    <tspan x="535" dy="34">If more than 1,000 are eligible,</tspan>
+    <tspan x="535" dy="24">retain a uniform sample of 1,000.</tspan>
+    <tspan x="535" dy="28" class="small">Current setting—not original acquisition</tspan>
+    <tspan x="535" dy="21" class="small">setting—is used.</tspan>
+  </text>
+
+  <path d="M 690 345 L 730 345" class="arrow"/>
+  <rect x="730" y="220" width="310" height="250" rx="16" fill="#f2edfb" stroke="#7656a7" class="panel"/>
+  <text x="885" y="258" text-anchor="middle" class="box-title">Daily library refresh</text>
+  <text x="885" y="298" text-anchor="middle" class="box-text">
+    <tspan x="885" dy="0">Randomly retain old profiles using</tspan>
+    <tspan x="885" dy="24">the setting-specific retention rate.</tspan>
+    <tspan x="885" dy="34">Fill the resulting vacancies with</tspan>
+    <tspan x="885" dy="24">a uniform sample from today's collection.</tspan>
+    <tspan x="885" dy="34" class="small">Retention does not favour resistant</tspan>
+    <tspan x="885" dy="23" class="small">or mechanism-free profiles.</tspan>
+  </text>
+
+  <path d="M 1040 345 L 1080 345" class="arrow"/>
+  <rect x="1080" y="220" width="290" height="250" rx="16" fill="#edf2f7" stroke="#64748b" class="panel"/>
+  <text x="1225" y="254" text-anchor="middle" class="box-title">
+    <tspan x="1225" dy="0">Updated circulating</tspan>
+    <tspan x="1225" dy="24">profile library</tspan>
+  </text>
+  <text x="1225" y="323" text-anchor="middle" class="box-text">
+    <tspan x="1225" dy="0">Up to 1,000 complete profiles</tspan>
+    <tspan x="1225" dy="24">in each library.</tspan>
+    <tspan x="1225" dy="34">Represents active-infection</tspan>
+    <tspan x="1225" dy="24">person-days with and without</tspan>
+    <tspan x="1225" dy="24">modelled acquired resistance.</tspan>
+  </text>
+
+  <path d="M 1225 220 L 1225 188 L 885 188 L 885 220" class="arrow"/>
+  <text x="1055" y="181" text-anchor="middle" class="label">becomes the old library at the next refresh</text>
+
+  <path d="M 535 470 L 535 525 L 255 525 L 255 580" class="archive-arrow"/>
+  <rect x="45" y="580" width="420" height="205" rx="16" fill="#f5f1fb" stroke="#7656a7" stroke-dasharray="9 7" class="panel"/>
+  <text x="255" y="618" text-anchor="middle" class="box-title">Separate local persistence archive</text>
+  <text x="255" y="650" text-anchor="middle" class="box-text">
+    <tspan x="255" dy="0">Retains a complete observed</tspan>
+    <tspan x="255" dy="22">resistance-mechanism profile when a mechanism</tspan>
+    <tspan x="255" dy="22">first establishes locally.</tspan>
+    <tspan x="255" dy="29">Deduplicated historical profiles can later</tspan>
+    <tspan x="255" dy="22">be sampled on the human-reservoir route.</tspan>
+    <tspan x="255" dy="28" class="small">It is not part of current prevalence estimates.</tspan>
+  </text>
+
+  <path d="M 1225 470 L 1225 520 L 755 520 L 755 580" class="arrow"/>
+  <rect x="535" y="580" width="440" height="205" rx="16" fill="#e8f1fb" stroke="#3973a5" class="panel"/>
+  <text x="755" y="618" text-anchor="middle" class="box-title">Complete-profile sampling</text>
+  <text x="755" y="655" text-anchor="middle" class="box-text">
+    <tspan x="755" dy="0">Sample one intact profile for a new infection</tspan>
+    <tspan x="755" dy="24">or carriage acquisition using the</tspan>
+    <tspan x="755" dy="24">human-reservoir route.</tspan>
+    <tspan x="755" dy="34" class="small">This preserves combinations of mechanisms</tspan>
+    <tspan x="755" dy="23" class="small">already observed together in a simulated strain.</tspan>
+  </text>
+
+  <path d="M 465 683 L 535 683" class="archive-arrow"/>
+  <text x="500" y="669" text-anchor="middle" class="small">possible source</text>
+
+  <path d="M 1270 470 L 1270 580" class="arrow"/>
+  <rect x="1025" y="580" width="345" height="205" rx="16" fill="#eaf7ef" stroke="#3d8a60" class="panel"/>
+  <text x="1197" y="618" text-anchor="middle" class="box-title">Current resistance prevalence</text>
+  <text x="1197" y="655" text-anchor="middle" class="box-text">
+    <tspan x="1197" dy="0">For each drug, calculate the fraction</tspan>
+    <tspan x="1197" dy="24">of stored profiles containing at least</tspan>
+    <tspan x="1197" dy="24">one mechanism affecting that drug.</tspan>
+    <tspan x="1197" dy="34" class="small">Used by prescribing logic.</tspan>
+    <tspan x="1197" dy="23" class="small">The persistence archive is excluded.</tspan>
+  </text>
+
+  <path d="M 755 785 L 755 835" class="arrow"/>
+  <rect x="525" y="835" width="460" height="105" rx="16" fill="#e5f5ec" stroke="#2f855a" class="panel"/>
+  <text x="755" y="875" text-anchor="middle" class="box-title">New infections receive sampled profiles</text>
+  <text x="755" y="908" text-anchor="middle" class="small">
+    <tspan x="755" dy="0">If they remain active, their predominant profiles</tspan>
+    <tspan x="755" dy="21">can contribute on later days.</tspan>
+  </text>
+
+  <path d="M 755 940 L 755 1040 L 18 1040 L 18 345 L 30 345" class="arrow"/>
+  <text x="382" y="1026" text-anchor="middle" class="label">feedback into subsequent daily profile collections</text>
+</svg>

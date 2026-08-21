@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1071" viewBox="0 0 1400 1500" role="img" aria-labelledby="title description">
+  <title id="title">How the model assigns a resistance profile to a newly acquired bacterial infection</title>
+  <desc id="description">Flow diagram showing the hospital human-reservoir, community human-reservoir, and community exogenous routes; a callout explains the dynamic ratchet as historical resistance memory. The routes are followed by MDR-TB and same-person carriage additions and end with either an assembled acquired-resistance profile or no modelled acquired resistance.</desc>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3d8a60"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .title { font: 700 32px "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px "Segoe UI", Arial, sans-serif; fill: #526579; }
+      .box-title { font: 700 21px "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .box-text { font: 400 18px "Segoe UI", Arial, sans-serif; fill: #26394d; }
+      .small { font: 400 16px "Segoe UI", Arial, sans-serif; fill: #526579; }
+      .code { font: 600 16px Consolas, "Courier New", monospace; fill: #334155; }
+      .decision { font: 700 19px "Segoe UI", Arial, sans-serif; fill: #5f4300; }
+      .label { font: 700 17px "Segoe UI", Arial, sans-serif; fill: #475569; }
+      .callout-subtitle { font: 600 15px "Segoe UI", Arial, sans-serif; fill: #3d6f53; }
+      .callout-text { font: 400 14.5px "Segoe UI", Arial, sans-serif; fill: #355645; }
+      .arrow { fill: none; stroke: #475569; stroke-width: 3; marker-end: url(#arrow); }
+      .callout-arrow { fill: none; stroke: #3d8a60; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#arrow-green); }
+      .panel { stroke-width: 2.5; filter: url(#shadow); }
+    </style>
+  </defs>
+
+  <rect width="1400" height="1500" fill="#f8fafc"/>
+
+  <text x="700" y="48" text-anchor="middle" class="title">How a new infection receives its resistance profile</text>
+  <text x="700" y="79" text-anchor="middle" class="subtitle">Profile assembly only — prevention by antibiotics already being taken is intentionally omitted</text>
+
+  <rect x="500" y="110" width="400" height="70" rx="18" fill="#17324d" class="panel" stroke="#17324d"/>
+  <text x="700" y="153" text-anchor="middle" style="font: 700 23px 'Segoe UI', Arial, sans-serif; fill: #ffffff;">New bacterial infection</text>
+
+  <path d="M 700 180 L 700 200" class="arrow"/>
+  <polygon points="700,200 850,265 700,330 550,265" fill="#fff4d6" stroke="#b7791f" class="panel"/>
+  <text x="700" y="258" text-anchor="middle" class="decision">
+    <tspan x="700" dy="0">Acquired while the person</tspan>
+    <tspan x="700" dy="25">is in hospital?</tspan>
+  </text>
+
+  <path d="M 850 265 L 980 265" class="arrow"/>
+  <text x="902" y="246" text-anchor="middle" class="label">Yes</text>
+  <rect x="980" y="190" width="370" height="150" rx="16" fill="#e8f1fb" stroke="#3973a5" class="panel"/>
+  <text x="1165" y="224" text-anchor="middle" class="box-title">Hospital human-reservoir route</text>
+  <text x="1165" y="258" text-anchor="middle" class="box-text">
+    <tspan x="1165" dy="0">Sample one complete profile from the</tspan>
+    <tspan x="1165" dy="24">regional hospital circulating library.</tspan>
+    <tspan x="1165" dy="29" class="small">Mechanism-free profiles may be down-weighted.</tspan>
+  </text>
+
+  <path d="M 700 330 L 700 347 L 400 347 L 400 365" class="arrow"/>
+  <text x="662" y="349" text-anchor="middle" class="label">No</text>
+  <polygon points="400,365 625,445 400,525 175,445" fill="#fff4d6" stroke="#b7791f" class="panel"/>
+  <text x="400" y="421" text-anchor="middle" class="decision">
+    <tspan x="400" dy="0">Select the community</tspan>
+    <tspan x="400" dy="25">human-reservoir route?</tspan>
+    <tspan x="400" dy="28" class="code">P = community_resistance_dilution_factor[b]</tspan>
+  </text>
+
+  <path d="M 330 500 L 330 565" class="arrow"/>
+  <text x="300" y="546" text-anchor="middle" class="label">Yes</text>
+  <rect x="40" y="565" width="580" height="160" rx="16" fill="#e8f1fb" stroke="#3973a5" class="panel"/>
+  <text x="330" y="601" text-anchor="middle" class="box-title">Community human-reservoir route</text>
+  <text x="330" y="635" text-anchor="middle" class="box-text">
+    <tspan x="330" dy="0">Sample one complete local profile from the</tspan>
+    <tspan x="330" dy="25">current community circulating library</tspan>
+    <tspan x="330" dy="25">or the local persistence archive.</tspan>
+    <tspan x="330" dy="29" class="small">A sampled profile can contain no acquired mechanisms.</tspan>
+  </text>
+
+  <path d="M 625 445 L 950 445 L 950 565" class="arrow"/>
+  <text x="670" y="426" text-anchor="middle" class="label">No</text>
+  <rect x="660" y="565" width="580" height="160" rx="16" fill="#eaf7ef" stroke="#3d8a60" class="panel"/>
+  <text x="950" y="601" text-anchor="middle" class="box-title">Community exogenous route</text>
+  <text x="950" y="635" text-anchor="middle" class="box-text">
+    <tspan x="950" dy="0">For each applicable mechanism, draw independently</tspan>
+    <tspan x="950" dy="25">using the higher of its environmental-assignment</tspan>
+    <tspan x="950" dy="25">probability and dynamic-ratchet probability.</tspan>
+    <tspan x="950" dy="29" class="small">All of the mechanism draws can fail.</tspan>
+  </text>
+
+  <path d="M 330 725 L 330 780 L 440 780" class="arrow"/>
+  <path d="M 950 725 L 950 760" class="arrow"/>
+  <path d="M 1350 265 L 1370 265 L 1370 740 L 960 740 L 960 760" class="arrow"/>
+  <path d="M 1110 725 L 1110 755" class="callout-arrow"/>
+  <rect x="440" y="760" width="520" height="120" rx="16" fill="#edf2f7" stroke="#64748b" class="panel"/>
+  <text x="700" y="801" text-anchor="middle" class="box-title">Base resistance-mechanism profile</text>
+  <text x="700" y="835" text-anchor="middle" class="box-text">
+    <tspan x="700" dy="0">A sampled complete profile, independently assembled</tspan>
+    <tspan x="700" dy="25">mechanisms, or an empty profile</tspan>
+  </text>
+
+  <rect x="1000" y="755" width="360" height="155" rx="15" fill="#f0faf4" stroke="#3d8a60" stroke-dasharray="8 6" class="panel"/>
+  <text x="1180" y="785" text-anchor="middle" class="box-title">Dynamic ratchet</text>
+  <text x="1180" y="809" text-anchor="middle" class="callout-subtitle">Historical resistance memory</text>
+  <text x="1180" y="837" text-anchor="middle" class="callout-text">
+    <tspan x="1180" dy="0">For each eligible mechanism, the model</tspan>
+    <tspan x="1180" dy="19">remembers the highest community prevalence</tspan>
+    <tspan x="1180" dy="19">reached and maintains an exogenous reseeding</tspan>
+    <tspan x="1180" dy="19">probability if current prevalence later falls.</tspan>
+  </text>
+
+  <path d="M 700 880 L 700 925" class="arrow"/>
+  <rect x="220" y="925" width="960" height="185" rx="16" fill="#f2edfb" stroke="#7656a7" class="panel"/>
+  <text x="700" y="965" text-anchor="middle" class="box-title">Add mechanisms supplied by two further rules, when applicable</text>
+  <circle cx="274" cy="1010" r="17" fill="#7656a7"/>
+  <text x="274" y="1016" text-anchor="middle" style="font: 700 16px 'Segoe UI', Arial, sans-serif; fill: #ffffff;">1</text>
+  <text x="310" y="1004" class="box-text">
+    <tspan x="310" dy="0"><tspan font-weight="700">MDR-TB from 1966 onward:</tspan> add the rifampicin-resistance mechanism when the rule is enabled.</tspan>
+  </text>
+  <circle cx="274" cy="1057" r="17" fill="#7656a7"/>
+  <text x="274" y="1063" text-anchor="middle" style="font: 700 16px 'Segoe UI', Arial, sans-serif; fill: #ffffff;">2</text>
+  <text x="310" y="1051" class="box-text">
+    <tspan x="310" dy="0"><tspan font-weight="700">The person carries the same bacterium:</tspan> apply the inheritance gate, then a separate</tspan>
+    <tspan x="310" dy="25">copying draw for each eligible carried mechanism. Copied mechanisms begin as a minority.</tspan>
+  </text>
+
+  <path d="M 700 1110 L 700 1150" class="arrow"/>
+  <polygon points="700,1150 925,1230 700,1310 475,1230" fill="#fff4d6" stroke="#b7791f" class="panel"/>
+  <text x="700" y="1210" text-anchor="middle" class="decision">
+    <tspan x="700" dy="0">Does the assembled profile contain</tspan>
+    <tspan x="700" dy="25">any modelled acquired-resistance</tspan>
+    <tspan x="700" dy="25">mechanism?</tspan>
+  </text>
+
+  <path d="M 475 1230 L 270 1230 L 270 1360" class="arrow"/>
+  <text x="425" y="1211" text-anchor="middle" class="label">No</text>
+  <rect x="55" y="1360" width="520" height="105" rx="16" fill="#f1f5f9" stroke="#64748b" class="panel"/>
+  <text x="315" y="1401" text-anchor="middle" class="box-title">No modelled acquired resistance</text>
+  <text x="315" y="1434" text-anchor="middle" class="small">The mechanism profile is empty; intrinsic non-susceptibility</text>
+  <text x="315" y="1457" text-anchor="middle" class="small">is still represented separately through drug–bacterium potency.</text>
+
+  <path d="M 925 1230 L 1130 1230 L 1130 1360" class="arrow"/>
+  <text x="976" y="1211" text-anchor="middle" class="label">Yes</text>
+  <rect x="825" y="1360" width="520" height="105" rx="16" fill="#e5f5ec" stroke="#2f855a" class="panel"/>
+  <text x="1085" y="1401" text-anchor="middle" class="box-title">Final acquired-resistance profile</text>
+  <text x="1085" y="1434" text-anchor="middle" class="small">All assembled mechanisms are retained; the model subsequently</text>
+  <text x="1085" y="1457" text-anchor="middle" class="small">derives drug-specific resistance from this mechanism set.</text>
+</svg>

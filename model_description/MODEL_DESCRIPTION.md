@@ -1007,18 +1007,10 @@ This section describes how the model represents the biology of resistance emerge
 
 All resistance terms in this section refer to acquired, mechanism-mediated resistance. This includes mechanisms already present in a resistance-mechanism profile sampled when infection or carriage is acquired. Intrinsic or baseline non-susceptibility is encoded through low or zero **potency** and is **not** part of the mechanism records, `any_r`, or `microbiome_r`.
 
-**Individual-level variables used in this section.** The active-infection mechanism records and derived drug resistance introduced in Section 3 (`mechanism_any[b]`, `mechanism_majority[b]`, and `resistances[b][d].any_r`) are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in `mechanism_microbiome[b]` and `resistances[b][d].microbiome_r`; the wider carriage state is described in Section 8. At acquisition, `local_profile_sampling_probability[b]` is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (`de_novo_emergence_probability[b,m]`, `minority_promotion_probability[b,m]`, and `mechanism_reversion_probability[b,m]`). Optional provenance tracking is recorded in `how_resistance_acquired[b][d]`. Population-level resistance-mechanism profile libraries and historical prevalence records are described here but are not individual-level variables. Full definitions and update rules for the individual-level variables are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+**Individual-level variables used in this section.** The active-infection mechanism records (`mechanism_any[b]`, `mechanism_majority[b]`) and derived drug resistance `resistances[b][d].any_r` introduced in Section 3 are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in `mechanism_microbiome[b]` and `resistances[b][d].microbiome_r`; the wider carriage state is described in Section 8. At acquisition, `local_profile_sampling_probability[b]` is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (`de_novo_emergence_probability[b,m]`, `minority_promotion_probability[b,m]`, and `mechanism_reversion_probability[b,m]`). Full definitions and update rules for the individual-level variables are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
-**Mechanism-centred architecture.** For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code, these three records are `mechanism_any`, `mechanism_majority`, and `mechanism_microbiome`, while the derived drug-level resistance measures include `any_r` and `microbiome_r`. At population level, MechanismCache maintains the circulating resistance-mechanism profile library, the bounded local establishment archive, and the historical peak-prevalence records used by the ratchet.
+**Mechanism-centred architecture.** For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code, these three records are `mechanism_any` (at least a minority of the infecting bacteria have this mechanism), `mechanism_majority` (the majority of infecting bacteria have this mechanism), and `mechanism_microbiome` (the bacteria in the microbiome carry this mechanism), while the derived drug-level resistance measures are `any_r` (on a scale of 0-1 the extent to which the underling potency of the drug against the actively-infecting bacteria is undermined by the resistance mechanisms present) and `microbiome_r` (the same for bacteria in the microbiome). At population level, MechanismCache maintains the circulating resistance-mechanism profile library, the bounded local establishment archive, and the historical peak-prevalence records used by the "ratchet" (see below).
 
-For each bacterium–mechanism pair, the current code assigns one of four implementation statuses using the reviewed host–mechanism correspondence, the configured de novo emergence rate, and whether the mechanism is generically HGT-transferable:
-
-`ExcludedHost`: the pair is outside the current biological/model scope. Host-eligibility checks prevent the mechanism from being introduced, transferred or used to derive resistance for that bacterium.
-`EligibleNoDeNovo`: the host is eligible, but the configured de novo rate is zero and the mechanism is not HGT-transferable. The mechanism can nevertheless be present if supplied by a compatible circulating profile or a separately configured exogenous or special source.
-`HgtOnly`: the host is eligible, the configured de novo rate is zero, and the mechanism is HGT-transferable. Actual HGT additionally requires a donor carrying the mechanism, a shared compartment and a positive configured donor–recipient HGT probability. The mechanism may also be supplied by another configured source, so this status does not establish that HGT is its only route or that a reachable donor exists.
-`DeNovo`: the host is eligible and has a positive configured de novo emergence rate. Other configured acquisition routes may also operate, including HGT where the mechanism is transferable.
-
-Environmental and ratchet floors, configured donor–recipient HGT probabilities, and the special MDR-TB rifampicin-resistance rule are evaluated separately and do not contribute to this four-state status. Circulating-profile sampling, carriage inheritance, local persistence and ratchet reseeding are restricted by host compatibility, but the current code does not calculate overall source reachability. The statuses therefore enforce host scope and de novo eligibility, rather than providing a complete classification of all possible mechanism sources.
 
 
 ### 7.1 Resistance mechanisms
@@ -1077,35 +1069,37 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
   | Siderophore uptake | `mutation_siderophore_uptake` | Chromosomal alteration or loss of ferric-siderophore uptake used by cefiderocol | `cefiderocol` | Enterobacterales and Nonfermenters |
 
+For each bacterium–mechanism pair, the current code assigns one of four implementation statuses using the reviewed host–mechanism correspondence, the configured de novo emergence rate, and whether the mechanism is generically HGT-transferable:
 
+`ExcludedHost`: the pair is outside the current biological/model scope. Host-eligibility checks prevent the mechanism from being introduced, transferred or used to derive resistance for that bacterium.
+`EligibleNoDeNovo`: the host is eligible, but the configured de novo rate is zero and the mechanism is not HGT-transferable. The mechanism can nevertheless be present if supplied by a compatible circulating profile or a separately configured exogenous or special source.
+`HgtOnly`: the host is eligible, the configured de novo rate is zero, and the mechanism is HGT-transferable. Actual HGT additionally requires a donor carrying the mechanism, a shared compartment and a positive configured donor–recipient HGT probability. The mechanism may also be supplied by another configured source, so this status does not establish that HGT is its only route or that a reachable donor exists.
+`DeNovo`: the host is eligible and has a positive configured de novo emergence rate. Other configured acquisition routes may also operate, including HGT where the mechanism is transferable.
+
+Environmental and ratchet floors, configured donor–recipient HGT probabilities, and the special MDR-TB rifampicin-resistance rule are evaluated separately and do not contribute to this four-state status. Circulating-profile sampling, carriage inheritance, local persistence and ratchet reseeding are restricted by host compatibility, but the current code does not calculate overall source reachability. The statuses therefore enforce host scope and de novo eligibility, rather than providing a complete classification of all possible mechanism sources.
 
 ### 7.2 Mechanism–drug-class enhancement multipliers
 
-Each mechanism a bacterium has **reduces** drug efficacy by a specific amount. The "enhancement multiplier" (0.0–1.0) represents by **how much** a drug's effectiveness is reduced:
+Each mechanism a bacterium has **reduces** drug efficacy by a specific amount. The "enhancement multiplier" (0.0–1.0) represents by **how much** a drug's effectiveness is considered to be reduced (i.e. by what proportion the drug activity is reduced as a result of the mechanism being present):
 
 - **0.0** = the mechanism has no effect on this drug (e.g., a tetracycline efflux pump does nothing against meropenem)
-- **0.95** = the mechanism eliminates 95% of the drug's activity (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)
+- **0.95** = the mechanism eliminates 95% of the drug's activity  (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)
 - **1.0** = complete acquired resistance - the mechanism being present removes all of the drug's baseline activity (the same final loss of activity as a potency of 0)
 
-There are 46 mechanisms × 39 drug classes = 1,794 underlying mechanism-class values. A non-zero value affects a simulated bacterium-drug pair only when the mechanism is permitted for the bacterial host and the drug-specific `mechanism_applies_to_drug` condition is met. Values for non-applicable pairs have no effect. The table below shows the **global reference** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):
+There are 46 mechanisms × 39 drug classes = 1,794 underlying mechanism-class values. A non-zero value affects a simulated bacterium-drug pair only when the mechanism is permitted for the bacterial host and the drug-specific `mechanism_applies_to_drug` condition is met. Values for non-applicable pairs have no effect. The table below shows the **global reference** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified).  Below we discuss a few examples.
 
-These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.
-
-The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for the plain-penicillin class and a general value of zero when no class-specific value is supplied. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.
-
-The protected beta-lactam combinations use mechanism-specific substrate logic. NDM/VIM has a `0.95` effect against both ceftazidime-avibactam and meropenem-vaborbactam because neither inhibitor blocks a class B metallo-beta-lactamase and the partner beta-lactams remain vulnerable. NDM/VIM has no direct effect on plain or avibactam-protected aztreonam. OXA-48 has the same `0.70` model effect against meropenem-vaborbactam as against group-2 carbapenems because vaborbactam does not inhibit OXA-48; its direct aztreonam-avibactam effect is zero. Co-produced mechanisms continue to combine independently, so these protected-aztreonam exceptions do not imply perfect activity against every multi-mechanism strain.
+The two narrow-spectrum penicillinase routes use an explicit `0.90` effect for the plain-penicillin class and a general value of zero when no class-specific value is supplied. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.   The protected beta-lactam combinations use mechanism-specific substrate logic. NDM/VIM has a `0.95` effect against both ceftazidime-avibactam and meropenem-vaborbactam because neither inhibitor blocks a class B metallo-beta-lactamase and the partner beta-lactams remain vulnerable. NDM/VIM has no direct effect on plain or avibactam-protected aztreonam. OXA-48 has the same `0.70` model effect against meropenem-vaborbactam as against group-2 carbapenems because vaborbactam does not inhibit OXA-48; its direct aztreonam-avibactam effect is zero. Co-produced mechanisms continue to combine independently, so these protected-aztreonam exceptions do not imply perfect activity against every multi-mechanism strain.
 
 Plasmid CMY, plasmid DHA, and derepressed chromosomal AmpC have strong effects against plain aztreonam (`0.80`, `0.75`, and `0.80`, respectively), aligned with their oxyimino-cephalosporin bands. This does not extend to aztreonam-avibactam: ordinary class C enzymes are inhibited by avibactam and are not standalone resistance routes for that combination.
 
 ErmB is a macrolide-lincosamide mechanism in the current mechanism-drug correspondence. Although it affects the streptogramin-B component quinupristin, it is not sufficient by itself to confer resistance to the combined quinupristin-dalfopristin product, so its explicit streptogramin-class effect is zero and that drug is outside ErmB applicability. The model currently has no separate complementary streptogramin-A mechanism. Existing quinupristin-dalfopristin prevalence benchmarks are therefore retained as active targets that the model cannot currently represent: their zero simulated prevalence contributes to resistance-fit statistics as an explicit structural model gap rather than forcing an incorrect ErmB phenotype.
 
-Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` route with an expert model-scale effect of `0.60`. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is `0.0001` per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss do not project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.
+Cefiderocol uses one compressed, non-transferable `mutation_siderophore_uptake` route with an effect of `0.60`. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss do not project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.
 
 Baseline cefiderocol potency is correspondingly limited to susceptible aerobic Gram-negative bacteria. *S. maltophilia* and the *B. cepacia* complex use a conservative active value of `0.55`, matching the existing *P. aeruginosa* and *A. baumannii* model bucket, because activity is supported principally by in vitro and animal data rather than established clinical efficacy. Gram-positive bacteria, *B. fragilis*, *C. jejuni*, and intracellular *L. pneumophila* receive poor-activity values. The categories follow the FDA spectrum statement and primary susceptibility data and are not direct MIC or breakpoint conversions.
 
-Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For *P. aeruginosa*, the non-transferable mechanism category `mutation_ampc_derepression` is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental *K. pneumoniae* work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because the model does not represent interactions between mechanisms, this interaction is not converted into a positive standalone `any_r` phenotype.
+Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For *P. aeruginosa*, the non-transferable mechanism category `mutation_ampc_derepression` is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental *K. pneumoniae* work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because by default the model currently does not represent interactions between mechanisms, this interaction is not converted into a positive standalone `any_r` phenotype.
 
-Baseline ceftolozane/tazobactam potency is represented separately from acquired resistance. Reviewed model-scale values retain activity against susceptible Enterobacterales, *P. aeruginosa*, selected streptococci, and *B. fragilis*, while staphylococci, *C. jejuni*, and intracellular *L. pneumophila* receive poor-activity values. These are coarse activity categories informed by the FDA microbiology review, prescribing information, and published susceptibility studies; they are not direct MIC or breakpoint conversions.
 
 | Mechanism | Multiplier | Clinical interpretation |
 |-----------|-----------|----------------------|
@@ -1154,23 +1148,15 @@ Baseline ceftolozane/tazobactam potency is represented separately from acquired 
 
 Section 3.4 describes the individual-level sequence from a candidate infection to successful establishment. This subsection describes the population-level resistance sources used to assemble the candidate infection's resistance-mechanism profile.
 
-#### Circulating resistance-mechanism profile library and prevalence
+![Flow diagram showing how a newly acquired bacterial infection receives a resistance-mechanism profile](resistance_profile_at_acquisition.svg)
 
-After every simulated day, the model refreshes a stored library of circulating resistance-mechanism profiles (`MechanismCache` in the code) for each combination of region × current care setting (community or hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant strain in the corresponding daily collection. Each collection contains up to 1,000 entries, with each entry representing one eligible active infection-day. If more than 1,000 infection-days are eligible, entries are selected uniformly so that every eligible infection-day has the same chance of representation. A persistent infection is eligible again on each successive day that it remains active.
-
-A predominant strain carrying none of the acquired resistance mechanisms represented in the model is included as a resistance-mechanism profile with no modelled acquired resistance. The library therefore represents active-infection person-days with and without modelled acquired resistance, rather than a collection restricted to resistant infections, tested infections, clinical isolates, or unique people.
-
-The stored resistance-mechanism profile library blends retained resistance-mechanism profiles with newly collected resistance-mechanism profiles each day. Every previously stored resistance-mechanism profile has the same marginal probability of retention. The configured retention probability is 0.999 in both the community and hospital libraries.
-
-For any drug, the model estimates prevalence from the fraction of stored resistance-mechanism profiles containing at least one mechanism that affects that drug. The same library therefore supplies resistance-mechanism profiles for acquisition and prevalence estimates used by prescribing logic. The bounded local mechanism-persistence archive described in Section 7.6 is stored separately and does not contribute directly to these current prevalence estimates.
+*Resistance-profile assignment for a newly acquired bacterial infection. A profile with no represented mechanisms means no modelled acquired resistance; intrinsic non-susceptibility remains encoded separately through drug–bacterium potency. Prevention by antibiotics already being taken is intentionally omitted.*
 
 #### Selection of the resistance source
 
-The model first samples whether a candidate infection occurs and only then selects its resistance source. For a candidate community infection, the bacterium-specific `community_resistance_dilution_factor` is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. Despite the word `dilution` in its name, it is not a multiplier applied to resistance prevalence. The corresponding individual-level probability of sampling from the circulating library or its persistence archive is represented by `local_profile_sampling_probability[b]`.
+Once a candidate infection has arisen, a community infection follows one of two resistance-source pathways. The bacterium-specific `community_resistance_dilution_factor` is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. On that route, the individual-level probability of sampling from the circulating library or its persistence archive is represented by `local_profile_sampling_probability[b]`. Otherwise, the candidate follows the exogenous route described below.
 
-If the human-reservoir source is not selected, a candidate community infection follows the exogenous route described below. Candidate hospital infections use the local human-reservoir route rather than this community source probability. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source subject to the run-level and counterfactual controls described below.
-
-The source probability does not alter the initial candidate-acquisition probability. It can nevertheless affect the number and resistance distribution of infections that become established because the resulting resistance-mechanism profile is used when existing therapy is evaluated. Its effect on resistance need not be monotonic: the human-reservoir library contains resistance-mechanism profiles with and without modelled acquired resistance, while the exogenous route can itself assign resistance mechanisms.
+Candidate hospital infections use the local human-reservoir pathway, with any configured hospital enrichment, rather than this community source choice. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source.
 
 The configured source probabilities use broad ecological groupings:
 
@@ -1182,21 +1168,29 @@ The configured source probabilities use broad ecological groupings:
 | Endogenous flora or human-associated | 0.60–1.00 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology; *H. pylori* has no separate modelled carriage compartment |
 | Obligate human pathogen or STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | The community source is treated as the human circulating reservoir |
 
-These are ecological and calibration parameters used to mix human-reservoir and exogenous pathways, not constraints imposed by the model. Bacterium-specific values are listed in Appendix B.3. Differences between clinical resistance evidence and active-infection person-day outputs are discussed in Sections 1.1 and 12.1; they are not represented by `community_resistance_dilution_factor`.
+Bacterium-specific values are listed in Appendix B.3.
+
+#### Circulating resistance-mechanism profile library and prevalence
+
+After every simulated day, the model refreshes a stored library of circulating resistance-mechanism profiles (`MechanismCache` in the code) for each combination of region × current care setting (community or hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant strain in the corresponding daily collection. Each region/care-setting/bacteria-specific profile contains up to 1,000 entries. Once there are 1,000 entries, only a small proportion (currently 1 per 1000 for both hospital and community libraries; see below) are randomly selected to be replaced each day, and a random selection of eligible profiles are selected to fill those slots.   A persistent infection is eligible to contribute on each successive day that it remains active.
+
+A predominant strain carrying none of the acquired resistance mechanisms represented in the model is included as a resistance-mechanism profile with no modelled acquired resistance. The library therefore represents active-infection person-days with and without modelled acquired resistance, rather than a collection restricted to resistant infections, tested infections, clinical isolates, or unique people.
+
+For any drug, the model estimates prevalence from the fraction of stored resistance-mechanism profiles containing at least one mechanism that affects that drug. The same library therefore supplies resistance-mechanism profiles for acquisition and prevalence estimates used by prescribing logic. The bounded local mechanism-persistence archive described in Section 7.6 is stored separately and does not contribute directly to these current prevalence estimates.
+
+![Feedback-loop diagram showing how circulating resistance-mechanism profile libraries are built, refreshed, and used](resistance_profile_library_lifecycle.svg)
+
+*Daily construction and use of the circulating resistance-mechanism profile libraries. Each library is specific to a region, current care setting, and bacterium. The local persistence archive is maintained separately: it can supply a complete historical profile during acquisition but does not contribute to estimates of current resistance prevalence.*
 
 #### Complete resistance-mechanism profile sampling
 
-When the human-reservoir route is used, the model samples one complete resistance-mechanism profile rather than sampling each mechanism independently. All mechanisms in that resistance-mechanism profile are added together to the prospective infection. This preserves correlations such as ESBL CTX-M occurring with fluoroquinolone resistance in the same circulating lineage (Partridge SR et al., 2018). The local mechanism-persistence archive, when selected, likewise supplies one complete resistance-mechanism profile and is not combined with a separate resistance-mechanism profile from the current library.
+When the human-reservoir route is used, the model samples one complete resistance-mechanism profile rather than sampling each mechanism independently. All mechanisms in that resistance-mechanism profile are added together to the new infection, so this is identical to the mechanism profile of a formerly or concurrently infected simulated person, representing its circulation in the population. This preserves correlations such as ESBL CTX-M occurring with fluoroquinolone resistance in the same circulating lineage (Partridge SR et al., 2018). The local mechanism-persistence archive, when selected, likewise supplies one complete resistance-mechanism profile.
 
-For a candidate community infection, the current community collection for the relevant region and bacterium is used. During the early warm-up period, if that collection is empty, the model can use the corresponding hospital collection rather than constructing a synthetic resistance-mechanism profile.
+For a new community infection, the current community collection for the relevant region and bacterium is used. During the early model warm-up years, if that collection is empty, the model can use the corresponding hospital collection rather than constructing a synthetic resistance-mechanism profile.
 
-For a candidate hospital infection, `hospital_resistance_prune_susceptible_percent` can enrich sampling for resistance-mechanism profiles containing at least one represented acquired-resistance mechanism. If the hospital collection has no such resistance-mechanism profile, the available local hospital and community collections are temporarily combined. Once the hospital collection contains a resistance-mechanism profile with a represented mechanism, only that collection is used. The model may temporarily remove the configured fraction of resistance-mechanism profiles with no modelled acquired resistance before sampling, but it never removes resistance-mechanism profiles containing a represented mechanism. If removal would leave no candidate, the original collection remains available. The default removal percentage is 50%, with higher bacterium-specific values for selected healthcare-associated pathogens.
+For a candidate hospital infection, `hospital_resistance_prune_susceptible_percent` can enrich sampling for resistance-mechanism profiles by removing profiles with no resistance mechanisms present, representing how resistant infections may be concentrated in hospital settings.  The default removal percentage is 50%, with higher bacterium-specific values for selected healthcare-associated pathogens.
 
-Carriage sampling is related but does not apply the hospital removal step. A hospital carriage acquisition uses the current hospital collection, with the community collection as a temporary fallback if needed. A sampled carriage resistance-mechanism profile is recorded in `mechanism_microbiome` and used to calculate `microbiome_r`; it does not directly create active-infection resistance. If neither the relevant persistence archive nor either current care-setting collection supplies a resistance-mechanism profile, this pathway assigns no acquired resistance mechanisms.
-
-Complete resistance-mechanism profile sampling represents linkage already present in observed simulated lineages. The model does not add mechanisms independently merely because their marginal presence has been observed elsewhere, because doing so would construct combinations unsupported by the sampled lineage.
-
-The `counterfactual_resistance_multiplier` controls whether resistance mechanisms are incorporated through resistance-mechanism profile inheritance and the other resistance-acquisition pathways. A value of 0.0 disables resistance-mechanism profile inheritance, static and ratchet exogenous assignment, the MDR-TB rifampicin rule, same-person carriage inheritance, de novo emergence, microbiome-acquisition seeding, and HGT. These pathways are implemented separately but share this counterfactual control.
+Carriage sampling is related but does not apply the hospital removal step. A hospital carriage acquisition uses the current hospital collection. A sampled carriage resistance-mechanism profile is recorded in `mechanism_microbiome` and used to calculate `microbiome_r`; it does not directly create active-infection resistance. 
 
 #### Exogenous assignment and completion of the prospective resistance-mechanism profile
 
@@ -1205,20 +1199,20 @@ When a candidate community infection follows the exogenous route, each eligible 
 Two further pathways can add mechanisms before the candidate infection is evaluated against existing therapy:
 
 - **MDR-TB rifampicin rule.** For MDR-TB candidate acquisitions from 1966 onward, the model adds the applicable `rpoB` rifampicin-resistance mechanism to both the prospective `mechanism_any` and `mechanism_majority` records when the rule is enabled. Any positive value of `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` enables this fixed rule; the value is not used as a probability. A counterfactual resistance multiplier of 0.0 disables it.
-- **Same-person carriage inheritance.** If the person already carries the same organism, `carrier_resistance_inheritance_probability` determines whether this pathway is applied. Each eligible mechanism in the person's carriage resistance-mechanism profile is then considered using `infection_from_microbiome_dampening`. Successful transfers are added to prospective `mechanism_any` only and therefore initially represent minority infection mechanisms. Section 3.3 describes this bridge from carriage to infection.
+- **Same-person carriage inheritance.** If the person already carries the same organism, `carrier_resistance_inheritance_probability` determines whether this pathway is applied. Each eligible mechanism in the person's carriage resistance-mechanism profile is then considered using `infection_from_microbiome_dampening`. Successful transfers are added to prospective `mechanism_any`. Section 3.3 describes this bridge from carriage to infection.
 
-After the prospective resistance-mechanism profile has been completed, existing therapy determines whether the candidate infection becomes established as described in Section 3.4. Only an established infection stores `mechanism_any` and `mechanism_majority`. The model then derives drug-specific `any_r` from all applicable mechanisms in `mechanism_any`:
+After the prospective resistance-mechanism profile has been completed (and presence of a drug with activity against the bacteria excluded) the infection happens, as described in Section 3.4. An established infection stores `mechanism_any` and `mechanism_majority`. The model then derives drug-specific `any_r` from all applicable mechanisms in `mechanism_any`:
 
-$$\text{any\_r} = R_{max}\left[1 - \prod_{m : \text{mechanism\_any}_m = \text{true}} (1 - e_m)\right],$$
+$$\text{any\_r} = 1 - \prod_{m : \text{mechanism\_any}_m = \text{true}} (1 - e_m),$$
 
-bounded between 0 and $R_{max}$, where $e_m$ is the enhancement multiplier for mechanism $m$ against the drug and $R_{max}$ is `max_resistance_level` (1.0). At establishment, the value is recalculated from the complete stored mechanism set. Later mechanism additions cannot reduce the derived value; explicit mechanism reversion instead recalculates it from the mechanisms that remain.
+bounded between 0 and 1, where $e_m$ is the enhancement multiplier for mechanism $m$ against the drug. At establishment, the value is recalculated from the complete stored mechanism set. Later mechanism additions cannot reduce the derived value; explicit mechanism reversion instead recalculates it from the mechanisms that remain.
 
 ---
 
 
 ### 7.4 Resistance emergence
 
-This subsection concerns **de novo resistance emergence during treatment**. In the current model, this pathway is only evaluated when a patient is actively exposed to antibiotics.
+This subsection concerns **de novo resistance emergence during treatment** which is the original source of all resistance which occurs. 
 
 **Sub-therapeutic exposure and resistance emergence:**
 
@@ -1230,45 +1224,18 @@ Given the familiar mutant selection window framework (Drlica K et al., 2007), th
 
 Within this framework, incomplete courses, poor adherence, and underdosing matter because they extend the time spent in the sub-therapeutic selection window.
 
-**The emergence formula:**
-
-For de novo emergence in an active infection under antibiotic exposure, the model calculates:
-
-```
-emergence_rate = mechanism_rate
-               × run_pathway_infection_de_novo_multiplier
-               × counterfactual_resistance_multiplier
-               × (1 + bacteria_level_factor)
-               × max_emergence_drug_factor
-               × multi_drug_penalty_factor
-```
-
-| Factor | What it represents |
-|--------|-------------------|
-| `mechanism_rate` | How biologically likely this bacterium is to acquire this specific mechanism |
-| `run_pathway_infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level and scenario-level scaling applied on top of the organism-specific baseline |
-| `bacteria_level_factor` | Logarithmic scaling by bacterial load |
-| `max_emergence_drug_factor` | Drug-exposure term based on the highest relevant site-level exposure window across active drugs |
-| `multi_drug_penalty_factor` | Suppression when multiple relevant drugs are used together |
-
-
-
-#### Organism-specific emergence calibration
+#### Organism-specific emergence calculation
 
 De novo resistance emergence is parameterised directly at the **bacterium-mechanism** level. Each organism therefore has its own baseline emergence profile across the various mechanisms. The route classification described above determines whether a zero means an excluded host, an HGT-only route, or an eligible non-transferable mechanism with no de novo attempt; the numerical rate alone is not used as an indicator of host eligibility.
 
-For active infection, the daily hazard for a given mechanism is:
+For an eligible absent mechanism in an active infection under antibiotic exposure, the biological and within-host component of the daily emergence rate is:
 
 ```
 mechanism_emergence_rate = mechanism_rate
-                          × run_pathway_infection_de_novo_multiplier
-                          × counterfactual_resistance_multiplier
                           × (1 + bacteria_level_factor)
                           × max_emergence_drug_factor
                           × multi_drug_penalty_factor
 ```
-
-The additional terms do distinct jobs:
 
 | Term | Role in the model |
 |------|---------------------------|
@@ -1276,11 +1243,8 @@ The additional terms do distinct jobs:
 | `bacteria_level_factor` | Log-scaled increase with within-host bacterial burden, bounded by the configured organism maximum |
 | `max_emergence_drug_factor` | Drug-exposure effect, highest at intermediate site concentrations and low at both minimal and fully suppressive exposure |
 | `multi_drug_penalty_factor` | Suppression of emergence when two or more drugs with non-negligible susceptible-organism potency (at least `minimal_potency_threshold_for_drug_selection`, currently 0.15) are active and the candidate mechanism covers only part of that regimen |
-| `run_pathway_infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level or scenario-level scaling applied without changing the organism-specific baseline table |
 
-**Minority-to-majority evolution.** A mechanism newly present in `mechanism_any` but not yet in `mechanism_majority` receives one daily promotion attempt with probability `majority_r_evolution_rate_per_day_when_drug_present` (default 0.18) whenever at least one drug with a positive current level is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. A successful transition affects the predominant-strain resistance-mechanism profile contributed to the circulating resistance-mechanism profile library and the mechanism's HGT donor strength; it does not change the already mechanism-derived `any_r` value.
-
-Population realism is distributed across three parts of the model: organism-specific infection acquisition parameters determine how often each pathogen appears, organism-specific mechanism baselines determine which resistance pathways are plausible and how readily they arise, and within-host modifiers determine whether the ecological conditions for emergence are present on a given day.
+**Minority-to-majority evolution.** A mechanism newly present in `mechanism_any` but not yet in `mechanism_majority` receives one daily possibility to shift to the majority with probability `majority_r_evolution_rate_per_day_when_drug_present` (default 0.18) whenever at least one drug with a positive current level is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. A successful transition affects the predominant-strain resistance-mechanism profile contributed to the circulating resistance-mechanism profile library and the mechanism's HGT donor strength; it does not change the already mechanism-derived `any_r` value.
 
 **Microbiome pathway.** While a bacterium is carried, each absent applicable mechanism receives one daily emergence attempt whenever at least one active drug has a positive current level and is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. The probability uses the same organism-mechanism baseline table and applies counterfactual scaling, but it does not use the infection-burden, concentration-window, or multidrug-penalty terms described above. Current drug pressure is therefore a binary trigger in this pathway.
 

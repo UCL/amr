@@ -505,6 +505,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <hr />
 <h2 id="3-infection-acquisition-and-resistance-at-establishment">3. Infection Acquisition and Resistance at Establishment</h2>
 <p>This section describes how candidate bacterial infections arise and whether they become established. A candidate can originate from the community (e.g. human contacts, food, water), the hospital environment (e.g., ventilators, catheters, or other patients), or the person's own asymptomatic carriage. Before establishment, the model assembles the candidate infection's resistance-mechanism profile and evaluates whether any antibiotics the person is already taking prevent it. The model captures these distinctions through a deliberately compressed architecture suited to long-run AMR policy analysis rather than representing every route-specific exposure mechanism.</p>
+<p>A person-bacterium pair is eligible for candidate acquisition only when its previous infection episode has retired at infection level zero. Every positive infection level remains owned by the existing episode, including a fading level at or below <code>INFECTION_EPS</code>; such an episode continues within-host progression and can rebound without being counted as a new acquisition.</p>
 <p>Every resistance-mechanism profile in this section contains modelled acquired resistance mechanisms only. A resistance-mechanism profile with no mechanisms therefore means no modelled acquired resistance; it does not imply that every necessarily drug has baseline activity against the bacterium, because baseline activity is represented separately by potency.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> For each bacterium, the model records vaccination status (<code>vaccination_status[b]</code>), the calculated daily acquisition risk (<code>predicted_infection_risk[b]</code>), and the temporary probability used to generate a candidate infection (<code>infection_acquisition_probability[b]</code>). A successful episode records its start day and acquisition setting (<code>date_last_infected[b]</code>, <code>date_last_infected_keep[b]</code>, and <code>infection_hospital_acquired[b]</code>). For a candidate infection, <code>incoming_infection_mechanism_mask[b]</code> represents its prospective resistance-mechanism profile; if it becomes established, <code>mechanism_any[b]</code> records mechanisms present in any of the infecting bacteria strains, <code>mechanism_majority[b]</code> records resistance mechanisms in the predominant strain, and <code>resistances[b][d].any_r</code> records the resulting (acquired) resistance level for each drug. The model also records the probability and occurrence of prevention by existing therapy (<code>existing_therapy_prevention_probability[b]</code> and <code>infection_prevented_by_drug[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="31-community-acquisition">3.1 Community acquisition</h3>
@@ -653,6 +654,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <h2 id="4-clinical-progression">4. Clinical Progression</h2>
 <p>Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparisons around antibiotic resistance rather than attempting to model the clinical course of each infection in high level detail.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> For each active infection, the model records the clinical syndrome (<code>infectious_syndrome[b]</code>), infection intensity (<code>level[b]</code>), and whether symptoms or another clinical-testing indication have occurred (<code>infection_has_caused_symptoms[b]</code>). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (<code>clearance_hazard[b]</code> and <code>clearance_ready_day[b]</code>). Sepsis status and timing are recorded in <code>sepsis[b]</code> and <code>sepsis_onset_day[b]</code>. Daily intermediate variables govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (<code>symptom_onset_probability[b]</code>, <code>sepsis_onset_probability[b]</code>, <code>sepsis_recovery_probability[b]</code>, and <code>new_bacteria_level[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p>Infection episode ownership and clinical activity use deliberately different predicates. A positive <code>level[b]</code> belongs to the current episode and continues growth, treatment-activity and clearance updates. A level above <code>INFECTION_EPS</code> is reportably active and eligible for symptom, sepsis and diagnostic processes. At exact zero the episode is retired atomically, its episode-local state is cleared, and a later acquisition starts a new episode.</p>
 <h3 id="41-syndrome-assignment">4.1 Syndrome assignment</h3>
 <p>When a person develops an active infection, the model assigns one of ten <strong>anatomical clinical syndromes</strong> (IDs 1–10). This assignment is consequential because syndrome determines:</p>
 <ul>
@@ -897,7 +899,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p><strong>Active-infection immune clearance</strong> is a separate daily logistic hazard. In the current model its log-odds are</p>
 <p>\[-4.2 + \text{bacterium adjustment} + \text{age adjustment} - 0.69\,I(\text{immunodeficient}) - 0.3\times\text{infection level} + 0.25\times\text{duration in days}.\]</p>
 <p>All current bacterium and age adjustments are zero. The daily immune-clearance probability is evaluated from the day the infection is acquired, with infection duration counted from that day. Consequently, an infection can undergo immune clearance on its first simulated day.</p>
-<p><strong>Infection resolution.</strong> Infection level changes each day through configured bacterial growth, host characteristics that modify that growth, and any active antibiotic effect. Immune clearance is evaluated separately as a daily all-or-nothing event rather than as gradual host-driven suppression of the infection level. An infection resolves when the simulated bacterial level falls below 0.0001, or when an immune-clearance event occurs. <em>H. pylori</em> uses this same active-infection clearance pathway but has no separate microbiome/carriage state.</p>
+<p><strong>Infection resolution.</strong> Infection level changes each day through configured bacterial growth, host characteristics that modify that growth, and any active antibiotic effect. Immune clearance is evaluated separately as a daily all-or-nothing event rather than as gradual host-driven suppression of the infection level. An infection resolves when the calculated bacterial level reaches zero, or when an immune-clearance event occurs. A positive level at or below <code>INFECTION_EPS</code> remains a fading state of the same episode and continues within-host progression. <em>H. pylori</em> uses this same infection-clearance pathway but has no separate microbiome/carriage state.</p>
 <p>There can be a delay between infection acquisition and symptom-driven treatment. During that interval, infection level follows the untreated growth calculation. Acquired resistance mechanisms may already be present in the resistance-mechanism profile assigned at infection establishment, and eligible mechanisms can subsequently be transferred through horizontal gene transfer. However, the model's de novo emergence of resistance mechanisms and promotion of minority mechanisms require active applicable antibiotic pressure. It therefore does not apply antibiotic selection before antibiotic exposure begins.</p>
 <hr />
 <h2 id="5-diagnostic-testing">5. Diagnostic Testing</h2>
@@ -1235,6 +1237,7 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p><strong>Drug scoring algorithm:</strong></p>
 <p>For each eligible candidate drug, the model calculates a score, <em>s</em>. It converts this to a selection weight using <code>w = s^(1/T)</code>, where <em>T</em> is <code>drug_selection_temperature</code>, and samples a drug in proportion to these weights. At <em>T</em> = 1, the scores are used directly as weights. The current value, 0.55, increases the influence of score differences; lower values concentrate selection further on high-scoring drugs, whereas higher values produce more varied choices.</p>
 <p>The empiric syndrome-drug score values are listed in <a href="#non-default-syndrome-empiric-drug-scores">Appendix B.7</a>, with their <a href="#time-varying-syndrome-empiric-score-values">historical values</a>. Identified-organism drug-choice multipliers are in the <code>Init multiplier</code> column of <a href="#b4-drugbacteria-potency-matrix">Appendix B.4</a>, followed by their <a href="#time-varying-drug-initiation-values">historical values</a>.</p>
+<p>For identified-organism drug-choice multipliers, 1 is neutral, values below 1 reduce the score, 0 excludes the drug, and values above 1 increase the score. If more than one bacterium is identified, the largest applicable multiplier is used.</p>
 <p>The model also records the <strong>context</strong> in which a course starts:</p>
 <ul>
 <li>A symptomatic infection without organism identification is recorded as <code>Empiric</code> and uses the active syndrome templates.</li>
@@ -1245,62 +1248,8 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </ul>
 <p>As introduced in <a href="#41-syndrome-assignment">Section 4.1</a>, syndrome 0 is a background prescribing distribution for situations such as diagnostic uncertainty, viral-like illness, non-modelled infections, self-medication, and pharmacy supply without prescription.</p>
 <p><strong>Historical empiric syndrome-era scores.</strong> Empiric prescribing templates can also have time-varying syndrome-drug values of the form <code>syndrome_&lt;id&gt;_empiric_drug_&lt;drug&gt;_score_before_&lt;YYYY&gt;</code>. These are used only in the empiric scenario, before organism identification. They allow the model to represent historical syndromic prescribing practice. For example, genital/STI syndrome prescribing can favour sulfonamides, penicillin, tetracyclines, fluoroquinolones, cephalosporins, or azithromycin in the eras when those drugs were used empirically for urethritis/cervicitis/PID or suspected gonorrhoea.</p>
-<p><strong>Factors used to score candidate drugs.</strong></p>
-<table>
-<thead>
-<tr>
-<th>Scoring factor</th>
-<th>Empiric phase</th>
-<th>Bacterium-identified phase</th>
-<th>What it captures</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Syndrome-specific template score</td>
-<td>Primary driver; may be static or era-specific; scores &gt;1.0 count as positive empiric signals</td>
-<td>Not used directly</td>
-<td>How well this drug matches usual empiric prescribing for the infection site and calendar era</td>
-</tr>
-<tr>
-<td>Spectrum width</td>
-<td>Slight bonus (×1.15) for broad-spectrum</td>
-<td>Penalty (×0.45) for broad-spectrum</td>
-<td>Empiric phase favours broader coverage; targeted phase rewards spectrum minimisation</td>
-</tr>
-<tr>
-<td>No usual empiric role for syndrome</td>
-<td>Strong penalty (×0.001) when no positive syndrome-template signal is present</td>
-<td>—</td>
-<td>Prevents drugs from competing empirically on generic breadth or availability alone; this is not a claim about intrinsic activity against the hidden true organism</td>
-</tr>
-<tr>
-<td>Insufficient intrinsic bacterium-drug activity</td>
-<td>—</td>
-<td>Near-zero score (×0.001) or exclusion when potency is below the targeted threshold</td>
-<td>Once the organism is identified, baseline potency guides whether the drug can work</td>
-</tr>
-<tr>
-<td>Reported resistance</td>
-<td>Not used</td>
-<td>The drug is excluded once a positive AST result is available</td>
-<td>Susceptibility information available to the prescriber</td>
-</tr>
-<tr>
-<td>Drug-bacterium initiation multiplier</td>
-<td>—</td>
-<td>Score multiplier, default 1.0</td>
-<td>Organism-specific prescribing preference for identified infections; distinct from potency and susceptibility</td>
-</tr>
-<tr>
-<td>Narrow-spectrum bonus</td>
-<td>—</td>
-<td>×5.0</td>
-<td>Reward de-escalation to targeted therapy</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Restricted niche agents:</strong> Some drugs are hard-blocked outside their clinically plausible niche, reflecting that such drugs are not used broadly despite their activity in vitro.</p>
+<p><strong>Considerations in candidate-drug scoring.</strong> Candidate drugs may first be excluded because they are unavailable in the region or era, are inappropriate for the person's age, allergy or treatment context, have inadequate intrinsic activity against an identified bacterium, or have a reported resistant AST result. Among eligible drugs, scores take account of syndrome- and era-specific empiric practice; the identified bacterium and baseline potency; usual first- or second-line role; spectrum breadth; regional resistance surveillance; documented treatment failure; reserve-drug status; previous toxicity; care setting; and availability. Some drugs also have explicit restrictions to their clinically plausible uses, as described below.</p>
+<p><strong>Restricted niche agents:</strong> Some drugs are not used at all outside their clinical niche:.</p>
 <ul>
 <li>
 <p><strong>Retapamulin</strong> is restricted to <strong>skin/soft-tissue prescribing contexts only</strong>. It is excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, bloodstream infections, and all non-skin systemic syndromes. In targeted (organism-identified) therapy, it is only allowed when the pathogen is <em>Staphylococcus aureus</em> or <em>Streptococcus pyogenes</em> and the syndrome is skin/soft-tissue. This reflects retapamulin's approval and clinical use as a topical agent for impetigo and other superficial skin infections (Stevens DL et al., 2014).</p>
@@ -1315,16 +1264,15 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p><strong>Fosfomycin</strong> is also kept within lower-UTI prescribing contexts in the current model, including situations where prior cultures or resistance history would make ESBL-active oral cover attractive (e.g., ESBL-producing <em>E. coli</em> UTI where oral options are limited). Both nitrofurantoin and fosfomycin remain excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts (Gupta K et al., 2011).</p>
 </li>
 <li>
-<p><strong>Furazolidone</strong> is modelled as a <strong>GI-local agent</strong> rather than a urinary agent. It is only eligible in gastrointestinal syndromes and is excluded from sepsis, bloodstream infection, and all non-GI prescribing contexts. This keeps compartment-limited agents from competing as generic systemic therapy when their clinical role is anatomically narrow.</p>
+<p><strong>Furazolidone</strong> is modelled as a <strong>GI-local agent</strong> rather than a urinary agent. It is only eligible in gastrointestinal syndromes and is excluded from sepsis, bloodstream infection, and all non-GI prescribing contexts.</p>
 </li>
 </ul>
-<p>These restrictions substantially reduce empiric broad-spectrum therapy by preventing niche agents from out-competing more appropriate choices in syndromes where they are never used clinically.</p>
-<p><strong>Immunodeficiency prophylaxis.</strong> A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool and it does not use syndrome 0. The only candidate drugs are <code>trim_sulf</code> (score 1.2), <code>azithromycin</code> (3.5), <code>ciprofloxacin</code> (2.0), and <code>levofloxacin</code> (1.5). Reserve drugs are excluded, broad-spectrum drugs are penalised, lower-spectrum drugs receive a modest bonus, and fluoroquinolone prophylaxis is blocked for people younger than 18 years.</p>
-<p><strong>Regional resistance surveillance:</strong> If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds. For symptomatic empiric treatment, surveillance is restricted to bacteria in the model's clinical-presentation table that can plausibly cause at least one of the person's observed syndromes; it never uses the person's hidden infecting organism. With multiple observed syndromes, the plausible-organism sets are combined. The strongest applicable penalty is retained. Prophylaxis, asymptomatic active infection, and background/no-active-infection starts have no observed syndrome and therefore do not receive this syndrome-based resistance adjustment. Once a bacterium is identified but AST is still pending, surveillance instead uses the identified active organism or organisms. The same information boundary is used when regional resistance is considered as justification for empiric reserve-drug escalation.</p>
+<p><strong>Immunodeficiency prophylaxis.</strong> A separate constrained prophylaxis path is evaluated when a person has immunodeficiency but no symptomatic infection. It is not a general empiric-treatment pool and it does not use syndrome 0. The candidate pool comprises <code>trim_sulf</code>, <code>azithromycin</code>, <code>ciprofloxacin</code>, <code>levofloxacin</code>, and <code>amoxicillin</code>. This is an aggregate representation of antibacterial prophylaxis across the model's composite immunodeficiency state. Fluoroquinolone prophylaxis is blocked for people younger than 18 years.</p>
+<p><strong>Regional resistance surveillance:</strong> If population-level resistance data shows that a drug class is failing frequently in the region, the model suppresses empiric use of that drug. For symptomatic empiric treatment, surveillance is restricted to bacteria in the model's clinical-presentation table that can plausibly cause the person's observed syndromes. Prophylaxis, asymptomatic active infection, and background/no-active-infection starts have no observed syndrome and therefore do not receive this syndrome-based resistance adjustment. Once a bacterium is identified but AST is still pending, surveillance instead uses the identified active organism or organisms. </p>
 <table>
 <thead>
 <tr>
-<th>Local resistance rate</th>
+<th>Local acquired resistance prevalence</th>
 <th>Empiric score penalty</th>
 <th>Clinical parallel</th>
 </tr>
@@ -1347,10 +1295,8 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </tr>
 </tbody>
 </table>
-<p>The syndrome scoring tables below are therefore stylised prescribing-preference weights, not literal market-share estimates for each antibiotic. They are designed to preserve broad world-recognisable clinical tendencies such as narrower outpatient UTI therapy, broader empiric treatment for sepsis and intra-abdominal infection, and de-escalation after microbiology results, while allowing the realised prescribing mix to emerge from access constraints, testing availability, and resistance feedback.</p>
 <h4 id="treatment-cessation-stopping-antibiotics">Treatment cessation — stopping antibiotics</h4>
-<p>People stop antibiotics based on several factors.</p>
-<p>These values are best interpreted as <strong>daily probabilities of prematurely stopping treatment</strong>, not as the inverse of total course length. They are dropout hazards calibrated so that most patients remain on therapy through a guideline-like treatment window, recognising that shorter courses may often be preferred (Llewelyn MJ et al., 2017).</p>
+<p>People stop antibiotics based on several factors.  We define daily probabilities of prematurely stopping treatment. They are defined such that most people remain on therapy through a guideline-like treatment window, recognising that shorter courses may often be preferred (Llewelyn MJ et al., 2017).</p>
 <table>
 <thead>
 <tr>
@@ -1395,12 +1341,9 @@ review-informed resistance estimates are based on cultured clinical isolates and
 </table>
 <p>A constant daily stop probability of 0.45% does not imply an average course of 14 days; rather, it means treatment is only rarely interrupted on any given day, so most courses extend to approximately two weeks.</p>
 <h4 id="syndrome-specific-empiric-scoring-templates">Syndrome-specific empiric scoring templates</h4>
-<p>The authoritative empiric score templates are defined in <code>src/config.rs</code> under <code>empiric_syndrome_templates</code> and are reproduced in Appendix B.7. The current UTI template, for example, strongly favours nitrofurantoin and fosfomycin, while retaining lower scores for alternative oral and hospital agents. These are relative prescribing weights before availability, age, syndrome restrictions, regional access, resistance surveillance, targeted-therapy modifiers, reserve-drug eligibility conditions, toxicity avoidance, and the final weighted probabilistic draw are applied.</p>
+<p>The empiric drug scores (defined in <code>src/config.rs</code> under <code>empiric_syndrome_templates</code>) are shown in Appendix B.7. The current UTI template, for example, strongly favours nitrofurantoin and fosfomycin, while retaining lower scores for alternative oral and hospital agents. These are relative prescribing weights before availability, age, syndrome restrictions, regional access, resistance surveillance, targeted-therapy modifiers, reserve-drug eligibility conditions, toxicity avoidance, and the final weighted probabilistic draw are applied.</p>
 <h4 id="species-specific-and-time-varying-prescribing-multipliers">Species-specific and time-varying prescribing multipliers</h4>
-<p>The syndrome-level empiric tables above describe population-wide prescribing tendencies; they are agnostic to which organism is causing the infection because this is unknown to the treating clinician at the time. Once an organism is identified, targeted therapy uses a second parameter family named <code>drug_&lt;drug&gt;_for_bacteria_&lt;bacterium&gt;_initiation_multiplier</code>. These are <strong>drug-choice score multipliers</strong> for identified infections. They do not decide whether any antibiotic is started, and they are not measures of intrinsic drug activity.</p>
-<p>Conceptually, bacterium-drug potency answers "can this drug work against this organism if there is no acquired resistance?", while the drug-bacterium initiation multiplier answers "given that this organism has been identified, how strongly would prescribing practice favour this drug?" This lets the model represent first-line guideline choices, alternative drugs, combination-regimen components, historical prescribing practice, and stewardship suppression separately from MIC-derived potency and simulated susceptibility results.</p>
-<p>In the targeted-selection calculation, each candidate drug receives the largest applicable drug-bacterium initiation multiplier across the currently identified active infections. That maximum is multiplied into the candidate drug score after potency checks and organism-specific guideline rules. The maximum is used rather than multiplying all identified organisms together, so polymicrobial infections do not automatically create very large score inflation. For any drug-organism pair with no explicitly specified value, the multiplier is 1.0, meaning no modification.</p>
-<p>Multipliers greater than 1 increase a drug's score for that organism; values less than 1 reduce it. Very small values such as 0.01 make a drug very unlikely to be chosen unless another fixed rule has already excluded it. A high initiation multiplier cannot by itself make an unavailable drug available, make a drug with insufficient intrinsic potency eligible, supersede a known resistant susceptibility result, or bypass fixed niche or reserve-drug restrictions. It is a prescribing-preference term, not a biological efficacy term.</p>
+<p>The syndrome-specific empiric prescribing scores described above and listed in Appendix B.7 represent relative drug-choice preferences before the causative bacterium has been identified. If and when a bacterium is identified, the model modifies candidate-drug scores using organism-specific prescribing multipliers (drug_<drug><em>for_bacteria</em><bacterium>_initiation_multiplier). These multipliers influence which eligible drug is selected.</p>
 <p><strong>Time-varying era-specific values.</strong> For many organisms the preferred drug changed substantially during the simulation period — not because of drug licensing (that is handled separately by <code>DRUG_INTRODUCTION_DATES</code>) but because of guideline shifts driven by accumulating clinical evidence or emerging resistance. The model represents this using <code>_before_YYYY</code> suffix keys, such as <code>drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007</code>. For a given drug-organism pair, the model uses the earliest cutoff year that is still later than the current simulation year; if no cutoff applies, the base multiplier is used. This allows one configuration to describe a continuous temporal arc without adding separate year-by-year rules to the prescribing calculation.</p>
 <p>The species-guideline shifts currently encoded are:</p>
 <table>
@@ -2204,18 +2147,10 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>Patients who are already receiving an effective antibiotic are partially protected against candidate new infections becoming established (Bratzler DW et al., 2013). After the initial infection-acquisition draw and assembly of the prospective resistance mechanisms, the model evaluates each current drug using its potency against the bacterium, the person's current drug level, and the acquired resistance implied by those mechanisms. Each drug with effective activity above 0.5 has a 70% chance of preventing establishment (<code>antibiotic_infection_prevention_efficacy</code> = 0.7). Acquired resistance reduces effective activity and can therefore allow breakthrough, so patients taking antibiotics are selectively more likely to establish infections carrying acquired resistance mechanisms than infections carrying none. This prevention check acts after, rather than as a multiplier on, the initial acquisition probability.</p>
 <hr />
 <h2 id="7-resistance-dynamics">7. Resistance Dynamics</h2>
-<p>This section describes how the model represents the biology of resistance emergence and spread. The model tracks resistance at the level of individual <strong>mechanisms</strong>. This matters because the same phenotype (e.g., "carbapenem-resistant <em>K. pneumoniae</em>") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.</p>
-<p>All resistance terms in this section refer to acquired, mechanism-mediated resistance. This includes mechanisms already present in a resistance-mechanism profile sampled when infection or carriage is acquired; it does not mean that resistance necessarily arose de novo within the current person. Intrinsic or baseline non-susceptibility is encoded through low or zero potency and is not part of the mechanism records, <code>any_r</code>, or <code>microbiome_r</code>.</p>
-<p><strong>Individual-level variables used in this section.</strong> The active-infection mechanism records and derived drug resistance introduced in Section 3 (<code>mechanism_any[b]</code>, <code>mechanism_majority[b]</code>, and <code>resistances[b][d].any_r</code>) are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in <code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>; the wider carriage state is described in Section 8. At acquisition, <code>local_profile_sampling_probability[b]</code> is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (<code>de_novo_emergence_probability[b,m]</code>, <code>minority_promotion_probability[b,m]</code>, and <code>mechanism_reversion_probability[b,m]</code>). Optional provenance tracking is recorded in <code>how_resistance_acquired[b][d]</code>. Population-level resistance-mechanism profile libraries and historical prevalence records are described here but are not individual-level variables. Full definitions and update rules for the individual-level variables are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
-<p><strong>Mechanism-centred architecture.</strong> For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code these three records are <code>mechanism_any</code>, <code>mechanism_majority</code>, and <code>mechanism_microbiome</code>, while the derived summary resistance measures are <code>any_r</code> and <code>microbiome_r</code>. At population level, <code>MechanismCache</code> maintains the circulating resistance-mechanism profile library and prevalence estimates described in Section 7.3, the bounded local establishment archive described in Section 7.6, and the historical peak-prevalence records used by the ratchet in Section 7.9.</p>
-<p>The architecture is primarily mechanism-by-mechanism for <strong>de novo</strong> emergence under active drug pressure. Every bacterium-mechanism pair also has a route classification used by the model, determined from the reviewed host-mechanism correspondence, the explicit bacterium-mechanism emergence rate, and whether the mechanism is horizontally transferable:</p>
-<ul>
-<li><code>ExcludedHost</code>: the pair is outside the current biological/model scope. The mechanism cannot emerge de novo, be received or donated by HGT, be assigned by an exogenous floor, be imported from a sampled resistance-mechanism profile, or contribute to the derived resistance phenotype for that bacterium.</li>
-<li><code>EligibleNoDeNovo</code>: the host is eligible but the configured de novo rate is zero and the mechanism is not horizontally transferable. It can still be present in an inherited circulating resistance-mechanism profile or be assigned by an explicit host-compatible exogenous rule.</li>
-<li><code>HgtOnly</code>: the host is eligible, the configured de novo rate is zero, and the mechanism is transferable. It can arrive through HGT where a compatible donor-recipient link exists, or through an already-circulating or exogenous resistance-mechanism profile, but receives no de novo emergence attempt.</li>
-<li><code>DeNovo</code>: the pair has a positive configured de novo rate and an eligible host. Transfer by HGT remains possible as well when that mechanism is classified as transferable.</li>
-</ul>
-<p>This distinction is important because a zero emergence rate is not a synonym for an impossible host. The same classification is applied when mechanism-drug applicability is determined, when resistance-mechanism profiles are recorded or imported, when environmental or ratchet floors are evaluated, during carriage-to-infection and infection-to-carriage transfer, and for HGT donors and recipients. Exact host restrictions therefore cannot be bypassed by a different mechanism-acquisition pathway.</p>
+<p>This section describes how the model represents the biology of resistance emergence and spread. The model tracks resistance at the level of individual <strong>mechanisms</strong>.  The level of detail to which we model mechanisms (and therefore how many we include) is a balance betweeen needing to reflect important realities that change the effects of some policies and a need to avoid going down an ultimately unproductive route of trying to model every detail of everything.</p>
+<p>All resistance terms in this section refer to acquired, mechanism-mediated resistance. This includes mechanisms already present in a resistance-mechanism profile sampled when infection or carriage is acquired. Intrinsic or baseline non-susceptibility is encoded through low or zero <strong>potency</strong> and is <strong>not</strong> part of the mechanism records, <code>any_r</code>, or <code>microbiome_r</code>.</p>
+<p><strong>Individual-level variables used in this section.</strong> The active-infection mechanism records (<code>mechanism_any[b]</code>, <code>mechanism_majority[b]</code>) and derived drug resistance <code>resistances[b][d].any_r</code> introduced in Section 3 are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in <code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>; the wider carriage state is described in Section 8. At acquisition, <code>local_profile_sampling_probability[b]</code> is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (<code>de_novo_emergence_probability[b,m]</code>, <code>minority_promotion_probability[b,m]</code>, and <code>mechanism_reversion_probability[b,m]</code>). Full definitions and update rules for the individual-level variables are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
+<p><strong>Mechanism-centred architecture.</strong> For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code, these three records are <code>mechanism_any</code> (at least a minority of the infecting bacteria have this mechanism), <code>mechanism_majority</code> (the majority of infecting bacteria have this mechanism), and <code>mechanism_microbiome</code> (the bacteria in the microbiome carry this mechanism), while the derived drug-level resistance measures are <code>any_r</code> (on a scale of 0-1 the extent to which the underling potency of the drug against the actively-infecting bacteria is undermined by the resistance mechanisms present) and <code>microbiome_r</code> (the same for bacteria in the microbiome). At population level, MechanismCache maintains the circulating resistance-mechanism profile library, the bounded local establishment archive, and the historical peak-prevalence records used by the "ratchet" (see below).</p>
 <h3 id="71-resistance-mechanisms">7.1 Resistance mechanisms</h3>
 <p>The model explicitly tracks <strong>46</strong> distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.</p>
 <p>The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) relate to <code>pen</code>, <code>c1_2g</code>, <code>c3g</code>, <code>c4g</code>, and related monobactam-active entries but not <code>carb_group1</code>/<code>carb_group2</code>, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well, for example.</p>
@@ -2554,23 +2489,26 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </tr>
 </tbody>
 </table>
+<p>For each bacterium–mechanism pair, the current code assigns one of four implementation statuses using the reviewed host–mechanism correspondence, the configured de novo emergence rate, and whether the mechanism is generically HGT-transferable:</p>
+<p><code>ExcludedHost</code>: the pair is outside the current biological/model scope. Host-eligibility checks prevent the mechanism from being introduced, transferred or used to derive resistance for that bacterium.
+<code>EligibleNoDeNovo</code>: the host is eligible, but the configured de novo rate is zero and the mechanism is not HGT-transferable. The mechanism can nevertheless be present if supplied by a compatible circulating profile or a separately configured exogenous or special source.
+<code>HgtOnly</code>: the host is eligible, the configured de novo rate is zero, and the mechanism is HGT-transferable. Actual HGT additionally requires a donor carrying the mechanism, a shared compartment and a positive configured donor–recipient HGT probability. The mechanism may also be supplied by another configured source, so this status does not establish that HGT is its only route or that a reachable donor exists.
+<code>DeNovo</code>: the host is eligible and has a positive configured de novo emergence rate. Other configured acquisition routes may also operate, including HGT where the mechanism is transferable.</p>
+<p>Environmental and ratchet floors, configured donor–recipient HGT probabilities, and the special MDR-TB rifampicin-resistance rule are evaluated separately and do not contribute to this four-state status. Circulating-profile sampling, carriage inheritance, local persistence and ratchet reseeding are restricted by host compatibility, but the current code does not calculate overall source reachability. The statuses therefore enforce host scope and de novo eligibility, rather than providing a complete classification of all possible mechanism sources.</p>
 <h3 id="72-mechanismdrug-class-enhancement-multipliers">7.2 Mechanism–drug-class enhancement multipliers</h3>
-<p>Each mechanism a bacterium has <strong>reduces</strong> drug efficacy by a specific amount. The "enhancement multiplier" (0.0–1.0) represents by <strong>how much</strong> a drug's effectiveness is reduced:</p>
+<p>Each mechanism a bacterium has <strong>reduces</strong> drug efficacy by a specific amount. The "enhancement multiplier" (0.0–1.0) represents by <strong>how much</strong> a drug's effectiveness is considered to be reduced (i.e. by what proportion the drug activity is reduced as a result of the mechanism being present):</p>
 <ul>
 <li><strong>0.0</strong> = the mechanism has no effect on this drug (e.g., a tetracycline efflux pump does nothing against meropenem)</li>
-<li><strong>0.95</strong> = the mechanism eliminates 95% of the drug's activity (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)</li>
+<li><strong>0.95</strong> = the mechanism eliminates 95% of the drug's activity  (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)</li>
 <li><strong>1.0</strong> = complete acquired resistance - the mechanism being present removes all of the drug's baseline activity (the same final loss of activity as a potency of 0)</li>
 </ul>
-<p>There are 46 mechanisms × 39 drug classes = 1,794 underlying mechanism-class values. A non-zero value affects a simulated bacterium-drug pair only when the mechanism is permitted for the bacterial host and the drug-specific <code>mechanism_applies_to_drug</code> condition is met. Values for non-applicable pairs have no effect. The table below shows the <strong>global reference</strong> multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified):</p>
-<p>These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final residual drug activity still depends on baseline potency, site penetration, and combination with other mechanisms.</p>
-<p>The two narrow-spectrum penicillinase routes use an explicit <code>0.90</code> effect for the plain-penicillin class and a general value of zero when no class-specific value is supplied. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.</p>
-<p>The protected beta-lactam combinations use mechanism-specific substrate logic. NDM/VIM has a <code>0.95</code> effect against both ceftazidime-avibactam and meropenem-vaborbactam because neither inhibitor blocks a class B metallo-beta-lactamase and the partner beta-lactams remain vulnerable. NDM/VIM has no direct effect on plain or avibactam-protected aztreonam. OXA-48 has the same <code>0.70</code> model effect against meropenem-vaborbactam as against group-2 carbapenems because vaborbactam does not inhibit OXA-48; its direct aztreonam-avibactam effect is zero. Co-produced mechanisms continue to combine independently, so these protected-aztreonam exceptions do not imply perfect activity against every multi-mechanism strain.</p>
+<p>There are 46 mechanisms × 39 drug classes = 1,794 underlying mechanism-class values. A non-zero value affects a simulated bacterium-drug pair only when the mechanism is permitted for the bacterial host and the drug-specific <code>mechanism_applies_to_drug</code> condition is met. Values for non-applicable pairs have no effect. The table below shows the <strong>global reference</strong> multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been directly specified).  Below we discuss a few examples.</p>
+<p>The two narrow-spectrum penicillinase routes use an explicit <code>0.90</code> effect for the plain-penicillin class and a general value of zero when no class-specific value is supplied. Their BLI-class values are also explicitly zero. Ordinary TEM-1, ROB/BRO proxies, and blaZ therefore do not by themselves create resistance to beta-lactamase-inhibitor combinations, flucloxacillin, cephalosporins, monobactams, or carbapenems.   The protected beta-lactam combinations use mechanism-specific substrate logic. NDM/VIM has a <code>0.95</code> effect against both ceftazidime-avibactam and meropenem-vaborbactam because neither inhibitor blocks a class B metallo-beta-lactamase and the partner beta-lactams remain vulnerable. NDM/VIM has no direct effect on plain or avibactam-protected aztreonam. OXA-48 has the same <code>0.70</code> model effect against meropenem-vaborbactam as against group-2 carbapenems because vaborbactam does not inhibit OXA-48; its direct aztreonam-avibactam effect is zero. Co-produced mechanisms continue to combine independently, so these protected-aztreonam exceptions do not imply perfect activity against every multi-mechanism strain.</p>
 <p>Plasmid CMY, plasmid DHA, and derepressed chromosomal AmpC have strong effects against plain aztreonam (<code>0.80</code>, <code>0.75</code>, and <code>0.80</code>, respectively), aligned with their oxyimino-cephalosporin bands. This does not extend to aztreonam-avibactam: ordinary class C enzymes are inhibited by avibactam and are not standalone resistance routes for that combination.</p>
 <p>ErmB is a macrolide-lincosamide mechanism in the current mechanism-drug correspondence. Although it affects the streptogramin-B component quinupristin, it is not sufficient by itself to confer resistance to the combined quinupristin-dalfopristin product, so its explicit streptogramin-class effect is zero and that drug is outside ErmB applicability. The model currently has no separate complementary streptogramin-A mechanism. Existing quinupristin-dalfopristin prevalence benchmarks are therefore retained as active targets that the model cannot currently represent: their zero simulated prevalence contributes to resistance-fit statistics as an explicit structural model gap rather than forcing an incorrect ErmB phenotype.</p>
-<p>Cefiderocol uses one compressed, non-transferable <code>mutation_siderophore_uptake</code> route with an expert model-scale effect of <code>0.60</code>. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake, and its provisional de novo rate is <code>0.0001</code> per day under cefiderocol pressure in eligible Enterobacterales and nonfermenters with non-negligible baseline potency. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss do not project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.</p>
+<p>Cefiderocol uses one compressed, non-transferable <code>mutation_siderophore_uptake</code> route with an effect of <code>0.60</code>. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss do not project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.</p>
 <p>Baseline cefiderocol potency is correspondingly limited to susceptible aerobic Gram-negative bacteria. <em>S. maltophilia</em> and the <em>B. cepacia</em> complex use a conservative active value of <code>0.55</code>, matching the existing <em>P. aeruginosa</em> and <em>A. baumannii</em> model bucket, because activity is supported principally by in vitro and animal data rather than established clinical efficacy. Gram-positive bacteria, <em>B. fragilis</em>, <em>C. jejuni</em>, and intracellular <em>L. pneumophila</em> receive poor-activity values. The categories follow the FDA spectrum statement and primary susceptibility data and are not direct MIC or breakpoint conversions.</p>
-<p>Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For <em>P. aeruginosa</em>, the non-transferable mechanism category <code>mutation_ampc_derepression</code> is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental <em>K. pneumoniae</em> work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because the model does not represent interactions between mechanisms, this interaction is not converted into a positive standalone <code>any_r</code> phenotype.</p>
-<p>Baseline ceftolozane/tazobactam potency is represented separately from acquired resistance. Reviewed model-scale values retain activity against susceptible Enterobacterales, <em>P. aeruginosa</em>, selected streptococci, and <em>B. fragilis</em>, while staphylococci, <em>C. jejuni</em>, and intracellular <em>L. pneumophila</em> receive poor-activity values. These are coarse activity categories informed by the FDA microbiology review, prescribing information, and published susceptibility studies; they are not direct MIC or breakpoint conversions.</p>
+<p>Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For <em>P. aeruginosa</em>, the non-transferable mechanism category <code>mutation_ampc_derepression</code> is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental <em>K. pneumoniae</em> work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because by default the model currently does not represent interactions between mechanisms, this interaction is not converted into a positive standalone <code>any_r</code> phenotype.</p>
 <table>
 <thead>
 <tr>
@@ -2774,15 +2712,11 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </table>
 <h3 id="73-resistance-at-acquisition">7.3 Resistance at acquisition</h3>
 <p>Section 3.4 describes the individual-level sequence from a candidate infection to successful establishment. This subsection describes the population-level resistance sources used to assemble the candidate infection's resistance-mechanism profile.</p>
-<h4 id="circulating-resistance-mechanism-profile-library-and-prevalence">Circulating resistance-mechanism profile library and prevalence</h4>
-<p>After every simulated day, the model refreshes a stored library of circulating resistance-mechanism profiles (<code>MechanismCache</code> in the code) for each combination of region × current care setting (community or hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant strain in the corresponding daily collection. Each collection contains up to 1,000 entries, with each entry representing one eligible active infection-day. If more than 1,000 infection-days are eligible, entries are selected uniformly so that every eligible infection-day has the same chance of representation. A persistent infection is eligible again on each successive day that it remains active.</p>
-<p>A predominant strain carrying none of the acquired resistance mechanisms represented in the model is included as a resistance-mechanism profile with no modelled acquired resistance. The library therefore represents active-infection person-days with and without modelled acquired resistance, rather than a collection restricted to resistant infections, tested infections, clinical isolates, or unique people.</p>
-<p>The stored resistance-mechanism profile library blends retained resistance-mechanism profiles with newly collected resistance-mechanism profiles each day. Every previously stored resistance-mechanism profile has the same marginal probability of retention. The configured retention probability is 0.999 in both the community and hospital libraries.</p>
-<p>For any drug, the model estimates prevalence from the fraction of stored resistance-mechanism profiles containing at least one mechanism that affects that drug. The same library therefore supplies resistance-mechanism profiles for acquisition and prevalence estimates used by prescribing logic. The bounded local mechanism-persistence archive described in Section 7.6 is stored separately and does not contribute directly to these current prevalence estimates.</p>
+<p><img alt="Flow diagram showing how a newly acquired bacterial infection receives a resistance-mechanism profile" src="resistance_profile_at_acquisition.svg" /></p>
+<p><em>Resistance-profile assignment for a newly acquired bacterial infection. A profile with no represented mechanisms means no modelled acquired resistance; intrinsic non-susceptibility remains encoded separately through drug–bacterium potency. Prevention by antibiotics already being taken is intentionally omitted.</em></p>
 <h4 id="selection-of-the-resistance-source">Selection of the resistance source</h4>
-<p>The model first samples whether a candidate infection occurs and only then selects its resistance source. For a candidate community infection, the bacterium-specific <code>community_resistance_dilution_factor</code> is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. Despite the word <code>dilution</code> in its name, it is not a multiplier applied to resistance prevalence. The corresponding individual-level probability of sampling from the circulating library or its persistence archive is represented by <code>local_profile_sampling_probability[b]</code>.</p>
-<p>If the human-reservoir source is not selected, a candidate community infection follows the exogenous route described below. Candidate hospital infections use the local human-reservoir route rather than this community source probability. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source subject to the run-level and counterfactual controls described below.</p>
-<p>The source probability does not alter the initial candidate-acquisition probability. It can nevertheless affect the number and resistance distribution of infections that become established because the resulting resistance-mechanism profile is used when existing therapy is evaluated. Its effect on resistance need not be monotonic: the human-reservoir library contains resistance-mechanism profiles with and without modelled acquired resistance, while the exogenous route can itself assign resistance mechanisms.</p>
+<p>Once a candidate infection has arisen, a community infection follows one of two resistance-source pathways. The bacterium-specific <code>community_resistance_dilution_factor</code> is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. On that route, the individual-level probability of sampling from the circulating library or its persistence archive is represented by <code>local_profile_sampling_probability[b]</code>. Otherwise, the candidate follows the exogenous route described below.</p>
+<p>Candidate hospital infections use the local human-reservoir pathway, with any configured hospital enrichment, rather than this community source choice. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source.</p>
 <p>The configured source probabilities use broad ecological groupings:</p>
 <table>
 <thead>
@@ -2826,27 +2760,31 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </tr>
 </tbody>
 </table>
-<p>These are ecological and calibration parameters used to mix human-reservoir and exogenous pathways, not constraints imposed by the model. Bacterium-specific values are listed in Appendix B.3. Differences between clinical resistance evidence and active-infection person-day outputs are discussed in Sections 1.1 and 12.1; they are not represented by <code>community_resistance_dilution_factor</code>.</p>
+<p>Bacterium-specific values are listed in Appendix B.3.</p>
+<h4 id="circulating-resistance-mechanism-profile-library-and-prevalence">Circulating resistance-mechanism profile library and prevalence</h4>
+<p>After every simulated day, the model refreshes a stored library of circulating resistance-mechanism profiles (<code>MechanismCache</code> in the code) for each combination of region × current care setting (community or hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant strain in the corresponding daily collection. Each region/care-setting/bacteria-specific profile contains up to 1,000 entries. Once there are 1,000 entries, only a small proportion (currently 1 per 1000 for both hospital and community libraries; see below) are randomly selected to be replaced each day, and a random selection of eligible profiles are selected to fill those slots.   A persistent infection is eligible to contribute on each successive day that it remains active.</p>
+<p>A predominant strain carrying none of the acquired resistance mechanisms represented in the model is included as a resistance-mechanism profile with no modelled acquired resistance. The library therefore represents active-infection person-days with and without modelled acquired resistance, rather than a collection restricted to resistant infections, tested infections, clinical isolates, or unique people.</p>
+<p>For any drug, the model estimates prevalence from the fraction of stored resistance-mechanism profiles containing at least one mechanism that affects that drug. The same library therefore supplies resistance-mechanism profiles for acquisition and prevalence estimates used by prescribing logic. The bounded local mechanism-persistence archive described in Section 7.6 is stored separately and does not contribute directly to these current prevalence estimates.</p>
+<p><img alt="Feedback-loop diagram showing how circulating resistance-mechanism profile libraries are built, refreshed, and used" src="resistance_profile_library_lifecycle.svg" /></p>
+<p><em>Daily construction and use of the circulating resistance-mechanism profile libraries. Each library is specific to a region, current care setting, and bacterium. The local persistence archive is maintained separately: it can supply a complete historical profile during acquisition but does not contribute to estimates of current resistance prevalence.</em></p>
 <h4 id="complete-resistance-mechanism-profile-sampling">Complete resistance-mechanism profile sampling</h4>
-<p>When the human-reservoir route is used, the model samples one complete resistance-mechanism profile rather than sampling each mechanism independently. All mechanisms in that resistance-mechanism profile are added together to the prospective infection. This preserves correlations such as ESBL CTX-M occurring with fluoroquinolone resistance in the same circulating lineage (Partridge SR et al., 2018). The local mechanism-persistence archive, when selected, likewise supplies one complete resistance-mechanism profile and is not combined with a separate resistance-mechanism profile from the current library.</p>
-<p>For a candidate community infection, the current community collection for the relevant region and bacterium is used. During the early warm-up period, if that collection is empty, the model can use the corresponding hospital collection rather than constructing a synthetic resistance-mechanism profile.</p>
-<p>For a candidate hospital infection, <code>hospital_resistance_prune_susceptible_percent</code> can enrich sampling for resistance-mechanism profiles containing at least one represented acquired-resistance mechanism. If the hospital collection has no such resistance-mechanism profile, the available local hospital and community collections are temporarily combined. Once the hospital collection contains a resistance-mechanism profile with a represented mechanism, only that collection is used. The model may temporarily remove the configured fraction of resistance-mechanism profiles with no modelled acquired resistance before sampling, but it never removes resistance-mechanism profiles containing a represented mechanism. If removal would leave no candidate, the original collection remains available. The default removal percentage is 50%, with higher bacterium-specific values for selected healthcare-associated pathogens.</p>
-<p>Carriage sampling is related but does not apply the hospital removal step. A hospital carriage acquisition uses the current hospital collection, with the community collection as a temporary fallback if needed. A sampled carriage resistance-mechanism profile is recorded in <code>mechanism_microbiome</code> and used to calculate <code>microbiome_r</code>; it does not directly create active-infection resistance. If neither the relevant persistence archive nor either current care-setting collection supplies a resistance-mechanism profile, this pathway assigns no acquired resistance mechanisms.</p>
-<p>Complete resistance-mechanism profile sampling represents linkage already present in observed simulated lineages. The model does not add mechanisms independently merely because their marginal presence has been observed elsewhere, because doing so would construct combinations unsupported by the sampled lineage.</p>
-<p>The <code>counterfactual_resistance_multiplier</code> controls whether resistance mechanisms are incorporated through resistance-mechanism profile inheritance and the other resistance-acquisition pathways. A value of 0.0 disables resistance-mechanism profile inheritance, static and ratchet exogenous assignment, the MDR-TB rifampicin rule, same-person carriage inheritance, de novo emergence, microbiome-acquisition seeding, and HGT. These pathways are implemented separately but share this counterfactual control.</p>
+<p>When the human-reservoir route is used, the model samples one complete resistance-mechanism profile rather than sampling each mechanism independently. All mechanisms in that resistance-mechanism profile are added together to the new infection, so this is identical to the mechanism profile of a formerly or concurrently infected simulated person, representing its circulation in the population. This preserves correlations such as ESBL CTX-M occurring with fluoroquinolone resistance in the same circulating lineage (Partridge SR et al., 2018). The local mechanism-persistence archive, when selected, likewise supplies one complete resistance-mechanism profile.</p>
+<p>For a new community infection, the current community collection for the relevant region and bacterium is used. During the early model warm-up years, if that collection is empty, the model can use the corresponding hospital collection rather than constructing a synthetic resistance-mechanism profile.</p>
+<p>For a candidate hospital infection, <code>hospital_resistance_prune_susceptible_percent</code> can enrich sampling for resistance-mechanism profiles by removing profiles with no resistance mechanisms present, representing how resistant infections may be concentrated in hospital settings.  The default removal percentage is 50%, with higher bacterium-specific values for selected healthcare-associated pathogens.</p>
+<p>Carriage sampling is related but does not apply the hospital removal step. A hospital carriage acquisition uses the current hospital collection. A sampled carriage resistance-mechanism profile is recorded in <code>mechanism_microbiome</code> and used to calculate <code>microbiome_r</code>; it does not directly create active-infection resistance. </p>
 <h4 id="exogenous-assignment-and-completion-of-the-prospective-resistance-mechanism-profile">Exogenous assignment and completion of the prospective resistance-mechanism profile</h4>
 <p>When a candidate community infection follows the exogenous route, each eligible mechanism is evaluated using the larger of its configured environmental assignment probability and its dynamic ratchet assignment probability. These probabilities provide resistance reseeding on individual exogenous acquisitions; they do not impose lower bounds on overall resistance prevalence. Sections 7.8 and 7.9 describe the environmental and ratchet pathways in detail. The separate local persistence archive in Section 7.6 acts only on the human-reservoir route.</p>
 <p>Two further pathways can add mechanisms before the candidate infection is evaluated against existing therapy:</p>
 <ul>
 <li><strong>MDR-TB rifampicin rule.</strong> For MDR-TB candidate acquisitions from 1966 onward, the model adds the applicable <code>rpoB</code> rifampicin-resistance mechanism to both the prospective <code>mechanism_any</code> and <code>mechanism_majority</code> records when the rule is enabled. Any positive value of <code>mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance</code> enables this fixed rule; the value is not used as a probability. A counterfactual resistance multiplier of 0.0 disables it.</li>
-<li><strong>Same-person carriage inheritance.</strong> If the person already carries the same organism, <code>carrier_resistance_inheritance_probability</code> determines whether this pathway is applied. Each eligible mechanism in the person's carriage resistance-mechanism profile is then considered using <code>infection_from_microbiome_dampening</code>. Successful transfers are added to prospective <code>mechanism_any</code> only and therefore initially represent minority infection mechanisms. Section 3.3 describes this bridge from carriage to infection.</li>
+<li><strong>Same-person carriage inheritance.</strong> If the person already carries the same organism, <code>carrier_resistance_inheritance_probability</code> determines whether this pathway is applied. Each eligible mechanism in the person's carriage resistance-mechanism profile is then considered using <code>infection_from_microbiome_dampening</code>. Successful transfers are added to prospective <code>mechanism_any</code>. Section 3.3 describes this bridge from carriage to infection.</li>
 </ul>
-<p>After the prospective resistance-mechanism profile has been completed, existing therapy determines whether the candidate infection becomes established as described in Section 3.4. Only an established infection stores <code>mechanism_any</code> and <code>mechanism_majority</code>. The model then derives drug-specific <code>any_r</code> from all applicable mechanisms in <code>mechanism_any</code>:</p>
-<p>\[\text{any_r} = R_{max}\left[1 - \prod_{m : \text{mechanism_any}_m = \text{true}} (1 - e_m)\right],\]</p>
-<p>bounded between 0 and \(R_{max}\), where \(e_m\) is the enhancement multiplier for mechanism \(m\) against the drug and \(R_{max}\) is <code>max_resistance_level</code> (1.0). At establishment, the value is recalculated from the complete stored mechanism set. Later mechanism additions cannot reduce the derived value; explicit mechanism reversion instead recalculates it from the mechanisms that remain.</p>
+<p>After the prospective resistance-mechanism profile has been completed (and presence of a drug with activity against the bacteria excluded) the infection happens, as described in Section 3.4. An established infection stores <code>mechanism_any</code> and <code>mechanism_majority</code>. The model then derives drug-specific <code>any_r</code> from all applicable mechanisms in <code>mechanism_any</code>:</p>
+<p>\[\text{any_r} = 1 - \prod_{m : \text{mechanism_any}_m = \text{true}} (1 - e_m),\]</p>
+<p>bounded between 0 and 1, where \(e_m\) is the enhancement multiplier for mechanism \(m\) against the drug. At establishment, the value is recalculated from the complete stored mechanism set. Later mechanism additions cannot reduce the derived value; explicit mechanism reversion instead recalculates it from the mechanisms that remain.</p>
 <hr />
 <h3 id="74-resistance-emergence">7.4 Resistance emergence</h3>
-<p>This subsection concerns <strong>de novo resistance emergence during treatment</strong>. In the current model, this pathway is only evaluated when a patient is actively exposed to antibiotics.</p>
+<p>This subsection concerns <strong>de novo resistance emergence during treatment</strong> which is the original source of all resistance which occurs. </p>
 <p><strong>Sub-therapeutic exposure and resistance emergence:</strong></p>
 <p>Given the familiar mutant selection window framework (Drlica K et al., 2007), the model parameterises emergence probability as a function of drug concentration that peaks at intermediate exposure:</p>
 <ul>
@@ -2855,56 +2793,14 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <li><strong>Full therapeutic levels:</strong> Both susceptible and resistant bacteria are strongly suppressed.</li>
 </ul>
 <p>Within this framework, incomplete courses, poor adherence, and underdosing matter because they extend the time spent in the sub-therapeutic selection window.</p>
-<p><strong>The emergence formula:</strong></p>
-<p>For de novo emergence in an active infection under antibiotic exposure, the model calculates:</p>
-<pre><code>emergence_rate = mechanism_rate
-               × run_pathway_infection_de_novo_multiplier
-               × counterfactual_resistance_multiplier
-               × (1 + bacteria_level_factor)
-               × max_emergence_drug_factor
-               × multi_drug_penalty_factor
-</code></pre>
-<table>
-<thead>
-<tr>
-<th>Factor</th>
-<th>What it represents</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>mechanism_rate</code></td>
-<td>How biologically likely this bacterium is to acquire this specific mechanism</td>
-</tr>
-<tr>
-<td><code>run_pathway_infection_de_novo_multiplier</code> / <code>counterfactual_resistance_multiplier</code></td>
-<td>Run-level and scenario-level scaling applied on top of the organism-specific baseline</td>
-</tr>
-<tr>
-<td><code>bacteria_level_factor</code></td>
-<td>Logarithmic scaling by bacterial load</td>
-</tr>
-<tr>
-<td><code>max_emergence_drug_factor</code></td>
-<td>Drug-exposure term based on the highest relevant site-level exposure window across active drugs</td>
-</tr>
-<tr>
-<td><code>multi_drug_penalty_factor</code></td>
-<td>Suppression when multiple relevant drugs are used together</td>
-</tr>
-</tbody>
-</table>
-<h4 id="organism-specific-emergence-calibration">Organism-specific emergence calibration</h4>
+<h4 id="organism-specific-emergence-calculation">Organism-specific emergence calculation</h4>
 <p>De novo resistance emergence is parameterised directly at the <strong>bacterium-mechanism</strong> level. Each organism therefore has its own baseline emergence profile across the various mechanisms. The route classification described above determines whether a zero means an excluded host, an HGT-only route, or an eligible non-transferable mechanism with no de novo attempt; the numerical rate alone is not used as an indicator of host eligibility.</p>
-<p>For active infection, the daily hazard for a given mechanism is:</p>
+<p>For an eligible absent mechanism in an active infection under antibiotic exposure, the biological and within-host component of the daily emergence rate is:</p>
 <pre><code>mechanism_emergence_rate = mechanism_rate
-                          × run_pathway_infection_de_novo_multiplier
-                          × counterfactual_resistance_multiplier
                           × (1 + bacteria_level_factor)
                           × max_emergence_drug_factor
                           × multi_drug_penalty_factor
 </code></pre>
-<p>The additional terms do distinct jobs:</p>
 <table>
 <thead>
 <tr>
@@ -2928,10 +2824,6 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <tr>
 <td><code>multi_drug_penalty_factor</code></td>
 <td>Suppression of emergence when two or more drugs with non-negligible susceptible-organism potency (at least <code>minimal_potency_threshold_for_drug_selection</code>, currently 0.15) are active and the candidate mechanism covers only part of that regimen</td>
-</tr>
-<tr>
-<td><code>run_pathway_infection_de_novo_multiplier</code> / <code>counterfactual_resistance_multiplier</code></td>
-<td>Run-level or scenario-level scaling applied without changing the organism-specific baseline table</td>
 </tr>
 </tbody>
 </table>
@@ -55487,8 +55379,10 @@ counts, and previously located parameter references.</p>
 <li><code>MISSING_EVENT_DATE</code> is the special value <code>-1</code>, meaning that no event date has
   been recorded. Drug dates that use the alternative special value <code>i32::MIN</code>
   are identified explicitly.</li>
-<li><code>INFECTION_EPS</code> is the common small positive threshold used to distinguish
-  active infection or exposure from numerical zero.</li>
+<li><code>INFECTION_EPS</code> is the small positive threshold used to distinguish clinically
+  active infection and non-negligible drug exposure from fading numerical state.
+  Infection episode ownership instead uses exact zero: every positive infection
+  level remains part of the existing episode.</li>
 </ul>
 <h3 id="d2-table-d1-compact-variable-dictionary">D.2 Table D1. Compact Variable Dictionary</h3>
 <table>
@@ -55602,7 +55496,7 @@ counts, and previously located parameter references.</p>
 <tr>
 <td><a href="#rule-level"><code>level[b]</code></a></td>
 <td>Persistent value for each bacterium</td>
-<td>Non-negative unitless infection intensity.</td>
+<td>Non-negative unitless infection intensity; every positive value belongs to the current episode, while values above <code>INFECTION_EPS</code> are clinically active.</td>
 <td><code>0</code>; set to a bacterium-specific value at acquisition.</td>
 <td>Reset to <code>0</code> on clearance.</td>
 <td>Active infection</td>
@@ -55620,7 +55514,7 @@ counts, and previously located parameter references.</p>
 <td>Persistent value for each bacterium</td>
 <td>Daily immune-clearance probability, from <code>0</code> to <code>1</code>.</td>
 <td><code>0</code>.</td>
-<td>Recalculated during active infection; reset on clearance.</td>
+<td>Recalculated while a positive infection episode remains; reset on clearance.</td>
 <td>Active infection</td>
 </tr>
 <tr>
@@ -56395,7 +56289,7 @@ counts, and previously located parameter references.</p>
 <td><a href="#rule-new-bacteria-level"><code>new_bacteria_level[b]</code></a></td>
 <td>Temporary value for each bacterium</td>
 <td>Proposed next infection intensity after growth and drug activity.</td>
-<td>Recalculated for active infection.</td>
+<td>Recalculated for every positive infection episode, including a fading episode.</td>
 <td>Stored in <code>level[b]</code> or replaced by clearance.</td>
 <td>Active infection</td>
 </tr>
@@ -56583,15 +56477,15 @@ rule used by the model rather than a configurable parameter.</p>
 <td><a id="rule-level"></a><code>level[b]</code></td>
 <td>Previous level, age, immunodeficiency, syndrome, infection duration, drug exposure, <code>any_r</code>, immune-clearance draw.</td>
 <td><code>{bacterium}_initial_infection_level</code>; <code>{bacterium}_base_bacteria_level_change</code>; <code>{bacterium}_max_level</code>; <code>bacteria_growth_age_multiplier_{age_group}</code>; <code>bacteria_growth_immunodeficiency_multiplier</code>; <code>syndrome_{id}_bacteria_growth_multiplier</code>; potency, penetration and activity parameters; clearance parameter families.</td>
-<td>Initialised at acquisition; daily growth and effective drug activity form <code>new_bacteria_level[b]</code>, after which immune clearance or a sub-threshold level can resolve infection.</td>
-<td>MDR-TB has explicit multidrug synergy rules; the numerical clearance threshold is fixed at 0.0001.</td>
+<td>Initialised at acquisition; every positive level continues daily growth and effective-drug-activity updates; immune clearance or a calculated level of zero retires the episode atomically.</td>
+<td>A positive level at or below <code>INFECTION_EPS</code> is a fading continuation of the same episode and can rebound; MDR-TB has explicit multidrug synergy rules.</td>
 <td>Infection-acquisition and active-infection blocks in <code>rules::apply_rules</code>; <code>config::ClearanceParameters</code></td>
 </tr>
 <tr>
 <td><a id="rule-predicted-infection-risk"></a><code>predicted_infection_risk[b]</code></td>
 <td>Current acquisition inputs summarised by <code>infection_acquisition_probability[b]</code>.</td>
 <td>Acquisition parameters listed for that temporary probability.</td>
-<td>Replaced daily with the calculated probability for an eligible person-bacterium pair.</td>
+<td>Replaced daily with the calculated probability for a person-bacterium pair whose infection level is zero.</td>
 <td>A value retained for diagnostic reporting; it is not a second acquisition draw.</td>
 <td>Infection-acquisition block in <code>rules::apply_rules</code></td>
 </tr>
@@ -56599,9 +56493,9 @@ rule used by the model rather than a configurable parameter.</p>
 <td><a id="rule-clearance-hazard"></a><code>clearance_hazard[b]</code></td>
 <td><code>level[b]</code>, age, immunodeficiency, infection duration, bacterium.</td>
 <td><code>default_clearance_base_log_odds</code>; <code>{bacterium}_clearance_log_odds_adjustment</code>; <code>clearance_age_log_odds_{age_group}</code>; <code>clearance_immunodeficient_log_odds</code>; <code>clearance_level_log_odds_per_unit</code>; fixed duration slope of 0.25 per day.</td>
-<td>Recalculated and stored on active eligible infection days before the immune-clearance draw.</td>
-<td>Zero outside an eligible active infection.</td>
-<td><code>config::ClearanceParameters::hazard_for</code>; active-infection block in <code>rules::apply_rules</code></td>
+<td>Recalculated and stored on every positive episode day before the immune-clearance draw.</td>
+<td>Zero only when no infection episode remains.</td>
+<td><code>config::ClearanceParameters::hazard_for</code>; infection-progression block in <code>rules::apply_rules</code></td>
 </tr>
 <tr>
 <td><a id="rule-clearance-ready-day"></a><code>clearance_ready_day[b]</code></td>
@@ -56975,8 +56869,8 @@ rule used by the model rather than a configurable parameter.</p>
 <td><a id="rule-resistance-activity-r"></a><code>resistances[b][d].activity_r</code></td>
 <td>Drug exposure, no-acquired-resistance potency, syndrome penetration, <code>any_r[b][d]</code>.</td>
 <td><code>drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r</code>; <code>syndrome_{id}_drug_{drug}_penetration</code>; <code>max_resistance_level</code>.</td>
-<td>Recalculated for active infection as potency times exposure times penetration times remaining susceptibility after acquired resistance.</td>
-<td>A treatment-activity quantity, not resistance prevalence or an MIC.</td>
+<td>Recalculated for every positive infection episode as potency times exposure times penetration times remaining susceptibility after acquired resistance.</td>
+<td>It continues to affect fading-episode progression; reporting observations remain restricted to clinically active infections.</td>
 <td>Drug-activity calculation in <code>rules::apply_rules</code></td>
 </tr>
 <tr>
@@ -57317,10 +57211,10 @@ rule used by the model rather than a configurable parameter.</p>
 </tr>
 <tr>
 <td><a id="rule-infection-acquisition-probability"></a><code>infection_acquisition_probability[b]</code></td>
-<td>Infection absence, age, region, hospital status, vaccination, carriage, exposure context and policy state.</td>
+<td>Infection-episode absence (<code>level[b] == 0</code>), age, region, hospital status, vaccination, carriage, exposure context and policy state.</td>
 <td><code>{bacterium}_acquisition_log_odds_baseline</code>; age and region acquisition families; hospital, vaccination, carriage-versus-infection, pathway and policy multipliers.</td>
-<td>Recomputed daily for each eligible uninfected bacterium and copied to <code>predicted_infection_risk[b]</code> before the initial acquisition draw.</td>
-<td>Externally parameterises the initial candidate-acquisition probability; the incoming resistance mechanisms and existing therapy can subsequently determine whether that candidate becomes established.</td>
+<td>Recomputed daily for each eligible person-bacterium pair and copied to <code>predicted_infection_risk[b]</code> before the initial acquisition draw.</td>
+<td>A fading positive episode is not eligible; the incoming resistance mechanisms and existing therapy can subsequently determine whether an eligible candidate becomes established.</td>
 <td>Infection-acquisition block in <code>rules::apply_rules</code></td>
 </tr>
 <tr>
@@ -57375,9 +57269,9 @@ rule used by the model rather than a configurable parameter.</p>
 <td><a id="rule-new-bacteria-level"></a><code>new_bacteria_level[b]</code></td>
 <td>Previous <code>level[b]</code>, growth modifiers, applied drug activity and response multiplier.</td>
 <td>Initial and maximum level; base growth; age, immunodeficiency and syndrome growth multipliers; potency, penetration, activity and treatment-response parameters.</td>
-<td>Calculated once per active infection day, bounded, then stored in <code>level[b]</code> unless resolution supersedes it.</td>
-<td>MDR-TB multidrug synergy and background effectiveness are explicit exceptions.</td>
-<td>Active-infection level block in <code>rules::apply_rules</code></td>
+<td>Calculated once per positive infection-episode day, bounded, then stored in <code>level[b]</code> unless resolution supersedes it.</td>
+<td>Fading positive episodes continue this update; MDR-TB multidrug synergy and background effectiveness are explicit exceptions.</td>
+<td>Infection-progression block in <code>rules::apply_rules</code></td>
 </tr>
 <tr>
 <td><a id="rule-symptom-onset-probability"></a><code>symptom_onset_probability[b]</code></td>
