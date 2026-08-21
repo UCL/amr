@@ -10,7 +10,8 @@ use crate::config::{
     RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
-    self, bacterium_has_separate_microbiome_compartment, days_since_recorded_event, load_float,
+    self, bacterium_has_separate_microbiome_compartment, days_since_recorded_event,
+    infection_episode_present, infection_episode_should_retire, infection_is_active, load_float,
     store_float, AntibioticUseContext, CarriageCompartment, HospitalStatus, ImmunodeficiencyType,
     Individual, InfectionResolutionType, Region, ResistanceAcquisitionType, ResistanceMechanism,
     BACTERIA_COUNT, BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, INFECTION_EPS,
@@ -1413,6 +1414,37 @@ fn clear_treatment_tracking(individual: &mut Individual, bacteria_idx: usize) {
     individual.drug_activity_response_multiplier[bacteria_idx] = base_multiplier;
 }
 
+/// Clear state owned by the current infection episode while preserving carriage,
+/// retained infection history, and person-level drug courses.
+fn clear_infection_episode_state(individual: &mut Individual, bacteria_idx: usize) {
+    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+        let resistance_data = &mut individual.resistances[bacteria_idx][drug_idx];
+        resistance_data.any_r = store_float(0.0);
+        resistance_data.activity_r = store_float(0.0);
+        if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+            individual.how_resistance_acquired[bacteria_idx][drug_idx] = None;
+        }
+    }
+
+    individual.clear_infection_mechanisms(bacteria_idx);
+    individual.level[bacteria_idx] = 0.0;
+    individual.infectious_syndrome[bacteria_idx] = 0;
+    individual.date_last_infected[bacteria_idx] = MISSING_EVENT_DATE;
+    individual.clearance_hazard[bacteria_idx] = 0.0;
+    individual.clearance_ready_day[bacteria_idx] = -1;
+    individual.sepsis[bacteria_idx] = false;
+    individual.infection_hospital_acquired[bacteria_idx] = false;
+    individual.test_identified_infection[bacteria_idx] = false;
+    reset_resistance_test_state(individual, bacteria_idx);
+    individual.infection_has_caused_symptoms[bacteria_idx] = false;
+
+    clear_treatment_tracking(individual, bacteria_idx);
+    individual.drug_stopped_with_infection_day[bacteria_idx] = None;
+    individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
+    individual.stopped_drug_index[bacteria_idx] = None;
+    individual.restart_window_assessed[bacteria_idx] = false;
+}
+
 /// Assess restart window for patients who stopped drugs while still infected
 /// Returns true if restart treatment was initiated
 fn assess_restart_window(
@@ -2519,7 +2551,7 @@ pub(crate) fn apply_rules(
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         let current_level = individual.level[b_idx];
 
-        if current_level > 0.0 {
+        if infection_is_active(current_level) {
             if !individual.sepsis[b_idx] {
                 let last_infected_day = individual.date_last_infected[b_idx];
                 let duration_of_infection = (time_step as i32 - last_infected_day).max(0);
@@ -2652,7 +2684,7 @@ pub(crate) fn apply_rules(
 
             // Use the highest-level recognized infection for the cessation parameter.
             for b_idx in 0..BACTERIA_LIST.len() {
-                if individual.level[b_idx] > 0.0001 {
+                if infection_episode_present(individual.level[b_idx]) {
                     let current_year = 1930.0 + (time_step as f64 / 365.0);
                     if let Some(recognition_year) = store.bacteria.treatment_recognition_year(b_idx)
                     {
@@ -4884,7 +4916,7 @@ pub(crate) fn apply_rules(
     if individual.date_of_death.is_none() {
         for b_idx in 0..BACTERIA_LIST.len() {
             if individual.sepsis[b_idx] {
-                // Drop lingering sepsis once the triggering infection has cleared
+                // Drop lingering sepsis once the triggering episode is no longer clinically active.
                 if individual.level[b_idx] <= INFECTION_EPS {
                     individual.sepsis[b_idx] = false;
                     continue;
@@ -4945,9 +4977,10 @@ pub(crate) fn apply_rules(
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         individual.predicted_infection_risk[b_idx] = 0.0;
         let allows_microbiome = bacterium_has_separate_microbiome_compartment(b_idx);
-        let mut is_infected = individual.level[b_idx] > INFECTION_EPS;
+        let mut has_infection_episode = infection_episode_present(individual.level[b_idx]);
+        let mut is_active_infection = infection_is_active(individual.level[b_idx]);
 
-        if !is_infected {
+        if !has_infection_episode {
             let simulation_year = 1930.0 + (time_step as f64 / 365.0);
             let sanitation_log_odds = historical_sanitation_log_odds(
                 simulation_year,
@@ -5480,6 +5513,10 @@ pub(crate) fn apply_rules(
                     if infection_prevented {
                         individual.infection_prevented_by_drug[b_idx] = true;
                     } else {
+                        // Establishment owns a fresh, internally coherent episode. In normal
+                        // operation an absent episode is already clear; the explicit reset also
+                        // makes restored legacy states safe.
+                        clear_infection_episode_state(individual, b_idx);
                         individual.level[b_idx] = store.bacteria.initial_infection_level(b_idx);
                         individual.date_last_infected[b_idx] = time_step as i32;
                         individual.date_last_infected_keep[b_idx] = time_step as i32;
@@ -5547,7 +5584,8 @@ pub(crate) fn apply_rules(
                             }
                         }
 
-                        is_infected = true;
+                        has_infection_episode = true;
+                        is_active_infection = infection_is_active(individual.level[b_idx]);
                     }
                 }
             }
@@ -5785,7 +5823,7 @@ pub(crate) fn apply_rules(
             bacterial_testing_available
         };
 
-        if is_infected
+        if is_active_infection
             && !individual.test_identified_infection[b_idx]
             && days_since_recorded_event(last_infected_time, time_step as i32)
                 .is_some_and(|days| days >= test_delay_days)
@@ -5844,7 +5882,7 @@ pub(crate) fn apply_rules(
         }
 
         // Infection-level growth and clearance.
-        if is_infected {
+        if has_infection_episode {
             let baseline_change = store.bacteria.base_level_change(b_idx);
 
             // Map model age categories to the four growth-modifier groups.
@@ -5981,7 +6019,9 @@ pub(crate) fn apply_rules(
                 cached_max_resistance_level,
             ) {
                 total_reduction_due_to_antibiotic = observation.activity_sum;
-                events.applied_activity.push(observation);
+                if is_active_infection {
+                    events.applied_activity.push(observation);
+                }
             }
 
             // MDR-TB receives a configured treatment bonus when enough concurrently active
@@ -6045,7 +6085,7 @@ pub(crate) fn apply_rules(
             // Check for infection clearance before updating the level
             let old_level = individual.level[b_idx];
 
-            if new_bacteria_level < 0.0001 || immune_clearance_triggered {
+            if infection_episode_should_retire(new_bacteria_level) || immune_clearance_triggered {
                 // Capture per-drug activity for journey logging before resistance fields reset
                 if crate::simulation::journey_logger::should_cache_pre_clearance_activity(
                     individual.id,
@@ -6063,8 +6103,7 @@ pub(crate) fn apply_rules(
                     );
                 }
 
-                // Check if there was an infection before clearance (previous level > INFECTION_EPS)
-                let was_previously_infected = old_level > INFECTION_EPS;
+                let was_previously_infected = infection_episode_present(old_level);
 
                 if was_previously_infected {
                     // Determine resolution type based on actual drug activity accounting for resistance
@@ -6113,47 +6152,30 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // Clear infection data after tracking resolution
-                for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
-                    let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
-                    resistance_data.any_r = store_float(0.0);
-                    resistance_data.activity_r = store_float(0.0);
-                    // Provenance bookkeeping disabled for memory-saving runs.
-                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-                        individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
-                    }
-                }
-                individual.clear_infection_mechanisms(b_idx);
-                individual.level[b_idx] = 0.0;
-                individual.infectious_syndrome[b_idx] = 0;
-                individual.date_last_infected[b_idx] = MISSING_EVENT_DATE;
-                individual.clearance_hazard[b_idx] = 0.0;
-                individual.clearance_ready_day[b_idx] = -1;
-                individual.sepsis[b_idx] = false;
-                individual.infection_hospital_acquired[b_idx] = false;
-                individual.test_identified_infection[b_idx] = false;
-                reset_resistance_test_state(individual, b_idx);
-                individual.infection_has_caused_symptoms[b_idx] = false;
+                clear_infection_episode_state(individual, b_idx);
+                has_infection_episode = false;
+                is_active_infection = false;
             } else {
                 // Update level for infections that are continuing
                 individual.level[b_idx] = new_bacteria_level;
+                is_active_infection = infection_is_active(new_bacteria_level);
             }
         }
 
-        // Safety check: ensure test_identified_infection and symptom status are false when not infected
-        if !is_infected {
+        // Clinical and diagnostic state is meaningful only while the episode is active.
+        if !is_active_infection {
             individual.test_identified_infection[b_idx] = false;
             individual.infection_has_caused_symptoms[b_idx] = false;
         }
 
-        // Arm clearance from the acquisition day and reset clearance state when infection is absent.
-        if is_infected {
+        // A fading positive episode remains eligible for progression and immune clearance.
+        if has_infection_episode {
             if individual.clearance_ready_day[b_idx] == -1 {
                 individual.clearance_ready_day[b_idx] = individual.date_last_infected[b_idx];
             }
 
             // Symptom status latches after onset and remains true until infection clearance.
-            if !individual.infection_has_caused_symptoms[b_idx] {
+            if is_active_infection && !individual.infection_has_caused_symptoms[b_idx] {
                 let base_log_odds = store.bacteria.symptom_onset_base_log_odds(b_idx);
                 let threshold_level = store.bacteria.symptom_onset_threshold_level(b_idx);
                 let delay_days = store.bacteria.symptom_onset_delay_days(b_idx) as i32;
@@ -6763,12 +6785,12 @@ impl FastMath for f64 {
 mod tests {
     use super::{
         applied_activity_observation, apply_rules, assess_restart_window, assess_treatment_failure,
-        carriage_profile_sampling_probability, clear_microbiome_compartment,
-        collect_active_symptomatic_syndromes, collect_regional_surveillance_bacteria,
-        complete_resistance_test_if_ready, emerge_microbiome_mechanisms_once,
-        existing_therapy_prevents_incoming_infection, exogenous_mechanism_floor_probability,
-        has_serious_resistance_test_positive, hgt_context_multiplier,
-        hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
+        carriage_profile_sampling_probability, clear_infection_episode_state,
+        clear_microbiome_compartment, collect_active_symptomatic_syndromes,
+        collect_regional_surveillance_bacteria, complete_resistance_test_if_ready,
+        emerge_microbiome_mechanisms_once, existing_therapy_prevents_incoming_infection,
+        exogenous_mechanism_floor_probability, has_serious_resistance_test_positive,
+        hgt_context_multiplier, hgt_donor_mechanism_multiplier, hgt_donor_mechanism_snapshot,
         identified_resistance_results_ready, immunodeficiency_prophylaxis_score,
         infection_acquisition_event, is_under_medical_care, mechanism_applies_to_drug,
         mechanism_resistance_level_for_mask, not_under_medical_care_log_odds,
@@ -6782,9 +6804,10 @@ mod tests {
     };
     use crate::config::{parameter_store, BacteriumMechanismStatus};
     use crate::simulation::population::{
-        bacterium_mechanism_host_is_eligible, days_since_recorded_event, load_float,
+        bacterium_mechanism_host_is_eligible, days_since_recorded_event, infection_episode_present,
+        infection_episode_should_retire, infection_is_active, load_float,
         mechanism_is_hgt_transferable, store_float, DrugClass, HospitalStatus, Individual, Region,
-        ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, MISSING_EVENT_DATE,
+        ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MISSING_EVENT_DATE,
     };
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -6824,6 +6847,134 @@ mod tests {
             drug_cessation_rate_multiplier: None,
             equalize_regional_access: false,
         }
+    }
+
+    #[test]
+    fn infection_episode_ownership_uses_zero_while_active_state_uses_epsilon() {
+        let immediately_below_epsilon = f64::from_bits(INFECTION_EPS.to_bits() - 1);
+        let immediately_above_epsilon = f64::from_bits(INFECTION_EPS.to_bits() + 1);
+
+        assert!(!infection_episode_present(0.0));
+        assert!(infection_episode_should_retire(0.0));
+        assert!(infection_episode_present(f64::MIN_POSITIVE));
+        assert!(!infection_episode_should_retire(f64::MIN_POSITIVE));
+
+        for fading_level in [immediately_below_epsilon, INFECTION_EPS] {
+            assert!(infection_episode_present(fading_level));
+            assert!(!infection_is_active(fading_level));
+            assert!(!infection_episode_should_retire(fading_level));
+        }
+
+        assert!(infection_episode_present(immediately_above_epsilon));
+        assert!(infection_is_active(immediately_above_epsilon));
+    }
+
+    #[test]
+    fn clearing_an_episode_resets_all_episode_local_state_atomically() {
+        let (mut individual, _) = individual_with_seed(901);
+        let bacteria_idx = bacteria_idx("escherichia_coli");
+        let drug_idx = drug_idx("meropenem");
+
+        individual.level[bacteria_idx] = INFECTION_EPS / 2.0;
+        individual.date_last_infected[bacteria_idx] = 20;
+        individual.date_last_infected_keep[bacteria_idx] = 20;
+        individual.infectious_syndrome[bacteria_idx] = 4;
+        individual.clearance_hazard[bacteria_idx] = 0.5;
+        individual.clearance_ready_day[bacteria_idx] = 20;
+        individual.sepsis[bacteria_idx] = true;
+        individual.infection_hospital_acquired[bacteria_idx] = true;
+        individual.test_identified_infection[bacteria_idx] = true;
+        individual.test_for_resistance[bacteria_idx] = true;
+        individual.resistance_test_initiated_day[bacteria_idx] = 21;
+        individual.infection_has_caused_symptoms[bacteria_idx] = true;
+        individual.resistances[bacteria_idx][drug_idx].any_r = store_float(0.8);
+        individual.resistances[bacteria_idx][drug_idx].activity_r = store_float(0.4);
+        individual.resistances[bacteria_idx][drug_idx].test_r = store_float(0.7);
+        individual.set_any_mechanism(bacteria_idx, 0);
+        individual.set_majority_mechanism(bacteria_idx, 0);
+        individual.bacteria_level_at_drug_start[bacteria_idx] = Some(1.0);
+        individual.days_on_current_treatment[bacteria_idx] = 3;
+        individual.treatment_failure_assessed[bacteria_idx] = true;
+        individual.drug_stopped_with_infection_day[bacteria_idx] = Some(22);
+        individual.bacteria_level_at_drug_cessation[bacteria_idx] = Some(0.2);
+        individual.stopped_drug_index[bacteria_idx] = Some(drug_idx);
+        individual.restart_window_assessed[bacteria_idx] = true;
+
+        clear_infection_episode_state(&mut individual, bacteria_idx);
+
+        assert_eq!(individual.level[bacteria_idx], 0.0);
+        assert_eq!(
+            individual.date_last_infected[bacteria_idx],
+            MISSING_EVENT_DATE
+        );
+        assert_eq!(individual.date_last_infected_keep[bacteria_idx], 20);
+        assert_eq!(individual.infectious_syndrome[bacteria_idx], 0);
+        assert_eq!(individual.clearance_hazard[bacteria_idx], 0.0);
+        assert_eq!(individual.clearance_ready_day[bacteria_idx], -1);
+        assert!(!individual.sepsis[bacteria_idx]);
+        assert!(!individual.infection_hospital_acquired[bacteria_idx]);
+        assert!(!individual.test_identified_infection[bacteria_idx]);
+        assert!(!individual.test_for_resistance[bacteria_idx]);
+        assert_eq!(individual.resistance_test_initiated_day[bacteria_idx], -1);
+        assert!(!individual.infection_has_caused_symptoms[bacteria_idx]);
+        assert_eq!(
+            load_float(individual.resistances[bacteria_idx][drug_idx].any_r),
+            0.0
+        );
+        assert_eq!(
+            load_float(individual.resistances[bacteria_idx][drug_idx].activity_r),
+            0.0
+        );
+        assert_eq!(
+            load_float(individual.resistances[bacteria_idx][drug_idx].test_r),
+            0.0
+        );
+        assert_eq!(individual.any_mechanism_mask(bacteria_idx), 0);
+        assert_eq!(individual.majority_mechanism_mask(bacteria_idx), 0);
+        assert!(individual.bacteria_level_at_drug_start[bacteria_idx].is_none());
+        assert_eq!(individual.days_on_current_treatment[bacteria_idx], -1);
+        assert!(!individual.treatment_failure_assessed[bacteria_idx]);
+        assert!(individual.drug_stopped_with_infection_day[bacteria_idx].is_none());
+        assert!(individual.bacteria_level_at_drug_cessation[bacteria_idx].is_none());
+        assert!(individual.stopped_drug_index[bacteria_idx].is_none());
+        assert!(!individual.restart_window_assessed[bacteria_idx]);
+    }
+
+    #[test]
+    fn fading_positive_episode_rebounds_without_reacquisition() {
+        let (mut individual, _) = individual_with_seed(902);
+        let bacteria_idx = bacteria_idx("escherichia_coli");
+        let original_date = 10;
+        individual.level[bacteria_idx] = INFECTION_EPS / 2.0;
+        individual.date_last_infected[bacteria_idx] = original_date;
+        individual.date_last_infected_keep[bacteria_idx] = original_date;
+        individual.infectious_syndrome[bacteria_idx] = 1;
+        individual.clearance_ready_day[bacteria_idx] = original_date;
+        individual.predicted_infection_risk[bacteria_idx] = 0.75;
+
+        let param_cache = ParameterKeyCache::new();
+        let mechanism_cache =
+            MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
+        let policy = test_policy_adjustments();
+        let mut rng = StepRng::new(u64::MAX, 0);
+
+        let events = apply_rules(
+            &mut individual,
+            original_date as usize + 1,
+            &mut rng,
+            &mechanism_cache,
+            &param_cache,
+            &policy,
+        );
+
+        assert!(events.infection_acquisitions.is_empty());
+        assert_eq!(individual.predicted_infection_risk[bacteria_idx], 0.0);
+        assert_eq!(individual.date_last_infected[bacteria_idx], original_date);
+        assert_eq!(
+            individual.date_last_infected_keep[bacteria_idx],
+            original_date
+        );
+        assert!(individual.level[bacteria_idx] > INFECTION_EPS);
     }
 
     #[test]

@@ -5,10 +5,11 @@ use crate::observability;
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    bacterium_has_separate_microbiome_compartment, days_since_recorded_event, load_float,
-    store_float, AntibioticUseContext, Individual, MicrobiomeResistanceLevel, Population, Region,
-    ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
-    MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT, MISSING_EVENT_DATE,
+    bacterium_has_separate_microbiome_compartment, days_since_recorded_event,
+    infection_episode_present, load_float, store_float, AntibioticUseContext, Individual,
+    MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism, BACTERIA_LIST,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    MICROBIOME_RESISTANCE_LEVEL_COUNT, MISSING_EVENT_DATE,
 };
 use crate::simulation::rng::{
     model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
@@ -4881,7 +4882,10 @@ impl Simulation {
                     let mut pre_acquisition_non_carrier_at_risk = vec![false; num_bacteria];
                     if individual.date_of_death.is_none() && individual.age >= 0 {
                         for b_idx in 0..num_bacteria {
-                            if individual.level[b_idx] <= INFECTION_EPS {
+                            // A person-bacterium pair is at risk of acquisition only after the
+                            // previous episode has retired at exact zero. A positive fading
+                            // episode remains the same episode even below INFECTION_EPS.
+                            if !infection_episode_present(individual.level[b_idx]) {
                                 if individual.presence_microbiome[b_idx] {
                                     pre_acquisition_carrier_at_risk[b_idx] = true;
                                     lt.carrier_at_risk_person_days_by_bacteria[b_idx] += 1;

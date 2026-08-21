@@ -10,8 +10,26 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-// Values below this threshold are treated as zero in infection and drug-exposure state.
+// Clinical and reporting threshold for active infection and non-negligible drug exposure.
+// Infection episode ownership is stricter: every positive infection level belongs to the
+// existing episode and only an exact zero permits a new acquisition.
 pub const INFECTION_EPS: f64 = 0.001;
+
+#[inline]
+pub(crate) fn infection_episode_present(level: f64) -> bool {
+    level > 0.0
+}
+
+#[inline]
+pub(crate) fn infection_is_active(level: f64) -> bool {
+    level > INFECTION_EPS
+}
+
+#[inline]
+pub(crate) fn infection_episode_should_retire(level: f64) -> bool {
+    level <= 0.0
+}
+
 /// Missing infection or carriage event date. Simulation day zero is a valid recorded date.
 pub(crate) const MISSING_EVENT_DATE: i32 = -1;
 
@@ -1425,8 +1443,8 @@ pub struct Individual {
     pub infectious_syndrome: Vec<i32>,
 
     /// Non-negative, unitless infection intensity for each bacterium.
-    /// Values above `INFECTION_EPS` indicate active infection; configured growth, clearance,
-    /// sepsis, treatment, and mortality processes use the magnitude.
+    /// Positive values belong to the current infection episode and continue within-host
+    /// progression. Values above `INFECTION_EPS` indicate clinically active infection.
     pub level: Vec<f64>,
 
     /// Logistic-model predicted infection risk for each bacteria on the current day.
