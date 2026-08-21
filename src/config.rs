@@ -7858,20 +7858,20 @@ lazy_static! {
     // between carriage and infection; the two acquisition processes are separate.
     // The E. coli, Shigella, and Campylobacter shifts offset their incidence-target
     // baseline changes so the corresponding carriage intercepts remain unchanged.
-    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 6.253);
+    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 6.3  );
     map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 11.0);
-    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 9.6);
+    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 8.5);
     map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 7.4);
     map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 7.1);
     map.insert("staphylococcus_epidermidis_log_odds_microbiome_vs_infection".to_string(), 13.5);
     map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 10.6);
-    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 11.3);
+    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 10.5);
     map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 9.8);
     map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 8.5);
     map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 10.0);
     map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 10.0);
     map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 7.0);
-    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 12.5);
+    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 14.0);
     map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 10.4);
     map.insert("bacteroides_fragilis_log_odds_microbiome_vs_infection".to_string(), 9.9);
     map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 8.0);
@@ -11462,8 +11462,8 @@ lazy_static! {
     ("enterobacter_spp.", -5.3),
     ("enterococcus_faecalis", -4.5),
     ("enterococcus_faecium", -3.5),
-    ("escherichia_coli", -9.8),
-    ("klebsiella_pneumoniae", -7.4),
+    ("escherichia_coli", -10.2),
+    ("klebsiella_pneumoniae", -7.6),
     ("morganella_spp.", -6.4),
     ("proteus_spp.", -6.1),
     ("serratia_spp.", -6.6),
@@ -11471,14 +11471,14 @@ lazy_static! {
     ("stenotrophomonas_maltophilia", -6.6),
     ("staphylococcus_aureus", -8.6),
     ("staphylococcus_epidermidis", -6.6),
-    ("streptococcus_pneumoniae", -9.2),
+    ("streptococcus_pneumoniae", -8.7),
     ("salmonella_enterica_serovar_typhi", -7.7),
     ("salmonella_enterica_serovar_paratyphi_a", -8.0),
     ("invasive_non-typhoidal_salmonella_spp.", -7.8),
-    ("shigella_spp.", -21.8),
-    ("neisseria_gonorrhoeae", -22.6),
-    ("streptococcus_pyogenes", -5.3),
-    ("streptococcus_agalactiae", -5.4),
+    ("shigella_spp.", -50.0),
+    ("neisseria_gonorrhoeae", -50.0),
+    ("streptococcus_pyogenes", -5.5),
+    ("streptococcus_agalactiae", -5.2),
     ("haemophilus_influenzae", -7.8),
     ("chlamydia_trachomatis", -17.6),
     ("vibrio_cholerae", -6.3),
@@ -11512,7 +11512,7 @@ lazy_static! {
         //   even with treatment.
         map.insert("neisseria_meningitidis_sepsis_death_log_odds_override".to_string(), 0.69); // ~2x CFR given sepsis vs average
         // Staphylococcus aureus: endocarditis, MRSA bacteraemia CFR 20-30%; higher than average gram-positive sepsis
-        map.insert("staphylococcus_aureus_sepsis_death_log_odds_override".to_string(), 0.41); // ~1.5x CFR given sepsis vs average
+        map.insert("staphylococcus_aureus_sepsis_death_log_odds_override".to_string(), 0.1 ); // exp(0.1) x CFR given sepsis vs average
         // Acinetobacter baumannii: XDR VAP/bacteraemia CFR 40-60% in ICU; worst gram-negative prognosis
         map.insert("acinetobacter_baumannii_sepsis_death_log_odds_override".to_string(), 0.69); // ~2x CFR given sepsis vs average
 
