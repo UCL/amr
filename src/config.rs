@@ -7420,11 +7420,11 @@ lazy_static! {
         map.insert("streptococcus_agalactiae_drug_cessation_probability".to_string(), 0.015); // GBS: 7-10 days
 
         // Infection-acquisition log-odds baselines. Regional and individual
-        // covariates are added by the daily acquisition rule.
+        // covariates are added by the daily acquisition rule.  ^^^^^
         map.insert("acquisition_log_odds_baseline".to_string(), -17.0);
 
         map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -18.5 );
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -16.5 );
         map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.3 );
         map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -17.7);
@@ -7441,9 +7441,9 @@ lazy_static! {
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.1);
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.7);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.4  );
-        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
+        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.8);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.7);
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.2);
         map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.0); // Expert best-guess placeholder
         map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -14.6);
