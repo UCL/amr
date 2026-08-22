@@ -11451,49 +11451,49 @@ lazy_static! {
 
 
         // Logistic sepsis risk parameters.
-        map.insert("sepsis_baseline_log_odds".to_string(), -11.0); // Fallback raised by 0.7, matching the ~2x odds adjustment to explicit intercepts
+        map.insert("sepsis_baseline_log_odds".to_string(), -10.5); // Fallback raised by 0.7, matching the ~2x odds adjustment to explicit intercepts
 
 
         // Bacterium-specific sepsis baseline log-odds. These are calibrated
         // best-guess placeholders rather than direct empirical probabilities.
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-    ("acinetobacter_baumannii", -4.4),
-    ("citrobacter_spp.", -7.2),
-    ("enterobacter_spp.", -4.5),
-    ("enterococcus_faecalis", -4.2),
-    ("enterococcus_faecium", -3.2),
-    ("escherichia_coli", -10.2),
-    ("klebsiella_pneumoniae", -6.8),
-    ("morganella_spp.", -6.4),
-    ("proteus_spp.", -6.1),
-    ("serratia_spp.", -6.0),
-    ("pseudomonas_aeruginosa", -4.0),
-    ("stenotrophomonas_maltophilia", -6.6),
-    ("staphylococcus_aureus", -8.6),
-    ("staphylococcus_epidermidis", -6.6),
-    ("streptococcus_pneumoniae", -8.2),
-    ("salmonella_enterica_serovar_typhi", -7.2),
-    ("salmonella_enterica_serovar_paratyphi_a", -8.0),
-    ("invasive_non-typhoidal_salmonella_spp.", -7.0),
-    ("shigella_spp.", -50.0),
+    ("acinetobacter_baumannii", -3.9),
+    ("citrobacter_spp.", -6.7),
+    ("enterobacter_spp.", -4.0),
+    ("enterococcus_faecalis", -3.7),
+    ("enterococcus_faecium", -2.7),
+    ("escherichia_coli", -9.7 ),
+    ("klebsiella_pneumoniae", -5.8),
+    ("morganella_spp.", -5.9),
+    ("proteus_spp.", -5.6),
+    ("serratia_spp.", -5.5),
+    ("pseudomonas_aeruginosa", -3.5),
+    ("stenotrophomonas_maltophilia", -6.1),
+    ("staphylococcus_aureus", -7.5),
+    ("staphylococcus_epidermidis", -6.1),
+    ("streptococcus_pneumoniae", -7.7),
+    ("salmonella_enterica_serovar_typhi", -6.7),
+    ("salmonella_enterica_serovar_paratyphi_a", -7.5),
+    ("invasive_non-typhoidal_salmonella_spp.", -6.5),
+    ("shigella_spp.", -20.0),
     ("neisseria_gonorrhoeae", -50.0),
-    ("streptococcus_pyogenes", -5.5),
-    ("streptococcus_agalactiae", -5.2),
-    ("haemophilus_influenzae", -7.2),
-    ("chlamydia_trachomatis", -17.6),
-    ("vibrio_cholerae", -6.3),
-    ("neisseria_meningitidis", -6.5),
-    ("listeria_monocytogenes", -6.6),
-    ("clostridioides_difficile", -9.1),
-    ("campylobacter_jejuni", -19.5),
-    ("enterobacter_cloacae", -5.0),
-    ("yersinia_enterocolitica", -8.1),
-    ("moraxella_catarrhalis", -11.7),
-    ("treponema_pallidum", -9.6),
+    ("streptococcus_pyogenes", -5.0),
+    ("streptococcus_agalactiae", -4.7),
+    ("haemophilus_influenzae", -6.7),
+    ("chlamydia_trachomatis", -17.1),
+    ("vibrio_cholerae", -5.8),
+    ("neisseria_meningitidis", -6.0),
+    ("listeria_monocytogenes", -6.1),
+    ("clostridioides_difficile", -8.6),
+    ("campylobacter_jejuni", -19.0),
+    ("enterobacter_cloacae", -4.5),
+    ("yersinia_enterocolitica", -7.6),
+    ("moraxella_catarrhalis", -11.2),
+    ("treponema_pallidum", -9.1),
     ("bordetella_pertussis", -10.0),
-    ("helicobacter_pylori", -499.3),
-    ("mdr_mycobacterium_tuberculosis", -37.3),
-    ("mycoplasma_pneumoniae", -17.3),
+    ("helicobacter_pylori", -500.0),
+    ("mdr_mycobacterium_tuberculosis", -37.0),
+    ("mycoplasma_pneumoniae", -16.8),
 ];
 
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
@@ -11512,7 +11512,7 @@ lazy_static! {
         //   even with treatment.
         map.insert("neisseria_meningitidis_sepsis_death_log_odds_override".to_string(), 0.69); // ~2x CFR given sepsis vs average
         // Staphylococcus aureus: endocarditis, MRSA bacteraemia CFR 20-30%; higher than average gram-positive sepsis
-        map.insert("staphylococcus_aureus_sepsis_death_log_odds_override".to_string(), 0.1 ); // exp(0.1) x CFR given sepsis vs average
+        map.insert("staphylococcus_aureus_sepsis_death_log_odds_override".to_string(), 0.4 ); // exp(0.4) x CFR given sepsis vs average
         // Acinetobacter baumannii: XDR VAP/bacteraemia CFR 40-60% in ICU; worst gram-negative prognosis
         map.insert("acinetobacter_baumannii_sepsis_death_log_odds_override".to_string(), 0.69); // ~2x CFR given sepsis vs average
 
@@ -11643,8 +11643,8 @@ lazy_static! {
         // Sepsis death logistic model parameters (log-odds scale)
         // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
         // where log_odds = base + age_effect + region_effect + immuno_effect + level_effect + duration_effect + care_effect
-
-        map.insert("sepsis_death_base_log_odds".to_string(), -5.9);
+        // ^^^^
+        map.insert("sepsis_death_base_log_odds".to_string(), -6.2);
 
         map.insert("sepsis_death_log_odds_age_infant".to_string(), 1.1); // Infants: +1.1 log-odds (~3x baseline)
         map.insert("sepsis_death_log_odds_age_child".to_string(), -0.7); // Children: -0.7 log-odds (~0.5x baseline)
