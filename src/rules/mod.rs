@@ -2200,7 +2200,7 @@ fn immunodeficiency_prophylaxis_score(drug_name: &str) -> f64 {
         "ciprofloxacin" => 1.2,
         "levofloxacin" => 0.9,
         // Represents oral penicillin/beta-lactam prophylaxis; penicillin V is not modelled.
-        "amoxicillin" => 0.2,
+        "amoxicillin" => 0.1,
         _ => 0.0,
     }
 }

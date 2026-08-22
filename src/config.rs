@@ -4998,7 +4998,7 @@ lazy_static! {
         map.insert("drug_aztreonam_avibactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
 
-        // --- shigella_spp. ---
+        // --- shigella_spp. --- 
         map.insert("drug_sulfanilamide_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
@@ -6721,10 +6721,10 @@ lazy_static! {
         map.insert("treponema_pallidum_non_sepsis_infection_death_log_odds".to_string(), 3.5);      // Late and congenital disease pathways
         map.insert("vibrio_cholerae_non_sepsis_infection_death_log_odds".to_string(), 2.5);         // Dehydration pathway
         map.insert("clostridioides_difficile_non_sepsis_infection_death_log_odds".to_string(), 2.0); // Severe colitis pathway
-        map.insert("streptococcus_pyogenes_non_sepsis_infection_death_log_odds".to_string(), 3.0);  // Toxin-mediated and post-infectious pathways
+        map.insert("streptococcus_pyogenes_non_sepsis_infection_death_log_odds".to_string(), 1.0);  // Toxin-mediated and post-infectious pathways
         map.insert("bacteroides_fragilis_non_sepsis_infection_death_log_odds".to_string(), 1.5);    // Intra-abdominal infection pathway
-        map.insert("helicobacter_pylori_non_sepsis_infection_death_log_odds".to_string(), 1.7);     // Chronic disease pathway
-        map.insert("shigella_spp._non_sepsis_infection_death_log_odds".to_string(), 1.0);           // Severe dysentery pathway
+        map.insert("helicobacter_pylori_non_sepsis_infection_death_log_odds".to_string(), 0.2);     // Chronic disease pathway
+        map.insert("shigella_spp._non_sepsis_infection_death_log_odds".to_string(), 0.5);           // Severe dysentery pathway
 
         // ENTERIC PATHOGENS - Moderate to high symptomatic rates
         map.insert("salmonella_enterica_serovar_typhi_symptom_onset_base_log_odds".to_string(), -0.4);       // ~40% per day
@@ -11451,46 +11451,46 @@ lazy_static! {
 
 
         // Logistic sepsis risk parameters.
-        map.insert("sepsis_baseline_log_odds".to_string(), -11.3); // Fallback raised by 0.7, matching the ~2x odds adjustment to explicit intercepts
+        map.insert("sepsis_baseline_log_odds".to_string(), -11.0); // Fallback raised by 0.7, matching the ~2x odds adjustment to explicit intercepts
 
 
         // Bacterium-specific sepsis baseline log-odds. These are calibrated
         // best-guess placeholders rather than direct empirical probabilities.
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
     ("acinetobacter_baumannii", -4.4),
-    ("citrobacter_spp.", -7.9),
-    ("enterobacter_spp.", -5.3),
-    ("enterococcus_faecalis", -4.5),
-    ("enterococcus_faecium", -3.5),
+    ("citrobacter_spp.", -7.2),
+    ("enterobacter_spp.", -4.5),
+    ("enterococcus_faecalis", -4.2),
+    ("enterococcus_faecium", -3.2),
     ("escherichia_coli", -10.2),
-    ("klebsiella_pneumoniae", -7.6),
+    ("klebsiella_pneumoniae", -6.8),
     ("morganella_spp.", -6.4),
     ("proteus_spp.", -6.1),
-    ("serratia_spp.", -6.6),
-    ("pseudomonas_aeruginosa", -4.3),
+    ("serratia_spp.", -6.0),
+    ("pseudomonas_aeruginosa", -4.0),
     ("stenotrophomonas_maltophilia", -6.6),
     ("staphylococcus_aureus", -8.6),
     ("staphylococcus_epidermidis", -6.6),
-    ("streptococcus_pneumoniae", -8.7),
-    ("salmonella_enterica_serovar_typhi", -7.7),
+    ("streptococcus_pneumoniae", -8.2),
+    ("salmonella_enterica_serovar_typhi", -7.2),
     ("salmonella_enterica_serovar_paratyphi_a", -8.0),
-    ("invasive_non-typhoidal_salmonella_spp.", -7.8),
+    ("invasive_non-typhoidal_salmonella_spp.", -7.0),
     ("shigella_spp.", -50.0),
     ("neisseria_gonorrhoeae", -50.0),
     ("streptococcus_pyogenes", -5.5),
     ("streptococcus_agalactiae", -5.2),
-    ("haemophilus_influenzae", -7.8),
+    ("haemophilus_influenzae", -7.2),
     ("chlamydia_trachomatis", -17.6),
     ("vibrio_cholerae", -6.3),
     ("neisseria_meningitidis", -6.5),
     ("listeria_monocytogenes", -6.6),
     ("clostridioides_difficile", -9.1),
     ("campylobacter_jejuni", -19.5),
-    ("enterobacter_cloacae", -5.3),
+    ("enterobacter_cloacae", -5.0),
     ("yersinia_enterocolitica", -8.1),
     ("moraxella_catarrhalis", -11.7),
     ("treponema_pallidum", -9.6),
-    ("bordetella_pertussis", -499.3),
+    ("bordetella_pertussis", -10.0),
     ("helicobacter_pylori", -499.3),
     ("mdr_mycobacterium_tuberculosis", -37.3),
     ("mycoplasma_pneumoniae", -17.3),
