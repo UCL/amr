@@ -15,6 +15,7 @@ from amr_simulation_output_analysis.calibration_summary import (
     RESISTANCE_TARGET_PROVENANCE_COL,
     _HOSP_COMM_ANY_R_RATIO_TARGETS,
     _build_headline_table,
+    _build_drug_class_calibration_window_table,
     _build_resistance_provenance_summary,
     _calculate_calibration_score,
     _calculate_resistance_fit_metrics,
@@ -61,6 +62,65 @@ class BaselinePolicySelectionTests(unittest.TestCase):
         frame = pd.DataFrame({"time_step": [1, 2]})
 
         self.assertIs(_select_baseline_policy_rows(frame), frame)
+
+
+class DrugClassCalibrationWindowTests(unittest.TestCase):
+    def test_window_share_replaces_exact_target_year_simulation(self) -> None:
+        window_table = pd.DataFrame(
+            {"Class": ["Penicillins"], "Share (%)": [18.0]}
+        )
+        history_table = pd.DataFrame(
+            {
+                "Class": ["Penicillins"],
+                "Share 2025 (%)": [30.0],
+                "Target 2025 (%)": [17.0],
+            }
+        )
+
+        result = _build_drug_class_calibration_window_table(
+            window_table,
+            history_table,
+            2025,
+            "2022-2025",
+        )
+
+        self.assertEqual(result.loc[0, "Share 2022-2025 (%)"], 18.0)
+        self.assertEqual(result.loc[0, "Target 2025 (%)"], 17.0)
+        self.assertEqual(result.loc[0, "Delta 2022-2025 vs 2025 target (pp)"], 1.0)
+
+    def test_score_uses_calibration_window_share_column(self) -> None:
+        targets = SimpleNamespace(
+            target_year=2025,
+            headline_metrics=[],
+            calibration_score_config={
+                "enabled": True,
+                "weights": {"drug_usage": 1.0},
+                "drug_usage": {"absolute_tolerance_pp": 3.0},
+            },
+        )
+        calibration_table = pd.DataFrame(
+            {
+                "Class": ["Penicillins"],
+                "Share 2022-2025 (%)": [18.0],
+                "Target 2025 (%)": [17.0],
+            }
+        )
+
+        result = _calculate_calibration_score(
+            targets,
+            pd.DataFrame(),
+            calibration_table,
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            {},
+        )
+        drug_usage = result["block_rows"].loc[
+            lambda frame: frame["Block"] == "Drug usage"
+        ].iloc[0]
+
+        self.assertAlmostEqual(drug_usage["Score"], 1.0 / 3.0)
+        self.assertEqual(drug_usage["Targets"], 1)
 
 
 class SyndromeIncidenceTests(unittest.TestCase):

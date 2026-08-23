@@ -22,6 +22,7 @@ from amr_simulation_output_analysis.make_paper_tables import (
     _T1_ROWS,
     _f6_include_bacterium,
     _figure_3_display_class_name,
+    _figure_8_rows_from_simulation_csv,
     _figure_20_parse_table_row,
     _figure_20_order_grouped_rows,
     _figure_20_summarise_rows,
@@ -170,6 +171,32 @@ class FigureNumberingContractTests(unittest.TestCase):
             _SF7_STEM,
             "Figure_13__active_infection_incidence_by_bacterium",
         )
+
+
+class Figure9CalibrationWindowTests(unittest.TestCase):
+    def test_context_summary_uses_2022_through_2025_only(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "run_id": ["run"] * 6,
+                "policy_option": [0] * 6,
+                "simulation_year": [2021, 2022, 2023, 2024, 2025, 2026],
+                "currently_taking_drug_count_empiric": [100, 1, 2, 3, 4, 100],
+                "currently_taking_drug_count_targeted": [0] * 6,
+                "currently_taking_drug_count_prophylaxis": [0] * 6,
+                "currently_taking_drug_count_other": [0] * 6,
+            }
+        )
+        csv_path = Path("simulation_summary_test.csv")
+        with patch(
+            "amr_simulation_output_analysis.make_paper_tables._read_csv_selected",
+            return_value=frame,
+        ):
+            rows, problem, mode = _figure_8_rows_from_simulation_csv(csv_path, 1_000_000.0)
+
+        self.assertIsNone(problem)
+        self.assertEqual(mode, "old")
+        self.assertEqual(len(rows), 1)
+        self.assertAlmostEqual(rows[0]["Empiric"], 2.5)
 
     def test_index_uses_promoted_links_without_retired_numbering(self) -> None:
         with TemporaryDirectory() as tmp_dir:

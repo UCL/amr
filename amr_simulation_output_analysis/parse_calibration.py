@@ -99,7 +99,8 @@ _SECTION_PATTERNS: list[tuple[str, str]] = [
     ("Calibration Score",                         "calibration_score"),
     ("Block Scores",                              "block_scores"),
     ("Largest Contributors",                      "largest_contributors"),
-    ("Drug Class Share History",                  "drug_class_share"),
+    ("Drug Class Share (",                        "drug_class_share"),
+    ("Drug Class Share History",                  "drug_class_share_history"),
     ("Overall Infection Resistance",              "overall_resistance_header"),
     ("Microbiome Resistance",                     "microbiome_resistance"),
     ("Footnotes",                                 "footnotes"),
@@ -317,6 +318,7 @@ def parse_file(path: Union[str, Path]) -> dict:
         "block_scores":               ["Block"],
         "largest_contributors":       ["Block"],
         "drug_class_share":           ["Class"],
+        "drug_class_share_history":   ["Class"],
         "overall_resistance_fit":     ["Component"],
         "resistance_per_bacteria":    ["Bacteria"],
         "resistance_per_drug":        ["Drug"],
@@ -329,6 +331,11 @@ def parse_file(path: Union[str, Path]) -> dict:
         if not df.empty:
             df = _coerce_numeric(df, skip=id_cols)
         parsed[section_key] = df
+
+    # Backward compatibility for summaries written before the dedicated
+    # calibration-window drug-class section was introduced.
+    if parsed["drug_class_share"].empty and not parsed["drug_class_share_history"].empty:
+        parsed["drug_class_share"] = parsed["drug_class_share_history"].copy()
 
     # --- resistance benchmarks (wide table) ----------------------------------
     bench = _parse_resistance_benchmarks(sec.get("resistance_benchmarks", []))

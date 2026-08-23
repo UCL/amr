@@ -58,36 +58,36 @@ a { color: #2980b9; }
 <tr>
 <td>Bacterial identification done</td>
 <td>The model's bacterium-specific identification flag has become true for the infection episode.</td>
-<td>1,694,637</td>
-<td>56.3</td>
-<td>56.3</td>
+<td>1,734,804</td>
+<td>58.1</td>
+<td>58.1</td>
 <td>Previous cascade stage</td>
 <td></td>
 </tr>
 <tr>
 <td>Resistance testing initiated</td>
 <td>The Rust flag records resistance/susceptibility testing initiation; this is labelled as initiation even though the compatibility column name says done.</td>
-<td>504,467</td>
-<td>16.8</td>
-<td>29.8</td>
+<td>543,311</td>
+<td>17.8</td>
+<td>30.6</td>
 <td>Previous cascade stage</td>
 <td></td>
 </tr>
 <tr>
 <td>Targeted antibiotic treatment started</td>
 <td>A course-start targeted-context antibiotic is observed for the identified active infection.</td>
-<td>824,939</td>
-<td>27.4</td>
-<td>163.5</td>
+<td>862,930</td>
+<td>28.9</td>
+<td>162.2</td>
 <td>Previous cascade stage</td>
 <td>non-monotonic cascade count</td>
 </tr>
 <tr>
 <td>Effective targeted antibiotic treatment started</td>
 <td>A targeted-context active antibiotic reaches activity_r >= 0.500 for the bacterium.</td>
-<td>687,111</td>
-<td>22.8</td>
-<td>83.3</td>
+<td>727,912</td>
+<td>24.4</td>
+<td>84.4</td>
 <td>Previous cascade stage</td>
 <td></td>
 </tr>
@@ -115,34 +115,34 @@ a { color: #2980b9; }
 <td>Community-onset / cascade-entry</td>
 <td>Bacterial identification done</td>
 <td>1,255,345</td>
-<td>50.5</td>
-<td>50.5</td>
+<td>51.7</td>
+<td>51.7</td>
 <td>2,486,840</td>
 <td></td>
 </tr>
 <tr>
 <td>Community-onset / cascade-entry</td>
 <td>Resistance testing initiated</td>
-<td>341,781</td>
-<td>13.7</td>
-<td>27.2</td>
+<td>359,466</td>
+<td>15.0</td>
+<td>29.0</td>
 <td>2,486,840</td>
 <td></td>
 </tr>
 <tr>
 <td>Community-onset / cascade-entry</td>
 <td>Targeted antibiotic treatment started</td>
-<td>597,101</td>
-<td>24.0</td>
-<td>174.7</td>
+<td>603,663</td>
+<td>25.1</td>
+<td>168.0</td>
 <td>2,486,840</td>
 <td>non-monotonic cascade count</td>
 </tr>
 <tr>
 <td>Community-onset / cascade-entry</td>
 <td>Effective targeted antibiotic treatment started</td>
-<td>521,464</td>
-<td>21.0</td>
+<td>525,461</td>
+<td>21.9</td>
 <td>87.3</td>
 <td>2,486,840</td>
 <td></td>
@@ -150,19 +150,19 @@ a { color: #2980b9; }
 <tr>
 <td>Hospital-onset / cascade-entry</td>
 <td>Eligible symptomatic infection</td>
-<td>520,902</td>
+<td>548,292</td>
 <td>100.0</td>
 <td>—</td>
-<td>520,902</td>
+<td>548,292</td>
 <td></td>
 </tr>
 <tr>
 <td>Hospital-onset / cascade-entry</td>
 <td>Bacterial identification done</td>
-<td>439,292</td>
-<td>84.3</td>
-<td>84.3</td>
-<td>520,902</td>
+<td>464,110</td>
+<td>84.6</td>
+<td>84.6</td>
+<td>548,292</td>
 <td></td>
 </tr>
 <tr>
@@ -171,25 +171,25 @@ a { color: #2980b9; }
 <td>162,686</td>
 <td>31.2</td>
 <td>37.0</td>
-<td>520,902</td>
+<td>548,292</td>
 <td></td>
 </tr>
 <tr>
 <td>Hospital-onset / cascade-entry</td>
 <td>Targeted antibiotic treatment started</td>
-<td>227,838</td>
+<td>231,986</td>
 <td>43.7</td>
-<td>140.0</td>
-<td>520,902</td>
+<td>141.0</td>
+<td>548,292</td>
 <td>non-monotonic cascade count</td>
 </tr>
 <tr>
 <td>Hospital-onset / cascade-entry</td>
 <td>Effective targeted antibiotic treatment started</td>
-<td>165,647</td>
-<td>31.8</td>
-<td>72.7</td>
-<td>520,902</td>
+<td>184,504</td>
+<td>33.7</td>
+<td>78.1</td>
+<td>548,292</td>
 <td></td>
 </tr>
 </tbody></table><h2>Stage Definitions</h2>
@@ -267,5 +267,5 @@ a { color: #2980b9; }
 <td>Counts are raw simulated counts. Episodes that resolve, die, or are censored before a later stage remain in the earlier-stage denominator and are not imputed into later stages.</td>
 </tr>
 </tbody></table><ol class='footnotes'>
-<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 5,870,069; population scale factor: 1,396.9172; runs: 1 accepted calibration run.</li><li>Diagnostic testing and targeted-treatment cascade from aggregate simulation summary columns.</li><li>Denominator: eligible symptomatic bacterium-specific infection episodes entering the diagnostic cascade under baseline policy with cascade-entry years 2022-2025.</li><li>Counts are raw simulated counts. When multiple runs are supplied, counts and percentages are calculated within each run first and shown as medians across runs.</li><li>All stages after eligibility are assigned back to the episode's cascade-entry timestep/year, so the 2022-2025 filter is based on cascade-entry year.</li><li>Community and hospital groups use hospital status at cascade entry; community means not hospitalized and hospital means hospitalized.</li><li>The resistance-testing stage is labelled as initiation because the Rust flag records AST/resistance testing initiation, not final result availability.</li><li>Effective targeted therapy means a targeted-context active antibiotic with activity_r >= 0.500 for the bacterium, matching the sepsis effective-therapy threshold.</li><li>The model uses daily timesteps, so same-model-day ordering is not a precise sub-day clinical timestamp.</li><li>Data source: aggregate simulation_summary_run#.csv fields only. calibration_summary_*.txt is not used as a reader-facing substitute for this figure.</li><li>The Rust aggregate excludes organisms returned by is_microbiome_excluded (currently treponema_pallidum). H. pylori is not separately excluded by that helper in the current code.</li><li>Values shown are medians across 1 simulation run.</li>
+<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 5,870,069; population scale factor: 1,396.9172; runs: 3 accepted calibration runs.</li><li>Diagnostic testing and targeted-treatment cascade from aggregate simulation summary columns.</li><li>Denominator: eligible symptomatic bacterium-specific infection episodes entering the diagnostic cascade under baseline policy with cascade-entry years 2022-2025.</li><li>Counts are raw simulated counts. When multiple runs are supplied, counts and percentages are calculated within each run first and shown as medians across runs.</li><li>All stages after eligibility are assigned back to the episode's cascade-entry timestep/year, so the 2022-2025 filter is based on cascade-entry year.</li><li>Community and hospital groups use hospital status at cascade entry; community means not hospitalized and hospital means hospitalized.</li><li>The resistance-testing stage is labelled as initiation because the Rust flag records AST/resistance testing initiation, not final result availability.</li><li>Effective targeted therapy means a targeted-context active antibiotic with activity_r >= 0.500 for the bacterium, matching the sepsis effective-therapy threshold.</li><li>The model uses daily timesteps, so same-model-day ordering is not a precise sub-day clinical timestamp.</li><li>Data source: aggregate simulation_summary_run#.csv fields only. calibration_summary_*.txt is not used as a reader-facing substitute for this figure.</li><li>The Rust aggregate excludes organisms returned by is_microbiome_excluded (currently treponema_pallidum). H. pylori is not separately excluded by that helper in the current code.</li><li>Values shown are medians across 3 simulation runs.</li>
 </ol></body></html>

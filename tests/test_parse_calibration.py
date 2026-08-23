@@ -4,6 +4,23 @@ from amr_simulation_output_analysis.parse_calibration import _split_sections
 
 
 class CalibrationSectionParsingTests(unittest.TestCase):
+    def test_window_drug_share_is_separate_from_exact_year_history(self) -> None:
+        sections = _split_sections(
+            [
+                "Drug Class Share (2022-2025 Calibration Window)",
+                "Class  Share 2022-2025 (%)  Target 2025 (%)",
+                "Penicillins  18.0  17.0",
+                "Drug Class Share History",
+                "Class  Share 2025 (%)  Target 2025 (%)",
+                "Penicillins  30.0  17.0",
+                "Overall Infection Resistance",
+            ]
+        )
+
+        self.assertIn("2022-2025 Calibration Window", sections["drug_class_share"][0])
+        self.assertEqual(sections["drug_class_share"][-1], "Penicillins  18.0  17.0")
+        self.assertEqual(sections["drug_class_share_history"][-1], "Penicillins  30.0  17.0")
+
     def test_age_region_table_ends_syndrome_section(self) -> None:
         sections = _split_sections(
             [

@@ -6724,7 +6724,7 @@ lazy_static! {
         map.insert("streptococcus_pyogenes_non_sepsis_infection_death_log_odds".to_string(), 1.0);  // Toxin-mediated and post-infectious pathways
         map.insert("bacteroides_fragilis_non_sepsis_infection_death_log_odds".to_string(), 1.5);    // Intra-abdominal infection pathway
         map.insert("helicobacter_pylori_non_sepsis_infection_death_log_odds".to_string(), 0.2);     // Chronic disease pathway
-        map.insert("shigella_spp._non_sepsis_infection_death_log_odds".to_string(), 0.5);           // Severe dysentery pathway
+        map.insert("shigella_spp._non_sepsis_infection_death_log_odds".to_string(), 0.1);           // Severe dysentery pathway
 
         // ENTERIC PATHOGENS - Moderate to high symptomatic rates
         map.insert("salmonella_enterica_serovar_typhi_symptom_onset_base_log_odds".to_string(), -0.4);       // ~40% per day
@@ -7433,7 +7433,7 @@ lazy_static! {
         map.insert("mycoplasma_genitalium_acquisition_log_odds_baseline".to_string(), -12.1);
         map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.0); // Periodic epidemics
         map.insert("legionella_pneumophila_acquisition_log_odds_baseline".to_string(), -15.5);
-        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -17.7); // Expert best-guess placeholder
+        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -17.7); 
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.3);
         map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2 );
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
@@ -7444,12 +7444,12 @@ lazy_static! {
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.8);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
         map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.2);
-        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.0); // Expert best-guess placeholder
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.0); 
         map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -14.6);
         map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -15.1);
         map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -17.2);
-        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -17.5); // Expert best-guess placeholder
+        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -17.5); 
         map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -16.1);
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -16.0);
@@ -7457,7 +7457,7 @@ lazy_static! {
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -11.827);
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.7);
-        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); // Expert best-guess placeholder
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); 
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -15.9);
         map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.31); // Jointly parameterized with the vaccine effect below
@@ -8419,15 +8419,15 @@ lazy_static! {
 
         // S. Typhi - Gram-negative, Enterobacterales
         // Band 7 (x7.9)
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01     ); // classes: pen, flu, ceph, mono
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_01     ); // classes: pen, flu, ceph, mono
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_01        ); // classes: pen, flu, ceph, mono
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01         ); // classes: pen, flu, bli, ceph, mono
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01         ); // classes: pen, flu, bli, ceph, mono
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_003    ); // classes: pen, flu, ceph, mono
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_003    ); // classes: pen, flu, ceph, mono
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_003       ); // classes: pen, flu, ceph, mono
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_003        ); // classes: pen, flu, bli, ceph, mono
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_003        ); // classes: pen, flu, bli, ceph, mono
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_ampc_derepression_emergence_rate".to_string(), 0.0); // de novo rate currently 0; Salmonella lacks inducible chromosomal AmpC (no ampC gene subject to derepression; plasmid-mediated AmpC CMY/DHA is modelled separately)
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_01         ); // classes: pen, flu, bli, ceph, carb, mono
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_01         ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_01         ); // classes: pen, flu, bli, ceph, carb
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_003        ); // classes: pen, flu, bli, ceph, carb, mono
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_003        ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
+        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_003        ); // classes: pen, flu, bli, ceph, carb
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_cat_emergence_rate".to_string(), 1.0        ); // classes: chl
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01          ); // classes: ag
         map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
@@ -9024,12 +9024,12 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce KPC
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce MBLs
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce OXA-48
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01          ); // classes: chl
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.005         ); // classes: chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01       ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0; gonococcal beta-lactam target resistance uses PBP mosaic changes, not mecA
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.002        ); // classes: mls
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001        ); // classes: mls
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001             ); // classes: oxa, lin, chl, pleuro
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 3.0      ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 3.0       ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
@@ -9041,24 +9041,24 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0; OprD is modelled only for P. aeruginosa
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.005          ); // classes: poly
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // de novo rate currently 0; N. gonorrhoeae is inherently not susceptible to polymyxins (constitutive LPS phosphoethanolamine modification via LptA/PptA; zero potency); modelled via potency
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05     ); // classes: sulf
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03     ); // classes: sulf
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.03           ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_fos_emergence_rate".to_string(), 0.000_3          ); // configured class: other (fosfomycin); positive rate is currently blocked by the executable host gate
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_liafsr_cls_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 30.0        ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.05           ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.035          ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01  ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0 - gonococcal PPNG is TEM-family, not staphylococcal blaZ
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.05 ); // classes: pen; plasmid-mediated PPNG route
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // tier 0 (EnzymeMphA: Enterobacterales + EntericPathogen only)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.002  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.05             ); // classes: tet (tetracycline + doxycycline only; minocycline and tigecycline not effluxed by TetABC)
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.01         ); // classes: pen, flu, bli, ceph, mono; penA mosaic route
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.01        ); // classes: pen, mac, tet, chl
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.035            ); // classes: tet (tetracycline + doxycycline only; minocycline and tigecycline not effluxed by TetABC)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.003        ); // classes: pen, flu, bli, ceph, mono; penA mosaic route
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.003       ); // classes: pen, mac, tet, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0 ); // tier 0
 
@@ -10951,31 +10951,31 @@ lazy_static! {
             (
                 1,
                 &[
-                    ("trim_sulf", 0.60),
-                    ("amoxicillin_clavulanate",  7.0),
-                    ("amoxicillin", 1.4),
-                    ("ciprofloxacin", 0.9 ), // stewardship concerns limit empiric quinolone use for UTI
-                    ("ampicillin", 0.7 ),
-                    ("levofloxacin", 0.8 ),
-                    ("nitrofurantoin", 140.0), // genuine first-line for uncomplicated UTI
+                    ("trim_sulf", 0.69),
+                    ("amoxicillin_clavulanate", 7.7),
+                    ("amoxicillin", 1.232),
+                    ("ciprofloxacin", 0.81), // stewardship concerns limit empiric quinolone use for UTI
+                    ("ampicillin", 0.616),
+                    ("levofloxacin", 0.72),
+                    ("nitrofurantoin", 156.8), // genuine first-line for uncomplicated UTI
                     ("fosfomycin", 120.0),
                     ("cephalexin", 4.0),
-                    ("ceftriaxone", 2.2), // IV-only; should be uncommon empirically
+                    ("ceftriaxone", 1.804), // IV-only; should be uncommon empirically
                     ("cefazolin", 3.8),
                     ("cefuroxime", 4.6),
-                    ("piperacillin_tazobactam", 6.0),
+                    ("piperacillin_tazobactam", 6.6),
                     ("cefepime", 4.0),
-                    ("ceftazidime", 3.5),
+                    ("ceftazidime", 2.87),
                     ("meropenem", 25.0),
                     ("imipenem_c", 25.0),
                     ("ertapenem", 25.0),
                     ("meropenem_vaborbactam", 15.0),
                     ("ceftazidime_avibactam", 10.0),
                     ("aztreonam_avibactam", 1.0),
-                    ("cefixime", 6.2),
-                    ("gentamicin", 6.0),
-                    ("tobramycin", 5.0),
-                    ("amikacin", 6.0),
+                    ("cefixime", 5.084),
+                    ("gentamicin", 4.92),
+                    ("tobramycin", 4.1),
+                    ("amikacin", 4.92),
                     ("colistin", 0.40),
                     ("vancomycin", 0.30),
                     ("linezolid", 0.30),
@@ -10985,15 +10985,15 @@ lazy_static! {
             (
                 2,
                 &[
-                    ("flucloxacillin", 14.0), // first-line empiric SSTI: covers Staph and Strep
-                    ("amoxicillin_clavulanate", 4.2),
-                    ("amoxicillin", 3.4),
+                    ("flucloxacillin", 12.32), // first-line empiric SSTI: covers Staph and Strep
+                    ("amoxicillin_clavulanate", 4.62),
+                    ("amoxicillin", 2.992),
                     ("cephalexin", 5.0),
-                    ("ampicillin", 2.8),
-                    ("penicillin_g", 3.4),
+                    ("ampicillin", 2.464),
+                    ("penicillin_g", 2.992),
                     ("cefazolin", 6.7),
-                    ("clindamycin", 3.5),
-                    ("trim_sulf", 0.50),
+                    ("clindamycin", 4.725),
+                    ("trim_sulf", 0.575),
                     ("doxycycline", 2.0),
                     ("minocycline", 1.5),
                     ("linezolid", 100.0),
@@ -11004,27 +11004,27 @@ lazy_static! {
                     ("ceftaroline", 20.0),
                     ("quinu_dalfo", 8.0),
                     ("rifampicin", 0.50),
-                    ("ciprofloxacin", 1.4),
-                    ("piperacillin_tazobactam", 4.5),
+                    ("ciprofloxacin", 1.26),
+                    ("piperacillin_tazobactam", 4.95),
                 ],
             ),
             // 3 = Respiratory
             (
                 3,
                 &[
-                    ("amoxicillin_clavulanate",  8.0),
-                    ("amoxicillin", 4.5),
-                    ("penicillin_g", 4.5),
-                    ("ampicillin", 2.3),
+                    ("amoxicillin_clavulanate", 8.8),
+                    ("amoxicillin", 3.96),
+                    ("penicillin_g", 3.96),
+                    ("ampicillin", 2.024),
                     ("azithromycin", 0.9 ),
                     ("clarithromycin", 0.99),
-                    ("ceftriaxone", 6.2),
+                    ("ceftriaxone", 5.084),
                     ("erythromycin", 0.8 ),
                     ("cefuroxime", 3.0),
-                    ("piperacillin_tazobactam", 8.0),
-                    ("levofloxacin", 1.1),
-                    ("moxifloxacin", 1.1),
-                    ("cefixime", 5.7),
+                    ("piperacillin_tazobactam", 8.8),
+                    ("levofloxacin", 0.99),
+                    ("moxifloxacin", 0.99),
+                    ("cefixime", 4.674),
                     ("aztreonam_avibactam", 0.010),
                     ("cefepime", 12.0),
                     ("cephalexin", 1.2),
@@ -11032,7 +11032,7 @@ lazy_static! {
                     ("vancomycin", 8.0),
                     ("meropenem", 32.0),
                     ("imipenem_c", 32.0),
-                    ("ofloxacin", 1.1),
+                    ("ofloxacin", 0.99),
                     ("linezolid", 9.0),
                     ("minocycline", 1.5),
                 ],
@@ -11041,7 +11041,7 @@ lazy_static! {
             (
                 4,
                 &[
-                    ("piperacillin_tazobactam", 23.0), // Keep strong empiric Gram-negative coverage, but let carbapenems compete.
+                    ("piperacillin_tazobactam", 25.3), // Keep strong empiric Gram-negative coverage, but let carbapenems compete.
                     ("meropenem", 1600.0),
                     ("imipenem_c", 1200.0),
                     ("meropenem_vaborbactam", 600.0),
@@ -11050,14 +11050,14 @@ lazy_static! {
                     ("aztreonam", 30.0),
                     ("ceftolozane_tazobactam", 28.0),
                     ("cefepime", 40.0),
-                    ("ceftazidime", 11.0),
-                    ("ceftriaxone", 7.0),
-                    ("ampicillin_sulbactam", 8.0),
-                    ("amoxicillin_clavulanate", 3.5),
-                    ("ampicillin", 4.5),
-                    ("amoxicillin", 4.5),
-                    ("penicillin_g", 4.5),
-                    ("flucloxacillin", 9.0),
+                    ("ceftazidime", 9.02),
+                    ("ceftriaxone", 5.74),
+                    ("ampicillin_sulbactam", 8.8),
+                    ("amoxicillin_clavulanate", 3.85),
+                    ("ampicillin", 3.96),
+                    ("amoxicillin", 3.96),
+                    ("penicillin_g", 3.96),
+                    ("flucloxacillin", 7.92),
                     ("vancomycin", 150.0),
                     ("linezolid", 150.0),
                     ("tedizolid", 120.0),
@@ -11065,13 +11065,13 @@ lazy_static! {
                     ("daptomycin", 140.0),
                     ("ceftaroline", 25.0),
                     ("quinu_dalfo", 8.5),
-                    ("gentamicin", 90.0),
-                    ("tobramycin", 80.0),
-                    ("amikacin", 90.0),
+                    ("gentamicin", 73.8),
+                    ("tobramycin", 65.6),
+                    ("amikacin", 73.8),
                     ("colistin", 0.30),
                     ("cefazolin", 5.9),
-                    ("ciprofloxacin", 1.8),
-                    ("levofloxacin", 1.8),
+                    ("ciprofloxacin", 1.62),
+                    ("levofloxacin", 1.62),
                     ("cephalexin", 2.0),
                     ("rifampicin", 0.50),
                 ],
@@ -11081,27 +11081,27 @@ lazy_static! {
                 5,
                 &[
                     ("metronidazole", 8.0),
-                    ("piperacillin_tazobactam", 22.0), // Strong empiric abdominal coverage, but less dominant than before.
-                    ("ampicillin_sulbactam", 10.0),
-                    ("amoxicillin_clavulanate",  9.0),
+                    ("piperacillin_tazobactam", 24.2), // Strong empiric abdominal coverage, but less dominant than before.
+                    ("ampicillin_sulbactam", 11.0),
+                    ("amoxicillin_clavulanate", 9.9),
                     ("meropenem", 1300.0),
                     ("imipenem_c", 970.0),
                     ("ertapenem", 800.0),
-                    ("ceftazidime", 7.9),
+                    ("ceftazidime", 6.478),
                     ("cefepime", 22.0),
-                    ("ceftriaxone", 6.2),
+                    ("ceftriaxone", 5.084),
                     ("ceftazidime_avibactam", 17.0),
                     ("aztreonam_avibactam", 2.0),
                     ("aztreonam", 25.0),
                     ("ceftolozane_tazobactam", 23.0),
                     ("meropenem_vaborbactam", 500.0),
-                    ("ciprofloxacin", 1.4),
-                    ("levofloxacin", 1.4),
-                    ("ampicillin", 5.6),
-                    ("amoxicillin", 5.6),
-                    ("trim_sulf", 0.10),
-                    ("gentamicin", 70.0),
-                    ("amikacin", 70.0),
+                    ("ciprofloxacin", 1.26),
+                    ("levofloxacin", 1.26),
+                    ("ampicillin", 4.928),
+                    ("amoxicillin", 4.928),
+                    ("trim_sulf", 0.115),
+                    ("gentamicin", 57.4),
+                    ("amikacin", 57.4),
                     ("colistin", 0.50),
                 ],
             ),
@@ -11109,40 +11109,40 @@ lazy_static! {
             (
                 6,
                 &[
-                    ("ceftriaxone", 11.0),
-                    ("ceftazidime", 11.0),
+                    ("ceftriaxone", 9.02),
+                    ("ceftazidime", 9.02),
                     ("cefepime", 18.0),
-                    ("penicillin_g", 12.0),
-                    ("ampicillin", 11.0),
+                    ("penicillin_g", 10.56),
+                    ("ampicillin", 9.68),
                     ("vancomycin", 90.0),
                     ("linezolid", 90.0),
-                    ("cefixime", 0.88),
+                    ("cefixime", 0.7216),
                     ("meropenem", 270.0),
                     ("imipenem_c", 210.0),
                     ("chloramphenicol", 2.0),
                     ("rifampicin", 1.0),
-                    ("piperacillin_tazobactam", 1.0),
+                    ("piperacillin_tazobactam", 1.1),
                 ],
             ),
             // 7 = Gastrointestinal (non-invasive)
             (
                 7,
                 &[
-                    ("ciprofloxacin", 0.8 ),
+                    ("ciprofloxacin", 0.72),
                     ("azithromycin", 0.7 ),
-                    ("amoxicillin_clavulanate", 2.2),
-                    ("amoxicillin", 2.3),
-                    ("ampicillin", 2.3),
-                    ("levofloxacin", 0.83),
-                    ("ampicillin_sulbactam", 1.8),
-                    ("trim_sulf", 0.20),
+                    ("amoxicillin_clavulanate", 2.42),
+                    ("amoxicillin", 2.024),
+                    ("ampicillin", 2.024),
+                    ("levofloxacin", 0.747),
+                    ("ampicillin_sulbactam", 1.98),
+                    ("trim_sulf", 0.23),
                     ("doxycycline", 1.2),
                     ("minocycline", 1.0),
-                    ("cefixime", 3.5),
-                    ("penicillin_g", 2.3),
+                    ("cefixime", 2.87),
+                    ("penicillin_g", 2.024),
                     ("cephalexin", 3.0),
                     ("cefuroxime", 3.0),
-                    ("furazolidone", 0.23),
+                    ("furazolidone", 0.2576),
                     ("metronidazole", 2.0),
                     ("rifampicin", 0.50),
                 ],
@@ -11151,21 +11151,21 @@ lazy_static! {
             (
                 8,
                 &[
-                    ("penicillin_g", 4.5),
+                    ("penicillin_g", 3.96),
                     ("azithromycin", 1.0 ),
-                    ("ceftriaxone", 11.0),
-                    ("cefixime", 9.2),
+                    ("ceftriaxone", 9.02),
+                    ("cefixime", 7.544),
                     ("doxycycline", 4.5),
-                    ("amoxicillin_clavulanate", 3.0),
-                    ("amoxicillin", 2.3),
+                    ("amoxicillin_clavulanate", 3.3),
+                    ("amoxicillin", 2.024),
                     ("cefuroxime", 6.0),
-                    ("clindamycin", 4.0),
-                    ("ampicillin", 3.4),
-                    ("ampicillin_sulbactam", 2.5),
-                    ("ciprofloxacin", 0.5 ),
-                    ("levofloxacin", 0.7 ),
+                    ("clindamycin", 5.4),
+                    ("ampicillin", 2.992),
+                    ("ampicillin_sulbactam", 2.75),
+                    ("ciprofloxacin", 0.45),
+                    ("levofloxacin", 0.63),
                     ("cephalexin", 4.0),
-                    ("trim_sulf", 0.10),
+                    ("trim_sulf", 0.115),
                     ("metronidazole", 4.0),
                     ("rifampicin", 0.50),
                 ],
@@ -11174,24 +11174,24 @@ lazy_static! {
             (
                 9,
                 &[
-                    ("flucloxacillin", 14.0), // dominant empiric choice for bone/joint (Staph cover essential)
+                    ("flucloxacillin", 12.32), // dominant empiric choice for bone/joint (Staph cover essential)
                     ("cefazolin", 7.6),
                     ("vancomycin", 150.0),
-                    ("ampicillin", 9.0),
-                    ("ceftriaxone", 9.7),
+                    ("ampicillin", 7.92),
+                    ("ceftriaxone", 7.954),
                     ("cephalexin", 3.5),
-                    ("penicillin_g", 6.8),
+                    ("penicillin_g", 5.984),
                     ("linezolid", 150.0),
                     ("tedizolid", 130.0),
                     ("dalbavancin", 110.0),
                     ("daptomycin", 140.0),
                     ("ceftaroline", 25.0),
-                    ("clindamycin", 3.0),
-                    ("ciprofloxacin", 2.3),
-                    ("levofloxacin", 2.3),
-                    ("trim_sulf", 0.50),
+                    ("clindamycin", 4.05),
+                    ("ciprofloxacin", 2.07),
+                    ("levofloxacin", 2.07),
+                    ("trim_sulf", 0.575),
                     ("meropenem", 690.0),
-                    ("piperacillin_tazobactam", 6.0),
+                    ("piperacillin_tazobactam", 6.6),
                     ("rifampicin", 6.0), // key add-on for biofilm penetration in hardware/PJI
                 ],
             ),
@@ -11201,9 +11201,9 @@ lazy_static! {
                 &[
                     ("vancomycin", 150.0), // CoNS/S. aureus dominate device/line infections; vanco is empiric backbone
                     ("linezolid", 150.0), // gram-positive cover priority consistent with vancomycin uplift
-                    ("piperacillin_tazobactam", 12.0), // Keep broad empiric cover, but less dominant than before.
+                    ("piperacillin_tazobactam", 13.2), // Keep broad empiric cover, but less dominant than before.
                     ("cefepime", 40.0),
-                    ("ceftriaxone", 3.5),
+                    ("ceftriaxone", 2.87),
                     ("meropenem", 1500.0),
                     ("imipenem_c", 1100.0),
                     ("daptomycin", 140.0),
@@ -11211,7 +11211,7 @@ lazy_static! {
                     ("aztreonam", 30.0),
                     ("ceftolozane_tazobactam", 30.0),
                     ("aztreonam_avibactam", 2.0),
-                    ("ciprofloxacin", 2.3),
+                    ("ciprofloxacin", 2.07),
                     ("azithromycin", 0.5 ),
                 ],
             ),
@@ -11258,14 +11258,14 @@ lazy_static! {
         let syndrome_0_background_drug_scores = [
             ("sulfanilamide", 0.0010),
             ("penicillin_g", 0.0010),
-            ("ampicillin", 0.090),
-            ("amoxicillin", 0.28),
+            ("ampicillin", 0.0792),
+            ("amoxicillin", 0.2464),
             ("piperacillin", 0.0010),
             ("ticarcillin", 0.0010),
             ("cephalexin", 0.15),
             ("cefazolin", 0.0010),
             ("cefuroxime", 0.084),
-            ("ceftriaxone", 0.026),
+            ("ceftriaxone", 0.02132),
             ("ceftazidime", 0.0010),
             ("cefepime", 0.0010),
             ("ceftaroline", 0.0010),
@@ -11278,14 +11278,14 @@ lazy_static! {
             ("erythromycin", 0.025),
             ("azithromycin", 0.14),
             ("clarithromycin", 0.025),
-            ("clindamycin", 0.040),
+            ("clindamycin", 0.054),
             ("gentamicin", 0.0010),
             ("tobramycin", 0.0010),
             ("amikacin", 0.0010),
-            ("ciprofloxacin", 0.11),
-            ("levofloxacin", 0.046),
-            ("moxifloxacin", 0.028),
-            ("ofloxacin", 0.046),
+            ("ciprofloxacin", 0.099),
+            ("levofloxacin", 0.0414),
+            ("moxifloxacin", 0.0252),
+            ("ofloxacin", 0.0414),
             ("tetracycline", 0.040),
             ("doxycycline", 0.18),
             ("minocycline", 0.020),
@@ -11297,27 +11297,27 @@ lazy_static! {
             ("tedizolid", 0.0010),
             ("daptomycin", 0.0010),
             ("quinu_dalfo", 0.0010),
-            ("trim_sulf", 0.050),
+            ("trim_sulf", 0.0575),
             ("chloramphenicol", 0.040),
-            ("nitrofurantoin", 1.2),
+            ("nitrofurantoin", 1.344),
             ("fosfomycin", 1.2),
             ("retapamulin", 0.0010),
             ("fusidic_a", 0.0010),
             ("metronidazole", 0.30),
             ("fidaxomicin", 0.0010),
-            ("furazolidone", 0.023),
+            ("furazolidone", 0.02576),
             ("rifampicin", 0.0010),
-            ("amoxicillin_clavulanate", 0.30),
+            ("amoxicillin_clavulanate", 0.33),
             ("piperacillin_tazobactam", 0.0010),
             ("ampicillin_sulbactam", 0.0010),
             ("ticarcillin_clavulanate", 0.0010),
             ("ceftazidime_avibactam", 0.0010),
             ("meropenem_vaborbactam", 0.0010),
             ("colistin", 0.0010),
-            ("flucloxacillin", 0.068),
+            ("flucloxacillin", 0.05984),
             ("aztreonam_avibactam", 0.0010),
-            ("cefixime", 0.13),
-            ("nalidixic_acid", 0.018),
+            ("cefixime", 0.1066),
+            ("nalidixic_acid", 0.0162),
         ];
         for &(drug, score) in &syndrome_0_background_drug_scores {
             if DRUG_SHORT_NAMES.contains(&drug) {
@@ -11459,38 +11459,38 @@ lazy_static! {
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
     ("acinetobacter_baumannii", -3.9),
     ("citrobacter_spp.", -6.7),
-    ("enterobacter_spp.", -4.0),
-    ("enterococcus_faecalis", -3.7),
-    ("enterococcus_faecium", -2.7),
+    ("enterobacter_spp.", -3.5),
+    ("enterococcus_faecalis", -3.2),
+    ("enterococcus_faecium", -2.3),
     ("escherichia_coli", -9.7 ),
-    ("klebsiella_pneumoniae", -5.8),
+    ("klebsiella_pneumoniae", -6.5),
     ("morganella_spp.", -5.9),
     ("proteus_spp.", -5.6),
     ("serratia_spp.", -5.5),
-    ("pseudomonas_aeruginosa", -3.5),
+    ("pseudomonas_aeruginosa", -3.1),
     ("stenotrophomonas_maltophilia", -6.1),
-    ("staphylococcus_aureus", -7.5),
+    ("staphylococcus_aureus", -7.8),
     ("staphylococcus_epidermidis", -6.1),
     ("streptococcus_pneumoniae", -7.7),
     ("salmonella_enterica_serovar_typhi", -6.7),
-    ("salmonella_enterica_serovar_paratyphi_a", -7.5),
+    ("salmonella_enterica_serovar_paratyphi_a", -7.9),
     ("invasive_non-typhoidal_salmonella_spp.", -6.5),
     ("shigella_spp.", -20.0),
     ("neisseria_gonorrhoeae", -50.0),
     ("streptococcus_pyogenes", -5.0),
-    ("streptococcus_agalactiae", -4.7),
-    ("haemophilus_influenzae", -6.7),
+    ("streptococcus_agalactiae", -4.2),
+    ("haemophilus_influenzae", -7.1),
     ("chlamydia_trachomatis", -17.1),
     ("vibrio_cholerae", -5.8),
-    ("neisseria_meningitidis", -6.0),
+    ("neisseria_meningitidis", -5.6),
     ("listeria_monocytogenes", -6.1),
     ("clostridioides_difficile", -8.6),
     ("campylobacter_jejuni", -19.0),
     ("enterobacter_cloacae", -4.5),
     ("yersinia_enterocolitica", -7.6),
-    ("moraxella_catarrhalis", -11.2),
+    ("moraxella_catarrhalis", -11.5),
     ("treponema_pallidum", -9.1),
-    ("bordetella_pertussis", -10.0),
+    ("bordetella_pertussis", -9.5 ),
     ("helicobacter_pylori", -500.0),
     ("mdr_mycobacterium_tuberculosis", -37.0),
     ("mycoplasma_pneumoniae", -16.8),

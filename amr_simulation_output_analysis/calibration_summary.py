@@ -530,6 +530,12 @@ def _gather_calibration_context(
         df["calendar_year"],
         targets.drug_class_targets,
     )
+    drug_class_calibration_df = _build_drug_class_calibration_window_table(
+        drug_class_df,
+        drug_class_history_df,
+        targets.target_year,
+        calibration_window_year_range,
+    )
     resistance_targets, resistance_average_targets = _load_resistance_target_set(
         targets.resistance_long_form_path
     )
@@ -576,6 +582,7 @@ def _gather_calibration_context(
         "testing_summary_df": testing_summary_df,
         "microbiome_df": microbiome_df,
         "drug_class_df": drug_class_df,
+        "drug_class_calibration_df": drug_class_calibration_df,
         "drug_class_history_df": drug_class_history_df,
         "resistance_df": resistance_df,
         "resistance_targets": resistance_targets,
@@ -3205,6 +3212,45 @@ def _calculate_drug_class_history_table(
     return pd.DataFrame(records, columns=columns)
 
 
+def _build_drug_class_calibration_window_table(
+    drug_class_df: pd.DataFrame,
+    drug_class_history_df: pd.DataFrame,
+    target_year: int,
+    calibration_window_year_range: str,
+) -> pd.DataFrame:
+    """Pair calibration-window simulation shares with target-year benchmarks."""
+
+    share_col = f"Share {calibration_window_year_range} (%)"
+    target_col = f"Target {target_year} (%)"
+    delta_col = f"Delta {calibration_window_year_range} vs {target_year} target (pp)"
+    columns = ["Class", share_col, target_col, delta_col]
+
+    if drug_class_df.empty or "Class" not in drug_class_df.columns or "Share (%)" not in drug_class_df.columns:
+        return pd.DataFrame(columns=columns)
+
+    share_lookup = (
+        drug_class_df.drop_duplicates(subset=["Class"], keep="first")
+        .set_index("Class")["Share (%)"]
+    )
+
+    if (
+        not drug_class_history_df.empty
+        and "Class" in drug_class_history_df.columns
+        and target_col in drug_class_history_df.columns
+    ):
+        result = drug_class_history_df[["Class", target_col]].copy()
+    else:
+        result = drug_class_df[["Class"]].copy()
+        result[target_col] = np.nan
+
+    result.insert(1, share_col, result["Class"].map(share_lookup))
+    result[delta_col] = (
+        pd.to_numeric(result[share_col], errors="coerce")
+        - pd.to_numeric(result[target_col], errors="coerce")
+    )
+    return result[columns]
+
+
 def _build_drug_class_lookup(
     drug_cfg: Optional[Dict[str, object]],
 ) -> Dict[str, Tuple[int, str]]:
@@ -3804,7 +3850,7 @@ def _build_mean_abs_gap_tables(
 def _calculate_calibration_score(
     targets: CalibrationTargets,
     headline_df: pd.DataFrame,
-    drug_class_history_df: pd.DataFrame,
+    drug_class_calibration_df: pd.DataFrame,
     resistance_df: pd.DataFrame,
     microbiome_df: pd.DataFrame,
     bacteria_burden_df: pd.DataFrame,
@@ -3918,11 +3964,22 @@ def _calculate_calibration_score(
     drug_usage_config = config.get("drug_usage") if isinstance(config.get("drug_usage"), dict) else {}
     drug_usage_values: List[Tuple[Optional[float], float]] = []
     drug_usage_target_count = 0
-    share_col = f"Share {targets.target_year} (%)"
+    share_col = next(
+        (
+            str(column)
+            for column in drug_class_calibration_df.columns
+            if str(column).startswith("Share ") and str(column).endswith("(%)")
+        ),
+        None,
+    )
     target_col = f"Target {targets.target_year} (%)"
     drug_tolerance = _coerce_float(drug_usage_config.get("absolute_tolerance_pp")) or 3.0
-    if not drug_class_history_df.empty and share_col in drug_class_history_df.columns and target_col in drug_class_history_df.columns:
-        for _, row in drug_class_history_df.iterrows():
+    if (
+        share_col is not None
+        and not drug_class_calibration_df.empty
+        and target_col in drug_class_calibration_df.columns
+    ):
+        for _, row in drug_class_calibration_df.iterrows():
             simulation = _coerce_float(row.get(share_col))
             target = _coerce_float(row.get(target_col))
             label = str(row.get("Class") or "").strip()
@@ -4395,6 +4452,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     testing_summary_df = context.get("testing_summary_df")
     microbiome_df = context.get("microbiome_df")
     drug_class_df = context.get("drug_class_df")
+    drug_class_calibration_df = context.get("drug_class_calibration_df")
     drug_class_history_df = context.get("drug_class_history_df")
     resistance_df = context.get("resistance_df")
     bacteria_burden_df = context.get("bacteria_burden_df")
@@ -4408,6 +4466,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         microbiome_df = pd.DataFrame()
     if not isinstance(drug_class_df, pd.DataFrame):
         drug_class_df = pd.DataFrame()
+    if not isinstance(drug_class_calibration_df, pd.DataFrame):
+        drug_class_calibration_df = pd.DataFrame()
     if not isinstance(drug_class_history_df, pd.DataFrame):
         drug_class_history_df = pd.DataFrame()
     if not isinstance(resistance_df, pd.DataFrame):
@@ -4450,7 +4510,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     calibration_score = _calculate_calibration_score(
         targets,
         headline_df,
-        drug_class_history_df,
+        drug_class_calibration_df,
         resistance_df,
         microbiome_df,
         bacteria_burden_df,
@@ -4798,6 +4858,28 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         )
 
         _write_calibration_score_summary(handle, calibration_score)
+
+        calibration_window_year_range = str(
+            context.get("calibration_window_year_range") or targets.target_year
+        )
+        if not drug_class_calibration_df.empty:
+            handle.write(
+                f"Drug Class Share ({calibration_window_year_range} Calibration Window) "
+                "(simulation drug-day % vs. target %) (8)\n"
+            )
+            handle.write(
+                drug_class_calibration_df.to_string(
+                    index=False,
+                    float_format=lambda x: f"{x:,.2f}",
+                    na_rep="---",
+                )
+            )
+            handle.write("\n\n")
+        else:
+            handle.write(
+                f"Drug Class Share ({calibration_window_year_range} Calibration Window)\n"
+                "(no calibration-window drug-class shares available)\n\n"
+            )
 
         if not drug_class_history_df.empty:
             drug_history_display = drug_class_history_df.copy()

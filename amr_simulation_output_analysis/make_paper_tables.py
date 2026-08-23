@@ -924,7 +924,7 @@ def make_t3(agg: dict, out_dir: Path) -> None:
 
     body  = _html_head("Table 3 — Drug Class Share")
     body += _back_link()
-    body += "<h1>Table 3. Antibiotic use by drug class: simulation vs. global estimates, 2025</h1>\n"
+    body += "<h1>Table 3. Antibiotic use by drug class: 2022–2025 simulation vs. 2025 global estimates</h1>\n"
     body += _html_table(dc)
     body += _html_footnotes(footnotes)
     body += "</body></html>"
@@ -5694,7 +5694,7 @@ _F8_CONTEXT_COLOURS: dict[str, str] = {
 
 
 def _figure_8_placeholder(out_dir: Path, agg: dict | None, message: str) -> None:
-    title = "Figure 9. Antibiotic use by treatment context, 2025"
+    title = "Figure 9. Antibiotic use by treatment context, 2022–2025"
     stem = "Figure_9__antibiotic_use_by_treatment_context"
     fig, ax = plt.subplots(figsize=(9, 3.2))
     ax.text(
@@ -5766,9 +5766,9 @@ def _figure_8_rows_from_simulation_csv(
         df = df[policy == 0].copy()
 
     df["simulation_year_for_f8"] = _simulation_year_series(df)
-    df = df[(df["simulation_year_for_f8"] >= 2025.0) & (df["simulation_year_for_f8"] < 2026.0)].copy()
+    df = df[(df["simulation_year_for_f8"] >= 2022.0) & (df["simulation_year_for_f8"] < 2026.0)].copy()
     if df.empty:
-        return [], f"{csv_path.name}: no baseline 2025 rows available.", mode
+        return [], f"{csv_path.name}: no baseline 2022–2025 rows available.", mode
 
     for _, column in context_columns:
         df[column] = pd.to_numeric(df[column], errors="coerce")
@@ -5788,7 +5788,7 @@ def _figure_8_rows_from_simulation_csv(
         if has_value:
             rows.append(row)
     if not rows:
-        return [], f"{csv_path.name}: context columns were present but contained no usable 2025 values.", mode
+        return [], f"{csv_path.name}: context columns were present but contained no usable 2022–2025 values.", mode
     return rows, None, mode
 
 
@@ -5797,7 +5797,7 @@ def make_figure_8_antibiotic_use_by_context(
     out_dir: Path,
     agg: dict | None = None,
 ) -> None:
-    title = "Figure 9. Antibiotic use by treatment context, 2025"
+    title = "Figure 9. Antibiotic use by treatment context, 2022–2025"
     stem = "Figure_9__antibiotic_use_by_treatment_context"
     missing_columns_message = (
         "Figure 9 requires simulation_summary CSV columns for antibiotic-use context. "
@@ -5853,7 +5853,7 @@ def make_figure_8_antibiotic_use_by_context(
         if saw_missing_required_columns:
             _figure_8_placeholder(out_dir, agg, missing_columns_message)
         else:
-            detail = " ".join(problems) if problems else "No usable 2025 baseline context rows were found."
+            detail = " ".join(problems) if problems else "No usable 2022–2025 baseline context rows were found."
             _figure_8_placeholder(out_dir, agg, detail)
         return
 
@@ -5904,7 +5904,7 @@ def make_figure_8_antibiotic_use_by_context(
         left += safe_value
 
     ax.set_yticks([])
-    ax.set_xlabel("People on antibiotics on an average day in 2025 (millions)", fontsize=10)
+    ax.set_xlabel("People on antibiotics on an average day, 2022–2025 (millions)", fontsize=10)
     ax.set_xlim(0, max(total_mean * 1.08, 0.1))
     if total_mean > 0.0:
         percentage_axis = ax.secondary_xaxis(
@@ -5934,7 +5934,7 @@ def make_figure_8_antibiotic_use_by_context(
     footnotes = [
         f"Segments show mean daily antibiotic users across {n_runs} run"
         f"{'s' if n_runs != 1 else ''} under "
-        "the baseline policy in 2025; percentages use the total across displayed contexts. "
+        "the baseline policy during 2022–2025; percentages use the total across displayed contexts. "
         "Category-specific 95% confidence intervals are not drawn on the cumulative stack.",
         "Treatment context is fixed when a course starts; concurrent use is classified as "
         "targeted, empiric, prophylaxis, other active infection, other no active infection, "
@@ -12936,7 +12936,7 @@ def make_index(agg: dict, out_dir: Path) -> None:
             ),
             (
                 "Figures/Figure_9__antibiotic_use_by_treatment_context.html",
-                "Figure 9. Antibiotic use by treatment context, 2025",
+                "Figure 9. Antibiotic use by treatment context, 2022–2025",
             ),
             (
                 "Figures/Figure_10__sepsis_context_effective_therapy.html",
