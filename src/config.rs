@@ -1352,6 +1352,16 @@ impl SyndromeParameters {
             entries.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         }
 
+        for (syndrome_id, penetration_by_drug) in drug_penetration.iter().enumerate() {
+            for (drug_idx, &penetration) in penetration_by_drug.iter().enumerate() {
+                assert!(
+                    penetration.is_finite() && (0.0..=1.0).contains(&penetration),
+                    "syndrome {syndrome_id} drug {} penetration must be finite and in [0, 1], got {penetration}",
+                    DRUG_SHORT_NAMES[drug_idx]
+                );
+            }
+        }
+
         SyndromeParameters {
             sepsis_log_odds,
             initiation_multiplier,
@@ -2000,11 +2010,13 @@ impl DrugParameters {
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             let prefix = format!("drug_{}", drug);
-            initial_level.push(get_or_default(
-                map,
-                &format!("{}_initial_level", prefix),
-                10.0,
-            ));
+            let configured_initial_level =
+                get_or_default(map, &format!("{}_initial_level", prefix), 10.0);
+            assert!(
+                configured_initial_level.is_finite() && configured_initial_level > 0.0,
+                "{prefix}_initial_level must be finite and > 0, got {configured_initial_level}"
+            );
+            initial_level.push(configured_initial_level);
             double_dose_multiplier.push(get_or_default(
                 map,
                 &format!("{}_double_dose_multiplier", prefix),
@@ -3098,6 +3110,9 @@ impl ResistanceMechanismParameters {
     }
 }
 
+/// Bacterium–mechanism baseline coefficients used in the bounded daily emergence-probability
+/// expression. The retained `_emergence_rate` parameter-key suffix is a compatibility name;
+/// values are finite, non-negative, and intentionally not bounded above by 1.0.
 #[derive(Debug)]
 pub struct BacteriaMechanismEmergenceRates {
     values: Vec<f64>,
@@ -3136,7 +3151,7 @@ impl BacteriaMechanismEmergenceRates {
 
 /// Executable status for one bacterium-mechanism pair.
 ///
-/// A zero emergence rate is not itself a host exclusion: transferable mechanisms can still
+/// A zero emergence coefficient is not itself a host exclusion: transferable mechanisms can still
 /// arrive by HGT, while non-transferable mechanisms can be inherited in an already-circulating
 /// profile or assigned by an explicit exogenous rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -7967,8 +7982,9 @@ lazy_static! {
 
 
 
-        // Direct daily emergence rates under applicable drug pressure for each
-        // bacterium-mechanism pair. Tier 0 marks mechanisms excluded for that host.
+        // Baseline emergence coefficients used to calculate a bounded daily probability under
+        // applicable drug pressure for each bacterium-mechanism pair. Coefficients are unbounded
+        // above; Tier 0 marks mechanisms excluded for that host.
 
         // ^^^^^
 

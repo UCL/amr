@@ -55,6 +55,51 @@ fn non_finite_value_is_a_hard_error() {
 }
 
 #[test]
+fn emergence_coefficient_is_unbounded_above_but_must_not_be_negative() {
+    let key = "bacteria_escherichia_coli_mechanism_mutation_gyra_primary_emergence_rate";
+    let mut high_parameters = PARAMETERS.clone();
+    high_parameters.insert(key.to_string(), 30.0);
+    let high_report = validate_parameter_map(&high_parameters);
+    assert!(
+        !high_report.has_errors(),
+        "unbounded emergence coefficient should accept values above one:\n{}",
+        high_report.render(ConfigValidationMode::Strict)
+    );
+
+    let mut negative_parameters = PARAMETERS.clone();
+    negative_parameters.insert(key.to_string(), -0.1);
+    let negative_report = validate_parameter_map(&negative_parameters);
+    assert_has_error(&negative_report, key);
+}
+
+#[test]
+fn drug_initial_level_must_be_strictly_positive() {
+    let key = "drug_amoxicillin_initial_level";
+    let mut parameters = PARAMETERS.clone();
+    parameters.insert(key.to_string(), 0.0);
+
+    let report = validate_parameter_map(&parameters);
+
+    assert_has_error(&report, key);
+}
+
+#[test]
+fn penetration_and_emergence_inhibition_modifiers_must_be_in_unit_interval() {
+    for (key, value) in [
+        ("syndrome_3_drug_daptomycin_penetration", 1.1),
+        ("resistance_development_inhibition_single_drug", -0.1),
+        ("resistance_development_inhibition_partial_cross", 1.1),
+    ] {
+        let mut parameters = PARAMETERS.clone();
+        parameters.insert(key.to_string(), value);
+
+        let report = validate_parameter_map(&parameters);
+
+        assert_has_error(&report, key);
+    }
+}
+
+#[test]
 fn validation_mode_is_strict_by_default_and_warn_when_explicit() {
     assert_eq!(
         ConfigValidationMode::from_value(None),

@@ -1760,7 +1760,7 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
     println!(
         "Parameters for the {} resistance mechanisms modelled. Each mechanism \
               has a per-day reversion rate, per-drug-class enhancement multipliers, \
-              and per-bacteria emergence rates.",
+              and per-bacteria emergence coefficients.",
         ResistanceMechanism::all().len()
     );
     println!();
@@ -1815,12 +1815,12 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
         &rows,
     );
 
-    // Bacteria-mechanism emergence rates
-    println!("#### Bacteria–Mechanism Emergence Rates");
+    // Bacteria-mechanism emergence coefficients
+    println!("#### Bacteria–Mechanism Emergence Coefficients");
     println!();
     println!(
-        "Resolved de novo emergence rate and executable pathway status for every \
-              bacteria–mechanism pair. A zero rate does not necessarily exclude the host: \
+        "Resolved de novo emergence coefficient and executable pathway status for every \
+              bacteria–mechanism pair. A zero coefficient does not necessarily exclude the host: \
               transferable mechanisms can remain HGT-only, while non-transferable eligible \
               mechanisms can still be inherited in an existing complete profile."
     );
@@ -1839,7 +1839,7 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
         }
     }
     md_table(
-        &["Bacteria", "Mechanism", "Emergence rate/day", "Status"],
+        &["Bacteria", "Mechanism", "Emergence coefficient", "Status"],
         &rows,
     );
 

@@ -233,6 +233,20 @@ fn validate_numeric_values(parameters: &HashMap<String, f64>, report: &mut Confi
             ));
         }
 
+        if is_unit_interval_modifier_key(key) && !(0.0..=1.0).contains(value) {
+            report.issues.push(ConfigValidationIssue::error(
+                key,
+                format!("bounded modifier must be in [0, 1], got {value}"),
+            ));
+        }
+
+        if is_strictly_positive_key(key) && *value <= 0.0 {
+            report.issues.push(ConfigValidationIssue::error(
+                key,
+                format!("strictly positive parameter must be > 0, got {value}"),
+            ));
+        }
+
         if is_non_negative_key(key) && *value < 0.0 {
             report.issues.push(ConfigValidationIssue::error(
                 key,
@@ -299,6 +313,20 @@ fn is_non_negative_key(key: &str) -> bool {
         || key.ends_with("_penalty")
         || key.ends_with("_bonus")
         || key.ends_with("_hazard_per_unit_level")
+        || key.ends_with("_emergence_rate")
+}
+
+fn is_strictly_positive_key(key: &str) -> bool {
+    key.starts_with("drug_") && key.ends_with("_initial_level")
+}
+
+fn is_unit_interval_modifier_key(key: &str) -> bool {
+    key.ends_with("_penetration")
+        || matches!(
+            key,
+            "resistance_development_inhibition_single_drug"
+                | "resistance_development_inhibition_partial_cross"
+        )
 }
 
 fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {

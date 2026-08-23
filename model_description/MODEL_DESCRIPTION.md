@@ -1069,12 +1069,12 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
   | Siderophore uptake | `mutation_siderophore_uptake` | Chromosomal alteration or loss of ferric-siderophore uptake used by cefiderocol | `cefiderocol` | Enterobacterales and Nonfermenters |
 
-For each bacterium–mechanism pair, the current code assigns one of four implementation statuses using the reviewed host–mechanism correspondence, the configured de novo emergence rate, and whether the mechanism is generically HGT-transferable:
+For each bacterium–mechanism pair, the current code assigns one of four implementation statuses using the reviewed host–mechanism correspondence, the configured de novo emergence coefficient, and whether the mechanism is generically HGT-transferable:
 
 `ExcludedHost`: the pair is outside the current biological/model scope. Host-eligibility checks prevent the mechanism from being introduced, transferred or used to derive resistance for that bacterium.
-`EligibleNoDeNovo`: the host is eligible, but the configured de novo rate is zero and the mechanism is not HGT-transferable. The mechanism can nevertheless be present if supplied by a compatible circulating profile or a separately configured exogenous or special source.
-`HgtOnly`: the host is eligible, the configured de novo rate is zero, and the mechanism is HGT-transferable. Actual HGT additionally requires a donor carrying the mechanism, a shared compartment and a positive configured donor–recipient HGT probability. The mechanism may also be supplied by another configured source, so this status does not establish that HGT is its only route or that a reachable donor exists.
-`DeNovo`: the host is eligible and has a positive configured de novo emergence rate. Other configured acquisition routes may also operate, including HGT where the mechanism is transferable.
+`EligibleNoDeNovo`: the host is eligible, but the configured de novo coefficient is zero and the mechanism is not HGT-transferable. The mechanism can nevertheless be present if supplied by a compatible circulating profile or a separately configured exogenous or special source.
+`HgtOnly`: the host is eligible, the configured de novo coefficient is zero, and the mechanism is HGT-transferable. Actual HGT additionally requires a donor carrying the mechanism, a shared compartment and a positive configured donor–recipient HGT probability. The mechanism may also be supplied by another configured source, so this status does not establish that HGT is its only route or that a reachable donor exists.
+`DeNovo`: the host is eligible and has a positive configured de novo emergence coefficient. Other configured acquisition routes may also operate, including HGT where the mechanism is transferable.
 
 Environmental and ratchet floors, configured donor–recipient HGT probabilities, and the special MDR-TB rifampicin-resistance rule are evaluated separately and do not contribute to this four-state status. Circulating-profile sampling, carriage inheritance, local persistence and ratchet reseeding are restricted by host compatibility, but the current code does not calculate overall source reachability. The statuses therefore enforce host scope and de novo eligibility, rather than providing a complete classification of all possible mechanism sources.
 
@@ -1222,33 +1222,51 @@ Given the familiar mutant selection window framework (Drlica K et al., 2007), th
 - **Sub-therapeutic levels:** Susceptible bacteria are differentially suppressed while resistant mutants retain a survival advantage — the peak of the emergence curve.
 - **Full therapeutic levels:** Both susceptible and resistant bacteria are strongly suppressed.
 
-Within this framework, incomplete courses, poor adherence, and underdosing matter because they extend the time spent in the sub-therapeutic selection window.
+Within the current standardized-exposure representation, incomplete courses can extend time in the sub-therapeutic selection window through cessation followed by drug-level decay. Poor adherence and underdosing are not separately represented unless a scenario changes the standardized drug level or course duration.
 
 #### Organism-specific emergence calculation
 
-De novo resistance emergence is parameterised directly at the **bacterium-mechanism** level. Each organism therefore has its own baseline emergence profile across the various mechanisms. The route classification described above determines whether a zero means an excluded host, an HGT-only route, or an eligible non-transferable mechanism with no de novo attempt; the numerical rate alone is not used as an indicator of host eligibility.
+De novo resistance emergence is parameterised directly at the **bacterium-mechanism** level. Each organism therefore has its own baseline emergence profile across the various mechanisms. The route classification described above determines whether a zero means an excluded host, an HGT-only route, or an eligible non-transferable mechanism with no de novo attempt; the numerical coefficient alone is not used as an indicator of host eligibility.
 
-For an eligible absent mechanism in an active infection under antibiotic exposure, the biological and within-host component of the daily emergence rate is:
+For an eligible absent mechanism in an active infection under antibiotic exposure, the daily emergence probability is:
 
 ```
-mechanism_emergence_rate = mechanism_rate
-                          × (1 + bacteria_level_factor)
-                          × max_emergence_drug_factor
-                          × multi_drug_penalty_factor
+daily_emergence_probability = clamp(
+    mechanism_rate
+    × infection_de_novo_multiplier
+    × counterfactual_resistance_multiplier
+    × (1 + bacteria_level_factor)
+    × max_emergence_drug_factor
+    × multi_drug_penalty_factor,
+    0,
+    1
+)
 ```
 
 | Term | Role in the model |
 |------|---------------------------|
-| `mechanism_rate` | Organism-specific baseline for that exact mechanism |
+| `mechanism_rate` | Unbounded bacterium–mechanism baseline coefficient. It is not itself a probability; the complete expression, bounded to `[0,1]`, gives the daily emergence probability |
+| `infection_de_novo_multiplier` | Run-level `run_pathway_infection_de_novo_multiplier`, normally 1.0, used for sensitivity analysis and diagnostic ablation |
+| `counterfactual_resistance_multiplier` | Policy-scenario multiplier, normally 1.0; a value of 0.0 disables this resistance-acquisition route |
 | `bacteria_level_factor` | Log-scaled increase with within-host bacterial burden, bounded by the configured organism maximum |
-| `max_emergence_drug_factor` | Drug-exposure effect, highest at intermediate site concentrations and low at both minimal and fully suppressive exposure |
-| `multi_drug_penalty_factor` | Suppression of emergence when two or more drugs with non-negligible susceptible-organism potency (at least `minimal_potency_threshold_for_drug_selection`, currently 0.15) are active and the candidate mechanism covers only part of that regimen |
+| `max_emergence_drug_factor` | Largest exposure-window factor among positive-site-exposure drugs applicable to the mechanism; it is highest at intermediate standardized site levels and low at fully suppressive levels |
+| `multi_drug_penalty_factor` | Suppression of emergence when two or more drugs have both positive standardized site exposure and non-negligible susceptible-organism potency (at least `minimal_potency_threshold_for_drug_selection`, currently 0.15), and the candidate mechanism covers only part of that regimen |
+
+For drug $d$, standardized site exposure is
+
+$$x_d = \operatorname{clamp}\!\left(\frac{\text{current drug level}_d}{\text{initial drug level}_d} \times \text{syndrome penetration}_d,\ 0,\ 10\right).$$
+
+The exposure-window factor is exactly zero when $x_d=0$. For positive site exposure it is
+
+$$F_d = \operatorname{clamp}\!\left(0.01 + 0.99\exp\!\left[-\frac{(x_d-0.5)^2}{2(0.2)^2}\right],\ 0,\ 1\right).$$
+
+This preserves the standardized mutant-selection window: no site exposure produces no selection, the factor peaks at $x_d=0.5$, and high standardized exposure produces a low factor. Each absent mechanism receives at most one daily draw, using the largest $F_d$ among its applicable drugs. A mechanism with no applicable drug having positive standardized site exposure is skipped. The final clamp makes products of 1.0 or greater a daily emergence probability of 1.0.
 
 **Minority-to-majority evolution.** A mechanism newly present in `mechanism_any` but not yet in `mechanism_majority` receives one daily possibility to shift to the majority with probability `majority_r_evolution_rate_per_day_when_drug_present` (default 0.18) whenever at least one drug with a positive current level is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. A successful transition affects the predominant-strain resistance-mechanism profile contributed to the circulating resistance-mechanism profile library and the mechanism's HGT donor strength; it does not change the already mechanism-derived `any_r` value.
 
 **Microbiome pathway.** While a bacterium is carried, each absent applicable mechanism receives one daily emergence attempt whenever at least one active drug has a positive current level and is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. The probability uses the same organism-mechanism baseline table and applies counterfactual scaling, but it does not use the infection-burden, concentration-window, or multidrug-penalty terms described above. Current drug pressure is therefore a binary trigger in this pathway.
 
-These parameters should therefore be read as **effective emergence hazards** rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.
+The bacterium–mechanism coefficients should therefore be read as **effective, unbounded calibration coefficients**, not literal mutation-rate measurements or probabilities. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer. Only the complete bounded expression is the daily Bernoulli probability.
 
 **Run-level pathway sensitivity controls.** Four neutral `run_pathway_*` multipliers are retained for diagnostic ablations and global sensitivity analysis without changing organism-specific baselines. Their defaults are all 1.0: `run_pathway_infection_de_novo_multiplier` scales de novo emergence during active infection; `run_pathway_hgt_multiplier` scales horizontal gene transfer; `run_pathway_reversion_rate_multiplier` scales mechanism loss in infection and carriage; and `run_pathway_microbiome_acquisition_multiplier` scales resistance-mechanism profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy scenarios can set `counterfactual_resistance_multiplier` to 0.0, which blocks resistance acquired through resistance-mechanism profile sampling, de novo emergence, microbiome-acquisition seeding, and HGT transfer in the counterfactual scenario. Acquisition-time floors and the MDR-TB rifampicin rule are described in Section 7.3.
 
@@ -1482,7 +1500,7 @@ In conceptual terms, a static environmental floor is a configured exogenous rese
 
 **Diagnostic control.** `run_pathway_ratchet_enabled` is 1.0 by default and preserves the ratchet behaviour described above. Setting it to 0.0 disables only the dynamic ratchet contribution for component-ablation runs; static environmental floors and the independently configured local persistence archive remain active.
 
-**Practical calibration framework for resistance shortfalls.** When the model under-shoots a resistance calibration benchmark, the preferred response is *not* to keep inflating mechanism emergence rates above biologically plausible values. For stewardship-policy purposes, the model instead treats most persistent shortfalls as belonging to one of four interpretable categories:
+**Practical calibration framework for resistance shortfalls.** When the model under-shoots a resistance calibration benchmark, the preferred response is *not* to keep inflating mechanism emergence coefficients. For stewardship-policy purposes, the model instead treats most persistent shortfalls as belonging to one of four interpretable categories:
 
 1. **Ratchet reseeding:** use when a mechanism plausibly built up historically under human selection, meets the configured reversion-rate eligibility condition, and should retain an acquisition-side historical memory after selection falls.
 2. **Environmental / exogenous floor:** use when resistance is continually re-seeded from outside the local human transmission pool, for example through agriculture, food-chain exposure, wastewater, travel-associated importation, or other exogenous reservoirs.
@@ -1491,7 +1509,7 @@ In conceptual terms, a static environmental floor is a configured exogenous rese
 
 **Which lever to prefer.** The intended order of thought is: first ask whether the mechanism needs a history-derived exogenous reseeding probability (ratchet); if not, ask whether it is repeatedly imported from outside the modelled human pool (static environmental probability); if not, ask whether the model is missing a real source of selection pressure (additional off-model drug use); and only then ask whether the main problem is missing correlation structure between mechanisms (co-selection or linked resistance-mechanism profiles). This keeps the model aligned with its purpose as a policy model rather than pushing it towards unnecessary (and costly) molecular detail.
 
-**Implication for future calibration work.** As a working rule, mechanism emergence rates above 1.0 should be treated as a signal to review whether one or more of these four levers is the more appropriate explanation for the observed prevalence. High emergence can still be used where justified, but it should not be the default catch-all for persistence, reseeding, missing selection pressure, or linked resistance ecology.
+**Implication for future calibration work.** As a working rule, mechanism emergence coefficients above 1.0 should be treated as a signal to review whether one or more of these four levers is the more appropriate explanation for the observed prevalence. High coefficients can still be used where justified, but they should not be the default catch-all for persistence, reseeding, missing selection pressure, or linked resistance ecology. Because the final daily probability is capped at 1.0, coefficient values that keep the complete product above the cap are operationally indistinguishable under those conditions.
 
 ---
 
@@ -1558,7 +1576,7 @@ The pool mapping is:
 - **EntericGramNegative pool**: Enterobacterales, non-fermenters, and enteric pathogens
 - **RespiratoryGramNegative pool**: fastidious respiratory/genitourinary organisms
 - **Anaerobe pool**: anaerobes
-- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence rates (Section 7.4) handle de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
+- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence coefficients (Section 7.4) support de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
 
 The baseline compatibility assignments are:
 
@@ -1578,7 +1596,7 @@ These values are effective within-model hazards and their purpose is to preserve
 
 Each day, after all bacteria have been evaluated, the model evaluates potential gene transfer events among bacteria present in the same person, whether as active infection, asymptomatic carriage, or both. The model evaluates HGT separately for each resistance mechanism, allowing different plasmids or chromosomal determinants (for example KPC and *mcr-1*) to transfer independently rather than as a single all-or-nothing package. Donor eligibility is determined from the compartments in which the organism is actually present: `mechanism_any` supplies active-infection mechanisms and `mechanism_microbiome` supplies carriage mechanisms. Bacteria do not restrict donation only to the dominant active-infection strain; minority active-infection mechanisms and carriage mechanisms can also donate, but they receive the configured minority-donor multiplier because carriage has no separate indicator of the predominant resistance-mechanism profile.
 
-When an HGT event occurs, the mechanism must be classified as transferable and permitted for both the donor and recipient bacteria. A zero de novo emergence rate does not block receipt when the pair is `HgtOnly`; `ExcludedHost` does block both donation and receipt. Donor mechanism presence and predominant-strain status are recorded before the day's HGT pair evaluations begin and remain fixed throughout those evaluations. A mechanism received during that phase can therefore be donated from the following simulation day, but cannot cascade through further bacteria on the same day merely because of the order in which bacteria are evaluated. The transferred mechanism is recorded in each compartment where the recipient organism is present: `mechanism_any` for an active infection and `mechanism_microbiome` for asymptomatic carriage. If the recipient is present in both, both records are updated. A carriage-only transfer does not create a corresponding active-infection mechanism when no active infection is present. All HGT rates are scaled by the run-level `run_pathway_hgt_multiplier` (default 1.0) and by `counterfactual_resistance_multiplier`.
+When an HGT event occurs, the mechanism must be classified as transferable and permitted for both the donor and recipient bacteria. A zero de novo emergence coefficient does not block receipt when the pair is `HgtOnly`; `ExcludedHost` does block both donation and receipt. Donor mechanism presence and predominant-strain status are recorded before the day's HGT pair evaluations begin and remain fixed throughout those evaluations. A mechanism received during that phase can therefore be donated from the following simulation day, but cannot cascade through further bacteria on the same day merely because of the order in which bacteria are evaluated. The transferred mechanism is recorded in each compartment where the recipient organism is present: `mechanism_any` for an active infection and `mechanism_microbiome` for asymptomatic carriage. If the recipient is present in both, both records are updated. A carriage-only transfer does not create a corresponding active-infection mechanism when no active infection is present. All HGT rates are scaled by the run-level `run_pathway_hgt_multiplier` (default 1.0) and by `counterfactual_resistance_multiplier`.
 
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
@@ -1939,9 +1957,9 @@ The environmental/exogenous floor system (§7.7) applies background mechanism pr
 
 Outside directly modelled treatment-linked uses such as staphylococcal combination therapy and selected ICU combination regimens, the simulation does not currently place people on rifampicin simply because they are receiving TB treatment or another non-modelled indication. As a result, bystander selection of `rpoB` resistance in coincident gut or enteric carriage is only represented indirectly through the existing floor and persistence processes, not through an explicit infection-independent rifampicin-use process. This can lead the model to understate rifampicin resistance prevalence for some non-target organisms, but that limitation is currently accepted because it is unlikely to materially alter the main stewardship-policy comparisons the model is being used for.
 
-### 12.13 Residual high-emergence-rate mechanisms as coarse-grained parameters
+### 12.13 Residual high-emergence-coefficient mechanisms as coarse-grained parameters
 
-The bacteria–mechanism pairs with nominal `emergence_rate > 1.0` use coarse surrogate parameters alongside other model abstractions, including simplified exogenous reservoirs, coarse historical incidence trajectories, and omitted off-model drug exposures. Gonorrhoea has a simplified historical acquisition-volume correction, syphilis has explicit historical macrolide alternative-treatment pressure, and *M. genitalium* does not treat `erm_b` or `tet_m` as dominant pathways. These high-emergence settings should be read as limitations of the policy-scale representation rather than as direct mechanistic rate estimates.
+The bacteria–mechanism pairs with nominal `emergence_rate > 1.0` use coarse, unbounded baseline coefficients alongside other model abstractions, including simplified exogenous reservoirs, coarse historical incidence trajectories, and omitted off-model drug exposures. Gonorrhoea has a simplified historical acquisition-volume correction, syphilis has explicit historical macrolide alternative-treatment pressure, and *M. genitalium* does not treat `erm_b` or `tet_m` as dominant pathways. These high-emergence settings should be read as limitations of the policy-scale representation rather than as direct mechanistic rate or probability estimates. The complete expression is capped at a daily probability of 1.0.
 
 ### 12.14 No systematic asymptomatic diagnostic screening
 
@@ -6887,7 +6905,7 @@ See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortal
 
 ### B.10 Resistance Mechanisms
 
-Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
+Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence coefficients.
 
 See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
@@ -8332,11 +8350,11 @@ Underlying class enhancement values are shown for each mechanism. These values a
 | mutation_16s_rrna_tetracycline | tet | 0.9 |
 | mutation_siderophore_uptake | siderophore_ceph | 0.6 |
 
-#### Bacteria–Mechanism Emergence Rates
+#### Bacteria–Mechanism Emergence Coefficients
 
-De novo emergence rate and modelled pathway status for every bacteria–mechanism pair. A zero rate does not necessarily exclude the host: transferable mechanisms can remain HGT-only, while non-transferable eligible mechanisms can still be inherited in an existing complete resistance-mechanism profile.
+De novo emergence coefficient and modelled pathway status for every bacteria–mechanism pair. A zero coefficient does not necessarily exclude the host: transferable mechanisms can remain HGT-only, while non-transferable eligible mechanisms can still be inherited in an existing complete resistance-mechanism profile.
 
-| Bacteria | Mechanism | Emergence rate/day | Status |
+| Bacteria | Mechanism | Emergence coefficient | Status |
 | --- | ---: | ---: | ---: |
 | acinetobacter_baumannii | enzyme_esbl_ctx_m | 4.5e-4 | eligible; de novo enabled |
 | acinetobacter_baumannii | enzyme_esbl_tem | 4.5e-4 | eligible; de novo enabled |
@@ -11813,7 +11831,7 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-infection-acquisition-probability"></a>`infection_acquisition_probability[b]` | Infection-episode absence (`level[b] == 0`), age, region, hospital status, vaccination, carriage, exposure context and policy state. | `{bacterium}_acquisition_log_odds_baseline`; age and region acquisition families; hospital, vaccination, carriage-versus-infection, pathway and policy multipliers. | Recomputed daily for each eligible person-bacterium pair and copied to `predicted_infection_risk[b]` before the initial acquisition draw. | A fading positive episode is not eligible; the incoming resistance mechanisms and existing therapy can subsequently determine whether an eligible candidate becomes established. | Infection-acquisition block in `rules::apply_rules` |
 | <a id="rule-incoming-infection-mechanism-mask"></a>`incoming_infection_mechanism_mask[b]` | Mechanisms from a sampled local resistance-mechanism profile or the exogenous pathway, `mechanism_microbiome[b]`, the MDR-TB rule and current acquisition setting. | Circulating resistance-mechanism profile library and ratchet parameters; `carrier_resistance_inheritance_probability`; `infection_from_microbiome_dampening`; mechanism applicability. | Calculated only after an infection-acquisition draw succeeds, then restricted to mechanisms permitted for the bacterium. | Assigned if the infection becomes established or discarded if existing therapy prevents establishment. | Resistance-mechanism profile assembly in `rules::apply_rules`; `simulation::MechanismCache` |
 | <a id="rule-existing-therapy-prevention-probability"></a>`existing_therapy_prevention_probability[b]` | Current drug use and levels, bacterium-drug potency, and resistance implied by the incoming resistance-mechanism profile. | `antibiotic_infection_prevention_efficacy`; potency; current drug level; `max_resistance_level`; fixed effective-activity threshold of 0.5. | Evaluated for each current drug after the prospective infection mechanisms have been assembled. | Any successful prevention draw blocks establishment; syndrome penetration is not used because syndrome assignment occurs only after establishment. | Infection-acquisition prevention block in `rules::apply_rules` |
-| <a id="rule-de-novo-emergence-probability"></a>`de_novo_emergence_probability[b,m]` | Active infection, absent applicable mechanism, bacterium level, selecting drug exposure and cross-resistance context. | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate`; `run_pathway_infection_de_novo_multiplier`; counterfactual resistance multiplier; `resistance_emergence_bacteria_level_multiplier`; potency threshold; multidrug inhibition parameters; drug level and syndrome penetration. | Recomputed for each eligible bacterium-mechanism route before one daily emergence draw. | Exposure response uses a fixed Gaussian peak at 0.5, sigma 0.2 and floor 0.01; zero or inapplicable routes are skipped. | De novo resistance block in `rules::apply_rules` |
+| <a id="rule-de-novo-emergence-probability"></a>`de_novo_emergence_probability[b,m]` | Active infection, absent applicable mechanism, bacterium level, selecting drug exposure and cross-resistance context. | Unbounded `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` coefficient; `run_pathway_infection_de_novo_multiplier`; counterfactual resistance multiplier; `resistance_emergence_bacteria_level_multiplier`; potency threshold; multidrug inhibition parameters; drug level and syndrome penetration. | Recomputed for each eligible bacterium-mechanism route, bounded to `[0,1]`, then used for one daily Bernoulli draw. | Standardized site exposure is current level divided by initial level and multiplied by syndrome penetration. Exactly zero site exposure has factor 0; positive exposure uses a fixed Gaussian peak at 0.5, sigma 0.2 and floor 0.01. Zero-site-exposure and inapplicable routes are skipped. | De novo resistance block in `rules::apply_rules` |
 | <a id="rule-minority-promotion-probability"></a>`minority_promotion_probability[b,m]` | Minority mechanism in `mechanism_any[b]`, absence from `mechanism_majority[b]`, selecting drug pressure. | `majority_r_evolution_rate_per_day_when_drug_present`; mechanism-drug applicability. | One draw is made per eligible minority mechanism under selecting pressure. | Promotion changes predominant-strain status, not whether any strain carries the mechanism. | `rules::promote_minority_mechanisms_once`; resistance-evolution block |
 | <a id="rule-mechanism-reversion-probability"></a>`mechanism_reversion_probability[b,m]` | Present eligible mechanism, predominant or carriage compartment, absence of current selection. | Mechanism-specific reversion-rate parameters; `run_pathway_reversion_rate_multiplier`; applicability and selection conditions. | Recomputed for eligible unselected mechanisms before daily loss draws. | Infection and carriage mechanism sets are updated separately; selected mechanisms do not revert through this route. | Reversion blocks and precomputed parameters in `rules` |
 | <a id="rule-hgt-probability"></a>`hgt_probability[recipient_b,m]` | Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor-recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; `run_pathway_hgt_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor-recipient-mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
