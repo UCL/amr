@@ -6739,7 +6739,7 @@ lazy_static! {
         map.insert("streptococcus_pyogenes_non_sepsis_infection_death_log_odds".to_string(), 1.0);  // Toxin-mediated and post-infectious pathways
         map.insert("bacteroides_fragilis_non_sepsis_infection_death_log_odds".to_string(), 1.5);    // Intra-abdominal infection pathway
         map.insert("helicobacter_pylori_non_sepsis_infection_death_log_odds".to_string(), 0.2);     // Chronic disease pathway
-        map.insert("shigella_spp._non_sepsis_infection_death_log_odds".to_string(), 0.1);           // Severe dysentery pathway
+        map.insert("shigella_spp._non_sepsis_infection_death_log_odds".to_string(), -0.5);           // Severe dysentery pathway
 
         // ENTERIC PATHOGENS - Moderate to high symptomatic rates
         map.insert("salmonella_enterica_serovar_typhi_symptom_onset_base_log_odds".to_string(), -0.4);       // ~40% per day
@@ -7452,7 +7452,7 @@ lazy_static! {
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.3);
         map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2 );
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.8);
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.3);
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.1);
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.7);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.4  );
@@ -11475,17 +11475,17 @@ lazy_static! {
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
     ("acinetobacter_baumannii", -3.9),
     ("citrobacter_spp.", -6.7),
-    ("enterobacter_spp.", -3.5),
-    ("enterococcus_faecalis", -3.2),
-    ("enterococcus_faecium", -2.3),
+    ("enterobacter_spp.", -3.0),
+    ("enterococcus_faecalis", -2.5),
+    ("enterococcus_faecium", -1.5),
     ("escherichia_coli", -9.7 ),
-    ("klebsiella_pneumoniae", -6.5),
+    ("klebsiella_pneumoniae", -7.2),
     ("morganella_spp.", -5.9),
     ("proteus_spp.", -5.6),
-    ("serratia_spp.", -5.5),
-    ("pseudomonas_aeruginosa", -3.1),
+    ("serratia_spp.", -5.0),
+    ("pseudomonas_aeruginosa", -2.6),
     ("stenotrophomonas_maltophilia", -6.1),
-    ("staphylococcus_aureus", -7.8),
+    ("staphylococcus_aureus", -8.5),
     ("staphylococcus_epidermidis", -6.1),
     ("streptococcus_pneumoniae", -7.7),
     ("salmonella_enterica_serovar_typhi", -6.7),
@@ -11494,19 +11494,19 @@ lazy_static! {
     ("shigella_spp.", -20.0),
     ("neisseria_gonorrhoeae", -50.0),
     ("streptococcus_pyogenes", -5.0),
-    ("streptococcus_agalactiae", -4.2),
-    ("haemophilus_influenzae", -7.1),
+    ("streptococcus_agalactiae", -3.7),
+    ("haemophilus_influenzae", -7.7),
     ("chlamydia_trachomatis", -17.1),
     ("vibrio_cholerae", -5.8),
-    ("neisseria_meningitidis", -5.6),
+    ("neisseria_meningitidis", -5.0),
     ("listeria_monocytogenes", -6.1),
     ("clostridioides_difficile", -8.6),
     ("campylobacter_jejuni", -19.0),
-    ("enterobacter_cloacae", -4.5),
+    ("enterobacter_cloacae", -4.0),
     ("yersinia_enterocolitica", -7.6),
     ("moraxella_catarrhalis", -11.5),
     ("treponema_pallidum", -9.1),
-    ("bordetella_pertussis", -9.5 ),
+    ("bordetella_pertussis", -8.8 ),
     ("helicobacter_pylori", -500.0),
     ("mdr_mycobacterium_tuberculosis", -37.0),
     ("mycoplasma_pneumoniae", -16.8),

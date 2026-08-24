@@ -70,6 +70,11 @@ a:hover { text-decoration: underline; }
 </ol>
 <hr />
 <h2 id="1-overview">1. Overview</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#11-framework-structure">1.1 Framework structure</a></li>
+<li><a href="#12-document-structure">1.2 Document structure</a></li>
+</ul>
 <h3 id="11-framework-structure">1.1 Framework structure</h3>
 <p>We present a <strong>framework</strong> in the form of an <strong>individual-based model</strong> that simulates infection incidence, antibacterial use, resistance emergence, sepsis, and death. In the current configuration, we simulate a representative sample of the global population from 1930, before antibacterial use, through 2025 in <strong>daily</strong> time steps; full policy comparison runs can extend through 2035 and beyond. We typically simulate 10 million people who are alive at some point during the configured horizon. The framework code is open source, and we encourage others to use and further develop it to investigate how resistance has emerged over time, including through counterfactuals, to augment the calibration, and to predict the effects of potential policies on antibacterial resistance and infection-related mortality. These policies may aim directly to limit resistance, or may involve wider antibacterial use whose potential resistance costs need to be weighed against other benefits.</p>
 <p>As currently structured, the framework tracks 42 bacterial species, 62 antibiotics (grouped into 39 drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
@@ -154,6 +159,14 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>Each section describes the modelling choices, their rationale, and the specific rules and parameter values. Sections 2–10 also identify the principal individual-level variables at the start of the section where they are first treated in detail. Exact identifiers are included in parentheses for traceability to <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>, which provides the complete variable dictionary and update-rule catalogue. Variables used only for output counting or to prevent duplicate reporting remain only in Appendices C and D.</p>
 <hr />
 <h2 id="2-population-and-demographics">2. Population and Demographics</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#21-initialisation">2.1 Initialisation</a></li>
+<li><a href="#22-ageing-and-age-categories">2.2 Ageing and age categories</a></li>
+<li><a href="#23-immunodeficiency">2.3 Immunodeficiency</a></li>
+<li><a href="#24-hospitalisation">2.4 Hospitalisation</a></li>
+<li><a href="#25-travel">2.5 Travel</a></li>
+</ul>
 <p>This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immunodeficiency status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.  Future users may wish to add further details (variables) for each individual.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> Each person has an identifier (<code>id</code>), age in days (<code>age</code>), sex at birth (<code>sex_at_birth</code>), a home region (<code>region_living</code>), and a current region that can change during travel (<code>region_cur_in</code>, with <code>days_visiting</code> recording the duration of a visit). Current care setting is represented by <code>hospital_status</code> and <code>days_hospitalized</code>, and severe temporary or chronic immunodeficiency by <code>immunodeficiency_type</code>. Daily transition probabilities determine changes in immunodeficiency, hospital admission, and travel (<code>immunodeficiency_transition_probability</code>, <code>hospitalization_probability</code>, and <code>travel_probability</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="21-initialisation">2.1 Initialisation</h3>
@@ -504,6 +517,13 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p><strong>Age-specific travel risk.</strong> Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of <em>Salmonella enterica</em> serovar Typhi (+0.8 log-odds) and <em>Shigella</em> spp. (+0.5 log-odds), while <em>V. cholerae</em> risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens.</p>
 <hr />
 <h2 id="3-infection-acquisition-and-resistance-at-establishment">3. Infection Acquisition and Resistance at Establishment</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#31-community-acquisition">3.1 Community acquisition</a></li>
+<li><a href="#32-hospital-acquisition">3.2 Hospital acquisition</a></li>
+<li><a href="#33-carrier-derived-infection">3.3 Carrier-derived infection</a></li>
+<li><a href="#34-resistance-at-establishment">3.4 Resistance at establishment</a></li>
+</ul>
 <p>This section describes how candidate bacterial infections arise and whether they become established. A candidate can originate from the community (e.g. human contacts, food, water), the hospital environment (e.g., ventilators, catheters, or other patients), or the person's own asymptomatic carriage. Before establishment, the model assembles the candidate infection's resistance-mechanism profile and evaluates whether any antibiotics the person is already taking prevent it. The model captures these distinctions through a deliberately compressed architecture suited to long-run AMR policy analysis rather than representing every route-specific exposure mechanism.</p>
 <p>A person-bacterium pair is eligible for candidate acquisition only when its previous infection episode has retired at infection level zero. Every positive infection level remains owned by the existing episode, including a fading level at or below <code>INFECTION_EPS</code>; such an episode continues within-host progression and can rebound without being counted as a new acquisition.</p>
 <p>Every resistance-mechanism profile in this section contains modelled acquired resistance mechanisms only. A resistance-mechanism profile with no mechanisms therefore means no modelled acquired resistance; it does not imply that every necessarily drug has baseline activity against the bacterium, because baseline activity is represented separately by potency.</p>
@@ -652,6 +672,13 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>The initial candidate-acquisition probability is therefore independent of the assigned resistance-mechanism profile, but successful establishment is not. The corresponding prevention check is not applied to carriage acquisition.</p>
 <hr />
 <h2 id="4-clinical-progression">4. Clinical Progression</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#41-syndrome-assignment">4.1 Syndrome assignment</a></li>
+<li><a href="#42-infection-dynamics">4.2 Infection dynamics</a></li>
+<li><a href="#43-sepsis">4.3 Sepsis</a></li>
+<li><a href="#44-natural-clearance-and-microbiome-dynamics">4.4 Natural clearance and microbiome dynamics</a></li>
+</ul>
 <p>Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparisons around antibiotic resistance rather than attempting to model the clinical course of each infection in high level detail.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> For each active infection, the model records the clinical syndrome (<code>infectious_syndrome[b]</code>), infection intensity (<code>level[b]</code>), and whether symptoms or another clinical-testing indication have occurred (<code>infection_has_caused_symptoms[b]</code>). Immune clearance is represented by a daily clearance probability and the first eligible clearance day (<code>clearance_hazard[b]</code> and <code>clearance_ready_day[b]</code>). Sepsis status and timing are recorded in <code>sepsis[b]</code> and <code>sepsis_onset_day[b]</code>. Daily intermediate variables govern symptom onset, sepsis onset and recovery, and the proposed next infection intensity (<code>symptom_onset_probability[b]</code>, <code>sepsis_onset_probability[b]</code>, <code>sepsis_recovery_probability[b]</code>, and <code>new_bacteria_level[b]</code>). Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <p>Infection episode ownership and clinical activity use deliberately different predicates. A positive <code>level[b]</code> belongs to the current episode and continues growth, treatment-activity and clearance updates. A level above <code>INFECTION_EPS</code> is reportably active and eligible for symptom, sepsis and diagnostic processes. At exact zero the episode is retired atomically, its episode-local state is cleared, and a later acquisition starts a new episode.</p>
@@ -903,6 +930,13 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>There can be a delay between infection acquisition and symptom-driven treatment. During that interval, infection level follows the untreated growth calculation. Acquired resistance mechanisms may already be present in the resistance-mechanism profile assigned at infection establishment, and eligible mechanisms can subsequently be transferred through horizontal gene transfer. However, the model's de novo emergence of resistance mechanisms and promotion of minority mechanisms require active applicable antibiotic pressure. It therefore does not apply antibiotic selection before antibiotic exposure begins.</p>
 <hr />
 <h2 id="5-diagnostic-testing">5. Diagnostic Testing</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#51-historical-introduction">5.1 Historical introduction</a></li>
+<li><a href="#52-the-testing-process">5.2 The testing process</a></li>
+<li><a href="#53-testing-criteria-and-rates">5.3 Testing criteria and rates</a></li>
+<li><a href="#54-serious-resistance-marker-drugs">5.4 Serious resistance marker drugs</a></li>
+</ul>
 <p>Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.</p>
 <p>We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, MIC levels, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.</p>
 <p>Within this simplified pathway, AST is an error-prone report of the model's mechanism-derived acquired resistance.  A zero reported resistance value (any_r = 0) therefore means that no modelled acquired resistance was reported for that drug; it does not in itself establish that the drug has baseline activity against the bacterium or will be clinically effective as that also depends on the potency of the drug against the bacteria.</p>
@@ -1105,6 +1139,17 @@ review-informed resistance estimates are based on cultured clinical isolates and
 <p>MDR <em>M. tuberculosis</em> is excluded from this classification because rifampicin resistance is part of the definition of MDR-TB. Additional resistance within MDR-TB would require a separate measure.</p>
 <hr />
 <h2 id="6-antibiotic-treatment">6. Antibiotic Treatment</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#61-treatment-initiation-deciding-to-start-antibiotics">6.1 Treatment initiation — deciding to start antibiotics</a></li>
+<li><a href="#62-drug-selection-choosing-which-antibiotic-to-use">6.2 Drug selection — choosing which antibiotic to use</a></li>
+<li><a href="#63-drug-pharmacokinetics">6.3 Drug pharmacokinetics</a></li>
+<li><a href="#64-drug-penetration-by-syndrome">6.4 Drug penetration by syndrome</a></li>
+<li><a href="#65-drug-potency-matrix">6.5 Drug potency matrix</a></li>
+<li><a href="#66-drug-availability-by-region-and-era">6.6 Drug availability by region and era</a></li>
+<li><a href="#67-drug-toxicity">6.7 Drug toxicity</a></li>
+<li><a href="#68-antibiotic-infection-prevention">6.8 Antibiotic infection prevention</a></li>
+</ul>
 <p>This section covers the antibiotic prescribing process — from the decision to start an antibiotic, including initial drug selection, possible modification of treatment and stopping the course. Antibiotic use drives the selection pressure that causes resistance to first emerge.  We aim to reproduce aspects such as imperfect decisions, regional variation in drug access, and the distinction between empiric therapy (before microbiology results are available) and targeted therapy (guided by culture and susceptibility results). The intent is to represent the prescribing features most likely to change AMR trajectories under different policy environments.</p>
 <p><strong>Individual-level variables introduced in this section.</strong> Prescribing can depend on perceived penicillin allergy (<code>perceived_penicillin_allergy</code>) and on the person's current clinical and care context. For each drug, current use, treatment context, systemic exposure, initiation date, and prior use are recorded in <code>cur_use_drug[d]</code>, <code>drug_use_context[d]</code>, <code>cur_level_drug[d]</code>, <code>date_drug_initiated[d]</code>, and <code>ever_taken_drug[d]</code>; <code>current_number_of_drugs</code> records concurrent treatment.  Effective activity against each infection is recorded in <code>resistances[b][d].activity_r</code>. Treatment response is followed through infection intensity at treatment start, days on treatment, failure assessment, and the individual response multiplier (<code>bacteria_level_at_drug_start[b]</code>, <code>days_on_current_treatment[b]</code>, <code>treatment_failure_assessed[b]</code>, and <code>drug_activity_response_multiplier[b]</code>), with additional variables recording cessation and restart eligibility. Drug toxicity is represented by <code>drug_toxicity_reservoir[d]</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="61-treatment-initiation-deciding-to-start-antibiotics">6.1 Treatment initiation — deciding to start antibiotics</h3>
@@ -2147,13 +2192,26 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>Patients who are already receiving an effective antibiotic are partially protected against candidate new infections becoming established (Bratzler DW et al., 2013). After the initial infection-acquisition draw and assembly of the prospective resistance mechanisms, the model evaluates each current drug using its potency against the bacterium, the person's current drug level, and the acquired resistance implied by those mechanisms. Each drug with effective activity above 0.5 has a 70% chance of preventing establishment (<code>antibiotic_infection_prevention_efficacy</code> = 0.7). Acquired resistance reduces effective activity and can therefore allow breakthrough, so patients taking antibiotics are selectively more likely to establish infections carrying acquired resistance mechanisms than infections carrying none. This prevention check acts after, rather than as a multiplier on, the initial acquisition probability.</p>
 <hr />
 <h2 id="7-resistance-dynamics">7. Resistance Dynamics</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#71-resistance-mechanisms">7.1 Resistance mechanisms</a></li>
+<li><a href="#72-mechanismdrug-class-enhancement-multipliers">7.2 Mechanism–drug-class enhancement multipliers</a></li>
+<li><a href="#73-resistance-at-acquisition">7.3 Resistance at acquisition</a></li>
+<li><a href="#74-resistance-emergence">7.4 Resistance emergence</a></li>
+<li><a href="#75-resistance-reversion-and-fitness-costs">7.5 Resistance reversion and fitness costs</a></li>
+<li><a href="#76-local-finite-population-mechanism-persistence">7.6 Local finite-population mechanism persistence</a></li>
+<li><a href="#77-mechanism-derived-cross-drug-effects">7.7 Mechanism-derived cross-drug effects</a></li>
+<li><a href="#78-environmental-and-exogenous-mechanism-floors">7.8 Environmental and Exogenous Mechanism Floors</a></li>
+<li><a href="#79-dynamic-ratchet-floor">7.9 Dynamic ratchet floor</a></li>
+</ul>
 <p>This section describes how the model represents the biology of resistance emergence and spread. The model tracks resistance at the level of individual <strong>mechanisms</strong>.  The level of detail to which we model mechanisms (and therefore how many we include) is a balance betweeen needing to reflect important realities that change the effects of some policies and a need to avoid going down an ultimately unproductive route of trying to model every detail of everything.</p>
 <p>All resistance terms in this section refer to acquired, mechanism-mediated resistance. This includes mechanisms already present in a resistance-mechanism profile sampled when infection or carriage is acquired. Intrinsic or baseline non-susceptibility is encoded through low or zero <strong>potency</strong> and is <strong>not</strong> part of the mechanism records, <code>any_r</code>, or <code>microbiome_r</code>.</p>
 <p><strong>Individual-level variables used in this section.</strong> The active-infection mechanism records (<code>mechanism_any[b]</code>, <code>mechanism_majority[b]</code>) and derived drug resistance <code>resistances[b][d].any_r</code> introduced in Section 3 are updated as resistance changes. Mechanisms represented in carriage and their derived drug-specific resistance are recorded in <code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>; the wider carriage state is described in Section 8. At acquisition, <code>local_profile_sampling_probability[b]</code> is the probability of sampling a resistance-mechanism profile from the local circulating library or persistence archive. This section also introduces the daily probabilities that an absent mechanism emerges, that a minority mechanism becomes predominant, and that an unselected mechanism is lost (<code>de_novo_emergence_probability[b,m]</code>, <code>minority_promotion_probability[b,m]</code>, and <code>mechanism_reversion_probability[b,m]</code>). Full definitions and update rules for the individual-level variables are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <p><strong>Mechanism-centred architecture.</strong> For each person and bacterium, the model records which resistance mechanisms are present in the active infection and in any bacteria being carried / in the microbiome. Drug-level resistance is then calculated from those mechanisms. In the code, these three records are <code>mechanism_any</code> (at least a minority of the infecting bacteria have this mechanism), <code>mechanism_majority</code> (the majority of infecting bacteria have this mechanism), and <code>mechanism_microbiome</code> (the bacteria in the microbiome carry this mechanism), while the derived drug-level resistance measures are <code>any_r</code> (on a scale of 0-1 the extent to which the underling potency of the drug against the actively-infecting bacteria is undermined by the resistance mechanisms present) and <code>microbiome_r</code> (the same for bacteria in the microbiome). At population level, MechanismCache maintains the circulating resistance-mechanism profile library, the bounded local establishment archive, and the historical peak-prevalence records used by the "ratchet" (see below).</p>
 <h3 id="71-resistance-mechanisms">7.1 Resistance mechanisms</h3>
 <p>The model explicitly tracks <strong>46</strong> distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.</p>
-<p>The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) relate to <code>pen</code>, <code>c1_2g</code>, <code>c3g</code>, <code>c4g</code>, and related monobactam-active entries but not <code>carb_group1</code>/<code>carb_group2</code>, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well, for example.</p>
+<p>The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) relate to <code>pen</code>, <code>c1_2g</code>, <code>c3g</code>, <code>c4g</code>, and related monobactam-active entries but not <code>carb_group1</code>/<code>carb_group2</code>, while KPC and NDM/VIM (rows 7–8) compromise the carbapenem classes as well, for example.</p>
+<p>The final column gives representative evidence for the core molecular mechanism and its clinically relevant drug relationship. It does <strong>not</strong> imply that one source validates every drug or host listed in that row. The explicit drug lists and broad bacterial-class labels are the model's reviewed, compressed implementation correspondence: individual variants can have narrower or wider substrate profiles, and host eligibility is restricted further by organism-specific rules in the code. These entries are therefore mechanism-level modelling categories rather than MIC, breakpoint, or species-exhaustive classifications.</p>
 <table>
 <thead>
 <tr>
@@ -2162,6 +2220,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <th>Description</th>
 <th>Explicit Drugs Affected</th>
 <th>Bacterial Classes Affected</th>
+<th>Representative evidence</th>
 </tr>
 </thead>
 <tbody>
@@ -2171,6 +2230,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Extended-spectrum β-lactamase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>aztreonam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Bauernfeind A et al., 1990</td>
 </tr>
 <tr>
 <td>ESBL TEM</td>
@@ -2178,6 +2238,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Extended-spectrum β-lactamase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>aztreonam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Sougakoff W et al., 1988</td>
 </tr>
 <tr>
 <td>ESBL SHV</td>
@@ -2185,6 +2246,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Extended-spectrum β-lactamase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>aztreonam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Knothe H et al., 1983</td>
 </tr>
 <tr>
 <td>AmpC CMY</td>
@@ -2192,6 +2254,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Plasmid-mediated AmpC β-lactamase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>aztreonam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Morosini MI et al., 2000; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>AmpC DHA</td>
@@ -2199,6 +2262,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Plasmid-mediated AmpC β-lactamase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>aztreonam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Morosini MI et al., 2000; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>AmpC derepression</td>
@@ -2206,6 +2270,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Chromosomal AmpC derepression (<em>ampC</em> regulatory mutations in SPACE organisms: <em>Enterobacter</em>, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Providencia</em>) — chromosomal, non-transferable</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>aztreonam</code></td>
 <td>Enterobacterales</td>
+<td>Morosini MI et al., 2000</td>
 </tr>
 <tr>
 <td>KPC</td>
@@ -2213,6 +2278,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td><em>K. pneumoniae</em> carbapenemase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>piperacillin_tazobactam</code>, <code>ampicillin_sulbactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>ceftazidime_avibactam</code>, <code>meropenem_vaborbactam</code>, <code>aztreonam_avibactam</code>, <code>aztreonam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Yigit H et al., 2001</td>
 </tr>
 <tr>
 <td>NDM/VIM</td>
@@ -2220,6 +2286,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Metallo-β-lactamases</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>piperacillin_tazobactam</code>, <code>ampicillin_sulbactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>ceftazidime_avibactam</code>, <code>meropenem_vaborbactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Yong D et al., 2009; Lauretti L et al., 1999</td>
 </tr>
 <tr>
 <td>OXA-48</td>
@@ -2227,13 +2294,15 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Oxacillinase-type carbapenemase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>piperacillin_tazobactam</code>, <code>ampicillin_sulbactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftazidime_avibactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code>, <code>meropenem_vaborbactam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Poirel L et al., 2004</td>
 </tr>
 <tr>
 <td>OXA-Acinetob.</td>
 <td><code>enzyme_oxa_acinetobacter</code></td>
-<td>OXA-23/40/58 carbapenemases (A. baumannii)</td>
+<td>OXA-23/40/58 carbapenemases (<em>A. baumannii</em>)</td>
 <td><code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code>, <code>ceftazidime</code>, <code>cefepime</code>, <code>ceftazidime_avibactam</code></td>
 <td>Nonfermenters</td>
+<td>Poirel L et al., 2005</td>
 </tr>
 <tr>
 <td>blaZ</td>
@@ -2241,6 +2310,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Inhibitor-susceptible staphylococcal penicillinase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code></td>
 <td><em>S. aureus</em>, <em>S. epidermidis</em></td>
+<td>Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>Narrow-spectrum Gram-negative penicillinase</td>
@@ -2248,6 +2318,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Policy-scale inhibitor-susceptible route representing TEM-1 and, where explicitly assigned, related ROB/BRO enzymes</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code></td>
 <td>Reviewed Enterobacterales/enteric hosts, <em>N. gonorrhoeae</em>, <em>H. influenzae</em>, <em>M. catarrhalis</em></td>
+<td>Livermore DM &amp; Seetulsingh P, 1991; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>PBP2a/MecA</td>
@@ -2255,6 +2326,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>PBP alteration (MRSA)</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>piperacillin_tazobactam</code>, <code>ampicillin_sulbactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftolozane_tazobactam</code>, <code>ceftazidime_avibactam</code>, <code>meropenem_vaborbactam</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code></td>
 <td><em>S. aureus</em>, <em>S. epidermidis</em></td>
+<td>Hartman BJ &amp; Tomasz A, 1984</td>
 </tr>
 <tr>
 <td>VanA</td>
@@ -2262,6 +2334,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>High-level vancomycin resistance</td>
 <td><code>vancomycin</code>, <code>teicoplanin</code>, <code>dalbavancin</code></td>
 <td>Staphylococci, Streptococci</td>
+<td>Foucault ML et al., 2010</td>
 </tr>
 <tr>
 <td>VanB</td>
@@ -2269,6 +2342,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Variable-level vancomycin resistance</td>
 <td><code>vancomycin</code></td>
 <td>Staphylococci, Streptococci</td>
+<td>Baptista M et al., 1999</td>
 </tr>
 <tr>
 <td>GyrA (pri.)</td>
@@ -2276,6 +2350,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>DNA gyrase mutation (step 1)</td>
 <td><code>nalidixic_acid</code>, <code>ciprofloxacin</code>, <code>ofloxacin</code></td>
 <td>All</td>
+<td>Marcusson LL et al., 2009</td>
 </tr>
 <tr>
 <td>GyrA + ParC</td>
@@ -2283,6 +2358,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Additional topoisomerase mutation</td>
 <td><code>ciprofloxacin</code>, <code>ofloxacin</code>, <code>levofloxacin</code>, <code>moxifloxacin</code></td>
 <td>All</td>
+<td>Marcusson LL et al., 2009</td>
 </tr>
 <tr>
 <td>Qnr</td>
@@ -2290,6 +2366,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Quinolone resistance protein</td>
 <td><code>ciprofloxacin</code>, <code>ofloxacin</code>, <code>levofloxacin</code>, <code>moxifloxacin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Martínez-Martínez L et al., 1998</td>
 </tr>
 <tr>
 <td>16S rRMT</td>
@@ -2297,6 +2374,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>16S rRNA methyltransferase</td>
 <td><code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Lioy VS et al., 2014</td>
 </tr>
 <tr>
 <td>AAC/APH/ANT</td>
@@ -2304,6 +2382,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Aminoglycoside-modifying enzymes</td>
 <td><code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code>, <code>streptomycin</code>, <code>neomycin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci</td>
+<td>Thacharodi A &amp; Lamont IL, 2022</td>
 </tr>
 <tr>
 <td>ErmB</td>
@@ -2311,6 +2390,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Erythromycin ribosome methylase</td>
 <td><code>erythromycin</code>, <code>azithromycin</code>, <code>clarithromycin</code>, <code>clindamycin</code></td>
 <td>Staphylococci, Streptococci, Anaerobes, Fastidious, <em>C. jejuni</em>; excluded for <em>H. pylori</em></td>
+<td>Arthur M et al., 1987</td>
 </tr>
 <tr>
 <td>MphA</td>
@@ -2318,6 +2398,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Mobile macrolide phosphotransferase</td>
 <td><code>azithromycin</code>, <code>erythromycin</code>, <code>clarithromycin</code></td>
 <td>Enterobacterales, Enteric Pathogens</td>
+<td>Salah M et al., 2019</td>
 </tr>
 <tr>
 <td>23S rRNA</td>
@@ -2325,6 +2406,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>23S rRNA point mutation</td>
 <td><code>erythromycin</code>, <code>azithromycin</code>, <code>clarithromycin</code></td>
 <td>Helicobacter, Enteric Pathogens, Fastidious, Streptococci</td>
+<td>Versalovic J et al., 1996</td>
 </tr>
 <tr>
 <td>23S rRNA (oxa)</td>
@@ -2332,6 +2414,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>23S rRNA domain V mutation conferring linezolid/tedizolid resistance — chromosomal, non-transferable</td>
 <td><code>linezolid</code>, <code>tedizolid</code></td>
 <td>Staphylococci, Streptococci</td>
+<td>Billal DS et al., 2011</td>
 </tr>
 <tr>
 <td>Cfr</td>
@@ -2339,6 +2422,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>23S rRNA methyltransferase</td>
 <td><code>linezolid</code>, <code>tedizolid</code>, <code>chloramphenicol</code>, <code>clindamycin</code>, <code>retapamulin</code></td>
 <td>Staphylococci, Streptococci, Anaerobes, Fastidious, <em>C. jejuni</em>; excluded for <em>H. pylori</em></td>
+<td>Long KS et al., 2006</td>
 </tr>
 <tr>
 <td>CAT</td>
@@ -2346,6 +2430,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Chloramphenicol acetyltransferase</td>
 <td><code>chloramphenicol</code></td>
 <td>All</td>
+<td>Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>MCR-1</td>
@@ -2353,6 +2438,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Mobilised colistin resistance</td>
 <td><code>colistin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Yang Q et al., 2017</td>
 </tr>
 <tr>
 <td>Polymyxin regulatory</td>
@@ -2360,6 +2446,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Chromosomal polymyxin resistance (<em>mgrB</em>, <em>pmrAB</em>, <em>phoPQ</em>, <em>lpx</em> mutations) — chromosomal, non-transferable</td>
 <td><code>colistin</code></td>
 <td>Enterobacterales, Nonfermenters</td>
+<td>Beceiro A et al., 2014</td>
 </tr>
 <tr>
 <td>AcrAB-TolC</td>
@@ -2367,6 +2454,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Gram-negative efflux pump</td>
 <td><code>tetracycline</code>, <code>doxycycline</code>, <code>minocycline</code>, <code>tigecycline</code>, <code>chloramphenicol</code>, <code>ciprofloxacin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Langevin AM &amp; Dunlop MJ, 2018</td>
 </tr>
 <tr>
 <td>MexXY-OprM</td>
@@ -2374,6 +2462,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Pseudomonas-specific efflux pump</td>
 <td><code>tetracycline</code>, <code>doxycycline</code>, <code>minocycline</code>, <code>gentamicin</code>, <code>tobramycin</code>, <code>amikacin</code>, <code>chloramphenicol</code>, <code>ciprofloxacin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+<td>Lau CHF et al., 2014</td>
 </tr>
 <tr>
 <td>Global eff.</td>
@@ -2381,6 +2470,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Non-specific efflux upregulation</td>
 <td><code>tetracycline</code>, <code>doxycycline</code>, <code>minocycline</code>, <code>tigecycline</code>, <code>chloramphenicol</code>, <code>ciprofloxacin</code></td>
 <td>All</td>
+<td>Langevin AM &amp; Dunlop MJ, 2018; Andersson DI &amp; Hughes D, 2010</td>
 </tr>
 <tr>
 <td>TetA/B/C</td>
@@ -2388,6 +2478,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Gram-negative tetracycline efflux</td>
 <td><code>tetracycline</code>, <code>doxycycline</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious</td>
+<td>McMurry L et al., 1980</td>
 </tr>
 <tr>
 <td>TetM/TetO</td>
@@ -2395,6 +2486,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Ribosomal protection</td>
 <td><code>tetracycline</code>, <code>doxycycline</code>, <code>minocycline</code></td>
 <td>All eligible hosts except <em>H. pylori</em></td>
+<td>Yadav K et al., 2021</td>
 </tr>
 <tr>
 <td>16S rRNA (tetracycline)</td>
@@ -2402,6 +2494,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Chromosomal 16S rRNA target-site mutation in both <em>H. pylori</em> rRNA copies</td>
 <td><code>tetracycline</code>, <code>doxycycline</code>, <code>minocycline</code></td>
 <td><em>H. pylori</em> only</td>
+<td>Gerrits MM et al., 2002</td>
 </tr>
 <tr>
 <td>OmpK35/36</td>
@@ -2409,6 +2502,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Combined loss of the two major <em>K. pneumoniae</em> outer-membrane porins</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftazidime_avibactam</code>, <code>meropenem_vaborbactam</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code>, <code>meropenem</code>, <code>imipenem_c</code>, <code>ertapenem</code></td>
 <td><em>K. pneumoniae</em> only</td>
+<td>Tsai YK et al., 2011</td>
 </tr>
 <tr>
 <td>OprD</td>
@@ -2416,20 +2510,23 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Loss of the carbapenem uptake porin in <em>P. aeruginosa</em></td>
 <td><code>meropenem</code>, <code>imipenem_c</code>, <code>meropenem_vaborbactam</code></td>
 <td><em>P. aeruginosa</em> only</td>
+<td>Epp SF et al., 2001; Skurnik D et al., 2013</td>
 </tr>
 <tr>
 <td>Folate path</td>
 <td><code>mutation_folate_pathway</code></td>
-<td>Altered dihydrofolate reductase</td>
+<td>Compressed folate-pathway target category spanning altered dihydropteroate synthase (DHPS) for sulfonamides and altered dihydrofolate reductase (DHFR) for trimethoprim</td>
 <td><code>sulfanilamide</code>, <code>trim_sulf</code></td>
 <td>All</td>
+<td>Gibreel A &amp; Sköld O, 1999; Pikis A et al., 1998</td>
 </tr>
 <tr>
 <td>Nitroreduct</td>
 <td><code>mutation_nitroreductase</code></td>
-<td>Nitroreductase loss</td>
+<td>Compressed nitroreductase-loss category spanning organism-specific nitrodrug-activation pathways (for example, <em>nfsA/nfsB</em> for nitrofurantoin and <em>rdxA/frxA</em> for metronidazole in <em>H. pylori</em>)</td>
 <td><code>metronidazole</code>, <code>nitrofurantoin</code>, <code>furazolidone</code></td>
 <td>Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter</td>
+<td>Sandegren L et al., 2008; Goodwin A et al., 1998</td>
 </tr>
 <tr>
 <td>FosA/FosB</td>
@@ -2437,6 +2534,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Fosfomycin-modifying enzyme (FosA: Gram-negative; FosB: Gram-positive)</td>
 <td><code>fosfomycin</code></td>
 <td>Staphylococci, Streptococci, Enterobacterales, Nonfermenters, Enteric Pathogens</td>
+<td>Guo Q et al., 2016; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>MprF</td>
@@ -2444,6 +2542,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Membrane charge modification</td>
 <td><code>daptomycin</code></td>
 <td>Staphylococci</td>
+<td>Roch M et al., 2017</td>
 </tr>
 <tr>
 <td>LiaFSR/Cls</td>
@@ -2451,6 +2550,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Enterococcal daptomycin resistance via <em>liaFSR/cls</em> cell-envelope remodeling — chromosomal, non-transferable</td>
 <td><code>daptomycin</code></td>
 <td>Streptococci</td>
+<td>Arias CA et al., 2011</td>
 </tr>
 <tr>
 <td>RpoB</td>
@@ -2458,6 +2558,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>RNA polymerase mutation</td>
 <td><code>fidaxomicin</code>, <code>rifampicin</code></td>
 <td>All</td>
+<td>Gagneux S et al., 2006</td>
 </tr>
 <tr>
 <td>FusB</td>
@@ -2465,20 +2566,23 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Fusidic acid resistance determinant</td>
 <td><code>fusidic_a</code></td>
 <td>Staphylococci</td>
+<td>Cox G et al., 2013</td>
 </tr>
 <tr>
 <td>PBP mosaic</td>
 <td><code>mutation_pbp_mosaic</code></td>
-<td>Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in <em>H. influenzae</em>) — reduced β-lactam affinity</td>
+<td>Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, <em>penA</em> in gonococci, PBP3 in <em>H. influenzae</em>) — reduced β-lactam affinity</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>ceftazidime_avibactam</code>, <code>aztreonam</code>, <code>aztreonam_avibactam</code></td>
 <td>All</td>
+<td>Dowson CG et al., 1989; Spratt BG, 1988; Ubukata K et al., 2001</td>
 </tr>
 <tr>
 <td>mtrCDE efflux</td>
 <td><code>efflux_mtr_cde</code></td>
-<td>mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC)</td>
+<td>Compressed broad-efflux category spanning <em>mtrCDE</em> in <em>Neisseria</em> and related clinically relevant pumps such as <em>CmeABC</em> in <em>Campylobacter</em></td>
 <td><code>erythromycin</code>, <code>azithromycin</code>, <code>clarithromycin</code>, <code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>tetracycline</code>, <code>doxycycline</code>, <code>minocycline</code>, <code>chloramphenicol</code></td>
 <td>Fastidious, Enteric Pathogens</td>
+<td>Hagman KE et al., 1995; Lin J et al., 2002</td>
 </tr>
 <tr>
 <td>Siderophore uptake</td>
@@ -2486,6 +2590,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <td>Chromosomal alteration or loss of ferric-siderophore uptake used by cefiderocol</td>
 <td><code>cefiderocol</code></td>
 <td>Enterobacterales and Nonfermenters</td>
+<td>Egge SL et al., 2024; U.S. Food and Drug Administration, 2025</td>
 </tr>
 </tbody>
 </table>
@@ -2509,204 +2614,244 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>Cefiderocol uses one compressed, non-transferable <code>mutation_siderophore_uptake</code> route with an effect of <code>0.60</code>. The route represents chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake. Existing beta-lactamases are not treated as sufficient cefiderocol-resistance mechanisms by themselves because cefiderocol often retains activity against isolates carrying these enzymes and clinically important resistance commonly reflects combinations of beta-lactamases, uptake changes, and other alterations. PBP2a/MecA and OmpK35/36 loss do not project cefiderocol resistance. This abstraction follows the FDA Fetroja prescribing information while avoiding an unsupported MIC-level or epistatic submodel.</p>
 <p>Baseline cefiderocol potency is correspondingly limited to susceptible aerobic Gram-negative bacteria. <em>S. maltophilia</em> and the <em>B. cepacia</em> complex use a conservative active value of <code>0.55</code>, matching the existing <em>P. aeruginosa</em> and <em>A. baumannii</em> model bucket, because activity is supported principally by in vitro and animal data rather than established clinical efficacy. Gram-positive bacteria, <em>B. fragilis</em>, <em>C. jejuni</em>, and intracellular <em>L. pneumophila</em> receive poor-activity values. The categories follow the FDA spectrum statement and primary susceptibility data and are not direct MIC or breakpoint conversions.</p>
 <p>Ceftolozane/tazobactam retains direct model routes through KPC, NDM/VIM, high-level plasmid or chromosomal AmpC adaptation, and PBP target alteration. For <em>P. aeruginosa</em>, the non-transferable mechanism category <code>mutation_ampc_derepression</code> is a compressed representation of chromosomal AmpC overexpression plus structural PDC adaptation rather than expression change alone. Ordinary ESBL carriage, OXA-48, OprD loss, efflux up-regulation, and OmpK35/36 loss are not sufficient standalone routes. In particular, experimental <em>K. pneumoniae</em> work found that porin loss alone did not materially affect ceftolozane/tazobactam activity, although it could confer non-susceptibility in combination with CTX-M-15. Because by default the model currently does not represent interactions between mechanisms, this interaction is not converted into a positive standalone <code>any_r</code> phenotype.</p>
+<p>The final column gives representative evidence for the mechanism–drug relationship and the qualitative interpretation of resistance magnitude. The cited studies do <strong>not</strong> directly determine the numerical multiplier: these are model calibration values, not MIC ratios or breakpoint conversions. Phenotypic effects vary with the bacterial species and strain, resistance-gene variant or mutation, expression level, inoculum, drug, coexisting mechanisms, and test method. Drug-class-specific values and the applicability rules described above take precedence over the global reference multiplier where they are specified.</p>
 <table>
 <thead>
 <tr>
 <th>Mechanism</th>
 <th>Multiplier</th>
 <th>Clinical interpretation</th>
+<th>Representative evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>NDM/VIM</td>
 <td>0.95</td>
-<td>Near-complete resistance — these metallo-β-lactamases destroy almost all β-lactams</td>
+<td>Broad hydrolysis of penicillins, cephalosporins, and carbapenems. Aztreonam is a substrate exception for NDM and should not be read as protected from co-produced mechanisms.</td>
+<td>Yong D et al., 2009; Lauretti L et al., 1999</td>
 </tr>
 <tr>
 <td>VanA</td>
 <td>0.99</td>
-<td>Near-complete vancomycin resistance</td>
+<td>High-level vancomycin resistance produced by inducible replacement of the glycopeptide target.</td>
+<td>Foucault ML et al., 2010</td>
 </tr>
 <tr>
 <td>KPC</td>
 <td>0.95</td>
-<td>Very high — KPC carbapenemases severely compromise carbapenems</td>
+<td>Broad serine carbapenemase activity affecting carbapenems and many other β-lactams; inhibitor activity is combination-specific.</td>
+<td>Yigit H et al., 2001</td>
 </tr>
 <tr>
 <td>PBP2a/MecA</td>
 <td>0.99</td>
-<td>Very high — defines MRSA; eliminates nearly all β-lactam activity</td>
+<td>Low-affinity PBP defining methicillin resistance and markedly reducing the activity of most conventional β-lactams; anti-MRSA β-lactams require drug-specific treatment.</td>
+<td>Hartman BJ &amp; Tomasz A, 1984</td>
 </tr>
 <tr>
 <td>ESBL CTX-M</td>
 <td>0.80</td>
-<td>High — but β-lactamase inhibitor combinations retain partial activity</td>
+<td>Extended-spectrum activity, especially against cefotaxime and related oxyimino-cephalosporins; inhibitor-combination activity varies by enzyme and drug.</td>
+<td>Bauernfeind A et al., 1990</td>
 </tr>
 <tr>
 <td>VanB</td>
 <td>0.99</td>
-<td>Very high vancomycin resistance</td>
+<td>High-level vancomycin resistance that ordinarily retains teicoplanin susceptibility unless regulatory changes broaden induction.</td>
+<td>Baptista M et al., 1999</td>
 </tr>
 <tr>
 <td>GyrA + ParC</td>
 <td>0.95</td>
-<td>High-level fluoroquinolone resistance (double mutation)</td>
+<td>Stepwise target mutations can produce high-level fluoroquinolone resistance; the phenotype depends on the alleles, organism, and drug.</td>
+<td>Marcusson LL et al., 2009</td>
 </tr>
 <tr>
 <td>16S rRMT</td>
 <td>0.95</td>
-<td>High-level aminoglycoside resistance</td>
+<td>Acquired 16S rRNA methylation can confer high-level resistance across clinically important aminoglycosides.</td>
+<td>Lioy VS et al., 2014</td>
 </tr>
 <tr>
 <td>ESBL TEM</td>
 <td>0.60</td>
-<td>Moderate-high</td>
+<td>Extended-spectrum TEM variants broaden resistance to later-generation cephalosporins; magnitude and substrate profile are variant-dependent.</td>
+<td>Sougakoff W et al., 1988</td>
 </tr>
 <tr>
 <td>OXA-48</td>
 <td>0.60</td>
-<td>Moderate-high — but with variable carbapenem MICs</td>
+<td>Hydrolyses penicillins and carbapenems more readily than expanded-spectrum cephalosporins; the observed carbapenem phenotype varies with expression and permeability.</td>
+<td>Poirel L et al., 2004</td>
 </tr>
 <tr>
 <td>ErmB</td>
 <td>0.90</td>
-<td>MLS-B resistance (macrolides, lincosamides)</td>
+<td>23S rRNA methylation producing the macrolide–lincosamide–streptogramin B phenotype, with inducible or constitutive expression depending on the element.</td>
+<td>Arthur M et al., 1987</td>
 </tr>
 <tr>
 <td>RpoB</td>
 <td>0.95</td>
-<td>Rifampicin resistance</td>
+<td>RNA-polymerase target mutations can confer high-level rifampicin resistance; effect and fitness cost vary by allele and background.</td>
+<td>Gagneux S et al., 2006</td>
 </tr>
 <tr>
 <td>ESBL SHV</td>
 <td>0.60</td>
-<td>Moderate-high</td>
+<td>Extended-spectrum SHV variants broaden resistance to oxyimino-cephalosporins; the phenotype varies by variant and substrate.</td>
+<td>Knothe H et al., 1983</td>
 </tr>
 <tr>
 <td>Cfr</td>
 <td>0.95</td>
-<td>Cross-resistance to oxazolidinones and phenicols</td>
+<td>23S rRNA methylation producing cross-resistance to phenicols, lincosamides, oxazolidinones, pleuromutilins, and streptogramin A.</td>
+<td>Long KS et al., 2006</td>
 </tr>
 <tr>
 <td>AmpC CMY/DHA</td>
 <td>0.70</td>
-<td>Moderate-high — overcomes β-lactamase inhibitors too</td>
+<td>Plasmid-mediated class C cephalosporinase effect; magnitude depends on the substrate, expression level, permeability, and the particular inhibitor combination.</td>
+<td>Morosini MI et al., 2000; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>CAT</td>
 <td>0.90</td>
-<td>Chloramphenicol resistance</td>
+<td>Enzymatic acetylation and inactivation of chloramphenicol.</td>
+<td>Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>blaZ</td>
 <td>0.90 against plain penicillins</td>
-<td>Inhibitor-susceptible staphylococcal penicillinase</td>
+<td>Staphylococcal penicillinase acting primarily on susceptible penicillins; inhibitor combinations are treated separately.</td>
+<td>Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>Narrow-spectrum Gram-negative penicillinase</td>
 <td>0.90 against plain penicillins</td>
-<td>TEM-1 and policy-equivalent ROB/BRO route; inhibitor combinations retain activity</td>
+<td>Compressed TEM-1 and policy-equivalent ROB/BRO route affecting susceptible penicillins; inhibitor response depends partly on enzyme amount and the particular combination.</td>
+<td>Livermore DM &amp; Seetulsingh P, 1991; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>GyrA primary</td>
 <td>0.40</td>
-<td>First-step quinolone route: nalidixic-acid resistance and partial resistance to ciprofloxacin/ofloxacin</td>
+<td>First-step quinolone target mutation producing nalidixic-acid resistance and a smaller, allele-dependent effect on fluoroquinolones.</td>
+<td>Marcusson LL et al., 2009</td>
 </tr>
 <tr>
 <td>Folate pathway</td>
 <td>0.85</td>
-<td>Trimethoprim-sulfamethoxazole resistance</td>
+<td>Acquired <em>sul</em> and <em>dfr</em> determinants reduce sulfonamide and trimethoprim activity and commonly travel on mobile resistance elements.</td>
+<td>Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td>FusB</td>
 <td>0.70</td>
-<td>Fusidic acid resistance</td>
+<td>Target protection through direct interaction with elongation factor G, reducing fusidic-acid inhibition.</td>
+<td>Cox G et al., 2013</td>
 </tr>
 <tr>
 <td>FosA</td>
 <td>0.80</td>
-<td>Fosfomycin resistance</td>
+<td>Glutathione transferase-mediated inactivation of fosfomycin; resistance magnitude varies among FosA variants and host backgrounds.</td>
+<td>Guo Q et al., 2016</td>
 </tr>
 <tr>
 <td>TetM/TetO</td>
 <td>0.90</td>
-<td>Ribosomal protection against classical tetracyclines</td>
+<td>Ribosomal protection against classical tetracyclines; the achieved resistance level depends on the determinant, expression, host, and drug.</td>
+<td>Yadav K et al., 2021</td>
 </tr>
 <tr>
 <td>16S rRNA (tetracycline)</td>
 <td>0.90</td>
-<td><em>H. pylori</em> target-site mutation affecting classical tetracyclines</td>
+<td><em>H. pylori</em> 16S rRNA target-site substitutions, particularly when present in both rRNA gene copies, can confer tetracycline resistance.</td>
+<td>Gerrits MM et al., 2002</td>
 </tr>
 <tr>
 <td>MCR-1</td>
 <td>0.85</td>
-<td>Colistin resistance — critically important as colistin is the last resort</td>
+<td>Phosphoethanolamine modification of lipid A reduces colistin susceptibility; expression and host background shape the final phenotype.</td>
+<td>Yang Q et al., 2017</td>
 </tr>
 <tr>
 <td>Nitroreductase</td>
 <td>0.70</td>
-<td>Nitrofurantoin resistance</td>
+<td>Loss of <em>nfsA</em>/<em>nfsB</em>-mediated activation produces stepwise nitrofurantoin resistance in <em>E. coli</em>.</td>
+<td>Sandegren L et al., 2008</td>
 </tr>
 <tr>
 <td>OprD</td>
 <td>0.80</td>
-<td>Imipenem- and meropenem-containing drug resistance in <em>P. aeruginosa</em></td>
+<td>Loss or alteration of the <em>P. aeruginosa</em> carbapenem-uptake porin is strongly associated with imipenem resistance; its meropenem effect is more variable and often depends on additional mechanisms.</td>
+<td>Epp SF et al., 2001; Skurnik D et al., 2013</td>
 </tr>
 <tr>
 <td>MprF</td>
 <td>0.60</td>
-<td>Daptomycin resistance</td>
+<td>Membrane phospholipid remodelling associated with reduced daptomycin susceptibility; effects are allele- and background-dependent and may be modest alone.</td>
+<td>Roch M et al., 2017</td>
 </tr>
 <tr>
 <td>OmpK35/36</td>
-<td>0.25-0.40 by beta-lactam class</td>
-<td>Moderate permeability effect in <em>K. pneumoniae</em>; larger combined phenotypes can arise with beta-lactamases</td>
+<td>0.25-0.40 by β-lactam class</td>
+<td>Reduced β-lactam influx in <em>K. pneumoniae</em>; larger phenotypes commonly arise when porin loss combines with β-lactamases.</td>
+<td>Tsai YK et al., 2011</td>
 </tr>
 <tr>
 <td>Qnr</td>
 <td>0.20</td>
-<td>Low-level quinolone resistance (facilitates further mutation)</td>
+<td>Low-level quinolone target protection that can facilitate selection of additional chromosomal resistance mutations.</td>
+<td>Martínez-Martínez L et al., 1998</td>
 </tr>
 <tr>
 <td>MexXY-OprM</td>
 <td>0.30</td>
-<td>Efflux pump — aminoglycoside/FQ resistance in <em>Pseudomonas</em></td>
+<td><em>P. aeruginosa</em> efflux system contributing particularly to aminoglycoside resistance and, depending on expression and context, other substrates.</td>
+<td>Lau CHF et al., 2014</td>
 </tr>
 <tr>
 <td>AcrAB-TolC</td>
 <td>0.30</td>
-<td>Gram-negative efflux — modest broad-spectrum resistance</td>
+<td>Broad Gram-negative efflux system whose resistance benefit depends on substrate, expression, and the surrounding stress environment.</td>
+<td>Langevin AM &amp; Dunlop MJ, 2018</td>
 </tr>
 <tr>
 <td>Global efflux</td>
 <td>0.20</td>
-<td>Non-specific efflux — weakest single mechanism</td>
+<td>Compressed model category for non-specific efflux upregulation rather than one molecular determinant; no single universal resistance magnitude is implied.</td>
+<td>Langevin AM &amp; Dunlop MJ, 2018; Andersson DI &amp; Hughes D, 2010</td>
 </tr>
 <tr>
 <td>AmpC derepression</td>
 <td>0.75</td>
-<td>Derepressed chromosomal AmpC — β-lactamase inhibitor combinations show reduced activity compared to plasmid AmpC</td>
+<td>Chromosomal AmpC overproduction broadens resistance across multiple β-lactams; magnitude depends on expression, substrate, permeability, and inhibitor combination.</td>
+<td>Morosini MI et al., 2000</td>
 </tr>
 <tr>
 <td>Polymyxin regulatory</td>
 <td>0.90</td>
-<td>Chromosomal colistin resistance (<em>mgrB</em>, <em>pmrAB</em>, <em>phoPQ</em>, <em>lpx</em>) — high-level, comparable to MCR-1</td>
+<td>Chromosomal <em>mgrB</em>, <em>pmrAB</em>, <em>phoPQ</em>, or <em>lpx</em> changes alter or remove lipid A; resistance magnitude differs substantially among routes and backgrounds.</td>
+<td>Beceiro A et al., 2014</td>
 </tr>
 <tr>
 <td>LiaFSR/Cls</td>
 <td>0.75</td>
-<td>Enterococcal daptomycin resistance via <em>liaFSR/cls</em> cell-envelope remodeling</td>
+<td>Enterococcal cell-envelope stress-response and phospholipid-remodelling pathway implicated in daptomycin resistance, often with additional adaptive changes.</td>
+<td>Arias CA et al., 2011</td>
 </tr>
 <tr>
 <td>23S rRNA (oxa)</td>
 <td>0.85</td>
-<td>Domain V 23S rRNA mutation conferring linezolid/tedizolid resistance in staphylococci and enterococci</td>
+<td>Domain V 23S rRNA mutations confer oxazolidinone resistance; allele, mutated-copy burden, and compensatory changes influence the phenotype.</td>
+<td>Billal DS et al., 2011</td>
 </tr>
 <tr>
 <td>MphA</td>
 <td>0.85</td>
-<td>Macrolide phosphotransferase (MphA) — confers high-level resistance (8–32× MIC increase) to azithromycin, erythromycin, and clarithromycin in <em>Shigella</em> and other Enterobacterales</td>
+<td>Macrolide phosphotransferase associated with substantially raised azithromycin MICs in <em>Shigella</em> and other Enterobacterales; magnitude varies among isolates and genetic contexts.</td>
+<td>Salah M et al., 2019</td>
 </tr>
 </tbody>
 </table>
@@ -2717,7 +2862,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <h4 id="selection-of-the-resistance-source">Selection of the resistance source</h4>
 <p>Once a candidate infection has arisen, a community infection follows one of two resistance-source pathways. The bacterium-specific <code>community_resistance_dilution_factor</code> is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. On that route, the individual-level probability of sampling from the circulating library or its persistence archive is represented by <code>local_profile_sampling_probability[b]</code>. Otherwise, the candidate follows the exogenous route described below.</p>
 <p>Candidate hospital infections use the local human-reservoir pathway, with any configured hospital enrichment, rather than this community source choice. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source.</p>
-<p>The configured source probabilities use broad ecological groupings:</p>
+<p>The configured source probabilities use broad ecological groupings. These groupings are not mutually exclusive biological classifications: several organisms can occupy human, healthcare, animal, food, water, or wider environmental reservoirs. They specify how the model weights the source of a community acquisition. The numerical dilution ranges are calibration choices, not direct empirical estimates of the fraction of infections attributable to each source; the evidence notes support the qualitative ecological rationale rather than the exact values.</p>
 <table>
 <thead>
 <tr>
@@ -2729,37 +2874,45 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </thead>
 <tbody>
 <tr>
-<td>Environmental or waterborne</td>
+<td>Environmental or waterborne<sup>1</sup></td>
 <td style="text-align: right;">0.30</td>
 <td><em>A. baumannii</em>, <em>Pseudomonas</em>, <em>Stenotrophomonas</em>, <em>Burkholderia</em>, <em>Legionella</em>, <em>V. cholerae</em></td>
 <td>Community acquisition has a substantial exogenous component</td>
 </tr>
 <tr>
-<td>Foodborne or mixed exogenous reservoir</td>
+<td>Food-, water-, or mixed exogenous acquisition<sup>2</sup></td>
 <td style="text-align: right;">0.30–0.95</td>
 <td><em>Campylobacter</em>, iNTS, <em>Yersinia</em>, <em>Listeria</em>, <em>S. Typhi</em>, <em>S. Paratyphi</em>, <em>Shigella</em></td>
-<td>Non-human or broad exogenous reservoirs remain important, to differing degrees</td>
+<td>Food, water, animal, or other acquisition sources outside the current local human-infection profile library remain important, to differing degrees</td>
 </tr>
 <tr>
-<td>Healthcare-associated</td>
+<td>Healthcare-associated<sup>3</sup></td>
 <td style="text-align: right;">0.30–0.50</td>
 <td><em>C. difficile</em>, <em>Enterobacter</em>, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Proteus</em>, <em>P. stuartii</em>, <em>S. epidermidis</em>, <em>K. pneumoniae</em>, <em>E. faecium</em>, <em>E. faecalis</em></td>
 <td>Community acquisitions retain a material exogenous component while resistance is amplified in hospitals</td>
 </tr>
 <tr>
-<td>Endogenous flora or human-associated</td>
+<td>Endogenous flora or human-associated<sup>4</sup></td>
 <td style="text-align: right;">0.60–1.00</td>
 <td><em>E. coli</em>, <em>S. aureus</em>, <em>S. pneumoniae</em>, <em>B. fragilis</em>, <em>H. influenzae</em>, <em>H. pylori</em></td>
 <td>Community strains substantially reflect recent human ecology; <em>H. pylori</em> has no separate modelled carriage compartment</td>
 </tr>
 <tr>
-<td>Obligate human pathogen or STI</td>
+<td>Obligate human pathogen or STI<sup>5</sup></td>
 <td style="text-align: right;">1.00</td>
 <td><em>N. gonorrhoeae</em>, <em>Chlamydia</em>, <em>Mycoplasma</em>, <em>Treponema</em>, MDR-TB, <em>Bordetella</em></td>
 <td>The community source is treated as the human circulating reservoir</td>
 </tr>
 </tbody>
 </table>
+<p><em>Table evidence notes:</em></p>
+<ol>
+<li>Environmental and water-associated persistence or acquisition is documented across these opportunistic and enteric organisms, although their relative contributions differ substantially by organism and setting (Eveillard M et al., 2013; Ferranti G et al., 2014; Brooke JS, 2012; Vezzulli L et al., 2010).</li>
+<li>Global foodborne-disease assessments support important food, water, animal, and other exogenous transmission pathways across enteric pathogens. For strictly human-adapted organisms such as <em>S. Typhi</em>, <em>S. Paratyphi</em>, and <em>Shigella</em>, “exogenous” means acquisition outside the model's current local human-infection profile library; it does not imply a non-human reservoir (Havelaar AH et al., 2015; Majowicz SE et al., 2026).</li>
+<li>Healthcare surveillance and organism-specific studies support hospital amplification and circulation of resistant healthcare-associated pathogens, while also demonstrating that some—particularly <em>K. pneumoniae</em> and enterococci—can have important human carriage reservoirs (Magill SS et al., 2018; Gorrie CL et al., 2017; Werner G et al., 2008).</li>
+<li>Human microbiome and organism-specific carriage studies support persistent gut, nasal, nasopharyngeal, or gastric association for representative organisms in this group (Human Microbiome Project Consortium, 2012; Wertheim HFL et al., 2005; Bogaert D et al., 2004; Giufrè M et al., 2015; Hooi JKY et al., 2017).</li>
+<li>Surveillance and burden estimates support predominantly person-to-person transmission for the STI and human-adapted examples. The model consequently treats their community source as the human circulating reservoir rather than creating a separate exogenous profile source (Rowley J et al., 2019; Unemo M &amp; Shafer WM, 2014; World Health Organization STI fact sheet, 2025; World Health Organization Global tuberculosis report, 2025).</li>
+</ol>
 <p>Bacterium-specific values are listed in Appendix B.3.</p>
 <h4 id="circulating-resistance-mechanism-profile-library-and-prevalence">Circulating resistance-mechanism profile library and prevalence</h4>
 <p>After every simulated day, the model refreshes a stored library of circulating resistance-mechanism profiles (<code>MechanismCache</code> in the code) for each combination of region × current care setting (community or hospital) × bacterium. Each active infection-day is eligible to be represented by the resistance-mechanism profile of its predominant strain in the corresponding daily collection. Each region/care-setting/bacteria-specific profile contains up to 1,000 entries. Once there are 1,000 entries, only a small proportion (currently 1 per 1000 for both hospital and community libraries; see below) are randomly selected to be replaced each day, and a random selection of eligible profiles are selected to fill those slots.   A persistent infection is eligible to contribute on each successive day that it remains active.</p>
@@ -2795,18 +2948,20 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>Within the current standardized-exposure representation, incomplete courses can extend time in the sub-therapeutic selection window through cessation followed by drug-level decay. Poor adherence and underdosing are not separately represented unless a scenario changes the standardized drug level or course duration.</p>
 <h4 id="organism-specific-emergence-calculation">Organism-specific emergence calculation</h4>
 <p>De novo resistance emergence is parameterised directly at the <strong>bacterium-mechanism</strong> level. Each organism therefore has its own baseline emergence profile across the various mechanisms. The route classification described above determines whether a zero means an excluded host, an HGT-only route, or an eligible non-transferable mechanism with no de novo attempt; the numerical coefficient alone is not used as an indicator of host eligibility.</p>
-<p>For an eligible absent mechanism in an active infection under antibiotic exposure, the daily emergence probability is:</p>
-<pre><code>daily_emergence_probability = clamp(
-    mechanism_rate
-    × infection_de_novo_multiplier
-    × counterfactual_resistance_multiplier
-    × (1 + bacteria_level_factor)
-    × max_emergence_drug_factor
-    × multi_drug_penalty_factor,
-    0,
-    1
-)
-</code></pre>
+<p>For an eligible absent mechanism in an active infection under antibiotic exposure, first define the basic unbounded emergence score</p>
+<p>\[
+q_{b,m,t}=r_{b,m}\left(1+B_{b,t}\right)D_{b,m,t}C_{b,m,t},
+\]</p>
+<p>where \(b\) denotes the bacterium, \(m\) the resistance mechanism, and \(t\) the simulated day. The daily emergence probability is the score restricted to the interval from zero to one:</p>
+<p>\[
+p_{b,m,t}=
+\begin{cases}
+0, &amp; q_{b,m,t}\leq 0,\\[2pt]
+q_{b,m,t}, &amp; 0&lt;q_{b,m,t}&lt;1,\\[2pt]
+1, &amp; q_{b,m,t}\geq 1.
+\end{cases}
+\]</p>
+<p>All factors are constrained to be non-negative, so in normal model use only the upper limit at 1 changes the unbounded score.</p>
 <table>
 <thead>
 <tr>
@@ -2816,48 +2971,61 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </thead>
 <tbody>
 <tr>
-<td><code>mechanism_rate</code></td>
+<td><code>mechanism_rate</code> (\(r_{b,m}\))</td>
 <td>Unbounded bacterium–mechanism baseline coefficient. It is not itself a probability; the complete expression, bounded to <code>[0,1]</code>, gives the daily emergence probability</td>
 </tr>
 <tr>
-<td><code>infection_de_novo_multiplier</code></td>
-<td>Run-level <code>run_pathway_infection_de_novo_multiplier</code>, normally 1.0, used for sensitivity analysis and diagnostic ablation</td>
+<td><code>bacteria_level_factor</code> (\(B_{b,t}\))</td>
+<td>Log-scaled increase with within-host bacterial burden, bounded by the configured maximum effect</td>
 </tr>
 <tr>
-<td><code>counterfactual_resistance_multiplier</code></td>
-<td>Policy-scenario multiplier, normally 1.0; a value of 0.0 disables this resistance-acquisition route</td>
-</tr>
-<tr>
-<td><code>bacteria_level_factor</code></td>
-<td>Log-scaled increase with within-host bacterial burden, bounded by the configured organism maximum</td>
-</tr>
-<tr>
-<td><code>max_emergence_drug_factor</code></td>
+<td><code>max_emergence_drug_factor</code> (\(D_{b,m,t}\))</td>
 <td>Largest exposure-window factor among positive-site-exposure drugs applicable to the mechanism; it is highest at intermediate standardized site levels and low at fully suppressive levels</td>
 </tr>
 <tr>
-<td><code>multi_drug_penalty_factor</code></td>
+<td><code>multi_drug_penalty_factor</code> (\(C_{b,m,t}\))</td>
 <td>Suppression of emergence when two or more drugs have both positive standardized site exposure and non-negligible susceptible-organism potency (at least <code>minimal_potency_threshold_for_drug_selection</code>, currently 0.15), and the candidate mechanism covers only part of that regimen</td>
 </tr>
 </tbody>
 </table>
+<p>The bacterial-burden factor is</p>
+<p>\[
+B_{b,t}=M_B
+\begin{cases}
+0, &amp; L_{b,t}\leq L_{\min},\\[4pt]
+\dfrac{\log_{10}(L_{b,t})-\log_{10}(L_{\min})}
+      {\log_{10}(L_{b,\max})-\log_{10}(L_{\min})},
+   &amp; L_{\min}&lt;L_{b,t}&lt;L_{b,\max},\\[10pt]
+1, &amp; L_{b,t}\geq L_{b,\max},
+\end{cases}
+\]</p>
+<p>where \(L_{b,t}\) is the current abstract infection level, \(L_{b,\max}\) is the configured maximum level for bacterium \(b\), \(L_{\min}=0.0001\), and \(M_B\) is <code>resistance_emergence_bacteria_level_multiplier</code> (currently 9). Thus \(B_{b,t}\) ranges from 0 to 9 under the current configuration, and the multiplier \((1+B_{b,t})\) ranges from 1 to 10. The logarithmic scaling gives proportionally more resolution at low bacterial burdens than a linear relationship would.</p>
 <p>For drug \(d\), standardized site exposure is</p>
-<p>\[x_d = \operatorname{clamp}!\left(\frac{\text{current drug level}_d}{\text{initial drug level}_d} \times \text{syndrome penetration}_d,\ 0,\ 10\right).\]</p>
-<p>The exposure-window factor is exactly zero when \(x_d=0\). For positive site exposure it is</p>
-<p>\[F_d = \operatorname{clamp}!\left(0.01 + 0.99\exp!\left[-\frac{(x_d-0.5)^2}{2(0.2)^2}\right],\ 0,\ 1\right).\]</p>
-<p>This preserves the standardized mutant-selection window: no site exposure produces no selection, the factor peaks at \(x_d=0.5\), and high standardized exposure produces a low factor. Each absent mechanism receives at most one daily draw, using the largest \(F_d\) among its applicable drugs. A mechanism with no applicable drug having positive standardized site exposure is skipped. The final clamp makes products of 1.0 or greater a daily emergence probability of 1.0.</p>
+<p>\[
+x_d=\min\left(10,\frac{\text{current drug level}_d}{\text{initial drug level}_d}
+\times \text{syndrome penetration}_d\right).
+\]</p>
+<p>Drug levels and penetration are non-negative, so \(x_d\) cannot be negative; values above 10 are set to 10 for numerical stability.</p>
+<p>The exposure-window factor is</p>
+<p>\[
+F_d=
+\begin{cases}
+0, &amp; x_d=0,\\[4pt]
+0.01+0.99\exp\left[-\dfrac{(x_d-0.5)^2}{2(0.2)^2}\right], &amp; x_d&gt;0.
+\end{cases}
+\]</p>
+<p>The denominator \(2(0.2)^2\) is the conventional form for a Gaussian curve with width parameter 0.2. It makes selection decline smoothly on either side of the peak at the intermediate standardized level \(x_d=0.5\): at 0.2 units from the peak the Gaussian component is about 61% of its maximum, and at 0.4 units it is about 14%. Thus 0.2 determines how narrowly the model concentrates selection around intermediate exposure; it is not an MIC or drug-specific concentration.</p>
+<p>This preserves the standardized mutant-selection window: no site exposure produces no selection, the factor peaks at \(x_d=0.5\), and high standardized exposure produces a low factor. Each absent mechanism receives at most one daily draw, using the largest \(F_d\) among its applicable drugs. A mechanism with no applicable drug having positive standardized site exposure is skipped. As shown in the piecewise definition of \(p_{b,m,t}\) above, an emergence score of 1 or greater gives a daily emergence probability of 1.</p>
 <p><strong>Minority-to-majority evolution.</strong> A mechanism newly present in <code>mechanism_any</code> but not yet in <code>mechanism_majority</code> receives one daily possibility to shift to the majority with probability <code>majority_r_evolution_rate_per_day_when_drug_present</code> (default 0.18) whenever at least one drug with a positive current level is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. A successful transition affects the predominant-strain resistance-mechanism profile contributed to the circulating resistance-mechanism profile library and the mechanism's HGT donor strength; it does not change the already mechanism-derived <code>any_r</code> value.</p>
-<p><strong>Microbiome pathway.</strong> While a bacterium is carried, each absent applicable mechanism receives one daily emergence attempt whenever at least one active drug has a positive current level and is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. The probability uses the same organism-mechanism baseline table and applies counterfactual scaling, but it does not use the infection-burden, concentration-window, or multidrug-penalty terms described above. Current drug pressure is therefore a binary trigger in this pathway.</p>
+<p><strong>Microbiome pathway.</strong> While a bacterium is carried, each absent applicable mechanism receives one daily emergence attempt whenever at least one active drug has a positive current level and is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. The probability uses the same organism-mechanism baseline table but it does not use the infection-burden, concentration-window, or multidrug-penalty terms described above. Current drug pressure is therefore a binary trigger in this pathway.</p>
 <p>The bacterium–mechanism coefficients should therefore be read as <strong>effective, unbounded calibration coefficients</strong>, not literal mutation-rate measurements or probabilities. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer. Only the complete bounded expression is the daily Bernoulli probability.</p>
-<p><strong>Run-level pathway sensitivity controls.</strong> Four neutral <code>run_pathway_*</code> multipliers are retained for diagnostic ablations and global sensitivity analysis without changing organism-specific baselines. Their defaults are all 1.0: <code>run_pathway_infection_de_novo_multiplier</code> scales de novo emergence during active infection; <code>run_pathway_hgt_multiplier</code> scales horizontal gene transfer; <code>run_pathway_reversion_rate_multiplier</code> scales mechanism loss in infection and carriage; and <code>run_pathway_microbiome_acquisition_multiplier</code> scales resistance-mechanism profile inheritance when new carriage is acquired. These controls are not a predetermined calibration parameter set; any future calibration role should be justified by the target review and an identifiability assessment. Separately, policy scenarios can set <code>counterfactual_resistance_multiplier</code> to 0.0, which blocks resistance acquired through resistance-mechanism profile sampling, de novo emergence, microbiome-acquisition seeding, and HGT transfer in the counterfactual scenario. Acquisition-time floors and the MDR-TB rifampicin rule are described in Section 7.3.</p>
 <h3 id="75-resistance-reversion-and-fitness-costs">7.5 Resistance reversion and fitness costs</h3>
-<p>Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI &amp; Hughes D, 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily <strong>reversion rate</strong>, used as an effective probability of removing the mechanism from carriage or demoting it from the dominant active-infection strain when no selecting antibiotic is present. Higher rates represent faster effective turnover; lower rates represent greater persistence. This is a compressed population/within-host approximation rather than a literal genetic back-mutation rate. In this calculation, per-mechanism reversion rates are scaled by <code>run_pathway_reversion_rate_multiplier</code> (default 1.0), with additional community-specific reversion multipliers for some bacteria.</p>
+<p>Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI &amp; Hughes D, 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily <strong>reversion rate</strong>, used as an effective probability of removing the mechanism from carriage or demoting it from the dominant active-infection strain ("majority") when no selecting antibiotic is present. Higher rates represent faster effective turnover; lower rates represent greater persistence.</p>
 <p>Reversion operates in <strong>both</strong> compartments, but not in exactly the same way. In the active infection, fitness-cost loss removes a mechanism from <code>mechanism_majority</code>, so it no longer contributes to predominant-strain surveillance or seeding of newly acquired infections; <code>mechanism_any</code> is retained for the currently infected individual. In the microbiome compartment, reversion removes the mechanism from <code>mechanism_microbiome</code>, after which <code>microbiome_r</code> is recalculated from the updated carriage indicators. In each compartment, a mechanism can only revert on a given day if no antibiotic with selective pressure for that mechanism is currently present. Carriage mechanisms are evaluated independently, so a drug selecting one mechanism does not preserve unrelated mechanisms. Both compartments use the same precomputed bacterium-drug-mechanism eligibility rule and require a positive drug level. This eligibility rule starts from the molecular mechanism-to-drug correspondence, applies any explicitly specified values, and excludes pairs whose susceptible-organism potency is below the model's non-negligible threshold unless they are explicitly retained. A class-associated but intrinsically inactive drug therefore does not preserve a mechanism that provides no additional modelled advantage.</p>
 <p>Key patterns:
 - <strong>Most stable:</strong> Single point mutations (e.g., <em>gyrA</em> fluoroquinolone resistance, reversion 0.0001/day) — the mutation barely affects the bacterium's fitness, so it persists for years even without ciprofloxacin pressure
-- <strong>Least stable:</strong> Complex multi-gene cassettes (e.g., VanA/VanB vancomycin resistance, reversion 0.002/day; <em>rpoB</em> rifampicin resistance, 0.002/day) — these impose significant metabolic costs and are lost relatively quickly without glycopeptide or rifampicin exposure
-- <strong>Default</strong> for non-mechanism-specific resistance: 0.0004/day</p>
-<p>The full reversion rates by mechanism category:</p>
+- <strong>Least stable:</strong> Complex multi-gene cassettes (e.g., VanA/VanB vancomycin resistance, reversion 0.002/day; <em>rpoB</em> rifampicin resistance, 0.002/day) — these impose significant metabolic costs and are lost relatively quickly without glycopeptide or rifampicin exposure</p>
+<p>The full reversion rates by mechanism category are shown below. The final column gives representative evidence for the mechanism description and for qualitative statements about biological cost or persistence. These sources do <strong>not</strong> provide the numerical daily probabilities: the exact reversion rates are review-informed model calibration values. Measured fitness effects commonly vary by bacterial species, strain background, allele, expression level, mobile element, and compensatory evolution.</p>
 <h4 id="enzymatic-inactivation">Enzymatic Inactivation</h4>
 <table>
 <thead>
@@ -2865,58 +3033,69 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <th style="text-align: left;">Mechanism</th>
 <th style="text-align: left;">Reversion Rate (per day)</th>
 <th style="text-align: left;">Clinical Notes</th>
+<th style="text-align: left;">Representative evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align: left;"><strong>KPC</strong> (<em>bla</em>KPC)</td>
 <td style="text-align: left;"><code>0.001</code></td>
-<td style="text-align: left;">Plasmid-mediated carbapenemase; moderate maintenance cost.</td>
+<td style="text-align: left;">Usually plasmid-encoded carbapenemase; persistence costs depend on the plasmid, host background, and compensatory evolution.</td>
+<td style="text-align: left;">Partridge SR et al., 2018; San Millán A &amp; MacLean RC, 2017</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>NDM / VIM</strong></td>
 <td style="text-align: left;"><code>0.0015</code></td>
-<td style="text-align: left;">Metallo-β-lactamases, frequently on large, high-burden mobile genetic elements.</td>
+<td style="text-align: left;">Metallo-β-lactamases commonly carried on mobile genetic elements, often alongside other resistance determinants.</td>
+<td style="text-align: left;">Partridge SR et al., 2018; San Millán A &amp; MacLean RC, 2017</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>OXA-48</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Class D carbapenemase; comparatively lower fitness burden.</td>
+<td style="text-align: left;">Class D carbapenemase commonly disseminated on mobile plasmids; its persistence is plasmid–host dependent.</td>
+<td style="text-align: left;">Partridge SR et al., 2018; San Millán A &amp; MacLean RC, 2017</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>ESBL CTX-M / TEM / SHV</strong></td>
 <td style="text-align: left;"><code>0.0006</code></td>
-<td style="text-align: left;">Standard extended-spectrum β-lactamases.</td>
+<td style="text-align: left;">Extended-spectrum β-lactamases frequently carried on plasmids and transposable elements.</td>
+<td style="text-align: left;">Partridge SR et al., 2018; San Millán A &amp; MacLean RC, 2017</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>AmpC DHA</strong></td>
 <td style="text-align: left;"><code>0.0006</code></td>
-<td style="text-align: left;">Plasmid-mediated AmpC; typical cost profile.</td>
+<td style="text-align: left;">Plasmid-mediated AmpC β-lactamase; expression and mobile-element carriage can impose host-dependent costs.</td>
+<td style="text-align: left;">Morosini MI et al., 2000; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>AmpC CMY</strong></td>
 <td style="text-align: left;"><code>0.0001</code></td>
-<td style="text-align: left;">Often native gene upregulation; minimal fitness loss to maintain.</td>
+<td style="text-align: left;">Plasmid-mediated AmpC cephalosporinase; persistence depends on the mobile element and bacterial background.</td>
+<td style="text-align: left;">Morosini MI et al., 2000; Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>AmpC derepression</strong></td>
 <td style="text-align: left;"><code>0.0002</code></td>
-<td style="text-align: left;">Chromosomal <em>ampC</em> regulatory mutation (SPACE organisms); low-moderate maintenance cost.</td>
+<td style="text-align: left;">Chromosomal regulatory change causing increased <em>ampC</em> expression in inducible-AmpC organisms; the cost depends strongly on expression level.</td>
+<td style="text-align: left;">Morosini MI et al., 2000</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>FosA</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Plasmid-mediated fosfomycin resistance; moderate cost.</td>
+<td style="text-align: left;">Fosfomycin-inactivating glutathione transferase; clinically relevant variants may be chromosomal or mobile.</td>
+<td style="text-align: left;">Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>CAT</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Chloramphenicol acetyltransferase.</td>
+<td style="text-align: left;">Chloramphenicol acetyltransferase, frequently carried on mobile resistance elements.</td>
+<td style="text-align: left;">Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>16S rRMTase</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Ribosomal RNA methyltransferases conferring high-level aminoglycoside resistance.</td>
+<td style="text-align: left;">Acquired 16S rRNA methyltransferases confer high-level aminoglycoside resistance and can alter translation efficiency and host fitness.</td>
+<td style="text-align: left;">Lioy VS et al., 2014</td>
 </tr>
 </tbody>
 </table>
@@ -2927,38 +3106,45 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <th style="text-align: left;">Mechanism</th>
 <th style="text-align: left;">Reversion Rate (per day)</th>
 <th style="text-align: left;">Clinical Notes</th>
+<th style="text-align: left;">Representative evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align: left;"><strong>PBP2a / <em>mecA</em></strong></td>
 <td style="text-align: left;"><code>0.0009</code></td>
-<td style="text-align: left;">High energetic cost associated with maintaining the staphylococcal cassette chromosome <em>mec</em> (SCC<em>mec</em>).</td>
+<td style="text-align: left;">SCC<em>mec</em> carries <em>mecA</em>, which encodes PBP2a; cassette carriage and <em>mecA</em> expression can impose context-dependent fitness costs.</td>
+<td style="text-align: left;">Noto MJ et al., 2008</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong><em>erm(B)</em></strong></td>
 <td style="text-align: left;"><code>0.002</code></td>
-<td style="text-align: left;">High reversion rate; target methylation for macrolide-lincosamide-streptogramin B (MLS-B) resistance.</td>
+<td style="text-align: left;">Mobile 23S rRNA methylase conferring macrolide-lincosamide-streptogramin B resistance; persistence depends on expression and its associated element.</td>
+<td style="text-align: left;">Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>VanA / VanB</strong></td>
 <td style="text-align: left;"><code>0.002</code></td>
-<td style="text-align: left;">Highly complex target reprograming (D-Ala-D-Ala to D-Ala-D-Lac); significant energetic drain in the absence of glycopeptide exposure.</td>
+<td style="text-align: left;">Inducible replacement of D-Ala-D-Ala with low-affinity peptidoglycan precursors; constitutive expression or newly acquired resistance elements can be costly, whereas tight regulation and adaptation reduce that cost.</td>
+<td style="text-align: left;">Foucault ML et al., 2010; Starikova I et al., 2013</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>CFR</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">RNA methyltransferase (oxazolidinone/phenicol cross-resistance).</td>
+<td style="text-align: left;">Mobile 23S rRNA methyltransferase producing oxazolidinone, phenicol, lincosamide, pleuromutilin, and streptogramin A cross-resistance.</td>
+<td style="text-align: left;">Long KS et al., 2006</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>LiaFSR/Cls</strong></td>
 <td style="text-align: left;"><code>0.0015</code></td>
-<td style="text-align: left;">Enterococcal <em>liaFSR/cls</em> cell-envelope remodeling for daptomycin resistance; significant metabolic burden without daptomycin pressure.</td>
+<td style="text-align: left;">Enterococcal cell-envelope stress-response and phospholipid-remodelling pathway implicated in daptomycin resistance.</td>
+<td style="text-align: left;">Arias CA et al., 2011</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>23S rRNA (oxazolidinone)</strong></td>
 <td style="text-align: left;"><code>0.001</code></td>
-<td style="text-align: left;">Domain V target-site mutation conferring linezolid/tedizolid resistance; measurable fitness cost.</td>
+<td style="text-align: left;">Domain V target-site mutations confer oxazolidinone resistance; cost rises with allele and mutated-copy burden and can be partly compensated.</td>
+<td style="text-align: left;">Billal DS et al., 2011</td>
 </tr>
 </tbody>
 </table>
@@ -2969,38 +3155,45 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <th style="text-align: left;">Mechanism</th>
 <th style="text-align: left;">Reversion Rate (per day)</th>
 <th style="text-align: left;">Clinical Notes</th>
+<th style="text-align: left;">Representative evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align: left;"><strong><em>gyrA</em> (Primary)</strong></td>
 <td style="text-align: left;"><code>0.0001</code></td>
-<td style="text-align: left;">Single-step topoisomerase mutation; essentially stable with negligible fitness penalty.</td>
+<td style="text-align: left;">Primary fluoroquinolone target mutation; some common alleles are nearly fitness-neutral, while effects vary by allele and genetic background.</td>
+<td style="text-align: left;">Marcusson LL et al., 2009</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong><em>parC</em> (Secondary)</strong></td>
 <td style="text-align: left;"><code>0.0002</code></td>
-<td style="text-align: left;">Secondary topoisomerase IV mutations; compounding structural cost.</td>
+<td style="text-align: left;">Topoisomerase IV mutation contributing to stepwise high-level fluoroquinolone resistance; combined fitness effects are genotype dependent.</td>
+<td style="text-align: left;">Marcusson LL et al., 2009</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Folate Pathway</strong></td>
 <td style="text-align: left;"><code>0.0001</code></td>
-<td style="text-align: left;">Low cost; largely integron-associated (e.g., <em>sul</em> or <em>dfrA</em> elements).</td>
+<td style="text-align: left;"><em>sul</em> and <em>dfrA</em> determinants are commonly carried in integrons or other mobile elements, allowing persistence through linkage and co-selection.</td>
+<td style="text-align: left;">Partridge SR et al., 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Nitroreductase</strong></td>
 <td style="text-align: left;"><code>0.0003</code></td>
-<td style="text-align: left;">Loss-of-function mutations affecting nitrofurantoin activation; moderate cost.</td>
+<td style="text-align: left;">Loss-of-function changes in <em>nfsA</em> or <em>nfsB</em> reduce nitrofurantoin activation and have produced measurable growth costs in <em>E. coli</em>.</td>
+<td style="text-align: left;">Sandegren L et al., 2008</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong><em>mprF</em></strong></td>
 <td style="text-align: left;"><code>0.001</code></td>
-<td style="text-align: left;">Membrane lipid modification (daptomycin resistance); structural cell wall alterations bear a distinctive fitness cost.</td>
+<td style="text-align: left;">Daptomycin-resistance-associated <em>mprF</em> changes alter membrane phospholipids and surface charge; resistant clinical backgrounds can carry substantial fitness costs.</td>
+<td style="text-align: left;">Roch M et al., 2017</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong><em>rpoB</em></strong></td>
 <td style="text-align: left;"><code>0.002</code></td>
-<td style="text-align: left;">High fitness cost due to structurally significant alterations in RNA polymerase (rifampicin resistance).</td>
+<td style="text-align: left;">Rifampicin-resistance mutations alter RNA polymerase; their competitive costs vary by allele and strain and may be reduced by compensatory evolution.</td>
+<td style="text-align: left;">Gagneux S et al., 2006</td>
 </tr>
 </tbody>
 </table>
@@ -3011,33 +3204,39 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <th style="text-align: left;">Mechanism</th>
 <th style="text-align: left;">Reversion Rate (per day)</th>
 <th style="text-align: left;">Clinical Notes</th>
+<th style="text-align: left;">Representative evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align: left;"><strong><em>mcr-1</em></strong></td>
 <td style="text-align: left;"><code>0.0015</code></td>
-<td style="text-align: left;">Plasmid-mediated phosphoethanolamine transferase (colistin resistance); substantial lipid A modification burden.</td>
+<td style="text-align: left;">Plasmid-mediated phosphoethanolamine transferase that modifies lipid A; expression level creates a trade-off between colistin protection and bacterial fitness.</td>
+<td style="text-align: left;">Yang Q et al., 2017</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Polymyxin regulatory</strong></td>
 <td style="text-align: left;"><code>0.0015</code></td>
-<td style="text-align: left;"><em>mgrB/pmrAB/phoPQ/lpx</em> mutations; chromosomal cell-envelope modification imposes fitness cost similar to MCR-1 plasmid burden.</td>
+<td style="text-align: left;">Chromosomal <em>mgrB</em>, <em>pmrAB</em>, <em>phoPQ</em>, or <em>lpx</em> changes modify or remove lipid A; biological costs differ substantially among routes.</td>
+<td style="text-align: left;">Beceiro A et al., 2014</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Tet(M)</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Ribosomal protection protein; moderate cost to maintain on transposons (e.g., Tn<em>916</em>).</td>
+<td style="text-align: left;">Ribosomal protection protein frequently carried on Tn<em>916</em>-family elements; acquisition cost depends on host and insertion site and may subsequently be ameliorated.</td>
+<td style="text-align: left;">Starikova I et al., 2013</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Qnr</strong></td>
 <td style="text-align: left;"><code>0.0001</code></td>
-<td style="text-align: left;">Plasmid-mediated quinolone resistance protein; relatively stable.</td>
+<td style="text-align: left;">Plasmid-mediated quinolone target-protection protein producing low-level resistance that can facilitate selection of additional changes.</td>
+<td style="text-align: left;">Martínez-Martínez L et al., 1998</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>FusB</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Target protection mechanism for fusidic acid resistance.</td>
+<td style="text-align: left;">FusB-family proteins protect elongation factor G from fusidic acid by direct target interaction.</td>
+<td style="text-align: left;">Cox G et al., 2013</td>
 </tr>
 </tbody>
 </table>
@@ -3048,33 +3247,39 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <th style="text-align: left;">Mechanism</th>
 <th style="text-align: left;">Reversion Rate (per day)</th>
 <th style="text-align: left;">Clinical Notes</th>
+<th style="text-align: left;">Representative evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align: left;"><strong>OprD Loss</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Chromosomal, non-transferable loss of the <em>P. aeruginosa</em> carbapenem uptake channel.</td>
+<td style="text-align: left;">Chromosomal loss of the <em>P. aeruginosa</em> carbapenem uptake channel; fitness effects are environment dependent and can be neutral or advantageous in vivo.</td>
+<td style="text-align: left;">Skurnik D et al., 2013</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>OmpK35 / OmpK36 Loss</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Combined major-porin loss in <em>K. pneumoniae</em>; chromosomal and non-transferable.</td>
+<td style="text-align: left;">Chromosomal loss of major <em>K. pneumoniae</em> porins reduces antibiotic influx; combined loss can impair growth and virulence.</td>
+<td style="text-align: left;">Tsai YK et al., 2011</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>AcrAB-TolC</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Overexpression of major RND-family efflux pump complex.</td>
+<td style="text-align: left;">Overexpression of a major RND-family efflux complex; its benefit and expression cost depend on the stress environment.</td>
+<td style="text-align: left;">Langevin AM &amp; Dunlop MJ, 2018</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>MexXY-OprM</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Endogenous efflux system upregulation (common in <em>Pseudomonas aeruginosa</em>).</td>
+<td style="text-align: left;">Endogenous <em>P. aeruginosa</em> efflux system whose upregulation contributes particularly to aminoglycoside resistance.</td>
+<td style="text-align: left;">Lau CHF et al., 2014</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Global / Generic Efflux</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
-<td style="text-align: left;">Broad, non-specific transport energy costs.</td>
+<td style="text-align: left;">Compressed category for broad efflux upregulation; expression and proton-motive-force demands can create context-dependent costs.</td>
+<td style="text-align: left;">Langevin AM &amp; Dunlop MJ, 2018; Andersson DI &amp; Hughes D, 2010</td>
 </tr>
 </tbody>
 </table>
@@ -3093,33 +3298,36 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </thead>
 <tbody>
 <tr>
-<td><em>Acinetobacter baumannii</em></td>
+<td><em>Acinetobacter baumannii</em><sup>1</sup></td>
 <td style="text-align: right;">3.0</td>
 <td style="text-align: right;">3× faster</td>
 <td>Effective community turnover of predominantly healthcare-associated resistance-mechanism profiles</td>
 </tr>
 <tr>
-<td><em>Stenotrophomonas maltophilia</em></td>
+<td><em>Stenotrophomonas maltophilia</em><sup>1</sup></td>
 <td style="text-align: right;">3.0</td>
 <td style="text-align: right;">3× faster</td>
 <td>Effective loss of healthcare/device-associated resistance-mechanism profiles outside their main ecological niche</td>
 </tr>
 <tr>
-<td><em>Enterococcus faecium</em></td>
+<td><em>Enterococcus faecium</em><sup>1</sup></td>
 <td style="text-align: right;">3.0</td>
 <td style="text-align: right;">3× faster</td>
 <td>Maintains a hospital-community contrast for hospital-adapted VRE lineages</td>
 </tr>
 <tr>
-<td><em>Neisseria gonorrhoeae</em></td>
+<td><em>Neisseria gonorrhoeae</em><sup>2</sup></td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">100× slower</td>
 <td>Strong persistence of resistant gonococcal lineages after the original selecting pressure falls</td>
 </tr>
 </tbody>
 </table>
-<p>The three organism-specific values of 3.0 are 30 times the ordinary 0.1 community multiplier, but only three times the same mechanism's hospital/base rate; they do not imply loss within a few days for the configured mechanism rates. These organism-level multipliers apply to every eligible mechanism for that bacterium, not only to carbapenemases, VanA/VanB, or <em>gyrA</em>. They are compressed ecological calibration terms used to preserve plausible setting contrasts while retaining the same mechanism-specific fitness-cost ordering (Andersson DI &amp; Hughes D, 2010; San Millán A &amp; MacLean RC, 2017; Arcilla MS et al., 2017).</p>
-<p>The 0.01 gonococcal value reflects the durable population-level persistence of fluoroquinolone-resistant lineages seen after fluoroquinolones were withdrawn from treatment guidelines (Unemo M &amp; Shafer WM, 2014; Unemo M et al., 2021). It likewise applies to all eligible gonococcal mechanisms, although <em>gyrA</em>/<em>parC</em> resistance is the motivating example.</p>
+<p><em>Table evidence notes:</em></p>
+<ol>
+<li>The three <code>3.0</code> values are compressed ecological calibration terms used to preserve plausible hospital–community contrasts. Outside-hospital reservoirs of <em>A. baumannii</em>, the predominantly opportunistic healthcare/device ecology of <em>S. maltophilia</em>, and the hospital-adapted spread of VRE lineages support the qualitative direction of these contrasts; general evidence also shows that resistance costs and persistence vary strongly with the organism, determinant, genetic background, and compensatory evolution (Eveillard M et al., 2013; Brooke JS, 2012; Werner G et al., 2008; Andersson DI &amp; Hughes D, 2010; San Millán A &amp; MacLean RC, 2017). No cited source estimates the multiplier <code>3.0</code>. It is 30 times the ordinary <code>0.1</code> community multiplier but only three times the same mechanism's hospital/base rate, and it applies to every eligible mechanism for the organism rather than only to carbapenemases or VanA/VanB.</li>
+<li>The <code>0.01</code> value is a calibration motivated by durable population-level persistence of fluoroquinolone-resistant gonococcal lineages after fluoroquinolones were withdrawn from treatment guidelines (Unemo M &amp; Shafer WM, 2014; Unemo M et al., 2021). Neither source estimates the multiplier <code>0.01</code>. The multiplier applies to every eligible gonococcal mechanism, although <em>gyrA</em>/<em>parC</em> resistance is the motivating example.</li>
+</ol>
 <p>The <code>mutation_siderophore_uptake</code> mechanism is the explicit category for chromosomal receptor or regulatory changes that reduce ferric-siderophore uptake.</p>
 <h3 id="76-local-finite-population-mechanism-persistence">7.6 Local finite-population mechanism persistence</h3>
 <p>At finite simulated population sizes, an uncommon but genuinely established mechanism can disappear from every active infection and every retained resistance-mechanism profile in a local reservoir by chance. The model represents established strains in the much larger population outside the simulation through a permanent local establishment archive. The archive contributes bounded sampling mass to the local human reservoir; it is not a hard lower bound on observed resistance prevalence.</p>
@@ -3322,6 +3530,11 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p><strong>Implication for future calibration work.</strong> As a working rule, mechanism emergence coefficients above 1.0 should be treated as a signal to review whether one or more of these four levers is the more appropriate explanation for the observed prevalence. High coefficients can still be used where justified, but they should not be the default catch-all for persistence, reseeding, missing selection pressure, or linked resistance ecology. Because the final daily probability is capped at 1.0, coefficient values that keep the complete product above the cap are operationally indistinguishable under those conditions.</p>
 <hr />
 <h2 id="8-microbiome-and-carriage">8. Microbiome and Carriage</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#81-carriage-compartments">8.1 Carriage compartments</a></li>
+<li><a href="#82-resistance-in-the-microbiome">8.2 Resistance in the microbiome</a></li>
+</ul>
 <p>Since the commensal microbiome is the principal reservoir in which resistance is stored, selected by bystander antibiotic exposure, and exchanged between species (Werner G et al., 2008; van Schaik W, 2015; McInnes RS et al., 2020), the model tracks microbiome carriage as a distinct compartment from active infection. A patient treated with ciprofloxacin weeks earlier may still carry fluoroquinolone-resistant <em>E. coli</em> in the gut; if that strain subsequently causes a UTI, empiric therapy may fail.</p>
 <p>As throughout the model, the microbiome layer is intentionally simplified. We represent the main ecological reservoirs and the policy-relevant consequences of bystander selection, endogenous infection, and within-host persistence, but not the full organism-by-organism spatial ecology that would be required for a dedicated colonisation model.</p>
 <p><strong>Individual-level variables used and introduced in this section.</strong> For each bacterium, carriage presence and its start day are recorded in <code>presence_microbiome[b]</code> and <code>date_microbiome_acquired[b]</code>, while <code>microbiome_disruption_level</code> represents accumulated ecological disruption from antibiotics. The carriage mechanism and drug-resistance records introduced in Section 7 (<code>mechanism_microbiome[b]</code> and <code>resistances[b][d].microbiome_r</code>) describe resistance within this compartment. Daily intermediate variables govern carriage acquisition and clearance (<code>microbiome_acquisition_probability[b]</code> and <code>microbiome_clearance_probability[b]</code>), and <code>effective_carriage_activity[b,d]</code> represents antibiotic activity used in the carriage-clearance calculation. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
@@ -3422,6 +3635,11 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tbody>
 </table>
 <h2 id="9-horizontal-gene-transfer-hgt">9. Horizontal Gene Transfer (HGT)</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#91-transfer-compatibility">9.1 Transfer compatibility</a></li>
+<li><a href="#92-the-hgt-process">9.2 The HGT process</a></li>
+</ul>
 <p>Horizontal gene transfer (HGT) — the interspecies sharing of resistance determinants, as seen when the same ESBL plasmids appear across <em>E. coli</em>, <em>Klebsiella</em>, and <em>Proteus</em>  — is a major driver of resistance spread and is modelled explicitly.</p>
 <p>The HGT layer is necessarily schematic. We preserve the major ecological compatibilities and the main amplifiers of transfer risk, but we do not attempt plasmid-by-plasmid reconstruction, incompatibility typing, or ward-level contact-network modelling. At the scale of the present model, that additional detail would be difficult to support empirically and would add substantial runtime and calibration burden without clearly improving the policy comparisons of interest.</p>
 <p><strong>Individual-level variable introduced in this section.</strong> For each eligible recipient bacterium and resistance mechanism, <code>hgt_probability[recipient_b,m]</code> is the daily probability of horizontal transfer from compatible bacteria present in the same person. Successful transfer updates the recipient's active-infection or carriage mechanism record introduced in Sections 3 and 8. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
@@ -3537,6 +3755,13 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p><code>microbiome_resistance_transfer_probability_per_day</code> is a separate parameter used for within-host infection↔microbiome mechanism exchange (Section 8.2), not for inter-species HGT.</p>
 <p>The absolute HGT probabilities are intentionally low and should be interpreted as effective daily hazards at the model scale. Their main purpose is to preserve plausible relative ordering between low-contact community settings, antibiotic-stressed microbiomes, and high-contact hospital environments.</p>
 <h2 id="10-mortality">10. Mortality</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#101-background-mortality">10.1 Background mortality</a></li>
+<li><a href="#102-sepsis-mortality">10.2 Sepsis mortality</a></li>
+<li><a href="#103-non-sepsis-infection-death">10.3 Non-sepsis infection death</a></li>
+<li><a href="#104-infection-mortality-syndrome-multipliers">10.4 Infection mortality — syndrome multipliers</a></li>
+</ul>
 <p>The model tracks mortality from three sources: background (non-infection) causes, <strong>bacterial infection induced sepsis</strong>, and <strong>non-sepsis (bacterial) infection death</strong> (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2020).</p>
 <p><strong>Individual-level variables introduced in this section.</strong> The model records the current daily background and infection-related death risks (<code>background_all_cause_mortality_rate</code> and <code>current_infection_related_death_risk</code>). Temporary probabilities separately represent death from background causes, drug toxicity, non-sepsis infection, and sepsis (<code>background_death_probability</code>, <code>toxicity_death_probability</code>, <code>non_sepsis_infection_death_probability</code>, and <code>sepsis_death_probability</code>). A resolved infection is assigned an <code>infection_resolution_type[b]</code>; a death records its simulation day and classified cause in <code>date_of_death</code> and <code>cause_of_death</code>. Full definitions and update rules are provided in <a href="#appendix-d-individual-level-variable-dictionary">Appendix D</a>.</p>
 <h3 id="101-background-mortality">10.1 Background mortality</h3>
@@ -4066,6 +4291,24 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <p>Although the initial application focuses exclusively on reconstruction of global emergence of resistance, the model architecture is designed to support <strong>policy comparison</strong> by simulating alternative policy scenarios from a shared starting point. Potential future applications include comparing antibiotic stewardship packages (e.g., narrower empiric prescribing, expanded susceptibility testing, shorter course durations), evaluating the trade-off between restricting reserve drugs and preserving last-resort efficacy, and quantifying the projected impact of improved point-of-care diagnostics on resistance trajectories and mortality over multi-decade horizons.</p>
 <hr />
 <h2 id="12-limitations">12. Limitations</h2>
+<p><strong>In this section</strong></p>
+<ul>
+<li><a href="#121-calibration-target-provenance-and-interpretation">12.1 Calibration target provenance and interpretation</a></li>
+<li><a href="#122-optional-historical-comparison-overlays">12.2 Optional historical comparison overlays</a></li>
+<li><a href="#123-abstract-drug-levels">12.3 Abstract drug levels</a></li>
+<li><a href="#124-no-explicit-strain-competition">12.4 No explicit strain competition</a></li>
+<li><a href="#125-no-within-host-spatial-structure">12.5 No within-host spatial structure</a></li>
+<li><a href="#126-static-vaccine-model">12.6 Static vaccine model</a></li>
+<li><a href="#127-broad-regional-groupings">12.7 Broad regional groupings</a></li>
+<li><a href="#128-no-person-to-person-transmission-network">12.8 No person-to-person transmission network</a></li>
+<li><a href="#129-constant-infection-acquisition-rates-for-most-organisms-and-simplified-h-pylori-natural-history">12.9 Constant infection acquisition rates for most organisms and simplified <em>H. pylori</em> natural history</a></li>
+<li><a href="#1210-simplified-historical-gonorrhoea-incidence-decline">12.10 Simplified historical gonorrhoea incidence decline</a></li>
+<li><a href="#1211-exogenous-resistance-reservoirs-are-approximated-rather-than-explicitly-modelled">12.11 Exogenous resistance reservoirs are approximated rather than explicitly modelled</a></li>
+<li><a href="#1212-no-explicit-background-rifampicin-exposure-pathway-for-non-target-organisms">12.12 No explicit background rifampicin exposure pathway for non-target organisms</a></li>
+<li><a href="#1213-residual-high-emergence-coefficient-mechanisms-as-coarse-grained-parameters">12.13 Residual high-emergence-coefficient mechanisms as coarse-grained parameters</a></li>
+<li><a href="#1214-no-systematic-asymptomatic-diagnostic-screening">12.14 No systematic asymptomatic diagnostic screening</a></li>
+<li><a href="#1215-resistance-effect-prevalence-versus-phenotypic-resistance">12.15 Resistance-effect prevalence versus phenotypic resistance</a></li>
+</ul>
 <p>The central design judgement has been to retain the features most likely to matter for stewardship, diagnostics, access, and mortality questions, while omitting layers of nuance that would make a model of this scope difficult to calibrate, computationally too burdensome, or unnecessarily difficult to interpret. The main limitations are therefore not incidental omissions but deliberate trade-offs made in order to keep the model usable for the policy questions it is intended to address:</p>
 <p>Several of the appendices that follow list exact configuration values and definitions of categorical variables (called enums in the code). Those tables are included for transparency and reproducibility, but they should still be read in the context established above: many values are reference settings, calibration targets, or structural model choices rather than direct empirical measurements. Where this document presents an exact value, that should not automatically be interpreted as implying an equivalent degree of empirical certainty.</p>
 <h3 id="121-calibration-target-provenance-and-interpretation">12.1 Calibration target provenance and interpretation</h3>
@@ -4262,6 +4505,14 @@ their names describe the intended column structure, not downloaded observations.
 <p>The default acquired-resistance-prevalence output records the proportion of active-infection person-days for which at least one represented acquired resistance mechanism produces a non-zero effect on a drug (<code>any_r &gt; 0</code>). Intrinsic or baseline non-susceptibility encoded through potency is not included. This output is not equivalent to the proportion of laboratory isolates classified resistant using organism–drug MIC or zone-diameter breakpoints. A shared mechanism can consequently produce the same positive-prevalence estimate for two drugs while having markedly different enhancement values and therefore different effects on treatment activity. The circulating resistance-mechanism profile prevalence used in regional prescribing feedback follows a related mechanism-presence definition. The reference configuration is therefore intended for broad policy-scale resistance comparisons; applications that depend on categorical susceptibility distinctions between closely related drugs may require an alternative mapping from mechanism-derived resistance to phenotype, or additional mechanism granularity.</p>
 <hr />
 <h2 id="appendix-a-bacteria-drugs-mechanisms-and-categorical-variables">Appendix A — Bacteria, Drugs, Mechanisms and Categorical Variables</h2>
+<p><strong>In this appendix</strong></p>
+<ul>
+<li><a href="#a1-bacteria-42-species">A.1 Bacteria (42 species)</a></li>
+<li><a href="#a2-antibiotics-62-drugs">A.2 Antibiotics (62 drugs)</a></li>
+<li><a href="#a3-drug-classes-39-model-categories-corresponding-to-drugclass">A.3 Drug Classes (39 model categories corresponding to <code>DrugClass</code>)</a></li>
+<li><a href="#a4-resistance-mechanisms-46">A.4 Resistance Mechanisms (46)</a></li>
+<li><a href="#a5-categorical-variables">A.5 Categorical Variables</a></li>
+</ul>
 <p>This appendix lists every entity in the model. Use it as a reference when you encounter a specific bacterium, drug, or mechanism identifier in the main text.</p>
 <p>The appendix provides a correspondence between scientific concepts and their representation in the model. Names, groupings, and categorical labels (called enums in the code) are the simulation's internal vocabulary for representing major clinical categories; they are not meant to imply that every organism, drug, or ecological niche is exhaustively or uniquely represented by a single real-world classification scheme. They are included so that readers can see exactly how clinically familiar categories were operationalised inside a policy-scale simulation.</p>
 <h3 id="a1-bacteria-42-species">A.1 Bacteria (42 species)</h3>
@@ -5140,10 +5391,24 @@ their names describe the intended column structure, not downloaded observations.
 <p><code>None</code>, <code>Empiric</code>, <code>Targeted</code>, <code>Prophylaxis</code>, <code>Other</code>, <code>OtherNoActiveModelledInfection</code>, <code>OtherActiveAsymptomaticModelledBacterialInfection</code></p>
 <hr />
 <h2 id="appendix-b-parameter-reference">Appendix B — Parameter Reference</h2>
+<p><strong>In this appendix</strong></p>
+<ul>
+<li><a href="#b1-global-numeric-parameters">B.1 Global Numeric Parameters</a></li>
+<li><a href="#b2-drug-properties">B.2 Drug Properties</a></li>
+<li><a href="#b3-bacteria-properties">B.3 Bacteria Properties</a></li>
+<li><a href="#b4-drugbacteria-potency-matrix">B.4 Drug–Bacteria Potency Matrix</a></li>
+<li><a href="#b5-regional-parameters">B.5 Regional Parameters</a></li>
+<li><a href="#b6-age-dependent-parameters">B.6 Age-Dependent Parameters</a></li>
+<li><a href="#b7-syndrome-parameters">B.7 Syndrome Parameters</a></li>
+<li><a href="#b8-clearance-parameters">B.8 Clearance Parameters</a></li>
+<li><a href="#b9-immunodeficiency-sex-and-vaccination-parameters">B.9 Immunodeficiency, Sex, and Vaccination Parameters</a></li>
+<li><a href="#b10-resistance-mechanisms">B.10 Resistance Mechanisms</a></li>
+<li><a href="#b11-horizontal-gene-transfer-matrix">B.11 Horizontal Gene Transfer Matrix</a></li>
+</ul>
 <p>This appendix is generated automatically from the current Rust configuration. Parameters are organised thematically into tables of the values used by the model. All values shown are the reference values before any run-level pathway sensitivity multipliers are applied. Where a parameter family uses one value unless a more specific value is supplied, that general value is stated and only the exceptions are listed. Era-specific values and environmental floors are included. Compatibility identifiers that do not affect the current model are intentionally excluded.</p>
 <h3 id="b1-global-numeric-parameters">B.1 Global Numeric Parameters</h3>
 <p>Single numeric parameters that govern model behaviour across multiple processes. They are grouped thematically; each row gives the parameter name and its reference value.</p>
-<p>See: <a href="#61-treatment-initiation-deciding-to-start-antibiotics">§6.1 Treatment initiation</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#63-drug-pharmacokinetics">§6.3 Drug pharmacokinetics</a>, <a href="#67-drug-toxicity">§6.7 Drug toxicity</a>, <a href="#24-hospitalisation">§2.4 Hospitalisation</a>, <a href="#25-travel">§2.5 Travel</a>, <a href="#43-sepsis">§4.3 Sepsis</a>, <a href="#73-resistance-emergence">§7.3 Resistance emergence</a>, <a href="#74-resistance-reversion-and-fitness-costs">§7.4 Resistance reversion</a>, <a href="#8-microbiome-and-carriage">§8 Microbiome and Carriage</a>, <a href="#9-horizontal-gene-transfer-hgt">§9 Horizontal Gene Transfer</a>, <a href="#10-mortality">§10 Mortality</a>.</p>
+<p>See: <a href="#61-treatment-initiation-deciding-to-start-antibiotics">§6.1 Treatment initiation</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#63-drug-pharmacokinetics">§6.3 Drug pharmacokinetics</a>, <a href="#67-drug-toxicity">§6.7 Drug toxicity</a>, <a href="#24-hospitalisation">§2.4 Hospitalisation</a>, <a href="#25-travel">§2.5 Travel</a>, <a href="#43-sepsis">§4.3 Sepsis</a>, <a href="#74-resistance-emergence">§7.4 Resistance emergence</a>, <a href="#75-resistance-reversion-and-fitness-costs">§7.5 Resistance reversion</a>, <a href="#8-microbiome-and-carriage">§8 Microbiome and Carriage</a>, <a href="#9-horizontal-gene-transfer-hgt">§9 Horizontal Gene Transfer</a>, <a href="#10-mortality">§10 Mortality</a>.</p>
 <h4 id="treatment-initiation-logistic-model">Treatment Initiation (logistic model)</h4>
 <table>
 <thead>
@@ -31195,7 +31460,7 @@ their names describe the intended column structure, not downloaded observations.
 </table>
 <h3 id="b10-resistance-mechanisms">B.10 Resistance Mechanisms</h3>
 <p>Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence coefficients.</p>
-<p>See: <a href="#71-resistance-mechanisms">§7.1 Resistance mechanisms</a>, <a href="#72-mechanismdrug-class-enhancement-multipliers">§7.2 Mechanism–drug-class enhancement</a>, <a href="#73-resistance-emergence">§7.3 Resistance emergence</a>, <a href="#74-resistance-reversion-and-fitness-costs">§7.4 Resistance reversion</a>.</p>
+<p>See: <a href="#71-resistance-mechanisms">§7.1 Resistance mechanisms</a>, <a href="#72-mechanismdrug-class-enhancement-multipliers">§7.2 Mechanism–drug-class enhancement</a>, <a href="#74-resistance-emergence">§7.4 Resistance emergence</a>, <a href="#75-resistance-reversion-and-fitness-costs">§7.5 Resistance reversion</a>.</p>
 <h4 id="mechanism-reversion-rates">Mechanism Reversion Rates</h4>
 <table>
 <thead>
@@ -55064,6 +55329,15 @@ their names describe the intended column structure, not downloaded observations.
 </tbody>
 </table>
 <h2 id="appendix-c-output-specification">Appendix C — Output Specification</h2>
+<p><strong>In this appendix</strong></p>
+<ul>
+<li><a href="#c1-output-file">C.1 Output File</a></li>
+<li><a href="#c2-row-structure">C.2 Row Structure</a></li>
+<li><a href="#c3-column-categories">C.3 Column Categories</a></li>
+<li><a href="#c4-total-column-count">C.4 Total Column Count</a></li>
+<li><a href="#c5-observation-time-and-multiplicity-rules">C.5 Observation-Time and Multiplicity Rules</a></li>
+<li><a href="#c6-infection-journey-logs">C.6 Infection Journey Logs</a></li>
+</ul>
 <p>The simulation produces a single large CSV file per run. This appendix describes the column structure so you can interpret the output data.</p>
 <p>In this appendix, resistance outputs refer to modelled acquired, mechanism-derived resistance. Intrinsic or baseline non-susceptibility is represented through potency and is not included in <code>any_r</code> or resistance-prevalence outputs.</p>
 <h3 id="c1-output-file">C.1 Output File</h3>
@@ -55356,6 +55630,12 @@ and therefore survive later same-day clearance, recovery, or death.</p>
 <p><em>This document describes the model as implemented in the Rust codebase. All variable names correspond to parameter keys used in <code>src/config.rs</code>.</em></p>
 <hr />
 <h2 id="appendix-d-individual-level-variable-dictionary">Appendix D — Individual-level Variable Dictionary</h2>
+<p><strong>In this appendix</strong></p>
+<ul>
+<li><a href="#d1-notation-and-scope">D.1 Notation and Scope</a></li>
+<li><a href="#d2-table-d1-compact-variable-dictionary">D.2 Table D1. Compact Variable Dictionary</a></li>
+<li><a href="#d3-table-d2-update-rule-catalogue">D.3 Table D2. Update-rule Catalogue</a></li>
+</ul>
 <p>This appendix documents the person-level state and scientifically meaningful
 person-level intermediate variables used by the current model.</p>
 <p>The appendix uses two linked tables:</p>
@@ -57370,6 +57650,15 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Arcilla MS, van Hattem JM, Haverkate MR, et al. Import and spread of extended-spectrum β-lactamase-producing Enterobacteriaceae by international travellers (COMBAT study): a prospective, multicentre cohort study. <em>Lancet Infect Dis.</em> 2017;17(1):78–85. doi:10.1016/S1473-3099(16)30319-X</p>
 </li>
 <li>
+<p>Arias CA, Panesso D, McGrath DM, et al. Genetic basis for in vivo daptomycin resistance in enterococci. <em>N Engl J Med.</em> 2011;365(10):892–900. doi:10.1056/NEJMoa1011138</p>
+</li>
+<li>
+<p>Arthur M, Brisson-Noël A, Courvalin P. Origin and evolution of genes specifying resistance to macrolide, lincosamide and streptogramin antibiotics: data and hypotheses. <em>J Antimicrob Chemother.</em> 1987;20(6):783–802. doi:10.1093/jac/20.6.783</p>
+</li>
+<li>
+<p>Baptista M, Rodrigues P, Depardieu F, Courvalin P, Arthur M. Single-cell analysis of glycopeptide resistance gene expression in teicoplanin-resistant mutants of VanB-type <em>Enterococcus faecalis</em>. <em>Mol Microbiol.</em> 1999;32(1):17–28. doi:10.1046/j.1365-2958.1999.01308.x</p>
+</li>
+<li>
 <p>Barlam TF, Cosgrove SE, Abbo LM, et al. Implementing an antibiotic stewardship program: guidelines by the Infectious Diseases Society of America and the Society for Healthcare Epidemiology of America. <em>Clin Infect Dis.</em> 2016;62(10):e51–e77. doi:10.1093/cid/ciw118</p>
 </li>
 <li>
@@ -57379,7 +57668,16 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Bauer AW, Kirby WMM, Sherris JC, Turck M. Antibiotic susceptibility testing by a standardized single disk method. <em>Am J Clin Pathol.</em> 1966;45(4):493–496. doi:10.1093/ajcp/45.4_ts.493</p>
 </li>
 <li>
+<p>Bauernfeind A, Grimm H, Schweighart S. A new plasmidic cefotaximase in a clinical isolate of <em>Escherichia coli</em>. <em>Infection.</em> 1990;18(5):294–298. doi:10.1007/BF01647010</p>
+</li>
+<li>
 <p>Beaber JW, Hochhut B, Waldor MK. SOS response promotes horizontal dissemination of antibiotic resistance genes. <em>Nature.</em> 2004;427(6969):72–74. doi:10.1038/nature02241</p>
+</li>
+<li>
+<p>Beceiro A, Moreno A, Fernández N, et al. Biological cost of different mechanisms of colistin resistance and their impact on virulence in <em>Acinetobacter baumannii</em>. <em>Antimicrob Agents Chemother.</em> 2014;58(1):518–526. doi:10.1128/AAC.01597-13</p>
+</li>
+<li>
+<p>Billal DS, Feng J, Leprohon P, Légaré D, Ouellette M. Whole genome analysis of linezolid resistance in <em>Streptococcus pneumoniae</em> reveals resistance and compensatory mutations. <em>BMC Genomics.</em> 2011;12:512. doi:10.1186/1471-2164-12-512</p>
 </li>
 <li>
 <p>Blaser MJ. Epidemiologic and clinical features of <em>Campylobacter jejuni</em> infections. <em>J Infect Dis.</em> 1997;176(Suppl 2):S103–S105.</p>
@@ -57394,7 +57692,7 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Bratzler DW, Dellinger EP, Olsen KM, et al. Clinical practice guidelines for antimicrobial prophylaxis in surgery. <em>Am J Health-Syst Pharm.</em> 2013;70(3):195–283. doi:10.2146/ajhp120568</p>
 </li>
 <li>
-<p>* Brooke JS. <em>Stenotrophomonas maltophilia</em>: an emerging global opportunistic pathogen. <em>Clin Microbiol Rev.</em> 2012;25(1):2–41. doi:10.1128/CMR.00019-11</p>
+<p>Brooke JS. <em>Stenotrophomonas maltophilia</em>: an emerging global opportunistic pathogen. <em>Clin Microbiol Rev.</em> 2012;25(1):2–41. doi:10.1128/CMR.00019-11</p>
 </li>
 <li>
 <p>Browne AJ, Chipeta MG, Haines-Woodhouse G, et al. Global antibiotic consumption and usage in humans, 2000–18: a spatial modelling study. <em>Lancet Planet Health.</em> 2021;5(12):e893–e904. doi:10.1016/S2542-5196(21)00280-1</p>
@@ -57418,6 +57716,9 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Centers for Disease Control and Prevention. <em>COVID-19: U.S. Impact on Antimicrobial Resistance, Special Report 2022.</em> Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2022. https://www.cdc.gov/antimicrobial-resistance/data-research/threats/covid-19.html</p>
 </li>
 <li>
+<p>Cox G, Edwards TA, O'Neill AJ. Mutagenesis mapping of the protein-protein interaction underlying FusB-type fusidic acid resistance. <em>Antimicrob Agents Chemother.</em> 2013;57(10):4640–4644. doi:10.1128/AAC.00198-13</p>
+</li>
+<li>
 <p>* Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of <em>Stenotrophomonas maltophilia</em> reveals an organism heavily shielded by drug resistance determinants. <em>Genome Biol.</em> 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74</p>
 </li>
 <li>
@@ -57436,7 +57737,16 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Drlica K, Zhao X. Mutant selection window hypothesis updated. <em>Clin Infect Dis.</em> 2007;44(5):681–688. doi:10.1086/511025</p>
 </li>
 <li>
+<p>Dowson CG, Hutchison A, Brannigan JA, et al. Horizontal transfer of penicillin-binding protein genes in penicillin-resistant clinical isolates of <em>Streptococcus pneumoniae</em>. <em>Proc Natl Acad Sci USA.</em> 1989;86(22):8842–8846. doi:10.1073/pnas.86.22.8842</p>
+</li>
+<li>
 <p>Dunne MW, Puttagunta S, Giordano P, Krievins D, Zelasky M, Baldassarre J. A randomized clinical trial of single-dose versus weekly dalbavancin for treatment of acute bacterial skin and skin structure infection. <em>Clin Infect Dis.</em> 2016;62(5):545–551. doi:10.1093/cid/ciw005</p>
+</li>
+<li>
+<p>Egge SL, Rizvi SA, Simar SR, et al. Cefiderocol heteroresistance associated with mutations in TonB-dependent receptor genes in <em>Pseudomonas aeruginosa</em> of clinical origin. <em>Antimicrob Agents Chemother.</em> 2024;68(8):e00127-24. doi:10.1128/AAC.00127-24</p>
+</li>
+<li>
+<p>Epp SF, Köhler T, Plésiat P, Michéa-Hamzehpour M, Frey J, Pechère JC. C-terminal region of <em>Pseudomonas aeruginosa</em> outer membrane porin OprD modulates susceptibility to meropenem. <em>Antimicrob Agents Chemother.</em> 2001;45(6):1780–1787. doi:10.1128/AAC.45.6.1780-1787.2001</p>
 </li>
 <li>
 <p>European Centre for Disease Prevention and Control. <em>Antimicrobial consumption in the EU/EEA (ESAC-Net) - Annual Epidemiological Report 2023.</em> Stockholm: ECDC; 2024. https://www.ecdc.europa.eu/en/publications-data/antimicrobial-consumption-eueea-esac-net-annual-epidemiological-report-2023</p>
@@ -57454,6 +57764,12 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. <em>Intensive Care Med.</em> 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y</p>
 </li>
 <li>
+<p>Eveillard M, Kempf M, Belmonte O, Pailhoriès H, Joly-Guillou ML. Reservoirs of <em>Acinetobacter baumannii</em> outside the hospital and potential involvement in emerging human community-acquired infections. <em>Int J Infect Dis.</em> 2013;17(10):e802–e805. doi:10.1016/j.ijid.2013.03.021</p>
+</li>
+<li>
+<p>Ferranti G, Marchesi I, Favale M, Borella P, Bargellini A. Aetiology, source and prevention of waterborne healthcare-associated infections: a review. <em>J Med Microbiol.</em> 2014;63(Pt 10):1247–1259. doi:10.1099/jmm.0.075713-0</p>
+</li>
+<li>
 <p>Fishman JA. Infection in solid-organ transplant recipients. <em>N Engl J Med.</em> 2007;357(25):2601–2614. doi:10.1056/NEJMra064928</p>
 </li>
 <li>
@@ -57461,6 +57777,12 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>Forslund K, Sunagawa S, Kultima JR, et al. Country-specific antibiotic use practices impact the human gut resistome. <em>Genome Res.</em> 2013;23(7):1163–1169. doi:10.1101/gr.155465.113</p>
+</li>
+<li>
+<p>Foucault ML, Depardieu F, Courvalin P, Grillot-Courvalin C. Inducible expression eliminates the fitness cost of vancomycin resistance in enterococci. <em>Proc Natl Acad Sci USA.</em> 2010;107(39):16964–16969. doi:10.1073/pnas.1006855107</p>
+</li>
+<li>
+<p>Gagneux S, Long CD, Small PM, Van T, Schoolnik GK, Bohannan BJM. The competitive cost of antibiotic resistance in <em>Mycobacterium tuberculosis</em>. <em>Science.</em> 2006;312(5782):1944–1946. doi:10.1126/science.1124410</p>
 </li>
 <li>
 <p>GBD 2019 Lower Respiratory Infections Collaborators. Age-sex differences in the global burden of lower respiratory infections and risk factors, 1990–2019: results from the Global Burden of Disease Study 2019. <em>Lancet Infect Dis.</em> 2022;22(11):1626–1647. doi:10.1016/S1473-3099(22)00510-2</p>
@@ -57472,7 +57794,16 @@ rule used by the model rather than a configurable parameter.</p>
 <p>GBD 2021 Global Sepsis Collaborators. Global, regional, and national sepsis incidence and mortality, 1990–2021: a systematic analysis. <em>Lancet Glob Health.</em> 2025;13(12):e2013–e2026. doi:10.1016/S2214-109X(25)00356-0</p>
 </li>
 <li>
+<p>Gerrits MM, de Zoete MR, Arents NLA, Kuipers EJ, Kusters JG. 16S rRNA mutation-mediated tetracycline resistance in <em>Helicobacter pylori</em>. <em>Antimicrob Agents Chemother.</em> 2002;46(9):2996–3000. doi:10.1128/AAC.46.9.2996-3000.2002</p>
+</li>
+<li>
+<p>Gibreel A, Sköld O. Sulfonamide resistance in clinical isolates of <em>Campylobacter jejuni</em>: mutational changes in the chromosomal dihydropteroate synthase. <em>Antimicrob Agents Chemother.</em> 1999;43(9):2156–2160. doi:10.1128/AAC.43.9.2156</p>
+</li>
+<li>
 <p>Giufrè M, Daprai L, Cardines R, et al. Carriage of <em>Haemophilus influenzae</em> in the oropharynx of young children and molecular epidemiology of the isolates after fifteen years of <em>H. influenzae</em> type b vaccination in Italy. <em>Vaccine.</em> 2015;33(46):6227–6234. doi:10.1016/j.vaccine.2015.09.082</p>
+</li>
+<li>
+<p>Goodwin A, Kersulyte D, Sisson G, Veldhuyzen van Zanten SJ, Berg DE, Hoffman PS. Metronidazole resistance in <em>Helicobacter pylori</em> is due to null mutations in a gene (<em>rdxA</em>) that encodes an oxygen-insensitive NADPH nitroreductase. <em>Mol Microbiol.</em> 1998;28(2):383–393. doi:10.1046/j.1365-2958.1998.00806.x</p>
 </li>
 <li>
 <p>Gorrie CL, Mirčeta M, Wick RR, et al. Gastrointestinal carriage is a major reservoir of <em>Klebsiella pneumoniae</em> infection in intensive care patients. <em>Clin Infect Dis.</em> 2017;65(2):208–215. doi:10.1093/cid/cix270</p>
@@ -57481,13 +57812,22 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Guh AY, Mu Y, Winston LG, et al. Trends in U.S. burden of <em>Clostridioides difficile</em> infection and outcomes. <em>N Engl J Med.</em> 2020;382(14):1320–1330. doi:10.1056/NEJMoa1910215</p>
 </li>
 <li>
+<p>Guo Q, Tomich AD, McElheny CL, et al. Glutathione-S-transferase FosA6 of <em>Klebsiella pneumoniae</em> origin conferring fosfomycin resistance in ESBL-producing <em>Escherichia coli</em>. <em>J Antimicrob Chemother.</em> 2016;71(9):2460–2465. doi:10.1093/jac/dkw177</p>
+</li>
+<li>
 <p>Gupta K, Hooton TM, Naber KG, et al. International clinical practice guidelines for the treatment of acute uncomplicated cystitis and pyelonephritis in women: a 2010 update by the Infectious Diseases Society of America and the European Society for Microbiology and Infectious Diseases. <em>Clin Infect Dis.</em> 2011;52(5):e103–e120. doi:10.1093/cid/ciq257</p>
+</li>
+<li>
+<p>Hagman KE, Pan W, Spratt BG, Balthazar JT, Judd RC, Shafer WM. Resistance of <em>Neisseria gonorrhoeae</em> to antimicrobial hydrophobic agents is modulated by the <em>mtrRCDE</em> efflux system. <em>Microbiology (Reading).</em> 1995;141(Pt 3):611–622. doi:10.1099/13500872-141-3-611</p>
+</li>
+<li>
+<p>Hartman BJ, Tomasz A. Low-affinity penicillin-binding protein associated with beta-lactam resistance in <em>Staphylococcus aureus</em>. <em>J Bacteriol.</em> 1984;158(2):513–516. doi:10.1128/JB.158.2.513-516.1984</p>
 </li>
 <li>
 <p>Havelaar AH, Kirk MD, Torgerson PR, et al. World Health Organization global estimates and regional comparisons of the burden of foodborne disease in 2010. <em>PLoS Med.</em> 2015;12(12):e1001923. doi:10.1371/journal.pmed.1001923</p>
 </li>
 <li>
-<p>* Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of <em>Helicobacter pylori</em> infection: systematic review and meta-analysis. <em>Gastroenterology.</em> 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022</p>
+<p>Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of <em>Helicobacter pylori</em> infection: systematic review and meta-analysis. <em>Gastroenterology.</em> 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022</p>
 </li>
 <li>
 <p>Human Microbiome Project Consortium. Structure, function and diversity of the healthy human microbiome. <em>Nature.</em> 2012;486(7402):207–214. doi:10.1038/nature11234</p>
@@ -57508,10 +57848,22 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Klein EY, Van Boeckel TP, Martinez EM, et al. Global increase and geographic convergence in antibiotic consumption between 2000 and 2015. <em>Proc Natl Acad Sci USA.</em> 2018;115(15):E3463–E3470. doi:10.1073/pnas.1717295115</p>
 </li>
 <li>
+<p>Knothe H, Shah P, Krcmery V, Antal M, Mitsuhashi S. Transferable resistance to cefotaxime, cefoxitin, cefamandole and cefuroxime in clinical isolates of <em>Klebsiella pneumoniae</em> and <em>Serratia marcescens</em>. <em>Infection.</em> 1983;11(6):315–317. doi:10.1007/BF01641355</p>
+</li>
+<li>
 <p>Koning S, van der Sande R, Verhagen AP, et al. Interventions for impetigo. <em>Cochrane Database Syst Rev.</em> 2012;(1):CD003261. doi:10.1002/14651858.CD003261.pub3</p>
 </li>
 <li>
 <p>Korenromp EL, Rowley J, Alonso M, et al. Global burden of maternal and congenital syphilis and associated adverse birth outcomes — Estimates for 2016 and progress since 2012. <em>PLoS One.</em> 2019;14(2):e0211720. doi:10.1371/journal.pone.0211720</p>
+</li>
+<li>
+<p>Langevin AM, Dunlop MJ. Stress introduction rate alters the benefit of AcrAB-TolC efflux pumps. <em>J Bacteriol.</em> 2018;200(1):e00525-17. doi:10.1128/JB.00525-17</p>
+</li>
+<li>
+<p>Lau CHF, Hughes D, Poole K. MexY-promoted aminoglycoside resistance in <em>Pseudomonas aeruginosa</em>: involvement of a putative proximal binding pocket in aminoglycoside recognition. <em>mBio.</em> 2014;5(2):e01068-14. doi:10.1128/mBio.01068-14</p>
+</li>
+<li>
+<p>Lauretti L, Riccio ML, Mazzariol A, et al. Cloning and characterization of <em>bla</em>VIM, a new integron-borne metallo-beta-lactamase gene from a <em>Pseudomonas aeruginosa</em> clinical isolate. <em>Antimicrob Agents Chemother.</em> 1999;43(7):1584–1590. doi:10.1128/AAC.43.7.1584</p>
 </li>
 <li>
 <p>Lee CF, Cowling BJ, Feng S, et al. Impact of antibiotic stewardship programmes in Asia: a systematic review and meta-analysis. <em>J Antimicrob Chemother.</em> 2018;73(4):844–851. doi:10.1093/jac/dkx492</p>
@@ -57523,7 +57875,19 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Li J, Nation RL, Turnidge JD, et al. Colistin: the re-emerging antibiotic for multidrug-resistant Gram-negative bacterial infections. <em>Lancet Infect Dis.</em> 2006;6(9):589–601. doi:10.1016/S1473-3099(06)70580-1</p>
 </li>
 <li>
+<p>Lin J, Michel LO, Zhang Q. CmeABC functions as a multidrug efflux system in <em>Campylobacter jejuni</em>. <em>Antimicrob Agents Chemother.</em> 2002;46(7):2124–2131. doi:10.1128/AAC.46.7.2124-2131.2002</p>
+</li>
+<li>
+<p>Lioy VS, Goussard S, Guerineau V, et al. Aminoglycoside resistance 16S rRNA methyltransferases block endogenous methylation, affect translation efficiency and fitness of the host. <em>RNA.</em> 2014;20(3):382–391. doi:10.1261/rna.042572.113</p>
+</li>
+<li>
+<p>Livermore DM, Seetulsingh P. Susceptibility of <em>Escherichia coli</em> isolates with TEM-1 beta-lactamase to combinations of BRL42715, tazobactam or clavulanate with piperacillin or amoxycillin. <em>J Antimicrob Chemother.</em> 1991;27(6):761–767. doi:10.1093/jac/27.6.761</p>
+</li>
+<li>
 <p>Llewelyn MJ, Fitzpatrick JM, Darwin E, et al. The antibiotic course has had its day. <em>BMJ.</em> 2017;358:j3418. doi:10.1136/bmj.j3418</p>
+</li>
+<li>
+<p>Long KS, Poehlsgaard J, Kehrenberg C, Schwarz S, Vester B. A bacterial resistance gene with multiple antibiotic specificities. <em>Antimicrob Agents Chemother.</em> 2006;50(7):2500–2505. doi:10.1128/AAC.00230-06</p>
 </li>
 <li>
 <p>Magill SS, O'Leary E, Janelle SJ, et al. Changes in prevalence of health care–associated infections in U.S. hospitals. <em>N Engl J Med.</em> 2018;379(18):1732–1744. doi:10.1056/NEJMoa1801550</p>
@@ -57532,13 +57896,25 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Majowicz SE, Colston JM, Kirk MD, et al., on behalf of the Foodborne Disease Burden Epidemiology Reference Group for 2021-2025. WHO estimates of the global, regional, and national burden of 14 foodborne diarrhoeal enteric hazards, 2000-21: an updated data synthesis. <em>Lancet Glob Health.</em> 2026. doi:10.1016/j.langlo.2026.103997</p>
 </li>
 <li>
+<p>Marcusson LL, Frimodt-Møller N, Hughes D. Interplay in the selection of fluoroquinolone resistance and bacterial fitness. <em>PLoS Pathog.</em> 2009;5(8):e1000541. doi:10.1371/journal.ppat.1000541</p>
+</li>
+<li>
+<p>Martínez-Martínez L, Pascual A, Jacoby GA. Quinolone resistance from a transferable plasmid. <em>Lancet.</em> 1998;351(9105):797–799. doi:10.1016/S0140-6736(97)07322-4</p>
+</li>
+<li>
 <p>Martinson ML, Lapham J. Prevalence of immunosuppression among US adults. <em>JAMA.</em> 2024;331(10):880–882. doi:10.1001/jama.2023.28019</p>
 </li>
 <li>
 <p>McInnes RS, McCallum GE, Lamberte LE, van Schaik W. Horizontal transfer of antibiotic resistance genes in the human gut microbiome. <em>Curr Opin Microbiol.</em> 2020;53:35–43. doi:10.1016/j.mib.2020.02.002</p>
 </li>
 <li>
+<p>McMurry L, Petrucci RE Jr, Levy SB. Active efflux of tetracycline encoded by four genetically different tetracycline resistance determinants in <em>Escherichia coli</em>. <em>Proc Natl Acad Sci USA.</em> 1980;77(7):3974–3977. doi:10.1073/pnas.77.7.3974</p>
+</li>
+<li>
 <p>* Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. <em>Am J Respir Crit Care Med.</em> 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST</p>
+</li>
+<li>
+<p>Morosini MI, Ayala JA, Baquero F, Martínez JL, Blázquez J. Biological cost of AmpC production for <em>Salmonella enterica</em> serotype Typhimurium. <em>Antimicrob Agents Chemother.</em> 2000;44(11):3137–3143. doi:10.1128/AAC.44.11.3137-3143.2000</p>
 </li>
 <li>
 <p>Murray CJL, Ikuta KS, Sharara F, et al. Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. <em>Lancet.</em> 2022;399(10325):629–655. doi:10.1016/S0140-6736(21)02724-0</p>
@@ -57550,13 +57926,25 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Nielsen EI, Friberg LE. Pharmacokinetic-pharmacodynamic modeling of antibacterial drugs. <em>Pharmacol Rev.</em> 2013;65(3):1053–1090. doi:10.1124/pr.111.005769</p>
 </li>
 <li>
+<p>Noto MJ, Fox PM, Archer GL. Spontaneous deletion of the methicillin resistance determinant, <em>mecA</em>, partially compensates for the fitness cost associated with high-level vancomycin resistance in <em>Staphylococcus aureus</em>. <em>Antimicrob Agents Chemother.</em> 2008;52(4):1221–1229. doi:10.1128/AAC.01164-07</p>
+</li>
+<li>
 <p>Partridge SR, Kwong SM, Firth N, Jensen SO. Mobile genetic elements associated with antimicrobial resistance. <em>Clin Microbiol Rev.</em> 2018;31(4):e00088-17. doi:10.1128/CMR.00088-17</p>
+</li>
+<li>
+<p>Pikis A, Donkersloot JA, Rodriguez WJ, Keith JM. A conservative amino acid mutation in the chromosome-encoded dihydrofolate reductase confers trimethoprim resistance in <em>Streptococcus pneumoniae</em>. <em>J Infect Dis.</em> 1998;178(3):700–706. doi:10.1086/515371</p>
 </li>
 <li>
 <p>* Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. <em>Medical Microbiology.</em> 19th ed. Edinburgh: Churchill Livingstone; 2019.</p>
 </li>
 <li>
 <p>Plummer M, Franceschi S, Vignat J, Forman D, de Martel C. Global burden of gastric cancer attributable to <em>Helicobacter pylori</em>. <em>Int J Cancer.</em> 2015;136(2):487–490. doi:10.1002/ijc.28999</p>
+</li>
+<li>
+<p>Poirel L, Héritier C, Tolün V, Nordmann P. Emergence of oxacillinase-mediated resistance to imipenem in <em>Klebsiella pneumoniae</em>. <em>Antimicrob Agents Chemother.</em> 2004;48(1):15–22. doi:10.1128/AAC.48.1.15-22.2004</p>
+</li>
+<li>
+<p>Poirel L, Marqué S, Héritier C, Segonds C, Chabanon G, Nordmann P. OXA-58, a novel class D beta-lactamase involved in resistance to carbapenems in <em>Acinetobacter baumannii</em>. <em>Antimicrob Agents Chemother.</em> 2005;49(1):202–208. doi:10.1128/AAC.49.1.202-208.2005</p>
 </li>
 <li>
 <p>Poolman JT, Wacker M. Extraintestinal pathogenic <em>Escherichia coli</em>, a common human pathogen: challenges for vaccine development and progress in the field. <em>J Infect Dis.</em> 2016;213(1):6–13. doi:10.1093/infdis/jiv429</p>
@@ -57568,6 +57956,9 @@ rule used by the model rather than a configurable parameter.</p>
 <p>* Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. <em>Intensive Care Med.</em> 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6</p>
 </li>
 <li>
+<p>Roch M, Gagetti P, Davis J, et al. Daptomycin resistance in clinical MRSA strains is associated with a high biological fitness cost. <em>Front Microbiol.</em> 2017;8:2303. doi:10.3389/fmicb.2017.02303</p>
+</li>
+<li>
 <p>Rowley J, Vander Hoorn S, Korenromp EL, et al. Chlamydia, gonorrhoea, trichomoniasis and syphilis: global prevalence and incidence estimates, 2016. <em>Bull World Health Organ.</em> 2019;97(8):548–562P. doi:10.2471/BLT.18.228486</p>
 </li>
 <li>
@@ -57577,7 +57968,13 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Rybak MJ, Le J, Lodise TP, et al. Therapeutic monitoring of vancomycin for serious methicillin-resistant <em>Staphylococcus aureus</em> infections: A revised consensus guideline and review by the American Society of Health-System Pharmacists, the Infectious Diseases Society of America, and the Society of Infectious Diseases Pharmacists. <em>Am J Health-Syst Pharm.</em> 2020;77(11):835–864. doi:10.1093/ajhp/zxaa036</p>
 </li>
 <li>
+<p>Salah M, Shtayeh I, Ghneim R, et al. Evaluation of <em>Shigella</em> species azithromycin CLSI epidemiological cutoff values and macrolide resistance genes. <em>J Clin Microbiol.</em> 2019;57(4):e01422-18. doi:10.1128/JCM.01422-18</p>
+</li>
+<li>
 <p>San Millán A, MacLean RC. Fitness costs of plasmids: a limit to plasmid transmission. <em>Microbiol Spectr.</em> 2017;5(5):MTBP-0016-2017. doi:10.1128/microbiolspec.MTBP-0016-2017</p>
+</li>
+<li>
+<p>Sandegren L, Lindqvist A, Kahlmeter G, Andersson DI. Nitrofurantoin resistance mechanism and fitness cost in <em>Escherichia coli</em>. <em>J Antimicrob Chemother.</em> 2008;62(3):495–503. doi:10.1093/jac/dkn222</p>
 </li>
 <li>
 <p>* Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in <em>Helicobacter pylori</em>: a systematic review and meta-analysis in World Health Organization regions. <em>Gastroenterology.</em> 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022</p>
@@ -57595,19 +57992,34 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Slimings C, Riley TV. Antibiotics and healthcare facility-associated <em>Clostridioides difficile</em> infection: updated systematic review and meta-analysis. <em>J Antimicrob Chemother.</em> 2021;76(7):1676–1688. doi:10.1093/jac/dkab091</p>
 </li>
 <li>
+<p>Skurnik D, Roux D, Cattoir V, et al. Enhanced in vivo fitness of carbapenem-resistant <em>oprD</em> mutants of <em>Pseudomonas aeruginosa</em> revealed through high-throughput sequencing. <em>Proc Natl Acad Sci USA.</em> 2013;110(51):20747–20752. doi:10.1073/pnas.1221552110</p>
+</li>
+<li>
 <p>* Snydman DR, McDermott LA, Jacobus NV. Activity of ceftolozane-tazobactam against a broad spectrum of recent clinical anaerobic isolates. <em>Antimicrob Agents Chemother.</em> 2014;58(2):1218-1223. doi:10.1128/AAC.02253-13</p>
 </li>
 <li>
 <p>* Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. <em>Clin Infect Dis.</em> 2010;50(2):133–164. doi:10.1086/649554</p>
 </li>
 <li>
+<p>Sougakoff W, Goussard S, Gerbaud G, Courvalin P. Plasmid-mediated resistance to third-generation cephalosporins caused by point mutations in TEM-type penicillinase genes. <em>Rev Infect Dis.</em> 1988;10(4):879–884. doi:10.1093/clinids/10.4.879</p>
+</li>
+<li>
+<p>Spratt BG. Hybrid penicillin-binding proteins in penicillin-resistant strains of <em>Neisseria gonorrhoeae</em>. <em>Nature.</em> 1988;332(6160):173–176. doi:10.1038/332173a0</p>
+</li>
+<li>
 <p>Stanaway JD, Parisi A, Sarber K, et al. The global burden of non-typhoidal salmonella invasive disease: a systematic analysis for the Global Burden of Disease Study 2017. <em>Lancet Infect Dis.</em> 2019;19(12):1312–1324. doi:10.1016/S1473-3099(19)30418-9</p>
+</li>
+<li>
+<p>Starikova I, Al-Haroni M, Werner G, et al. Fitness costs of various mobile genetic elements in <em>Enterococcus faecium</em> and <em>Enterococcus faecalis</em>. <em>J Antimicrob Chemother.</em> 2013;68(12):2755–2765. doi:10.1093/jac/dkt270</p>
 </li>
 <li>
 <p>Stevens DL, Bisno AL, Chambers HF, et al. Practice guidelines for the diagnosis and management of skin and soft tissue infections: 2014 update by the Infectious Diseases Society of America. <em>Clin Infect Dis.</em> 2014;59(2):e10–e52. doi:10.1093/cid/ciu296</p>
 </li>
 <li>
 <p>Taplitz RA, Kennedy EB, Bow EJ, et al. Antimicrobial prophylaxis for adult patients with cancer-related immunosuppression: ASCO and IDSA clinical practice guideline update. <em>J Clin Oncol.</em> 2018;36(30):3043–3054. doi:10.1200/JCO.18.00374</p>
+</li>
+<li>
+<p>Thacharodi A, Lamont IL. Aminoglycoside-modifying enzymes are sufficient to make <em>Pseudomonas aeruginosa</em> clinically resistant to key antibiotics. <em>Antibiotics (Basel).</em> 2022;11(7):884. doi:10.3390/antibiotics11070884</p>
 </li>
 <li>
 <p>Tong SYC, Davis JS, Eichenberger E, Holland TL, Fowler VG Jr. <em>Staphylococcus aureus</em> infections: epidemiology, pathophysiology, clinical manifestations, and management. <em>Clin Microbiol Rev.</em> 2015;28(3):603–661. doi:10.1128/CMR.00134-14</p>
@@ -57619,7 +58031,13 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Troeger C, Blacker BF, Khalil IA, et al. Estimates of the global, regional, and national morbidity, mortality, and aetiologies of diarrhoea in 195 countries: a systematic analysis for the Global Burden of Disease Study 2016. <em>Lancet Infect Dis.</em> 2018;18(11):1211–1228. doi:10.1016/S1473-3099(18)30362-1</p>
 </li>
 <li>
+<p>Tsai YK, Fung CP, Lin JC, et al. <em>Klebsiella pneumoniae</em> outer membrane porins OmpK35 and OmpK36 play roles in both antimicrobial resistance and virulence. <em>Antimicrob Agents Chemother.</em> 2011;55(4):1485–1493. doi:10.1128/AAC.01275-10</p>
+</li>
+<li>
 <p>Tunkel AR, Hartman BJ, Kaplan SL, et al. Practice guidelines for the management of bacterial meningitis. <em>Clin Infect Dis.</em> 2004;39(9):1267–1284. doi:10.1086/425368</p>
+</li>
+<li>
+<p>Ubukata K, Shibasaki Y, Yamamoto K, et al. Association of amino acid substitutions in penicillin-binding protein 3 with beta-lactam resistance in beta-lactamase-negative ampicillin-resistant <em>Haemophilus influenzae</em>. <em>Antimicrob Agents Chemother.</em> 2001;45(6):1693–1699. doi:10.1128/AAC.45.6.1693-1699.2001</p>
 </li>
 <li>
 <p>U.S. Food and Drug Administration. <em>Ceftolozane-tazobactam clinical microbiology review, NDA 206829.</em> Completed September 26, 2014. https://www.accessdata.fda.gov/drugsatfda_docs/nda/2014/206829Orig1s000MicroR.pdf</p>
@@ -57653,6 +58071,12 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>Verani JR, McGee L, Schrag SJ; Division of Bacterial Diseases, National Center for Immunization and Respiratory Diseases, Centers for Disease Control and Prevention. Prevention of perinatal group B streptococcal disease - revised guidelines from CDC, 2010. <em>MMWR Recomm Rep.</em> 2010;59(RR-10):1–36.</p>
+</li>
+<li>
+<p>Versalovic J, Shortridge D, Kibler K, et al. Mutations in 23S rRNA are associated with clarithromycin resistance in <em>Helicobacter pylori</em>. <em>Antimicrob Agents Chemother.</em> 1996;40(2):477–480. doi:10.1128/AAC.40.2.477</p>
+</li>
+<li>
+<p>Vezzulli L, Pruzzo C, Huq A, Colwell RR. Environmental reservoirs of <em>Vibrio cholerae</em> and their role in cholera. <em>Environ Microbiol Rep.</em> 2010;2(1):27–33. doi:10.1111/j.1758-2229.2009.00128.x</p>
 </li>
 <li>
 <p>* Wain J, Kilmarx PH, eds. <em>Practical Laboratory Manual for National Tuberculosis Programmes.</em> Geneva: WHO; 2006.</p>
@@ -57715,7 +58139,19 @@ rule used by the model rather than a configurable parameter.</p>
 <p>Xu L, Sun X, Ma X. Systematic review and meta-analysis of mortality of patients infected with carbapenem-resistant <em>Klebsiella pneumoniae</em>. <em>Ann Clin Microbiol Antimicrob.</em> 2017;16(1):18. doi:10.1186/s12941-017-0191-3</p>
 </li>
 <li>
+<p>Yadav K, Garoff L, Huseby DL, Hughes D. Phenotypic and genetic barriers to establishment of horizontally transferred genes encoding ribosomal protection proteins. <em>J Antimicrob Chemother.</em> 2021;76(6):1441–1447. doi:10.1093/jac/dkab056</p>
+</li>
+<li>
+<p>Yang Q, Li M, Spiller OB, et al. Balancing <em>mcr-1</em> expression and bacterial survival is a delicate equilibrium between essential cellular defence mechanisms. <em>Nat Commun.</em> 2017;8:2054. doi:10.1038/s41467-017-02149-0</p>
+</li>
+<li>
 <p>Yeung KHT, Duclos P, Nelson EAS, Hutubessy RCW. An update of the global burden of pertussis in children younger than 5 years: a modelling study. <em>Lancet Infect Dis.</em> 2017;17(9):974–980. doi:10.1016/S1473-3099(17)30390-0</p>
+</li>
+<li>
+<p>Yigit H, Queenan AM, Anderson GJ, et al. Novel carbapenem-hydrolyzing beta-lactamase, KPC-1, from a carbapenem-resistant strain of <em>Klebsiella pneumoniae</em>. <em>Antimicrob Agents Chemother.</em> 2001;45(4):1151–1161. doi:10.1128/AAC.45.4.1151-1161.2001</p>
+</li>
+<li>
+<p>Yong D, Toleman MA, Giske CG, et al. Characterization of a new metallo-beta-lactamase gene, <em>bla</em>NDM-1, and a novel erythromycin esterase gene carried on a unique genetic structure in <em>Klebsiella pneumoniae</em> sequence type 14 from India. <em>Antimicrob Agents Chemother.</em> 2009;53(12):5046–5054. doi:10.1128/AAC.00774-09</p>
 </li>
 </ul>
 </body>
