@@ -157,8 +157,8 @@ fn print_heading() {
         "This appendix is auto-generated from the live Rust configuration. \
               Parameters are organised thematically into resolved tables \
               derived from the internal data structures. All values shown are \
-              the effective defaults before any run-level pathway sensitivity \
-              multipliers are applied. Where a family has a uniform fallback, the fallback \
+              the effective defaults used by the reference configuration. Where a family has \
+              a uniform fallback, the fallback \
               is stated and only explicit exceptions are listed. Dynamically parsed era \
               overrides and environmental floors are included. Raw compatibility keys that \
               are loaded nowhere in the executable rules are intentionally excluded."
@@ -436,8 +436,8 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
                 g.carrier_resistance_inheritance_probability,
             ),
             (
-                "community_resistance_dilution_factor",
-                g.community_resistance_dilution_factor,
+                "community_human_reservoir_profile_probability",
+                g.community_human_reservoir_profile_probability,
             ),
         ],
     );
@@ -955,32 +955,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
             ),
         ],
     );
-
-    print_scalar_group(
-        "Run-Level Resistance Pathway Controls",
-        &[
-            (
-                "run_pathway_infection_de_novo_multiplier",
-                configured_value("run_pathway_infection_de_novo_multiplier", 1.0),
-            ),
-            (
-                "run_pathway_reversion_rate_multiplier",
-                configured_value("run_pathway_reversion_rate_multiplier", 1.0),
-            ),
-            (
-                "run_pathway_hgt_multiplier",
-                configured_value("run_pathway_hgt_multiplier", 1.0),
-            ),
-            (
-                "run_pathway_microbiome_acquisition_multiplier",
-                configured_value("run_pathway_microbiome_acquisition_multiplier", 1.0),
-            ),
-            (
-                "run_pathway_ratchet_enabled",
-                configured_value("run_pathway_ratchet_enabled", 1.0),
-            ),
-        ],
-    );
 }
 
 fn print_scalar_group(title: &str, items: &[(&str, f64)]) {
@@ -1189,7 +1163,7 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
             format_value(b.infection_non_sepsis_mortality_log_odds[idx]),
             format_value(b.sepsis_death_log_odds_override[idx]),
             format_value(b.mechanismless_resistance_reversion_rate[idx]),
-            format_value(b.community_resistance_dilution_factor[idx]),
+            format_value(b.community_human_reservoir_profile_probability[idx]),
             format_value(b.hospital_resistance_prune_susceptible_percent[idx]),
             format_value(b.community_mechanism_reversion_multiplier[idx]),
         ]);

@@ -1,4 +1,4 @@
-﻿// Centralized configuration and parameter plumbing for the AMR simulation.
+// Centralized configuration and parameter plumbing for the AMR simulation.
 //
 // This file does two distinct jobs:
 // 1. Build the canonical parameter map by inserting defaults and explicit overrides.
@@ -317,7 +317,7 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
-    pub community_resistance_dilution_factor: f64,
+    pub community_human_reservoir_profile_probability: f64,
     pub hospital_profile_cache_retention: f64,
     pub hgt_hospital_multiplier: f64,
     pub hgt_antibiotic_pressure_multiplier: f64,
@@ -894,9 +894,9 @@ impl GlobalScalars {
                 "carrier_resistance_inheritance_probability",
                 0.32,
             ),
-            community_resistance_dilution_factor: get_or_default(
+            community_human_reservoir_profile_probability: get_or_default(
                 map,
-                "community_resistance_dilution_factor",
+                "community_human_reservoir_profile_probability",
                 0.50,
             ),
             // ── Hospital profile cache retention: fraction of old profiles kept per step ──
@@ -1889,13 +1889,13 @@ pub struct BacteriaParameters {
     /// hospital carries resistance mechanisms relative to a community-acquired colonisation.
     /// Default 1.0 (no hospital boost).  Set > 1.0 for ESKAPE / nosocomial-dominant bacteria.
     pub hospital_microbiome_r_multiplier: Vec<f64>,
-    /// Per-bacteria community resistance dilution factor.
+    /// Per-bacterium community human-reservoir profile probability.
     /// Probability that a community-acquired infection (or microbiome acquisition) draws its
     /// resistance profile from the human circulating-strain pool rather than being wild-type.
     /// Lower values for environmental / waterborne organisms whose community reservoir is
     /// overwhelmingly susceptible; higher for endogenous flora (E. coli, S. aureus) whose
     /// community reservoir closely reflects recent human-to-human transmission.
-    pub community_resistance_dilution_factor: Vec<f64>,
+    pub community_human_reservoir_profile_probability: Vec<f64>,
     /// Per-bacteria hospital resistance concentration factor.
     /// Multiplier applied to observed hospital resistance prevalence during EWMA update.
     /// Captures population-ecology effects that an individual-based model cannot represent:
@@ -1940,7 +1940,7 @@ impl BacteriaParameters {
         let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
         let mut sepsis_death_log_odds_override = Vec::with_capacity(num_bacteria);
         let mut hospital_microbiome_r_multiplier = Vec::with_capacity(num_bacteria);
-        let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
+        let mut community_human_reservoir_profile_probability = Vec::with_capacity(num_bacteria);
         let mut hospital_resistance_concentration_factor = Vec::with_capacity(num_bacteria);
         let mut hospital_resistance_prune_susceptible_percent = Vec::with_capacity(num_bacteria);
         let mut community_mechanism_reversion_multiplier = Vec::with_capacity(num_bacteria);
@@ -2059,10 +2059,10 @@ impl BacteriaParameters {
                 &format!("{}_hospital_microbiome_r_multiplier", prefix),
                 get_or_default(map, "hospital_microbiome_r_multiplier", 1.0),
             ));
-            community_resistance_dilution_factor.push(get_or_default(
+            community_human_reservoir_profile_probability.push(get_or_default(
                 map,
-                &format!("{}_community_resistance_dilution_factor", prefix),
-                get_or_default(map, "community_resistance_dilution_factor", 0.30),
+                &format!("{}_community_human_reservoir_profile_probability", prefix),
+                get_or_default(map, "community_human_reservoir_profile_probability", 0.30),
             ));
             hospital_resistance_concentration_factor.push(get_or_default(
                 map,
@@ -2104,7 +2104,7 @@ impl BacteriaParameters {
             infection_non_sepsis_mortality_log_odds,
             sepsis_death_log_odds_override,
             hospital_microbiome_r_multiplier,
-            community_resistance_dilution_factor,
+            community_human_reservoir_profile_probability,
             hospital_resistance_concentration_factor,
             hospital_resistance_prune_susceptible_percent,
             community_mechanism_reversion_multiplier,
@@ -7278,72 +7278,72 @@ lazy_static! {
         map.insert("staphylococcus_aureus_hospital_microbiome_r_multiplier".to_string(), 5.0);
         map.insert("citrobacter_spp._hospital_microbiome_r_multiplier".to_string(), 5.0);
 
-        // Per-bacterium community resistance dilution factor. 
+        // Per-bacterium community human-reservoir profile probability.
         // Probability that a community-acquired infection or microbiome colonisation draws its
         // resistance profile from the human circulating-strain pool rather than being wild-type.
         //
         // Categories (biological rationale):    !!!micro
         //
-        // 1. Environmental / waterborne organisms (dilution 0.01–0.05):
+        // 1. Environmental / waterborne organisms (human-reservoir probability 0.01–0.05):
         //    Community reservoir dominated by environmental susceptible strains; human-to-human
         //    transmission contributes only a thin slice of community acquisitions.
-        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.03);
+        map.insert("acinetobacter_baumannii_community_human_reservoir_profile_probability".to_string(), 0.03);
+        map.insert("pseudomonas_aeruginosa_community_human_reservoir_profile_probability".to_string(), 0.03);
+        map.insert("stenotrophomonas_maltophilia_community_human_reservoir_profile_probability".to_string(), 0.03);
+        map.insert("burkholderia_cepacia_complex_community_human_reservoir_profile_probability".to_string(), 0.03);
+        map.insert("legionella_pneumophila_community_human_reservoir_profile_probability".to_string(), 0.03);
+        map.insert("vibrio_cholerae_community_human_reservoir_profile_probability".to_string(), 0.03);
         //
-        // 2. Foodborne / animal-reservoir organisms (dilution 0.05–0.15):
+        // 2. Foodborne / animal-reservoir organisms (human-reservoir probability 0.05–0.15):
         //    Majority of community acquisitions come from animal / food chain where resistance
         //    reflects agricultural antibiotic use, not human clinical resistance ecology.
-        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.70); // Poultry reservoir drives resistance: EU/US broiler flocks carry 50-60% FQ-resistant Campylobacter; human infection pool reflects this pre-seeded resistant stock; raising 0.35→0.70 because the "community reservoir" is the poultry-to-human pipeline, which at equilibrium has near-majority resistance for FQs and tetracyclines
-        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.80); // Strict obligate human pathogen: H58/4.3.1 clade circulates exclusively in humans with no animal reservoir; classic MDR Typhi (ACSSuT plasmid) was present in >70% of South Asian isolates by 1990, showing near-complete clonal sweeps; raised 0.50→0.80 because resistance in Typhi propagates through continuous human-to-human transmission chains without environmental dilution
-        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.25);
-        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("shigella_spp._community_resistance_dilution_factor".to_string(), 0.90); // Obligate human pathogen: fecal-oral human-to-human; globally-spread resistant clones (XDR Sonnei/Flexneri) circulate entirely in human reservoir — no significant animal/environmental dilution pool; raised 0.60→0.90 to capture near-complete clonal sweep dynamics (59% FQ, 35% chl, 28% AG targets require near-saturated human-reservoir persistence)
+        map.insert("campylobacter_jejuni_community_human_reservoir_profile_probability".to_string(), 0.70); // Poultry reservoir drives resistance: EU/US broiler flocks carry 50-60% FQ-resistant Campylobacter; human infection pool reflects this pre-seeded resistant stock; raising 0.35→0.70 because the "community reservoir" is the poultry-to-human pipeline, which at equilibrium has near-majority resistance for FQs and tetracyclines
+        map.insert("salmonella_enterica_serovar_typhi_community_human_reservoir_profile_probability".to_string(), 0.80); // Strict obligate human pathogen: H58/4.3.1 clade circulates exclusively in humans with no animal reservoir; classic MDR Typhi (ACSSuT plasmid) was present in >70% of South Asian isolates by 1990, showing near-complete clonal sweeps; raised 0.50→0.80 because resistance in Typhi propagates through continuous human-to-human transmission chains without environmental dilution
+        map.insert("salmonella_enterica_serovar_paratyphi_a_community_human_reservoir_profile_probability".to_string(), 0.25);
+        map.insert("invasive_non-typhoidal_salmonella_spp._community_human_reservoir_profile_probability".to_string(), 0.07);
+        map.insert("yersinia_enterocolitica_community_human_reservoir_profile_probability".to_string(), 0.07);
+        map.insert("listeria_monocytogenes_community_human_reservoir_profile_probability".to_string(), 0.07);
+        map.insert("shigella_spp._community_human_reservoir_profile_probability".to_string(), 0.90); // Obligate human pathogen: fecal-oral human-to-human; globally-spread resistant clones (XDR Sonnei/Flexneri) circulate entirely in human reservoir — no significant animal/environmental dilution pool; raised 0.60→0.90 to capture near-complete clonal sweep dynamics (59% FQ, 35% chl, 28% AG targets require near-saturated human-reservoir persistence)
         //
-        // 3. Healthcare-associated organisms that also colonise community (dilution 0.10–0.25):
+        // 3. Healthcare-associated organisms that also colonise community (human-reservoir probability 0.10–0.25):
         //    Significant community carriage but community reservoir considerably less resistant
         //    than the hospital pool.  Includes Enterobacterales with environmental reservoirs.
-        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.08);
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.08);
-        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.12);
-        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.12);
-        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.25);
-        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("clostridioides_difficile_community_human_reservoir_profile_probability".to_string(), 0.10);
+        map.insert("enterobacter_spp._community_human_reservoir_profile_probability".to_string(), 0.08);
+        map.insert("enterobacter_cloacae_community_human_reservoir_profile_probability".to_string(), 0.08);
+        map.insert("citrobacter_spp._community_human_reservoir_profile_probability".to_string(), 0.15);
+        map.insert("serratia_spp._community_human_reservoir_profile_probability".to_string(), 0.15);
+        map.insert("morganella_spp._community_human_reservoir_profile_probability".to_string(), 0.15);
+        map.insert("proteus_spp._community_human_reservoir_profile_probability".to_string(), 0.15);
+        map.insert("p_stuartii_community_human_reservoir_profile_probability".to_string(), 0.15);
+        map.insert("klebsiella_pneumoniae_community_human_reservoir_profile_probability".to_string(), 0.12);
+        map.insert("enterococcus_faecium_community_human_reservoir_profile_probability".to_string(), 0.12);
+        map.insert("enterococcus_faecalis_community_human_reservoir_profile_probability".to_string(), 0.25);
+        map.insert("staphylococcus_epidermidis_community_human_reservoir_profile_probability".to_string(), 0.15);
         //
-        // 4. Endogenous flora / high-carriage human commensals (dilution 0.30–0.40):
+        // 4. Endogenous flora / high-carriage human commensals (human-reservoir probability 0.30–0.40):
         //    Majority of community infections arise from the person's own flora or close
         //    human-to-human contact; community resistance reflects recent human ecology.
-        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.35);
-        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.26);
-        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.40);
+        map.insert("escherichia_coli_community_human_reservoir_profile_probability".to_string(), 0.35);
+        map.insert("staphylococcus_aureus_community_human_reservoir_profile_probability".to_string(), 0.26);
+        map.insert("bacteroides_fragilis_community_human_reservoir_profile_probability".to_string(), 0.30);
+        map.insert("haemophilus_influenzae_community_human_reservoir_profile_probability".to_string(), 0.30);
+        map.insert("moraxella_catarrhalis_community_human_reservoir_profile_probability".to_string(), 0.30);
+        map.insert("streptococcus_pneumoniae_community_human_reservoir_profile_probability".to_string(), 0.40);
+        map.insert("streptococcus_pyogenes_community_human_reservoir_profile_probability".to_string(), 0.40);
+        map.insert("streptococcus_agalactiae_community_human_reservoir_profile_probability".to_string(), 0.40);
+        map.insert("helicobacter_pylori_community_human_reservoir_profile_probability".to_string(), 0.40);
         //
-        // 5. Obligate human pathogens / STIs (dilution 0.60–0.80):
+        // 5. Obligate human pathogens / STIs (human-reservoir probability 0.60–0.80):
         //    Exclusively human-to-human transmission; community resistance pool IS human ecology.
-        map.insert("neisseria_gonorrhoeae_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("neisseria_meningitidis_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("chlamydia_trachomatis_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("mycoplasma_genitalium_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("mycoplasma_pneumoniae_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("treponema_pallidum_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("bordetella_pertussis_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("mdr_mycobacterium_tuberculosis_community_resistance_dilution_factor".to_string(), 0.80);
+        map.insert("neisseria_gonorrhoeae_community_human_reservoir_profile_probability".to_string(), 0.80);
+        map.insert("neisseria_meningitidis_community_human_reservoir_profile_probability".to_string(), 0.60);
+        map.insert("chlamydia_trachomatis_community_human_reservoir_profile_probability".to_string(), 0.80);
+        map.insert("mycoplasma_genitalium_community_human_reservoir_profile_probability".to_string(), 0.80);
+        map.insert("mycoplasma_pneumoniae_community_human_reservoir_profile_probability".to_string(), 0.60);
+        map.insert("treponema_pallidum_community_human_reservoir_profile_probability".to_string(), 0.80);
+        map.insert("bordetella_pertussis_community_human_reservoir_profile_probability".to_string(), 0.60);
+        map.insert("mdr_mycobacterium_tuberculosis_community_human_reservoir_profile_probability".to_string(), 0.80);
 
 
     // Per-bacterium hospital resistance concentration factor.
@@ -11017,8 +11017,8 @@ lazy_static! {
         // spread in populations, more important than de novo emergence during treatment.
         // Not one of the four sampled axes: structural microbiome→infection bridge parameter.
         map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);  // !!!micro
-        // Not one of the four sampled axes: structural community reservoir dilution parameter.
-        map.insert("community_resistance_dilution_factor".to_string(), 0.30); 
+        // Not one of the four sampled axes: structural community human-reservoir profile probability.
+        map.insert("community_human_reservoir_profile_probability".to_string(), 0.30);
         map.insert("hospital_profile_cache_retention".to_string(), 0.995); // Hospital ecology persists ~139-day half-life (endemic MRSA/VRE/CRE on wards)
 
         // Baseline global multipliers retained for compatibility. In four-axis calibration,

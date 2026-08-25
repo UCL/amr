@@ -60,7 +60,8 @@
   <text x="400" y="421" text-anchor="middle" class="decision">
     <tspan x="400" dy="0">Select the community</tspan>
     <tspan x="400" dy="25">human-reservoir route?</tspan>
-    <tspan x="400" dy="28" class="code">P = community_resistance_dilution_factor[b]</tspan>
+    <tspan x="400" dy="27" class="code">P = community_human_reservoir_</tspan>
+    <tspan x="400" dy="20" class="code">profile_probability[b]</tspan>
   </text>
 
   <path d="M 330 500 L 330 565" class="arrow"/>

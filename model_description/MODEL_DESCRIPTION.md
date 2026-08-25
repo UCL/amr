@@ -531,7 +531,7 @@ There can be a delay between infection acquisition and symptom-driven treatment.
 
 - [5.1 Historical introduction](#51-historical-introduction)
 - [5.2 The testing process](#52-the-testing-process)
-- [5.3 Testing criteria and rates](#53-testing-criteria-and-rates)
+- [5.3 Testing eligibility and daily probabilities](#53-testing-eligibility-and-daily-probabilities)
 - [5.4 Serious resistance marker drugs](#54-serious-resistance-marker-drugs)
 
 Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.
@@ -540,7 +540,7 @@ We do not attempt to reproduce the full heterogeneity of specimen quality, break
 
 Within this simplified pathway, AST is an error-prone report of the model's mechanism-derived acquired resistance.  A zero reported resistance value (any_r = 0) therefore means that no modelled acquired resistance was reported for that drug; it does not in itself establish that the drug has baseline activity against the bacterium or will be clinically effective as that also depends on the potency of the drug against the bacteria.
 
-**Individual-level variables introduced in this section.** For each active infection, `test_identified_infection[b]` records whether bacterial identification is complete, while `test_for_resistance[b]` records whether the antimicrobial susceptibility testing (AST) panel is available and `resistance_test_initiated_day[b]` records when AST began. The corresponding daily identification and AST-initiation probabilities are `bacterial_identification_probability[b]` and `resistance_testing_probability[b]`. Once available, `resistances[b][d].test_r` records the reported acquired-resistance result for each drug; `serious_resistance_test_positive` indicates whether the completed panel reports resistance to at least one of the organism-specific marker drugs listed in [Section 5.4](#54-serious-resistance-marker-drugs). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
+**Individual-level variables introduced in this section.** For each active infection, `test_identified_infection[b]` records whether bacterial identification is complete, while `test_for_resistance[b]` records whether the antimicrobial susceptibility testing (AST) panel is available and `resistance_test_initiated_day[b]` records when AST began. The corresponding daily identification and AST-initiation probabilities, `bacterial_identification_probability[b]` and `resistance_testing_probability[b]`, are temporary calculated quantities rather than stored individual state. Once available, `resistances[b][d].test_r` records the reported acquired-resistance result for each drug; `serious_resistance_test_positive` indicates whether the completed panel reports resistance to at least one of the organism-specific marker drugs listed in [Section 5.4](#54-serious-resistance-marker-drugs). Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 5.1 Historical introduction
@@ -559,7 +559,9 @@ Before these dates, all prescribing in the model is entirely empiric — clinici
 
 ### 5.2 The testing process
 
-Once testing is available and ordered, the model simulates a laboratory workflow:
+The model does not store a separate culture-order or culture-pending state. Instead, once an infection becomes eligible for bacterial testing, a successful daily identification draw represents presentation, specimen collection, culture and identification in aggregate. The three-day identification delay is measured from infection acquisition, not from a separately simulated specimen-collection date. AST is represented in more detail: it has separate not-initiated, pending, and result-ready states.
+
+The simplified laboratory workflow is:
 
 | Step | Parameter | Value | Interpretation |
 |------|-----------|-------|-------------|
@@ -572,58 +574,96 @@ Once testing is available and ordered, the model simulates a laboratory workflow
 AST has three explicit states: not ordered, ordered but pending, and result ready. A ready panel with no detected modelled acquired resistance contains zero resistance values, so panel readiness is recorded separately and is not inferred from whether any reported resistance value is positive. Reporting error is sampled once when the complete panel becomes ready, and those reported results are retained unchanged until the infection clears. Until bacterial identification and the subsequent AST delay have elapsed, treatment proceeds without patient-specific susceptibility information.
 
 
-### 5.3 Testing criteria and rates
+### 5.3 Testing eligibility and daily probabilities
 
-Since culture ordering rates vary by care setting and clinical urgency — from selective but still often clinically useful urine cultures in outpatient UTIs to higher, though still imperfect, blood-culture use in sepsis — the model captures these differences:
+**Eligibility for bacterial identification.** A bacterium receives a daily identification draw only when its infection is still active, has caused symptoms or another represented indication for testing, has not already been identified, and is at least three days old. General bacterial testing and any configured bacterium-specific identification date must also have been reached. Asymptomatic carriage and asymptomatic active infection are therefore not tested through this pathway.
 
-| Factor | Parameter | Value | Clinical meaning |
-|--------|-----------|-------|-----------------|
-| **Baseline culture rate** | `bacterial_testing_base_rate_per_day` | 15% per day | A symptomatic outpatient has a 15% daily chance of having a culture sent |
-| **AST reflex rate** | `resistance_testing_base_rate_per_day` | 95% per day | Once a culture is positive, AST is almost always performed |
-| **Sepsis** | `testing_sepsis_multiplier` | ×4.0 | Sepsis makes clinicians much more likely to send cultures, although recommended blood cultures are still not obtained in every real-world case; this changes testing probability, not laboratory turnaround time |
-| **Immunosuppressed** | `testing_immunosuppressed_multiplier` | ×2.5 | Clinicians investigate more aggressively |
-| **Hospitalised (culture)** | `bacterial_testing_hospital_multiplier` | ×8.0 | Hospital patients have far greater access to microbiology labs |
-| **Hospitalised (AST)** | `resistance_testing_hospital_multiplier` | ×5.0 | Hospital settings are modelled as more likely to complete AST when resources are constrained, especially in earlier eras and lower-capacity settings; in modern high-income systems this difference may be small because cultured clinically relevant isolates often get AST regardless of referral source |
+**Eligibility for AST.** Once bacterial identification has succeeded and AST is historically available, the model begins daily AST-initiation draws. The first such draw can occur on the same simulated day as bacterial identification. If it succeeds, the panel becomes pending and is reported two days later; no further initiation draw is made while it is pending.
 
+For either bacterial identification or AST initiation, the conditional daily probability is
 
+$$
+\text{adjusted base probability}(x)
+= \min\left(1,\;\max\left(0,\;\text{base probability}(x)
+\times \text{policy multiplier}(x)\right)\right),
+$$
 
-**Regional differences:** Laboratory capacity varies dramatically around the world. Many hospitals in sub-Saharan Africa lack the microbiological infrastructure that is routine in European hospitals (Jacobs J et al., 2019). The model captures this with regional testing multipliers:
+followed by
 
-| Region | Testing multiplier | Context |
+$$
+p(x,t) = \min\left(1,\;
+\text{adjusted base probability}(x)
+\times \text{temporal multiplier}(x,t)
+\times \text{hospital multiplier}(x)
+\times \text{regional multiplier}
+\times \text{immunodeficiency multiplier}
+\times \text{sepsis multiplier}
+\right),
+$$
+
+where $x$ denotes bacterial identification or AST initiation. A policy multiplier first modifies the base probability, with that intermediate value restricted to the interval from 0 to 1. The clinical, regional and temporal factors then multiply it, and the final probability also cannot exceed 1. Because either restriction can be reached, a multiplier should not be interpreted as producing the same proportional change in every clinical context.
+
+| Component | Bacterial identification | AST initiation after identification | Clinical interpretation and evidence |
+|---|---:|---:|---|
+| Base daily probability | 15% | 95% | Calibrated conditional values. They are not estimates of the proportion of all infections cultured or of all isolates receiving AST. Testing practice varies by syndrome and setting; uncomplicated outpatient infections may be managed selectively, while culture and susceptibility testing are more important in severe or complicated infection.<sup>1</sup> |
+| Hospital multiplier | ×8.0 | ×5.0 | Represents greater access to specimen collection and microbiology services in hospital. The ordering is evidence-informed, but the numerical multipliers are calibrated.<sup>2</sup> |
+| Sepsis multiplier | ×4.0 | ×4.0 | Represents urgent microbiological investigation in sepsis. Guidelines recommend obtaining appropriate cultures before antimicrobials when this does not materially delay treatment; the model multiplier is not a measured guideline effect size.<sup>3</sup> |
+| Immunodeficiency multiplier | ×2.5 | ×2.5 | Represents more intensive investigation of high-risk immunocompromised patients, informed by diagnostic recommendations for contexts such as fever and neutropenia. The model applies one composite multiplier across all represented immunodeficiency states.<sup>4</sup> |
+| Temporal adoption | Configured lower component 0.10 and maximum 1.0; fixed 40-year sigmoid after 1945 | Configured lower component 0.05 and maximum 1.0; fixed 50-year sigmoid after 1955 | Coarse historical diffusion of laboratory capacity. These are model assumptions rather than estimates fitted to a historical testing series. |
+
+1. Gupta K et al. (2011) illustrates that microbiological testing needs differ even within UTI, with greater reliance on culture and susceptibility results for pyelonephritis than for uncomplicated cystitis. The model does not attempt to encode syndrome-specific ordering rules.
+2. The broad hospital and resource-capacity rationale is supported by descriptions of diagnostic bacteriology constraints in district hospitals and WHO guidance on laboratory systems (Jacobs J et al., 2019; World Health Organization GLASS guidance, 2020). These sources do not supply the ×8.0 or ×5.0 values.
+3. Sepsis guidance stresses prompt investigation alongside urgent treatment (Evans L et al., 2021). It does not estimate a universal fourfold increase in culture ordering or AST initiation.
+4. Guidance for fever and neutropenia supports prompt, risk-stratified investigation and treatment in a clinically important immunocompromised population (Freifeld AG et al., 2011). The model's broader composite immunodeficiency state is not equivalent to chemotherapy-induced neutropenia.
+
+These are **repeated daily probabilities conditional on eligibility**. For example, if the unmodified identification probability remained 15% for five eligible days, the cumulative probability of identification during that interval would be $1-(1-0.15)^5=55.6\%$, not 15%. In the full model the probability can change from day to day as hospitalisation, sepsis, region, immunodeficiency, policy, and historical adoption change. A failed identification draw leaves no stored negative-test event; an eligible active infection can receive another draw the next day.
+
+**Regional differences.** The same regional multiplier applies to bacterial identification and AST initiation. Laboratory capacity varies substantially within as well as between world regions; the six values below are deliberately coarse effective-capacity inputs:
+
+| Region | Testing multiplier | Model interpretation |
 |--------|-------------------|---------|
-| Europe | ×1.2 | Highest testing density |
-| North America | ×1.1 | High infrastructure |
-| Oceania | ×0.8 | Geographically dispersed |
-| Asia | ×0.7 | Highly variable by country |
-| South America | ×0.6 | Variable access |
-| Africa | ×0.3 | Very limited lab infrastructure in many settings |
+| Europe | ×1.2 | Highest effective testing capacity |
+| North America | ×1.1 | High effective testing capacity |
+| Oceania | ×0.8 | High-resource systems combined with geographic dispersion and regional heterogeneity |
+| Asia | ×0.7 | Highly heterogeneous access and capacity |
+| South America | ×0.6 | Variable access and capacity |
+| Africa | ×0.3 | Major bacteriology-access constraints in many settings |
 
-*Table sources: Jacobs J et al., 2019; World Health Organization GLASS dashboard, accessed 2026.*
+*Evidence note:* Jacobs J et al. (2019), WHO GLASS, and WHO laboratory-strengthening guidance document major inequities in bacteriology and AST capacity, specimen transport, quality systems and reporting infrastructure. They support representing capacity differences but do not provide these regional multipliers. The values should not be read as literal regional culture rates, and they conceal substantial country-level and within-region variation (World Health Organization GLASS guidance, 2020; World Health Organization GLASS dashboard, accessed 2026).
 
-
-These regional differences have direct consequences for AMR: in settings where testing is rare, patients are more likely to continue on empiric therapy (including on ineffective empiric therapy), creating selection pressure for resistance without the feedback loop of culture results to guide narrower prescribing.
-
-As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasised by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings.
+Lower testing access can prolong empiric treatment, including ineffective treatment, because organism identification and patient-specific AST results are less often available to guide therapy. The model does not separately represent specimen type, specimen quality, contamination, culture-negative sampling, laboratory queueing, platform-specific sensitivity, or failure to communicate a completed result.
 
 
 ### 5.4 Serious resistance marker drugs
 
-In this model, "serious resistance" means modelled acquired resistance to at least one of the organism-specific marker drugs listed below. This classification is used in outputs describing resistance present at infection acquisition and among active infections and does not depend on diagnostic testing. Separately, once AST results are available, reported resistance to a marker drug contributes to the probability of hospital admission. The `serious_resistance_marker_drugs` reference table defines the relevant marker drug or drugs for each organism.
+In this model, "serious resistance" is a deliberately simple **organism-specific sentinel outcome**: it means that modelled acquired resistance is present to the marker drug listed for that organism. It is not a clinical susceptibility-breakpoint classification, a definition of multidrug or extensively drug-resistant infection, a WHO or CDC priority category, or a claim that the organism is resistant to all usual treatment options. Intrinsic lack of activity is not sufficient; the outcome uses the modelled acquired-resistance state for the marker drug.
+
+For outputs describing resistance at infection acquisition or during active infection, the classification uses the underlying modelled resistance state and does not require diagnostic testing. In the hospital-admission rule, by contrast, resistance to a marker contributes only after an AST panel is available and reports it. The same organism-to-marker mapping is used in the Rust simulation and in the Python output analysis.
 
 | Organism group or species | Marker drug |
 |---------------------------|-------------|
-| Enterobacterales and selected Gram-negative nosocomial pathogens: *E. coli*, *K. pneumoniae*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *A. baumannii*, *P. aeruginosa*, *B. cepacia* complex, *B. fragilis* | `meropenem` |
-| *S. maltophilia* | `trim_sulf` |
-| Staphylococci | `flucloxacillin` |
-| Enterococci and *C. difficile* | `vancomycin` |
-| *S. pneumoniae*, *S. agalactiae*, *T. pallidum* | `penicillin_g` |
-| *S. pyogenes* | `erythromycin` |
-| *H. influenzae* | `amoxicillin_clavulanate` |
-| Macrolide-treated respiratory, atypical, STI, and cholera organisms: *M. catarrhalis*, *M. pneumoniae*, *L. pneumophila*, *B. pertussis*, *V. cholerae*, *C. trachomatis*, *M. genitalium* | `azithromycin` |
-| Fluoroquinolone-treated enteric organisms: *C. jejuni*, *S. Typhi*, *S. Paratyphi A*, *Shigella* spp., *Y. enterocolitica* | `ciprofloxacin` |
-| iNTS, *N. gonorrhoeae*, *N. meningitidis* | `ceftriaxone` |
-| *L. monocytogenes* | `ampicillin` |
-| *H. pylori* | `clarithromycin` |
+| Enterobacterales and selected Gram-negative nosocomial pathogens: *E. coli*, *K. pneumoniae*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *A. baumannii*, *P. aeruginosa*, *B. cepacia* complex, *B. fragilis*<sup>1</sup> | `meropenem` |
+| *S. maltophilia*<sup>2</sup> | `trim_sulf` |
+| Staphylococci<sup>3</sup> | `flucloxacillin` |
+| Enterococci and *C. difficile*<sup>4</sup> | `vancomycin` |
+| *S. pneumoniae*, *S. agalactiae*, *T. pallidum*<sup>5</sup> | `penicillin_g` |
+| *S. pyogenes*<sup>5</sup> | `erythromycin` |
+| *H. influenzae*<sup>1</sup> | `amoxicillin_clavulanate` |
+| Macrolide-treated respiratory, atypical, STI, and cholera organisms: *M. catarrhalis*, *M. pneumoniae*, *L. pneumophila*, *B. pertussis*, *V. cholerae*, *C. trachomatis*, *M. genitalium*<sup>6</sup> | `azithromycin` |
+| Fluoroquinolone-treated enteric organisms: *C. jejuni*, *S. Typhi*, *S. Paratyphi A*, *Shigella* spp., *Y. enterocolitica*<sup>7</sup> | `ciprofloxacin` |
+| iNTS, *N. gonorrhoeae*, *N. meningitidis*<sup>8</sup> | `ceftriaxone` |
+| *L. monocytogenes*<sup>8</sup> | `ampicillin` |
+| *H. pylori*<sup>9</sup> | `clarithromycin` |
+
+1. WHO's 2024 priority list and CDC's 2019 threats report support the importance of carbapenem resistance in *A. baumannii*, Enterobacterales and *P. aeruginosa*, and of acquired beta-lactam resistance in *H. influenzae*. They do not define these model rows: WHO separately identifies third-generation-cephalosporin-resistant Enterobacterales and ampicillin-resistant *H. influenzae*. Extending one meropenem sentinel across the broader group, and using amoxicillin-clavulanate for *H. influenzae*, are harmonising model choices (World Health Organization bacterial priority pathogens list, 2024; CDC AR Threats, 2019).
+2. *S. maltophilia* has broad intrinsic beta-lactam resistance, making a carbapenem marker inappropriate. TMP-SMX is one important active option, but current IDSA guidance for invasive infection places it within combination therapy rather than treating it as a universally preferred monotherapy. Its use here identifies a clinically consequential loss of activity; it is not a treatment recommendation (Brooke JS, 2012; IDSA, 2026).
+3. Flucloxacillin is the model's proxy for the anti-staphylococcal-penicillin phenotype affected by *mec*-mediated methicillin resistance. Clinical laboratories generally infer this phenotype with agents or tests such as cefoxitin, oxacillin, *mecA* or PBP2a, so the model marker should not be read as the literal laboratory definition of MRSA or methicillin-resistant coagulase-negative staphylococci (Hartman BJ & Tomasz A, 1984; EUCAST, 2023; CDC AR Threats, 2019).
+4. Vancomycin-resistant *E. faecium* is an established priority resistance phenotype. For *C. difficile*, oral vancomycin is a core treatment option, but vancomycin resistance is not being invoked here as the same formal surveillance category as VRE; it is a treatment-relevance sentinel chosen by the model (CDC AR Threats, 2019; McDonald LC et al., 2018).
+5. These rows deliberately combine distinct clinical rationales rather than one shared surveillance definition. WHO's 2024 list distinguishes penicillin-resistant group B streptococci, macrolide-resistant group A streptococci and macrolide-resistant pneumococci. Penicillin remains the reference treatment for syphilis, while CDC reports no clinical group A streptococcal isolate resistant to penicillin or cephalosporins; erythromycin therefore represents clinically relevant resistance among alternative therapies for *S. pyogenes* (World Health Organization bacterial priority pathogens list, 2024; Workowski KA et al., 2021; CDC group A streptococcal guidance, 2025).
+6. Azithromycin has clinically important but different roles across this deliberately broad group, including respiratory or atypical infection, pertussis, cholera and selected STI pathways. In particular, macrolide resistance substantially changes *M. genitalium* management. The shared marker is a modelling convention, not a claim that azithromycin is universally first-line or that one cross-organism surveillance category exists (Metlay JP et al., 2019; Workowski KA et al., 2021; CDC pertussis guidance, 2025; WHO Regional Office for Africa, 2023).
+7. Fluoroquinolone resistance in *Campylobacter*, *S.* Typhi, non-typhoidal *Salmonella* and *Shigella* is prominent in WHO or CDC priority assessments. The model applies ciprofloxacin as a common enteric sentinel and extends that convention to *S.* Paratyphi A and *Y. enterocolitica*; those extensions are model choices rather than a single formal priority category (World Health Organization bacterial priority pathogens list, 2024; CDC AR Threats, 2019).
+8. Ceftriaxone is a critical third-generation-cephalosporin treatment option for gonorrhoea, invasive non-typhoidal salmonellosis and bacterial meningitis; ampicillin is added when *Listeria* is a concern. These marker choices represent loss of a clinically important treatment option, not a claim that ceftriaxone-resistant meningococcus or ampicillin-resistant *Listeria* is common (Workowski KA et al., 2021; CDC Yellow Book, 2024; World Health Organization meningitis guidelines, 2025; van de Beek D et al., 2012).
+9. Clarithromycin resistance materially affects *H. pylori* eradication-regimen selection. Contemporary consensus guidance emphasises local resistance patterns and susceptibility-guided treatment where available. WHO included clarithromycin-resistant *H. pylori* in its 2017 priority list but did not retain it in the 2024 list; the model keeps it as a treatment-relevance sentinel (Savoldi A et al., 2018; Malfertheiner P et al., 2022; World Health Organization bacterial priority pathogens list, 2024).
 
 MDR *M. tuberculosis* is excluded from this classification because rifampicin resistance is part of the definition of MDR-TB. Additional resistance within MDR-TB would require a separate measure.
 
@@ -749,19 +789,45 @@ As introduced in [Section 4.1](#41-syndrome-assignment), syndrome 0 is a backgro
 | >10% resistant | ×0.8 | Drug still used but with awareness of resistance risk |
 
 
-#### Treatment cessation — stopping antibiotics
+#### Treatment cessation — daily stopping probability
 
-People stop antibiotics based on several factors.  We define daily probabilities of prematurely stopping treatment. They are defined such that most people remain on therapy through a guideline-like treatment window, recognising that shorter courses may often be preferred (Llewelyn MJ et al., 2017).
+The model does not assign a fixed or scheduled antibiotic-course length. Instead, each active drug is subject to a Bernoulli stopping decision on each eligible day. While a relevant active infection remains, the daily stopping probability is
 
-| Scenario | Daily stop probability | Approximate implication | Real-world parallel |
-|----------|----------------------|-------------------------|-------------------|
-| Default course | 0.45% per day | About 94% of patients are still on treatment by day 14 | Standard course for many infections |
-| No relevant active infection remains | 15% per day | Rapid discontinuation over the next few days once the presentation no longer seems to reflect an ongoing bacterial infection | Antibiotics stopped when the patient improves and ongoing bacterial infection is no longer thought likely, even if no bacterium was identified |
-| Cholera / *E. coli* GI | 2.5% per day | Supports short-course therapy, with most patients still on treatment through about 3-5 days | Short courses per guidelines |
-| *S. aureus* / *S. pneumoniae* | 1.5% per day | About 90% of patients are still on treatment by day 7 | Representative shorter courses for milder skin/soft-tissue or respiratory infection; more serious invasive infections can still require longer treatment |
-| MDR-TB | 0.06% per day | About 90% of patients are still on treatment by 6 months before regional adherence modifiers | Prolonged anti-TB regimens |
+$$
+p_{\mathrm{stop}} = \min\left(0.99,\;
+p_{\mathrm{bacterium}}
+\times m_{\mathrm{region}}
+\times m_{\mathrm{syndrome}}
+\times m_{\mathrm{policy}}
+\right).
+$$
 
-A constant daily stop probability of 0.45% does not imply an average course of 14 days; rather, it means treatment is only rarely interrupted on any given day, so most courses extend to approximately two weeks.
+Here, $p_{\mathrm{bacterium}}$ is the base probability for the highest-level active bacterium for which the drug has positive baseline potency. The regional multipliers are 0.80 for Europe, 0.85 for North America and Oceania, 1.15 for Asia, 1.25 for South America, and 1.40 for Africa. The syndrome-duration multiplier is 0.50 for bloodstream infection, 0.80 for intra-abdominal infection, 0.30 for central nervous system infection, 0.50 for genital/pelvic infection, 0.15 for bone/joint infection, and 1.0 for other syndromes. These multipliers and the base probabilities are calibrated model inputs, not estimates taken directly from the cited clinical literature. An active policy can additionally modify the stopping probability.
+
+If no relevant active infection remains for the drug, the model instead uses
+
+$$
+p_{\mathrm{stop}} = \min\left(0.99,\;0.15 \times m_{\mathrm{policy}}\right),
+$$
+
+so treatment usually stops relatively quickly after infection resolution or when no active infection is relevant to that drug. The regional and syndrome multipliers are not applied on this branch.
+
+Selected base inputs are shown below; Appendix B.3 gives the complete bacterium-specific table. The survival illustrations assume that the base probability remains constant, all multipliers equal 1, and the infection state does not change. If $p$ is the daily stopping probability, the proportion still receiving the drug after $n$ eligible stopping decisions is $(1-p)^n$.
+
+| Model context | Base daily stopping probability | Conditional survival illustration | Clinical rationale and limitations |
+|---|---:|---:|---|
+| Default, when no bacterium-specific override applies | 0.45% | 93.9% remain on treatment after 14 eligible decisions | Calibrated fallback. Evidence that treatment duration should reflect indication and response supports avoiding a universal fixed course, but does not determine this probability.<sup>1</sup> |
+| No relevant active infection remains for the drug | 15% | 44.4% remain after 5 eligible decisions; 8.7% after 15 | Represents relatively rapid cessation after recovery or reassessment; the numerical probability is calibrated rather than a guideline-derived treatment duration.<sup>1</sup> |
+| *Vibrio cholerae* or *Escherichia coli* | 2.5% | 88.1% remain after 5 eligible decisions | Cholera and uncomplicated cystitis provide clinical examples of very short treatment courses.<sup>2</sup> The *E. coli* value is nevertheless organism-specific in the model and therefore applies to every *E. coli* syndrome, not only gastrointestinal infection or UTI. |
+| *Streptococcus pneumoniae*, *Staphylococcus aureus*, *Streptococcus pyogenes*, *Haemophilus influenzae*, *Mycoplasma pneumoniae*, *Campylobacter jejuni*, or *Streptococcus agalactiae* | 1.5% | 90.0% remain after 7 eligible decisions | Shorter courses for uncomplicated pneumonia and skin/soft-tissue infection support the broad acute-infection rationale.<sup>3</sup> The shared organism-level value is calibrated; invasive disease can require substantially longer treatment, partly represented by the syndrome multipliers above. |
+| MDR *Mycobacterium tuberculosis* | 0.06% | 89.8% remain after 180 eligible decisions | Represents persistence on prolonged multidrug treatment, not a programmed six-month course. Current WHO guidance includes 6-month and modified 9-month regimens, with longer regimens for selected patients.<sup>4</sup> |
+
+1. The clinical literature supports individualising duration by infection, source control, clinical response and treatment setting, and often supports shorter courses than were historically used (Llewelyn MJ et al., 2017). It does **not** provide direct estimates of these daily Bernoulli probabilities.
+2. WHO cholera guidance includes single-dose regimens for patients requiring antibiotics (WHO Regional Office for Africa, 2023), while guidance for acute uncomplicated cystitis includes short regimens commonly used for *E. coli* infection (Gupta K et al., 2011). These examples support the relative short-course ordering, not the organism-wide 2.5% value.
+3. Guideline examples include minimum five-day treatment for clinically stable community-acquired pneumonia and short courses for uncomplicated skin/soft-tissue infection (Metlay JP et al., 2019; Stevens DL et al., 2014).
+4. WHO's current drug-resistant-TB recommendations include regimens of markedly different duration according to resistance pattern, eligibility and clinical circumstances (World Health Organization, 2025).
+
+The stopping draw cannot discontinue a drug on the day after it was initiated; the first possible stochastic cessation is two simulation days after initiation. Thereafter, the process has no fixed end date. A course continues until a stopping draw succeeds, the infection resolves and activates the higher no-relevant-infection probability, or another rule stops or changes treatment, such as treatment failure or toxicity. Consequently, the 0.45% default does **not** imply an average or programmed 14-day course: 14 days is only a conditional-survival illustration.
 
 
 
@@ -775,42 +841,51 @@ The syndrome-specific empiric prescribing scores described above and listed in A
 
 **Time-varying era-specific values.** For many organisms the preferred drug changed substantially during the simulation period — not because of drug licensing (that is handled separately by `DRUG_INTRODUCTION_DATES`) but because of guideline shifts driven by accumulating clinical evidence or emerging resistance. The model represents this using `_before_YYYY` suffix keys, such as `drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007`. For a given drug-organism pair, the model uses the earliest cutoff year that is still later than the current simulation year; if no cutoff applies, the base multiplier is used. This allows one configuration to describe a continuous temporal arc without adding separate year-by-year rules to the prescribing calculation.
 
-The species-guideline shifts currently encoded are:
+Selected era changes currently encoded are shown below. They are relative prescribing weights, not probabilities, treatment-effect estimates, or quantities reported by the cited sources. The references support the broad historical ordering and reasons for change; the numerical weights and cut-off years are calibrated, deliberately coarse global model inputs. Drug-introduction gates, and any configured organism-recognition gates, still apply, so an earlier-era multiplier cannot make a drug available before its introduction year or a configured organism-recognition year. No organism-recognition years are currently configured (Appendix B.3). Appendix B.4 gives the complete current matrix and all time-varying overrides.
 
-| Organism | Drug | Pre-era multiplier | Era | Base (post) multiplier | Historical rationale |
-|---|---|---|---|---|---|
-| *N. gonorrhoeae* | penicillin G | 14.0 | → 1987 | 2.0 | Penicillin sole first-line before FQs licenced |
-| *N. gonorrhoeae* | doxycycline | 12.0 | → 1987 | 4.0 | Tetracyclines were a major alternative to penicillin G from the 1950s; doxycycline increasingly dominant from ~1967 |
-| *N. gonorrhoeae* | TMP-SMX | 10.0 | → 1990 | 0.5 | Sulfonamides were the dominant GC treatment 1937–~1975 (near-universal resistance developed); TMP-SMX continued the selection pressure into the 1980s; proxy for the entire sulfonamide era |
-| *N. gonorrhoeae* | ciprofloxacin | 0.5 | → 1987 | — | FQ not yet in gonorrhoea guidelines |
-| *N. gonorrhoeae* | ciprofloxacin | 14.0 | 1987–2007 | 2.0 | Sole first-line in CDC and WHO guidance; resistance then ended use |
-| *N. gonorrhoeae* | ofloxacin | 8.0 | → 2007 | 1.0 | Co-first-line FQ option in European/Asian guidelines 1990–2007; additional selection pressure alongside ciprofloxacin |
-| *N. gonorrhoeae* | ceftriaxone | 2.0 | → 2007 | 12.0 | Adopted as first-line following FQ resistance |
-| *S.* Typhi / *S.* Paratyphi A | chloramphenicol | 14.0 | → 1990 | 2.0 | Dominant first-line until FQ era |
-| *S.* Typhi / *S.* Paratyphi A | ciprofloxacin | 0.5 → 14.0 | → 1990 / 1990–2010 | 2.0 | FQ first-line 1990–2010; declining after XDR emergence |
-| *S.* Typhi / *S.* Paratyphi A | ceftriaxone / azithromycin | — | 2010+ | 10.0 / 8.0 | XDR typhoid era first-line |
-| *S.* Typhi / *S.* Paratyphi A | ampicillin | 6.0 | → 2000 | 1.0 | Oral alternative to chloramphenicol until widespread resistance |
-| *S.* Typhi / *S.* Paratyphi A | TMP-SMX | 7.0 | → 2000 | 1.0 | Widely used alternative until resistance spread |
-| *Shigella* spp. | ampicillin + TMP-SMX | 7.0 | → 2000 | 1.0 | WHO first-line until multi-drug resistance |
-| *Shigella* spp. | ciprofloxacin | 14.0 | 1990–2010 | 2.0 | Global first-line until FQ resistance |
-| *Shigella* spp. | azithromycin | 2.0 → 10.0 | 1991–2010 / 2010+ | — | Preferred for FQ-resistant strains |
-| *Campylobacter jejuni* | ciprofloxacin | 0.5 | → 1990 | — | Not established for *Campylobacter* before FQ era |
-| *Campylobacter jejuni* | ciprofloxacin | 10.0 | 1990–2010 | 2.0 | Widely used for severe/traveller disease |
-| *Campylobacter jejuni* | azithromycin | 3.0 | 1991–2010 | 5.0 | Preferred once FQ resistance prevalent |
-| *E. faecalis* / *E. faecium* | vancomycin | 0.3 | → 1985 | 4.0 / 3.5 | Early vancomycin abandoned due to nephrotoxicity; reintroduced ~1985 for MRSA cover |
-| *C. difficile* | metronidazole | 12.0 | 1977–2017 | 4.0 | IDSA dominant first-line; downgraded in 2017 IDSA/SHEA guidelines |
-| *C. difficile* | vancomycin (oral) | 4.0 | 1977–2017 | 10.0 | Severe/refractory only before 2017; universal first-line after |
-| *S. aureus* | ciprofloxacin | 10.0 | → 2000 | 2.0 | 1988–2000: heavily used empirically for MRSA before FQ resistance precluded guideline use; modern era restricted to MSSA indications |
-| *M. genitalium* | doxycycline | 8.0 | → 1991 | 1.5 | Pre-PCR diagnosis era (before 1991): doxycycline was sole empiric first-line for all non-gonococcal urethritis; now used only for debulking |
-| *T. pallidum* | erythromycin / azithromycin / clarithromycin | 3.0 / 3.5 / 1.5 | → 2010 | 0.75 / 0.5 / 0.25 | Historical oral alternatives for syphilis when penicillin was avoided or unavailable; modern use sharply reduced after widespread 23S-mediated macrolide resistance |
-| *E. coli* | **nalidixic_acid** | 7.0 | **1963–1990** | 0.0 | First-line uncomplicated UTI 1963–1990; GyrA mutations seeded in *E. coli* reservoir for 24 years before ciprofloxacin was licensed |
-| *Shigella* spp. | **nalidixic_acid** | 12.0 | **1963–1990** | 0.0 | First-line dysentery in LMIC 1963–1990; pre-existing GyrA-mediated resistance explains rapid FQ resistance emergence post-1990 |
-| *Campylobacter jejuni* | **nalidixic_acid** | 8.0 | **1963–1990** | 0.0 | Gastroenteritis treatment; GyrA Thr86Ile selected before veterinary fluoroquinolone era |
-| *S.* Typhi / Paratyphi A / iNTS | **nalidixic_acid** | 8.0 | **1963–1990** | 0.0 | First-line enteric fever in South/SE Asia and sub-Saharan Africa 1963–1990 |
+| Organism | Drug | Earlier-era multiplier(s) | Encoded era or cut-off | Current base multiplier | Historical rationale |
+|---|---|---:|---|---:|---|
+| *N. gonorrhoeae*<sup>1</sup> | penicillin G | 35.0 | before 1987 | 2.0 | Penicillins were dominant historical treatments; rising plasmid-mediated and chromosomal resistance ended routine empiric use |
+| *N. gonorrhoeae*<sup>1</sup> | doxycycline | 80.0 | before 1987 | 0.25 | Tetracycline-class therapy was an important historical alternative; the large weight compresses historical tetracycline selection pressure |
+| *N. gonorrhoeae*<sup>1</sup> | TMP–SMX | 150.0 | before 1990 | 0.04 | Proxy for older sulfonamide and later TMP–SMX selection pressure, rather than a claim that one regimen dominated throughout this whole era |
+| *N. gonorrhoeae*<sup>1</sup> | ciprofloxacin | 0.5 / 120.0 | before 1987 / 1987–2006 | 3.0 | Minimal pre-introduction use, followed by a high fluoroquinolone-use era; ciprofloxacin was one of several recommended regimens, not the sole first-line treatment |
+| *N. gonorrhoeae*<sup>1</sup> | ofloxacin | 70.0 | before 2007, after introduction | 2.0 | Additional recommended fluoroquinolone option during the high-use era |
+| *N. gonorrhoeae*<sup>1</sup> | ceftriaxone | 2.0 | before 2007 | 6.0 | Already a recommended option during the fluoroquinolone era and increasingly the treatment backbone after fluoroquinolones were withdrawn |
+| *S.* Typhi / *S.* Paratyphi A<sup>2</sup> | chloramphenicol | 20.0 / 14.0 / 2.0 | before 1975 / 1975–1989 / 1990–2009 | 2.0 | Dominant early therapy, with use falling after multidrug resistance emerged |
+| *S.* Typhi / *S.* Paratyphi A<sup>2</sup> | ciprofloxacin | 14.0 | before 2010, after introduction | 4.0 / 2.0 | Fluoroquinolones became widely used after resistance to older first-line drugs; use then declined as fluoroquinolone non-susceptibility spread |
+| *S.* Typhi / *S.* Paratyphi A<sup>2</sup> | ceftriaxone | 1.0 / 3.0 | before 1990 / 1990–2009 | 4.0 | Increasingly used where fluoroquinolone treatment became unreliable |
+| *S.* Typhi / *S.* Paratyphi A<sup>2</sup> | azithromycin | 2.0 | before 2010, after introduction | 8.0 | Increasingly used as an oral option where fluoroquinolone non-susceptibility is common; 2010 is a coarse transition, not the onset of XDR typhoid |
+| *S.* Typhi / *S.* Paratyphi A<sup>2</sup> | ampicillin | 6.0 | before 2000 | 1.0 | Historical alternative to chloramphenicol, later restricted by multidrug resistance |
+| *S.* Typhi / *S.* Paratyphi A<sup>2</sup> | TMP–SMX | 7.0 | before 2000 | 0.04 | Historical alternative to chloramphenicol, later restricted by multidrug resistance |
+| *Shigella* spp.<sup>3</sup> | ampicillin / TMP–SMX | 7.0 / 7.0 | before 2000 | 1.0 / 0.04 | Important older treatments whose empiric usefulness fell as resistance became widespread |
+| *Shigella* spp.<sup>3</sup> | ciprofloxacin | 14.0 | before 2010, after introduction | 4.0 | Replaced older resistant regimens as a widely recommended first-line treatment; subsequent resistance reduced its reliability |
+| *Shigella* spp.<sup>3</sup> | azithromycin | 6.0 | before 2010, after introduction | 10.0 | Alternative for resistant infection; the post-2010 increase is a modelled shift rather than a universal guideline date |
+| *Campylobacter jejuni*<sup>4</sup> | ciprofloxacin | 10.0 | before 2010, after introduction | 4.0 | Fluoroquinolones were used for severe or empirically treated bacterial diarrhoea, but resistance increasingly limited empiric use; macrolides remain preferred when treatment is indicated |
+| *E. faecalis* / *E. faecium*<sup>5</sup> | vancomycin | 0.3 | before 1985 | 4.0 / 5.0 | Low early weight followed by increased hospital glycopeptide use as MRSA became more prevalent; the resulting selection context contributed to VRE emergence |
+| *C. difficile*<sup>6</sup> | metronidazole | 12.0 | before 2017, after drug introduction | 5.0 | Historically a principal treatment after *C. difficile* was implicated in antibiotic-associated colitis in the late 1970s; the 2017 IDSA/SHEA update moved routine initial treatment toward oral vancomycin or fidaxomicin |
+| *C. difficile*<sup>6</sup> | vancomycin (oral) | 4.0 | before 2017, after drug introduction | 10.0 | Previously weighted more strongly for severe or refractory disease, then promoted for initial episodes in the 2017 update |
+| *S. aureus*<sup>7</sup> | ciprofloxacin | 10.0 | before 2000, after introduction | 2.0 | Early enthusiasm included possible MRSA treatment, but resistance emerged rapidly; the high historical weight is not a claim of universal guideline endorsement |
+| *M. genitalium*<sup>8</sup> | doxycycline | 8.0 | before 1991 | 1.5 | Represents empirical treatment of non-gonococcal urethritis before organism-specific PCR detection; doxycycline monotherapy has limited microbiological cure but remains useful for reducing organism load before another agent |
+| *T. pallidum*<sup>9</sup> | erythromycin / azithromycin / clarithromycin | 3.0 / 3.5 / 1.5 | before 2010 | 0.75 / 0.5 / 0.25 | Historical oral alternatives when penicillin was avoided or unavailable; use fell after macrolide treatment failures and 23S-rRNA resistance mutations were documented |
+| *E. coli*<sup>10</sup> | `nalidixic_acid` | 7.0 | before 1990, after introduction | 0.0 | Represents documented historical urinary-tract use and associated early quinolone selection pressure |
+| *Shigella* spp.<sup>10</sup> | `nalidixic_acid` | 12.0 | before 1990, after introduction | 0.0 | Represents historical dysentery use; the 1990 cut-off is an earlier coarse model transition than WHO's eventual withdrawal of nalidixic acid |
+| *Campylobacter jejuni*<sup>10</sup> | `nalidixic_acid` | 8.0 | before 1990, after introduction | 0.0 | Coarse early quinolone-class selection proxy, not a claim that nalidixic acid was standard organism-specific therapy |
+| *S.* Typhi / *S.* Paratyphi A / iNTS<sup>10</sup> | `nalidixic_acid` | 8.0 | before 1990, after introduction | 0.0 | Coarse early quinolone-class reservoir proxy, not a claim that nalidixic acid was the routine first-line treatment for enteric fever |
+
+*Table evidence notes:*
+
+1. Historical reviews document successive gonococcal resistance to sulfonamides, penicillins, tetracyclines, and fluoroquinolones. The 1993 CDC guideline recommended ceftriaxone, cefixime, ciprofloxacin, or ofloxacin concurrently; CDC stopped recommending fluoroquinolones in 2007 as resistance became widespread. The model's 1987 and 2007 cut-offs therefore define broad prescribing eras rather than exact worldwide guideline transitions (Centers for Disease Control and Prevention, 1993; Centers for Disease Control and Prevention, 2007; Unemo M & Shafer WM, 2014).
+2. WHO describes multidrug-resistant *S.* Typhi resistant to chloramphenicol, ampicillin, and TMP–SMX emerging in the late 1980s, followed by widespread fluoroquinolone use, increasing fluoroquinolone non-susceptibility during the 1990s and 2000s, and greater reliance on cephalosporins and azithromycin. This supports the sequence, not the exact 1990, 2000, or 2010 model cut-offs or multiplier magnitudes (World Health Organization typhoid position paper, 2018).
+3. WHO's 2005 shigellosis guidance records widespread resistance to ampicillin, TMP–SMX, and nalidixic acid, recommends ciprofloxacin as first-line treatment, and lists azithromycin as an alternative. The model deliberately compresses geographically variable transitions into global eras (World Health Organization, 2005).
+4. Reviews document clinical fluoroquinolone use, rapid selection of quinolone resistance, and the continued preference for macrolides when antimicrobial treatment of campylobacteriosis is indicated. They do not estimate the model's 2010 cut-off or weights (Luangtongkum T et al., 2009).
+5. Vancomycin use rose in hospitals during the late 1980s alongside increasing MRSA prevalence, while VRE emerged and spread. The low pre-1985 and higher later weights are model abstractions of that change, not measured enterococcal prescribing frequencies (Rice LB, 2001).
+6. Experimental evidence implicated a toxin-producing *Clostridium* in antibiotic-associated colitis in 1977. The 2017 IDSA/SHEA update recommended vancomycin or fidaxomicin over metronidazole for an initial episode and restricted metronidazole to selected non-severe episodes where access to those agents was limited. These sources support the historical rationale and direction of the 2017 shift; the relative weights remain calibrated (Bartlett JG et al., 1977; McDonald LC et al., 2018). The current configuration has no lower organism-recognition gate, so the pre-2017 multipliers technically become eligible when each drug is introduced, rather than precisely in 1977.
+7. Ciprofloxacin was investigated as a possible treatment for MRSA and MSSA, but one prospective hospital study found high-level ciprofloxacin resistance in MRSA rise from none to 79% over one year after introduction. This supports strong early selection followed by restricted usefulness, not a universal 1988–2000 prescribing pattern (Blumberg HM et al., 1991).
+8. *M. genitalium* was discovered in 1980–1981, while reliable clinical detection became possible only after PCR methods were developed. Doxycycline had already been a standard empirical treatment for non-gonococcal urethritis but was often microbiologically inadequate for *M. genitalium*. More recent guidance uses doxycycline first in resistance-guided sequential therapy because it reduces organism load before the second agent. The 1991 cut-off represents the start of organism detectability, not immediate worldwide routine testing (Taylor-Robinson D & Jensen JS, 2011; Workowski KA et al., 2021).
+9. Macrolides were used as convenient oral alternatives for syphilis, but clinical azithromycin failures were linked to 23S-rRNA mutations and resistant strains became widespread. The 2010 transition is a coarse model date; penicillin remains the preferred treatment (Lukehart SA et al., 2004).
+10. Nalidixic acid entered clinical use as an early quinolone for urinary infection and was also used for shigellosis before resistance led WHO to withdraw it. Direct historical support is strongest for the *E. coli*/urinary and *Shigella*/dysentery rows. The *Campylobacter* and *Salmonella* values deliberately supply coarse early quinolone-class selection pressure and should not be interpreted as reconstructed organism-specific prescription frequencies (Ronald AR et al., 1966; World Health Organization, 2005).
 
 Nalidixic acid is grouped with fluoroquinolones in the model's policy-scale drug-class table, but its historical exposure is wired specifically to the first-step `MutationGyrAPrimary` route. It does not directly select the high-level `MutationGyrAParCSecondary` or `ProtectionQnr` routes. The existing 0.40 class effect is retained for this coarse representation; it should not be interpreted as a literal nalidixic-acid MIC shift.
-
-*C. difficile* also has a `treatment_recognition_year` of 1977 — before the Bartlett et al. description of antibiotic-associated colitis, no antibiotic pressure is applied to this organism regardless of multiplier values.
 
 For *M. genitalium*, the current calibration treats macrolide resistance as primarily a 23S-rRNA mutation problem, with `erm_b` retained only as a low-probability alternative MLS co-resistance pathway rather than a dominant pathway. This avoids forcing an implausibly strong mobile-element-style mechanism in an organism whose macrolide resistance is usually explained by chromosomal 23S substitutions.
 The tetracycline side is handled similarly: `tet_m` is retained only as a small historical non-gonococcal-urethritis / doxycycline-era signal, not as a dominant modern resistance mechanism.
@@ -842,7 +917,7 @@ The model uses a simplified pharmacokinetic representation in which each drug ha
 | `drug_{name}_half_life_days` | Drug-specific | How quickly the drug is cleared from the body |
 | `drug_{name}_initial_level` | 10.0 | Drug level immediately after dosing |
 | `drug_{name}_double_dose_multiplier` | 2.0 | Level when a double dose is given |
-| `drug_{name}_spectrum_breadth` | 3.0 | How broadly the drug disrupts the microbiome (higher = kills more bystander bacteria = more collateral damage) |
+| `drug_{name}_spectrum_breadth` | 3.0 | Ordinal antibacterial-spectrum category used in drug-choice scoring; it does not itself determine microbiome disruption |
 
 
 
@@ -869,44 +944,65 @@ Half-lives vary enormously — from penicillin G (cleared within an hour, needin
 
 
 
-#### Spectrum breadth — collateral damage to the microbiome
+#### Spectrum breadth — stewardship scoring and separate ecological disruption
 
-Since broad-spectrum agents exert collateral selection pressure on the commensal microbiome — creating ecological niches for resistant organisms — the model represents spectrum breadth in two related but distinct ways.
+Antibacterial spectrum is the range of bacterial groups against which a drug has useful activity. It matters when choosing broad empirical cover and when de-escalating to a narrower agent after the pathogen is known. It is related to, but not interchangeable with, measured disruption of the gut microbiome or risk of *C. difficile* infection.
 
-Specifically:
+The model therefore has two separate parameters:
 
-1. `spectrum_breadth` is a stewardship-facing drug property used when scoring treatment choices. In empiric therapy it favours broader agents when coverage is uncertain, while in targeted therapy it rewards de-escalation towards narrower agents once the pathogen is identified.
-2. The longer ecological consequence is handled through each drug's `microbiome_disruption_log_odds`, which accumulates into a persistent ecological-disruption state described in Section 8. That state decays over time rather than disappearing immediately when treatment stops, and it directly raises the log-odds of later microbiome acquisition events.
+1. `spectrum_breadth` is an ordinal stewardship-facing property used only in drug-choice scoring.
+2. `microbiome_disruption_log_odds` is the per-day increment added to the persistent ecological-disruption state described in Section 8. That state decays over time and raises the log-odds of later microbiome acquisition.
 
-The model consequence is not limited to broader initial coverage. Broader therapy influences prescribing behaviour up front, and microbiome disruption leaves a persistent ecological effect that can increase later carriage risk even after the course has finished.
+Published spectrum scores demonstrate that antibacterial breadth can be represented numerically, but they use different organism groups, local susceptibility assumptions and score ranges, and can rank the same drugs differently. The model's 1–5 scale is therefore a deliberately compact, expert-assigned ordinal scale. It is not a rescaled published antibiotic spectrum index, and a one-unit difference should not be interpreted as a fixed biological or clinical effect (Gerber JS et al., 2017; Ilges D et al., 2023).
 
-Illustrative `spectrum_breadth` values:
+The Rust code uses the scores at category thresholds rather than as a continuous multiplier:
 
-| Drug | Breadth | Meaning |
-|------|---------|---------|
-| nitrofurantoin | 1.0 (Minimal) | Renally concentrated and rapidly metabolised; negligible gut microbiome disruption |
-| penicillin_g | 2.0 (Narrow) | Minimal disruption to the microbiome |
-| linezolid | 2.0 (Narrow) | Targets Gram-positives only |
-| vancomycin | 2.5 (Narrow-medium) | Mainly Gram-positive spectrum |
-| trim_sulf | 3.5 (Medium-broad) | Moderate disruption |
-| azithromycin | 4.0 (Broad) | Significant microbiome disruption |
-| ceftriaxone | 4.0 (Broad) | Major disruption; linked to *C. difficile* risk (Slimings C et al., 2021) |
-| ciprofloxacin | 4.5 (Very broad) | Extensive gut microbiome disruption |
-| meropenem | 5.0 (Very broad) | Maximum disruption — the broadest-spectrum agent |
+| Prescribing context | Spectrum category | Drug-score multiplier |
+|---|---|---:|
+| Targeted treatment, with adequate activity against the identified bacterium | ≤2.5 | 5.0 (narrow-spectrum bonus) |
+| Targeted treatment, with adequate activity against the identified bacterium | ≥4.0 | 0.45 (broad-spectrum penalty) |
+| Empirical treatment, outside prophylaxis, with a positive syndrome-drug score | ≤2.0 | 1.2 |
+| Empirical treatment, outside prophylaxis, with a positive syndrome-drug score | ≥3.5 | 1.15 (broad-coverage bonus) |
+| Prophylaxis | ≤3.5 | 1.25 |
+| Prophylaxis | ≥4.0 | 0.10 |
 
-Operationally, this means broad-spectrum therapy can affect the simulation in two downstream places: first by making a drug more attractive for empirical cover but less attractive for narrow targeted de-escalation, and second by increasing later colonisation pressure through the microbiome-disruption reservoir that feeds carriage acquisition.
+Scores between the stated thresholds receive no spectrum multiplier in that context. Consequently, for example, ciprofloxacin at 4.5 and meropenem at 5.0 fall into the same operational category in every current spectrum rule; their numerical difference does not produce a graded difference in prescribing score.
+
+Illustrative `spectrum_breadth` values are shown below. Drugs without a specific override use the default value of 3.0.
+
+| Drug | Model score | Clinical-spectrum rationale |
+|------|-------------|-----------------------------|
+| nitrofurantoin<sup>2</sup> | 1.0 (minimal) | A lower-urinary-tract niche agent with low systemic exposure; its score primarily distinguishes it from systemic broad-cover agents |
+| penicillin_g<sup>1</sup> | 2.0 (narrow) | Classic narrow-spectrum penicillin with important organism-specific activity but many Gram-negative and beta-lactamase-mediated gaps |
+| linezolid<sup>1</sup> | 2.0 (narrow) | Activity is principally against Gram-positive organisms, including resistant staphylococci and enterococci |
+| vancomycin<sup>1</sup> | 2.5 (narrow–medium) | Systemic activity is principally Gram-positive; Gram-negative outer membranes exclude the drug |
+| trim_sulf<sup>1</sup> | 3.5 (medium–broad) | Activity spans selected Gram-positive and Gram-negative organisms but has important gaps, including *Pseudomonas* and anaerobes |
+| azithromycin<sup>1</sup> | 4.0 (broad model category) | The high model category reflects use across respiratory, atypical, enteric and STI contexts; it does not imply reliable activity across all Gram-positive, Gram-negative and anaerobic groups |
+| ceftriaxone<sup>1,3</sup> | 4.0 (broad) | Broad activity across many clinically important Gram-positive and Gram-negative organisms, with important gaps such as *Pseudomonas*, enterococci and *Listeria* |
+| ciprofloxacin<sup>1</sup> | 4.5 (very broad) | Wide aerobic Gram-negative activity, including *Pseudomonas*, plus selected Gram-positive activity; anaerobic activity remains limited |
+| meropenem<sup>1</sup> | 5.0 (very broad) | Very broad Gram-positive, Gram-negative and anaerobic activity, but not universal coverage; important gaps include MRSA, VRE and *S. maltophilia* |
+
+*Table evidence notes:*
+
+1. The qualitative activity descriptions are based on standard pharmacology and on the organism-group approach used in published spectrum scoring systems. These sources support the broad ordering, not the model's exact values or decision thresholds (Brunton LL et al., 2018; Gerber JS et al., 2017; Ilges D et al., 2023).
+2. Nitrofurantoin's urinary pharmacokinetics support its lower-UTI niche. A small prospective metagenomic study found no significant faecal-microbiota impact other than a temporary increase in *Bifidobacterium*, but that ecological observation does not determine either of the model parameters (Huttner A et al., 2019; Vervoort J et al., 2015).
+3. Third-generation cephalosporin exposure is associated with healthcare-facility-onset *C. difficile* infection. This supports concern about collateral ecological effects but does not estimate ceftriaxone's spectrum score or the model's separate microbiome-disruption coefficient (Slimings C & Riley TV, 2021).
+
+In the current configuration, `microbiome_disruption_log_odds` does not vary by drug: every drug uses the default value of 0.3 because no drug-specific overrides are configured. On each day that a drug's model level exceeds 0.1, it adds 0.3 to the disruption state; concurrent qualifying drugs each add an increment. The state then decays with a 30-day half-life. Thus `spectrum_breadth` currently changes drug selection but does **not** make a broader drug cause a larger ecological-disruption increment. The ecological effect varies through exposure duration and the number of concurrent drugs, not through the breadth scores in this table. Drug-specific ecological effects could be represented in future by configuring separate `drug_{name}_microbiome_disruption_log_odds` values and calibrating them against suitable evidence.
 
 
 
 ### 6.4 Drug penetration by syndrome
 
-Since tissue penetration determines whether an antibiotic achieves adequate site concentrations, the model assigns penetration coefficients for each drug–syndrome pair. The pharmacokinetic distinctions most relevant to AMR involve:
+The model assigns a `penetration` coefficient to each drug-class–syndrome pair. Despite the retained parameter name, this is best interpreted as a **dimensionless site-availability modifier** applied to the model's standardised drug level. It is not a measured tissue:plasma concentration ratio, an MIC, or a drug-specific concentration. In a few settings it also represents route-dependent local availability (for example, high colonic exposure after oral fidaxomicin or vancomycin) or loss of local activity (for example, daptomycin in lung surfactant).
+
+The coefficients range from 0.0 (no useful modelled activity at the site) to 1.0 (the neutral reference: the standardised drug level is not reduced). Their qualitative ordering is informed by pharmacokinetic and pharmacological evidence, but the exact numerical values are calibrated model inputs and should not be read as estimates reported by the cited studies. The distinctions most relevant to AMR include:
 
 - **CNS (meningitis):** The blood-brain barrier normally blocks most antibiotics, but bacterial meningitis causes substantial BBB inflammation that increases drug permeability. The penetration coefficients for CNS syndrome therefore reflect the *inflamed* BBB state rather than healthy-CNS values. Even so, drugs with very poor lipid solubility, large molecular weight, or active efflux transport (particularly aminoglycosides, polymyxins, and lipopeptides) remain inadequate at the site, while agents such as ceftriaxone, metronidazole, chloramphenicol, and linezolid achieve therapeutic CSF levels under these conditions.
-- **Bone/joint:** Drugs must penetrate dense, poorly vascularised tissue. `rifamycins` and `fq` agents penetrate well; `ag_group1` and `ag_group2` do not.
-- **Bloodstream:** By definition, any IV drug achieves full levels here (penetration = 1.0 for all drugs).
+- **Bone/joint:** Distribution is heterogeneous across cortical and cancellous bone, synovial fluid, implants, and biofilm. The relatively high `rifamycins`, `oxa`, and `fq` coefficients are modelling choices for useful site activity, not measured bone:plasma ratios; in particular, rifampicin's clinical role in implant-associated infection should not be equated with uniformly high bone exposure.
+- **Bloodstream:** A coefficient of 1.0 is used for every drug as the model's reference compartment. This is a modelling convention: systemic exposure is already represented by the standardised drug level, so the penetration term applies no additional reduction. It does not assert identical pharmacokinetics for all drugs.
 
-Penetration values range from 0.0 (no drug reaches the site) to 1.0 (full systemic concentration available). The table uses the model's internal drug-class keys; the full mapping is in Appendix A.3, but the keys used here are:
+The table uses the model's internal drug-class keys; the full mapping is in Appendix A.3, but the keys used here are:
 
 | Key | Meaning | Examples |
 |-----|---------|----------|
@@ -927,21 +1023,31 @@ Penetration values range from 0.0 (no drug reaches the site) to 1.0 (full system
 | `glyc` / `lipoglycopeptides` | Glycopeptides and lipoglycopeptides | vancomycin; teicoplanin/dalbavancin |
 | `rifamycins` | Rifamycins | rifampicin |
 
-| Syndrome | Best penetration | Poorest penetration |
-|----------|-----------------|---------------------|
-| UTI (1) | `fq`, `sulf`, `nitrofurans`, `phosphonic_acids` (up to 1.0) | `mls` (0.4), `lincosamides` (0.3), `lipopeptides` (0.1) |
-| Skin (2) | `lipopeptides` (0.95), `fq` (0.9), `oxa` (0.9) | `nitrofurans` (0.2) |
-| Respiratory (3) | `mls` (0.95), `fq` (0.95), `oxa` (0.9) | `lipopeptides` (0.0), `ag_group1`/`ag_group2` (0.4) |
-| Bloodstream (4) | All 1.0 (reference compartment) | — |
-| Intra-abdominal (5) | `nitroimidazoles` (0.9), `fq` (0.75), `carb_group1`/`carb_group2` (0.75) | `ag_group1`/`ag_group2` (0.3) |
-| CNS (6) | `nitroimidazoles` (0.80), `oxa` (0.70), `chl` (0.70) | `ag_group1`/`ag_group2` (0.05), `poly` (0.05), `lipopeptides` (0.05) |
-| GI (7) | `macrocycles` (1.0), `nitroimidazoles` (0.95), oral `glyc` (0.90) | IV `glyc`/`lipoglycopeptides` (0.35) |
-| Genital (8) | `fq` (0.9), `nitroimidazoles` (0.8), `sulf` (0.8) | `ag_group1`/`ag_group2` (0.35) |
-| Bone/joint (9) | `rifamycins` (0.80), `oxa` (0.75), `fq` (0.70) | `ag_group1`/`ag_group2` (0.25), `poly` (0.2) |
+| Syndrome | Higher model coefficients | Lower model coefficients |
+|----------|---------------------------|--------------------------|
+| UTI (1)<sup>1</sup> | `fq`, `sulf`, `nitrofurans`, `phosphonic_acids` (up to 1.0) | `mls` (0.4), `lincosamides` (0.3), `lipopeptides` (0.1) |
+| Skin (2)<sup>2</sup> | `lipopeptides` (0.95), `fq` (0.9), `oxa` (0.9) | `nitrofurans` (0.2) |
+| Respiratory (3)<sup>3</sup> | `mls` (0.95), `fq` (0.95), `oxa` (0.9) | `lipopeptides` (0.0), `ag_group1`/`ag_group2` (0.4) |
+| Bloodstream (4)<sup>4</sup> | All 1.0 (reference compartment) | — |
+| Intra-abdominal (5)<sup>5</sup> | `nitroimidazoles` (0.9), `fq` (0.75), `carb_group1`/`carb_group2` (0.75) | `ag_group1`/`ag_group2` (0.3) |
+| CNS (6)<sup>6</sup> | `nitroimidazoles` (0.80), `oxa` (0.70), `chl` (0.70) | `ag_group1`/`ag_group2` (0.05), `poly` (0.05), `lipopeptides` (0.05) |
+| GI (7)<sup>7</sup> | `macrocycles` (1.0), `nitroimidazoles` (0.95), oral `glyc` (0.90) | IV `glyc`/`lipoglycopeptides` (0.35) |
+| Genital (8)<sup>8</sup> | `fq` (0.9), `nitroimidazoles` (0.8), `sulf` (0.8) | `ag_group1`/`ag_group2` (0.35) |
+| Bone/joint (9)<sup>9</sup> | `rifamycins` (0.80), `oxa` (0.75), `fq` (0.70) | `ag_group1`/`ag_group2` (0.25), `poly` (0.2) |
+
+1. Nitrofurantoin and oral fosfomycin produce high urinary exposure, supporting their high lower-UTI modifiers (Huttner A et al., 2019; Wijma RA et al., 2018). The syndrome is a compressed urinary-site category: these coefficients must not be interpreted as renal-parenchymal exposure or suitability for pyelonephritis.
+2. Daptomycin enters inflammatory fluid, and linezolid distributes into soft tissues, supporting relatively high skin-site modifiers (Wise R et al., 2002; Lovering AM et al., 2002). The precise class ordering remains calibrated.
+3. Linezolid reaches pulmonary epithelial lining fluid, whereas pulmonary surfactant inhibits daptomycin (Honeybourne D et al., 2003; Silverman JA et al., 2005). Thus the daptomycin value of 0.0 represents local loss of activity, not failure of the molecule to enter lung tissue.
+4. Bloodstream 1.0 is the neutral model reference described above and is not a literature-derived universal exposure ratio.
+5. Meropenem has been measured in peritoneal fluid during severe peritonitis, supporting meaningful intra-abdominal availability (Karjagin J et al., 2008). Intra-abdominal infection is anatomically heterogeneous, so the class values are calibrated syndrome-level summaries.
+6. Human studies show appreciable and variable CNS exposure for linezolid and metronidazole, while daptomycin CSF exposure is low (Luque S et al., 2014; Frasca D et al., 2014; Kullar R et al., 2011). The coefficients aggregate drug properties, inflammation, and the modelled meningitis context rather than reproducing any one study's concentration ratios.
+7. Oral fidaxomicin and vancomycin produce high faecal concentrations with limited systemic absorption, supporting high route-specific GI modifiers (Sears P et al., 2012; Gonzales M et al., 2010). The lower IV glycopeptide modifier represents less direct luminal availability.
+8. Metronidazole has been measured in female reproductive tissues (Männistö PT et al., 1984). Because the syndrome combines several genital infection sites and patient anatomies, its exact class coefficients are broad calibration choices.
+9. Linezolid enters bone, but bone exposure varies substantially by agent and anatomical site (Lovering AM et al., 2002). Modern PET measurements found rifampicin bone exposure lower than previously assumed (Gordon O et al., 2021), reinforcing that the model's `rifamycins` value is a calibrated site-activity modifier rather than a bone:plasma ratio.
 
 
 
-These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if its baseline potency is high and the bacterium has no modelled acquired resistance.
+These modifiers directly affect treatment outcomes in the model: a drug with a 0.05 CNS coefficient will contribute very little activity in meningitis even if its baseline potency is high and the bacterium has no modelled acquired resistance.
 
 
 ### 6.5 Drug potency matrix
@@ -954,29 +1060,38 @@ For an organism–drug pair with intrinsic or baseline non-susceptibility (basel
 
 Prescribing preference signals are represented through the `initiation_multiplier` parameter (e.g., fidaxomicin for *C. difficile* receives `initiation_multiplier = 1.05`).
 
-A key modelling principle is that intrinsic or baseline non-susceptibility is represented exclusively through low or zero potency, rather than through the acquired-resistance variables.
+A key modelling principle is that intrinsic or baseline non-susceptibility is represented exclusively through low or zero potency, rather than through the acquired-resistance variables. The table gives representative **zero and near-zero** rules from the current matrix; Appendix B.3 gives every organism–drug value. The cited evidence supports the qualitative biological exclusion or low-activity ordering, while the exact dimensionless values are model calibrations.
 
-| Drug class | Organisms | Basis for zeroing |
-|---|---|---|
-| Vancomycin | All Gram-negative bacteria | Glycopeptide molecule (~1450 Da) cannot penetrate the Gram-negative outer membrane; no acquired mechanism can confer susceptibility |
-| Metronidazole | All aerobic and facultative organisms | Requires anaerobic nitroreductase activation; cytotoxic radical intermediates cannot form under aerobic conditions |
-| Aztreonam | All Gram-positive organisms | Monobactam PBP3 target requires outer-membrane permeation absent in Gram-positive cell walls |
-| Aminoglycosides | *C. difficile*, *B. fragilis* | Obligate anaerobes — AG uptake depends on oxygen-dependent active transport, which is completely abolished anaerobically |
-| TMP-SMX | *B. fragilis* | Constitutively encoded insensitivity to sulfonamides (chromosomal folate pathway) |
-| Nitrofurantoin | *S. maltophilia* | Intrinsic non-fermenter resistance; nitrofurantoin is never used for *Stenotrophomonas* infections |
-| Penicillins, ceph 1–2G, carbapenems, macrolides, clindamycin, aztreonam | *S. maltophilia* | Chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps render these drug classes intrinsically inactive; `potency_when_no_r` ≤ 0.05 across all affected classes (see Section 7.6) |
+| Drug or class | Organisms | Current model setting | Biological or modelling basis |
+|---|---|---:|---|
+| Vancomycin<sup>1</sup> | Modelled Gram-negative bacteria | 0.0 | The Gram-negative outer membrane excludes conventional vancomycin, producing intrinsic lack of activity |
+| Metronidazole<sup>2</sup> | Most modelled aerobic and facultative organisms | Usually 0.0–0.10 | Productive reductive activation is favoured at low redox potential; oxygen can reoxidise and quench the nitro radical. Explicit exceptions, including *H. pylori*, are configured separately |
+| Aztreonam<sup>3</sup> | Most modelled Gram-positive organisms | 0.0–0.10 | Aztreonam's narrow Gram-negative spectrum is represented through poor baseline activity against essential Gram-positive PBPs, not through absence of an outer-membrane entry route |
+| Aminoglycosides<sup>4</sup> | *C. difficile*, *B. fragilis* | 0.0–0.10 | Energy-dependent aminoglycoside uptake relies on membrane potential and electron transport and is greatly impaired under anaerobic conditions |
+| Sulfanilamide<sup>5</sup> | *B. fragilis* | 0.05 | Low activity of the early single-sulfonamide proxy. The current TMP–SMX value is 0.30 and is **not** zeroed; historical in-vitro results varied with the component ratio and test conditions |
+| Nitrofurantoin<sup>6</sup> | *S. maltophilia* | 0.0 | A model-scope exclusion reflecting the absence of an established clinical treatment role; it should not be read as a claim that one universal molecular mechanism has been demonstrated |
+| Penicillins, first-/second-generation cephalosporins, carbapenems, macrolides, clindamycin, and aztreonam<sup>7</sup> | *S. maltophilia* | Mostly 0.01–0.05 | Multiple intrinsic determinants—including L1/L2 β-lactamases and class-dependent efflux and permeability effects—support broadly low activity; the contribution of each determinant differs by drug class (exact pair values are in Appendix B.3) |
 
-These zeroing values are encoded directly as `potency_when_no_r = 0.0` entries, covering every affected organism-drug pair explicitly.
+1. Conventional vancomycin is intrinsically inactive against Gram-negative bacteria because it does not cross the outer membrane; membrane-active analogues can overcome that barrier experimentally (Yarlagadda V et al., 2016).
+2. Metronidazole radical formation is suppressed by oxygen, although activation and susceptibility depend on organism-specific redox and nitroreductase biology rather than a simple binary aerobe label (Lloyd D & Pedersen JZ, 1985; Goodwin A et al., 1998).
+3. Monobactam antibacterial spectra track binding to essential PBPs; the aztreonam rule therefore represents target-affinity and spectrum, correcting the misleading suggestion that Gram-positive bacteria lack a required outer-membrane route (Georgopapadakou NH et al., 1983).
+4. Experimental work links streptomycin and gentamicin uptake to membrane energetics and electron transport (Bryan LE & Kwan S, 1983). The model values are near zero rather than uniformly zero, and “greatly impaired” is more accurate than “completely abolished.”
+5. Historical *B. fragilis* studies found low trimethoprim susceptibility from an insensitive dihydrofolate reductase but susceptibility to sulfamethoxazole, with combination results dependent on drug ratio, medium, and inoculum (Then RL & Angehrn P, 1979; Phillips I & Warren C, 1976). These data do not support the previous blanket statement that TMP–SMX is intrinsically inactive.
+6. The nitrofurantoin rule is a deliberate boundary of the treatment model. Reviews of *S. maltophilia* treatment and resistance support its restricted treatment repertoire but do not establish the specific universal nitrofurantoin mechanism previously implied (Brooke JS, 2012).
+7. Genomic and experimental studies document the dense intrinsic resistance repertoire of *S. maltophilia*, including L1/L2 β-lactamases and the broad SmeDEF efflux system (Crossman LC et al., 2008; Alonso A & Martínez JL, 2000; Brooke JS, 2012). These sources support broad low susceptibility, not each exact value in the matrix.
+
+An exact value of 0.0 means that the pair has no baseline activity in the model. Near-zero values below `minimal_potency_threshold_for_drug_selection` (0.15) have a similar operational consequence for default drug selection and acquired-mechanism applicability, while preserving small differences among organism–drug pairs.
 
 Key examples:
+
 - Meropenem vs *E. coli*: 0.95 (very high potency — carbapenem against susceptible Gram-negative)
 - Vancomycin vs *S. aureus*: 0.95 (first-line MRSA therapy)
 - Vancomycin vs *E. coli*: 0.0 (outer membrane blocks access — intrinsic, not acquired)
 - Metronidazole vs *C. difficile*: 0.90 (obligate anaerobe — activated drug reaches target)
-- Metronidazole vs *S. aureus*: 0.0 (aerobe — drug cannot be activated)
+- Metronidazole vs *S. aureus*: 0.10 (the modelled facultative/aerobic context gives only near-zero productive activation)
 - Ceftriaxone vs *S. pneumoniae*: 0.95 (standard treatment for pneumococcal meningitis)
 - Aztreonam vs *P. aeruginosa*: 0.80 (monobactam active against Gram-negatives including Pseudomonas)
-- Aztreonam vs *S. aureus*: 0.0 (Gram-positive — outer-membrane route absent)
+- Aztreonam vs *S. aureus*: 0.0 (poor activity against essential Gram-positive PBPs — intrinsic spectrum exclusion)
 
 
 
@@ -1137,6 +1252,18 @@ For each bacterium–mechanism pair, the current code assigns one of four implem
 
 Environmental and ratchet floors, configured donor–recipient HGT probabilities, and the special MDR-TB rifampicin-resistance rule are evaluated separately and do not contribute to this four-state status. Circulating-profile sampling, carriage inheritance, local persistence and ratchet reseeding are restricted by host compatibility, but the current code does not calculate overall source reachability. The statuses therefore enforce host scope and de novo eligibility, rather than providing a complete classification of all possible mechanism sources.
 
+#### Selected organism-specific implementation notes
+
+**Stenotrophomonas maltophilia.** Intrinsic non-susceptibility to carbapenems, unprotected penicillins, first-/second-generation cephalosporins, macrolides, and most aminoglycosides is encoded directly as near-zero potency values (`potency_when_no_r` ≤ 0.05). Acquired resistance to TMP–SMX, fluoroquinolones, and tetracyclines is generated and maintained through the standard emergence, carriage, HGT, complete-profile transmission, local persistence, ratchet, and explicit exogenous pathways where applicable.
+
+**Helicobacter pylori.** Resistance is driven primarily by the standard chromosomal de novo and selection pathways during active infection and antibiotic exposure. The configured `helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80` has a narrower role than its name can suggest: after an eligible treatment failure, a successful draw stops the current active drugs and bypasses immediate selection of an alternative drug. It does not create a chronic-infection state, disable immune clearance, or guarantee that the infection persists. *H. pylori* has no separate microbiome/carriage compartment, and its active episodes remain subject to the generic immune-clearance probability described in Section 4.4.
+
+Population-level persistence of *H. pylori* resistance instead arises through the same predominant-strain resistance-mechanism profile library, local historical archive, ratchet, inheritance, and repeated-acquisition processes used for other active infections. Drug–bacterium initiation multipliers favour drugs associated with *H. pylori* treatment once the organism is identified, but the drug-scoring calculation is a compressed representation and does not treat named triple or quadruple regimens as indivisible treatment units. Incidental exposure to applicable drugs prescribed for other indications can also contribute selection pressure while an *H. pylori* episode is active.
+
+The organism-specific target routes are explicit: PBP1A-dominant changes use `MutationPbpMosaic` for amoxicillin resistance, 23S rRNA mutations use `Mutation23sRrna` for clarithromycin-class resistance, and 16S rRNA mutations use `Mutation16sRrnaTetracycline` for tetracycline-class resistance. Staphylococcal `mecA/PBP2a`, acquired `ErmB`/`Cfr`, VanA/VanB, and TetM/TetO are not used as *H. pylori* proxies. The 16S route is non-transferable and restricted to *H. pylori*.
+
+**Enterococcus faecium.** VRE clonal lineages such as CC17 are globally disseminated hospital-adapted strains. Glycopeptide resistance is maintained through the standard selection, carriage, HGT, complete-profile transmission, local persistence, and other explicit pathways.
+
 ### 7.2 Mechanism–drug-class enhancement multipliers
 
 Each mechanism a bacterium has **reduces** drug efficacy by a specific amount. The "enhancement multiplier" (0.0–1.0) represents by **how much** a drug's effectiveness is considered to be reduced (i.e. by what proportion the drug activity is reduced as a result of the mechanism being present):
@@ -1215,13 +1342,13 @@ Section 3.4 describes the individual-level sequence from a candidate infection t
 
 #### Selection of the resistance source
 
-Once a candidate infection has arisen, a community infection follows one of two resistance-source pathways. The bacterium-specific `community_resistance_dilution_factor` is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. On that route, the individual-level probability of sampling from the circulating library or its persistence archive is represented by `local_profile_sampling_probability[b]`. Otherwise, the candidate follows the exogenous route described below.
+Once a candidate infection has arisen, a community infection follows one of two resistance-source pathways. The bacterium-specific `community_human_reservoir_profile_probability` is the probability of attempting to inherit a complete resistance-mechanism profile from the local human circulating resistance-mechanism profile library. On that route, the individual-level probability of sampling from the circulating library or its persistence archive is represented by `local_profile_sampling_probability[b]`. Otherwise, the candidate follows the exogenous route described below.
 
 Candidate hospital infections use the local human-reservoir pathway, with any configured hospital enrichment, rather than this community source choice. For community carriage acquisition, the same bacterium-specific factor contributes to the probability of sampling from the human-reservoir resistance-mechanism profile library, but carriage has no direct exogenous-floor assignment step. Hospital carriage uses the hospital resistance-mechanism profile source.
 
-The configured source probabilities use broad ecological groupings. These groupings are not mutually exclusive biological classifications: several organisms can occupy human, healthcare, animal, food, water, or wider environmental reservoirs. They specify how the model weights the source of a community acquisition. The numerical dilution ranges are calibration choices, not direct empirical estimates of the fraction of infections attributable to each source; the evidence notes support the qualitative ecological rationale rather than the exact values.
+The configured source probabilities use broad ecological groupings. These groupings are not mutually exclusive biological classifications: several organisms can occupy human, healthcare, animal, food, water, or wider environmental reservoirs. They specify how the model weights the source of a community acquisition. The numerical human-reservoir probability ranges are calibration choices, not direct empirical estimates of the fraction of infections attributable to each source; the evidence notes support the qualitative ecological rationale rather than the exact values.
 
-| Category | Dilution range | Example bacteria | Interpretation |
+| Category | Human-reservoir profile probability | Example bacteria | Interpretation |
 |----------|---------------:|------------------|----------------|
 | Environmental or waterborne<sup>1</sup> | 0.30 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition has a substantial exogenous component |
 | Food-, water-, or mixed exogenous acquisition<sup>2</sup> | 0.30–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | Food, water, animal, or other acquisition sources outside the current local human-infection profile library remain important, to differing degrees |
@@ -1465,51 +1592,135 @@ The `mutation_siderophore_uptake` mechanism is the explicit category for chromos
 
 ### 7.6 Local finite-population mechanism persistence
 
-At finite simulated population sizes, an uncommon but genuinely established mechanism can disappear from every active infection and every retained resistance-mechanism profile in a local reservoir by chance. The model represents established strains in the much larger population outside the simulation through a permanent local establishment archive. The archive contributes bounded sampling mass to the local human reservoir; it is not a hard lower bound on observed resistance prevalence.
+#### Concept in brief
+
+Because the simulation contains a finite number of people and retains only a finite sample of circulating resistance profiles, a mechanism that has previously appeared locally can disappear from the simulated reservoir by chance. The **local persistence archive** gives the model a limited memory of such previously observed resistance.
+
+When a mechanism is first observed in a particular region, care setting, and bacterial species, the model remembers the **complete resistance-mechanism profile** in which it occurred. Later, when a new infection or carriage episode is already going to obtain a profile from the local human reservoir, there is a small, capped probability that one of these remembered profiles is used instead of a profile from the current circulating library.
+
+The archive can therefore reintroduce previously observed resistance occasionally. It does **not** cause an infection or carriage episode, guarantee that resistance remains prevalent, or impose a minimum resistance prevalence.
+
+```text
+LOCAL MEMORY IS CREATED
+
+A complete resistance profile is observed locally
+                         |
+                         v
+The first profile containing each newly observed mechanism is remembered
+for that region × care setting × bacterial species
+                         |
+                         v
+The profile can remain in the archive even if it later disappears
+from the finite current circulating library
+
+
+LATER RESISTANCE-SOURCE ASSIGNMENT
+
+A future infection or carriage episode reaches resistance-source assignment
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+Local human-reservoir          Exogenous route
+profile draw                   (community active infections only)
+              |                     |
+       +------+-------+             v
+       |              |       For each eligible mechanism, use the larger of:
+       v              v
+Small archive     Otherwise     - Environmental and Exogenous Mechanism Floors
+draw succeeds    sample the       (Section 7.8)
+       |         current local
+       |         library        - Dynamic ratchet floor (Section 7.9)
+       |              |                |
+       +------+-------+                v
+              v                 Mechanisms are assigned independently
+Copy one selected complete
+profile into the new episode
+```
+
+For a community active infection, the human-reservoir and exogenous routes in the sketch are alternatives. Hospital acquisitions use the human-reservoir route. Carriage can obtain a complete profile from the human reservoir but does not receive mechanisms directly from the exogenous floor calculation.
+
+#### Key terms
+
+| Term | Meaning in this section |
+|------|-------------------------|
+| Resistance mechanism | One represented determinant or pathway, such as CTX-M or a GyrA mutation |
+| Resistance-mechanism profile | The complete set of represented acquired mechanisms carried together by one modelled strain |
+| Current circulating profile library | The finite, rolling collection of profiles recently observed for a particular region × care setting × bacterium |
+| Local persistence archive | A permanent record of selected complete profiles that have previously been observed in the same local stratum |
+| Local stratum | One exact region × care setting (community or hospital) × bacterial species combination |
+
+#### Stage 1: remembering a previously observed profile
+
+At each daily refresh of the circulating profile library, the model examines the complete profiles observed during that day. For each mechanism not previously recorded in that local stratum, it stores the first complete profile in which the mechanism appears.
+
+“Established” therefore has a precise operational meaning here: **the mechanism has been observed at least once in that stratum**. There is no minimum prevalence or repeated-observation requirement. The archive is a memory device representing resistance that may remain somewhere in the larger population outside the finite simulation; it is not a separately simulated population of persistent strains.
+
+The archive records complete profiles so that linkage among mechanisms is retained. For example, if the first locally observed profile containing mechanism A is `{A, B}`, the remembered candidate contains both A and B. That single profile can establish the archive record for both mechanisms and is retained as one candidate, not two. Identical remembered profiles are deduplicated, and later observations do not replace the first profile recorded for a mechanism.
+
+#### Stage 2: occasionally reusing an archived profile
+
+The archive is considered only when an infection or carriage acquisition has already reached the step that samples a complete resistance profile from the **local human reservoir**. It does not make acquisition more likely and does not operate on the exogenous source pathway.
+
+At that profile-sampling step, the model first makes one archive draw:
+
+- If it succeeds, one distinct archived profile is selected uniformly and returned in full.
+- If it fails, the model samples from the ordinary current circulating profile library.
+
+There is one archive draw for the complete profile—not one draw per mechanism or per drug—and archived mechanisms are not combined with a separately sampled current profile. Once an archived profile has entered an active infection, that infection can later contribute its predominant-strain profile to the ordinary circulating library just like any other active infection.
+
+#### How often the archive is selected
 
 | Parameter | Default | Function |
 |-----------|--------:|----------|
-| `local_mechanism_persistence_enabled` | 1.0 | Enables local historical establishment and pseudo-reservoir sampling |
-| `local_mechanism_persistence_virtual_profile_mass` | 10.0 | Total virtual mass shared across all distinct archived resistance-mechanism profiles in a local stratum |
-| `local_mechanism_persistence_max_sampling_probability` | 0.10 | Maximum archive share of any one local human-reservoir resistance-mechanism profile draw |
+| `local_mechanism_persistence_enabled` | 1.0 | Enables or disables use of the historical archive during profile sampling |
+| `local_mechanism_persistence_virtual_profile_mass` | 10.0 | Total virtual sampling mass, $K$, shared by the entire archive in one local stratum |
+| `local_mechanism_persistence_max_sampling_probability` | 0.10 | Maximum probability, $p_{max}$, that the archive supplies a profile at one eligible draw |
 
-**Establishment and archive composition.** At each daily refresh of the circulating resistance-mechanism profile library, the first complete observed resistance-mechanism profile carrying each mechanism is archived for that exact region × care setting × bacterium stratum. The archive is permanent but remains separate from the current resistance-mechanism profile library. Only one copy of each identical archived resistance-mechanism profile is retained, so one observed resistance-mechanism profile carrying several mechanisms is still one candidate. Later observations do not replace the first established resistance-mechanism profile.
+Let:
 
-**Pseudo-reservoir sampling.** Whenever an infection or carriage acquisition is already taking the path that samples a resistance-mechanism profile from the human reservoir, the model computes one archive probability from the total virtual mass and the size of the active candidate pool. All archived resistance-mechanism profiles share that single mass; on success, one candidate is selected uniformly and its complete resistance-mechanism profile is returned. The model does not repeat the draw for every drug or mechanism and does not combine archived mechanisms with an independently sampled active resistance-mechanism profile. The probability cap prevents the archive from dominating very sparse local collections.
+- $N$ be the number of profiles in the current candidate pool at that sampling call;
+- $M$ be the number of distinct complete profiles in the relevant archive; and
+- $K$ be the archive's total virtual mass.
 
-If the current candidate collection contains $N$ resistance-mechanism profiles and the archive has total virtual mass $K$, the probability of selecting the archive is:
+If the archive is enabled and $M > 0$, the probability that the archive supplies the profile is:
 
 $$p_{archive} = \min\left(p_{max}, \frac{K}{N + K}\right).$$
 
-With the configured values $K = 10$ and $p_{max} = 0.10$, the archive contributes about 0.99% of draws beside a current collection of 1,000 resistance-mechanism profiles, 9.09% beside a collection of 100, and no more than 10% in a sparse or empty stratum.
+If the archive is disabled or $M = 0$, $p_{archive}=0$. Here $N$ means the current setting-specific candidate pool used by that sampling call, including any configured fallback or hospital bootstrap pool where applicable. The mass $K$ belongs to the archive as a whole; it is **not** assigned separately to every archived profile.
 
-**Scope and interpretation.** Establishment does not cross regions, bacteria, or community/hospital strata. The pathway is not used for exogenous sources. It follows the same counterfactual scenario control as ordinary resistance-mechanism profile inheritance and can contribute to both active infection and carriage. Archived resistance-mechanism profiles do not count towards current circulating resistance-mechanism profile prevalence, prescribing knowledge, or ratchet peak calculations. Once incorporated into an active infection, however, the resistance-mechanism profile can re-enter the ordinary daily circulating resistance-mechanism profile library through the same predominant-strain resistance-mechanism profile collection process as any other circulating strain.
+With the configured values $K=10$ and $p_{max}=0.10$:
 
-**Diagnostics.** `local_persistence_profile_incorporations_total` reports the sum of `local_persistence_profile_incorporations_infection` and `local_persistence_profile_incorporations_carriage` in each output timestep. The infection count is incremented only after the infection survives the existing-therapy prevention check; the carriage count is incremented after the archived resistance-mechanism profile is recorded in the carriage compartment. Counterfactual-rejected resistance-mechanism profiles are not counted.
+- beside 1,000 current profiles, $p_{archive}=10/(1{,}000+10)\approx0.99\%$;
+- beside 100 current profiles, $p_{archive}=10/(100+10)\approx9.09\%$; and
+- in a sparse or empty current stratum, the probability never exceeds 10%.
 
-Static environmental floors and the dynamic ratchet are independent exogenous pathways and do not contribute to the local establishment archive (Sections 7.8 and 7.9).
+For a worked example, suppose $N=100$ and the archive contains $M=4$ distinct profiles. The archive supplies the profile with probability 9.09%. Conditional on that occurring, each archived profile is selected with probability $1/4$, so each has an unconditional probability of approximately $9.09\%/4=2.27\%$ of being returned at that eligible draw.
 
-**Details for specific example bacteria**
+#### Scope and distinction from the other profile sources
 
-Stenotrophomonas maltophilia. Intrinsic non-susceptibility to carbapenems, unprotected penicillins, 1st/2nd-generation cephalosporins, macrolides, and most aminoglycosides is encoded directly as near-zero potency values (`potency_when_no_r` ≤ 0.05). Acquired resistance to TMP-SMX, fluoroquinolones, and tetracyclines is generated and maintained through the standard emergence, carriage, HGT, resistance-mechanism profile transmission, local persistence, ratchet, and explicit exogenous pathways where applicable.
+| Pathway | What it stores or supplies | Acquisition pathway where it acts | Direct contribution to current prevalence estimates? |
+|---------|----------------------------|-----------------------------------|:-----------------------------------------------:|
+| Current circulating profile library | Recently observed complete profiles | Local human-reservoir acquisition | Yes |
+| Local persistence archive | First locally observed complete profiles | Local human-reservoir acquisition | No |
+| Static environmental/exogenous floor (Section 7.8) | Configured marginal probabilities for individual mechanisms | Exogenous active-infection acquisition | No |
+| Dynamic ratchet (Section 7.9) | Probabilities derived from historical peak marginal mechanism prevalence | Exogenous active-infection acquisition | No |
 
-Helicobacter pylori. Resistance is driven primarily by the standard chromosomal de novo and selection pathways during active infection and antibiotic exposure. The configured `helicobacter_pylori_treatment_failure_no_second_line_probability = 0.80` has a narrower role than its name can suggest: after an eligible treatment failure, a successful draw stops the current active drugs and bypasses immediate selection of an alternative drug. It does not create a chronic-infection state, disable immune clearance, or guarantee that the infection persists. *H. pylori* has no separate microbiome/carriage compartment, and its active episodes remain subject to the generic immune-clearance hazard described in Section 4.4.
+The archive is specific to region, bacterium, and community/hospital setting; observations do not cross those strata. It follows the same counterfactual scenario control as ordinary profile inheritance and can contribute to both infection and carriage. Archived profiles do not themselves count towards current circulating prevalence, prescribing knowledge, or ratchet peak calculations. Their only indirect effect on those quantities begins after a remembered profile is incorporated into an actual infection and subsequently re-enters ordinary circulation.
 
-Population-level persistence of *H. pylori* resistance instead arises through the same predominant-strain resistance-mechanism profile library, local historical archive, ratchet, inheritance, and repeated-acquisition processes used for other active infections. Drug-bacterium initiation multipliers favour drugs associated with *H. pylori* treatment once the organism is identified, but the drug-scoring calculation is a compressed representation and does not treat named triple or quadruple regimens as indivisible treatment units. Incidental exposure to applicable drugs prescribed for other indications can also contribute selection pressure while an *H. pylori* episode is active.
+Static environmental floors and the dynamic ratchet are independent exogenous pathways and do not add profiles to the local persistence archive.
 
-The organism-specific target routes are explicit: PBP1A-dominant changes use `MutationPbpMosaic` for amoxicillin resistance, 23S rRNA mutations use `Mutation23sRrna` for clarithromycin-class resistance, and 16S rRNA mutations use `Mutation16sRrnaTetracycline` for tetracycline-class resistance. Staphylococcal `mecA/PBP2a`, acquired `ErmB`/`Cfr`, VanA/VanB, and TetM/TetO are not used as *H. pylori* proxies. The 16S route is non-transferable and restricted to *H. pylori*.
+#### Diagnostics
 
-Enterococcus faecium. VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. Glycopeptide resistance is maintained through the standard selection, carriage, HGT, resistance-mechanism profile transmission, local persistence, and other explicit pathways.
+`local_persistence_profile_incorporations_total` is the sum of `local_persistence_profile_incorporations_infection` and `local_persistence_profile_incorporations_carriage` in each output timestep. The infection count is incremented only after the candidate infection survives the existing-therapy prevention check. The carriage count is incremented after the archived profile is recorded in the carriage compartment. Profiles rejected by the counterfactual scenario control are not counted.
 
 
 
 ### 7.7 Mechanism-derived cross-drug effects
 
-The mechanism-to-drug map described in Section 7.1 is the sole source of cross-drug resistance effects. Whenever a mechanism is acquired, inherited, transferred, promoted, or reverted, the model recalculates `any_r` and/or `microbiome_r` for every drug to which that mechanism is applicable. Multiple applicable mechanisms combine on the susceptible fraction, with mechanism- and drug-class-specific enhancement values determining the resulting resistance magnitude.
+The mechanism-to-drug map described in Section 7.1 is the sole source of cross-drug resistance effects. Whenever a mechanism is acquired, inherited, transferred, promoted, or reverted, the model recalculates `any_r` and/or `microbiome_r` for every drug to which that mechanism is applicable. Multiple applicable mechanisms combine on the susceptible fraction, with mechanism- and drug-class-specific enhancement values determining the resulting resistance magnitude (ie the value of `any_r` / `microbiome_r`).
 
-The model does not subsequently equalise resistance within broad or manually configured drug groups. This preserves clinically important distinctions within a class. Examples include VanB affecting vancomycin but not teicoplanin or dalbavancin; a primary GyrA mutation affecting ciprofloxacin and ofloxacin without automatically conferring the secondary-mutation phenotype for levofloxacin or moxifloxacin; TetA/B/C efflux affecting tetracycline and doxycycline but not automatically minocycline; and ESBL effects differing between third- and fourth-generation cephalosporins. Class-wide effects remain possible where they are explicitly encoded for the responsible mechanism.
-
-Drug-level resistance therefore always has a recorded mechanism basis. Potency still controls baseline therapeutic activity, while the filtered applicability map controls whether an acquired mechanism can modify resistance for a bacterium-drug pair.
+Drug resistance therefore always has a recorded mechanism basis. Potency still controls baseline therapeutic activity, while the filtered applicability map controls whether an acquired mechanism can modify resistance for a bacterium-drug pair.
 
 
 
@@ -1521,7 +1732,7 @@ The model includes a dedicated family of **environmental / exogenous mechanism f
 
 **What they represent.** The environmental floors are used when resistance can be maintained outside the local human circulating pool. In the classic case, this means agricultural, food-chain, wastewater, or other exogenous reservoirs that keep resistance present even when direct human treatment of that bacterium is weak. In the current configuration they also cover a small number of explicitly modelled non-agricultural exogenous pathways, most notably the rifampicin `rpoB` floors discussed below.
 
-**Where they act.** Each community active-infection acquisition is split by `community_resistance_dilution_factor` into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model evaluates each mechanism independently using the configured floor probability for that bacteria-mechanism pair. These are marginal mechanism probabilities: independent draws do not themselves represent plasmid linkage or other correlation among mechanisms within a resistance-mechanism profile. Once a resulting resistance-mechanism profile enters the human circulating resistance-mechanism profile library, later resistance-mechanism profile sampling can propagate that realised combination. In the current model this environmental/ratchet floor calculation is applied at active-infection acquisition; carriage acquisition has its own eligibility condition for resistance-mechanism profile sampling and does not directly apply this exogenous floor calculation.
+**Where they act.** Each community active-infection acquisition is assigned to the human-circulating pathway with probability `community_human_reservoir_profile_probability`; the complementary probability, `1 − community_human_reservoir_profile_probability`, assigns it to the exogenous pathway. If the infection is drawn from the exogenous fraction, the model evaluates each mechanism independently using the configured floor probability for that bacteria-mechanism pair. These are marginal mechanism probabilities: independent draws do not themselves represent plasmid linkage or other correlation among mechanisms within a resistance-mechanism profile. Once a resulting resistance-mechanism profile enters the human circulating resistance-mechanism profile library, later resistance-mechanism profile sampling can propagate that realised combination. In the current model this environmental/ratchet floor calculation is applied at active-infection acquisition; carriage acquisition has its own eligibility condition for resistance-mechanism profile sampling and does not directly apply this exogenous floor calculation.
 
 Despite the parameter name, a configured value is therefore a Bernoulli mechanism-assignment probability on an exogenous active-infection acquisition, not a guaranteed lower bound on prevalence in infections, carriage, or the population. The resulting prevalence also depends on how often acquisition follows the exogenous path, the competing human circulating resistance-mechanism profile pathway, subsequent transmission and selection, and mechanism loss.
 
@@ -1542,13 +1753,13 @@ Era-specific `_before_{YYYY}` values allow the exogenous reservoir to change thr
 
 The environmental-floor parameters represent explicitly specified agricultural, food-chain, wastewater, and other exogenous pathways that can reseed resistance when the local human circulating resistance-mechanism profile library alone would be insufficient.
 
-Every configured positive static floor is required to have an eligible bacterium-mechanism host, at least one potency-qualified drug phenotype, and a non-zero default exogenous acquisition fraction. A regression invariant enforces these three reachability conditions.
+Every configured positive static floor is required to have an eligible bacterium-mechanism host, at least one potency-qualified drug phenotype, and a non-zero default exogenous acquisition fraction.
 
 ---
 
 ### 7.9 Dynamic ratchet floor
 
-**Motivation.** Even with long retention of previously observed resistance-mechanism profiles, a finite stored resistance-mechanism profile library can under-represent historically established resistance after current selection pressure falls. The ratchet preserves a coarse regional memory of high prevalence previously sampled from the community resistance-mechanism profile library and uses that memory to support later local exogenous acquisition of mechanisms with sufficiently low configured reversion rates.
+**Motivation.** During model calibration, the circulating resistance-mechanism profile library, local persistence archive and configured exogenous probabilities were insufficient to reproduce some historically established resistance levels for particular bacterium–mechanism combinations. Resistance could decline too far after the selecting pressure weakened, even for mechanisms expected to persist at relatively low effective fitness cost. The dynamic ratchet was introduced as a parsimonious history-dependent correction for this residual calibration problem. It remembers the highest well-supported local prevalence generated by the simulation and uses a coarse fraction of that history to support subsequent reseeding. It is therefore both a calibration mechanism and a simplified representation of persistence through lineages, co-selection, transfer and incompletely modelled reservoirs.
 
 **Design principle.** The dynamic ratchet is *self-calibrating from the simulation's own sampled history*. Within each region, it records the highest annually sampled community prevalence of each mechanism, rounds that peak down to a 10-percentage-point step, and uses the result as a mechanism-assignment probability on subsequent exogenous acquisitions in the same region. It does not prevent active-infection, carriage, or population prevalence from falling below the recorded percentage. The biological motivation is that low-effective-cost mechanisms can remain available for reseeding through persistent lineages, co-selection, HGT, and reservoirs after use of the originally selecting drug declines. The implemented ratchet is a deliberately simplified population-level approximation of those processes, not a model of global importation.
 
@@ -1593,8 +1804,6 @@ In conceptual terms, a static environmental floor is a configured exogenous rese
 
 **Relationship to static floors.** Era-specific static environmental probabilities can provide exogenous seeding during configured historical periods, including periods when the finite circulating resistance-mechanism profile library might otherwise build a resistant reservoir slowly. The ratchet has no universal takeover date. At each eligible exogenous acquisition, the model uses the larger of the static and ratchet probabilities. For example, if a *Shigella* mechanism has a current static probability of 0.45 and a recorded peak from the resistance-mechanism profile library produces a ratchet probability of 0.40, the effective assignment probability remains 0.45. Neither value implies 45% or 40% total resistance prevalence.
 
-**Diagnostic control.** `run_pathway_ratchet_enabled` is 1.0 by default and preserves the ratchet behaviour described above. Setting it to 0.0 disables only the dynamic ratchet contribution for component-ablation runs; static environmental floors and the independently configured local persistence archive remain active.
-
 **Practical calibration framework for resistance shortfalls.** When the model under-shoots a resistance calibration benchmark, the preferred response is *not* to keep inflating mechanism emergence coefficients. For stewardship-policy purposes, the model instead treats most persistent shortfalls as belonging to one of four interpretable categories:
 
 1. **Ratchet reseeding:** use when a mechanism plausibly built up historically under human selection, meets the configured reversion-rate eligibility condition, and should retain an acquisition-side historical memory after selection falls.
@@ -1624,15 +1833,23 @@ As throughout the model, the microbiome layer is intentionally simplified. We re
 
 ### 8.1 Carriage compartments
 
-Each bacterium in the model has a designated ecological niche — where it naturally lives in (or on) the body:
+Each bacterium has one designated carriage-compartment label. For bacteria with a separately modelled carriage state, that label identifies the principal compartment used by the carriage and HGT logic; *H. pylori* is the current exception and has no separate carriage state. This is a simplified representation of a principal body site or asymptomatic state, not a claim that the organism occupies only that site or that all listed states are biologically equivalent forms of commensal carriage.
 
 | Compartment | Example bacteria | Clinical relevance |
 |-------------|-----------------|-------------------|
-| Gut | *E. coli*, *K. pneumoniae*, *Enterococcus spp.*, *Shigella*, *Salmonella*, *C. difficile* | Largest reservoir; disrupted by broad-spectrum antibiotics |
-| Respiratory | *S. pneumoniae*, *H. influenzae*, *P. aeruginosa*, *A. baumannii*, *M. catarrhalis* | Carriage often precedes pneumonia |
-| Respiratory (latent proxy) | MDR *M. tuberculosis* | Uses the general respiratory carriage compartment as a compressed latent-reservoir proxy; the current model does not include a separate LTBI reactivation hazard or detailed tuberculosis natural-history model |
-| Skin/Soft tissue | *S. aureus*, *S. epidermidis* | Nasal/skin MRSA carriage drives surgical wound infections |
-| Genitourinary | *N. gonorrhoeae*, *C. trachomatis*, *M. genitalium*, *T. pallidum*, *S. agalactiae* | Modelled as asymptomatic infection rather than commensal carriage — these are obligate pathogens present without causing symptoms, which enables onward transmission |
+| Gut<sup>1</sup> | *E. coli*, *K. pneumoniae*, *Enterococcus spp.*, *Shigella*, *Salmonella*, *C. difficile* | Major resistance and endogenous-infection reservoir; antibiotic exposure can disrupt community composition and select resistance |
+| Respiratory<sup>2</sup> | *S. pneumoniae*, *H. influenzae*, *P. aeruginosa*, *A. baumannii*, *M. catarrhalis* | Nasopharyngeal or airway colonisation can precede disease, with the relationship differing by organism and host setting |
+| Respiratory (latent proxy)<sup>3</sup> | MDR *M. tuberculosis* | Uses the general respiratory carriage compartment as a compressed latent-reservoir proxy; the current model does not include a separate LTBI reactivation hazard or detailed tuberculosis natural-history model |
+| Skin/Soft tissue<sup>4</sup> | *S. aureus*, *S. epidermidis* | Nasal or skin staphylococcal carriage increases the risk of subsequent infection, including surgical-site infection |
+| Genitourinary<sup>5</sup> | *N. gonorrhoeae*, *C. trachomatis*, *M. genitalium*, *T. pallidum*, *S. agalactiae* | STI organisms are represented as potentially asymptomatic infection rather than commensal carriage; *S. agalactiae* instead represents genitourinary colonisation, including the reservoir relevant to vertical exposure |
+
+*Table evidence notes:*
+
+1. The human gut is an important reservoir for acquired resistance and for organisms that can subsequently cause endogenous infection. Antibiotic exposure can reshape the gut community and resistome; gastrointestinal carriage has also been linked directly to later *K. pneumoniae* infection (Human Microbiome Project Consortium, 2012; Forslund K et al., 2013; van Schaik W, 2015; Gorrie CL et al., 2017).
+2. Nasopharyngeal carriage is central to pneumococcal disease and is documented for *H. influenzae*. The assignment of opportunists such as *P. aeruginosa* and *A. baumannii* to the same model compartment is a broader airway-reservoir abstraction rather than a claim that their colonisation epidemiology is identical (Bogaert D et al., 2004; Giufrè M et al., 2015).
+3. WHO defines latent tuberculosis infection as persistent immune response to *M. tuberculosis* antigens without evidence of clinically manifest active TB and recognises subsequent progression to active disease. The model's respiratory carriage state is only a computational proxy for that distinct natural history; it does not reproduce latency, reactivation, or preventive treatment (World Health Organization, 2018).
+4. Nasal carriage of *S. aureus* is a recognised risk factor and source for subsequent infection. The model compresses nasal and wider skin carriage, and does not separately represent colonisation sites or perioperative decolonisation (Wertheim HFL et al., 2005).
+5. Many STIs can be present without recognised symptoms and remain transmissible; this model state does not imply equal infectiousness across organisms or disease stages. *S. agalactiae* is biologically different: maternal gastrointestinal or genitourinary colonisation is the relevant reservoir for perinatal exposure (Rowley J et al., 2019; World Health Organization STI fact sheet, 2025; Verani JR et al., 2010).
 
 
 
@@ -1641,15 +1858,15 @@ These compartment assignments are simplified ecological defaults rather than a f
 
 ### 8.2 Resistance in the microbiome
 
-The microbiome serves as a hidden reservoir of acquired resistance. For each organism carried asymptomatically, the model records which acquired resistance mechanisms are present in the carriage compartment. It then calculates a drug-level microbiome acquired-resistance measure from those mechanisms using the same multiplicative susceptibility formula used for active infection (Section 7.2). In the code, the carriage mechanism record is `mechanism_microbiome`, the active-infection record is `mechanism_any`, and the derived carriage resistance measure is `microbiome_r`. This keeps carriage and infection resistance biologically aligned rather than tracking them as separate unrelated numerical scores. Intrinsic or baseline non-susceptibility remains represented by potency. Clearing a carriage episode resets `mechanism_microbiome` and `microbiome_r` together without altering active-infection mechanisms or `any_r`.
+As mentioned above, the microbiome serves as a reservoir of acquired resistance. For each organism carried asymptomatically, the model records which acquired resistance mechanisms are present in the carriage compartment. It then calculates a drug-level microbiome acquired-resistance measure from those mechanisms using the same multiplicative susceptibility formula used for active infection (Section 7.2). In the code, the carriage mechanism record is `mechanism_microbiome`, the active-infection record is `mechanism_any`, and the derived carriage resistance measure is `microbiome_r`. This keeps carriage and infection resistance biologically aligned rather than tracking them as separate unrelated numerical scores. Intrinsic or baseline non-susceptibility remains represented by potency. Clearing a carriage episode resets `mechanism_microbiome` and `microbiome_r` together without altering active-infection mechanisms or `any_r`.
 
 Key dynamics:
 
 | Process | Parameter | Value | Effect |
 |---------|-----------|-------|---------------|
-| Resistance-mechanism profile sampling on acquisition | `run_pathway_microbiome_acquisition_multiplier` | 1.0 | Scales the probability that a new carriage episode samples a resistance-mechanism profile from the local circulating resistance-mechanism profile library. Hospital carriage uses this probability control directly; community carriage also applies the per-bacterium community dilution factor. A value of 1.0 is neutral rather than an independent 50% colonisation bottleneck. |
+| Resistance-mechanism profile sampling on acquisition | `community_human_reservoir_profile_probability` | Organism specific | A new hospital carriage episode samples a resistance-mechanism profile from the local hospital profile library. In the community, the per-bacterium probability determines whether a new carriage episode samples from the local community profile library. If no profile is sampled or the selected library is empty, the carriage episode begins without an acquired resistance mechanism from this route. |
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
-| Mechanism-level reversion | `run_pathway_reversion_rate_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates, pathway multiplier, and potency-filtered eligibility rule as in the infection compartment (Section 7.5). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium-mechanism pair; selection for another mechanism does not block reversion. |
+| Mechanism-level reversion | Mechanism-specific reversion rates | Mechanism specific | Per-mechanism reversion operates in the microbiome compartment using the same rates and potency-filtered eligibility rule as in the infection compartment (Section 7.5). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium–mechanism pair; selection for another mechanism does not block reversion. |
 | De-novo emergence under treatment | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` | Organism-mechanism specific | When at least one positive-level active drug applies to an absent carriage mechanism, that mechanism receives one daily emergence attempt via the microbiome pathway (Section 7.4), using the organism-mechanism baseline and counterfactual scaling. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; transfer into infection occurs through the separate bridge pathways below. |
 | Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a new same-organism infection is established in a carrier, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3) |
 | Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | When both compartments are present and contain different mechanisms, a daily random probability check can trigger copying in both directions so that `mechanism_any` and `mechanism_microbiome` end up containing the combined resistance-mechanism profile. The drug-level resistance measures are then recalculated. |
@@ -1666,14 +1883,14 @@ Key dynamics:
 
 Horizontal gene transfer (HGT) — the interspecies sharing of resistance determinants, as seen when the same ESBL plasmids appear across *E. coli*, *Klebsiella*, and *Proteus*  — is a major driver of resistance spread and is modelled explicitly.
 
-The HGT layer is necessarily schematic. We preserve the major ecological compatibilities and the main amplifiers of transfer risk, but we do not attempt plasmid-by-plasmid reconstruction, incompatibility typing, or ward-level contact-network modelling. At the scale of the present model, that additional detail would be difficult to support empirically and would add substantial runtime and calibration burden without clearly improving the policy comparisons of interest.
+The HGT layer is necessarily schematic. We preserve the major ecological compatibilities and the main amplifiers of transfer risk, but we do not attempt plasmid-by-plasmid reconstruction or incompatibility typing.
 
 **Individual-level variable introduced in this section.** For each eligible recipient bacterium and resistance mechanism, `hgt_probability[recipient_b,m]` is the daily probability of horizontal transfer from compatible bacteria present in the same person. Successful transfer updates the recipient's active-infection or carriage mechanism record introduced in Sections 3 and 8. Full definitions and update rules are provided in [Appendix D](#appendix-d-individual-level-variable-dictionary).
 
 
 ### 9.1 Transfer compatibility
 
-Not all bacteria can exchange genes equally. Transfer compatibility is not represented as a single species-to-species reference table. Instead, each bacterium group is assigned to a **plasmid pool**, and the baseline pairwise HGT hazard is generated from that pool structure before the Section 9.2 multipliers are applied.
+Not all bacteria can exchange genes equally. Each bacterium group is assigned to a **plasmid pool**, and the baseline pairwise HGT hazard is generated from that pool structure before the Section 9.2 multipliers are applied.
 
 The pool mapping is:
 
@@ -1681,42 +1898,54 @@ The pool mapping is:
 - **EntericGramNegative pool**: Enterobacterales, non-fermenters, and enteric pathogens
 - **RespiratoryGramNegative pool**: fastidious respiratory/genitourinary organisms
 - **Anaerobe pool**: anaerobes
-- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence coefficients (Section 7.4) support de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
+- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This is a model-scope exclusion from the plasmid/mobile acquired-mechanism transfer network, not a claim that these organisms undergo no horizontal genetic exchange. In particular, *H. pylori* is naturally competent and undergoes transformation and homologous recombination, but the model does not represent those chromosomal events as donor–recipient plasmid transfer (Hofreuter D et al., 2000). For *M. tuberculosis*, evidence for clinically important mobile resistance genes remains limited (Borger AL et al., 2023). Chromosomal resistance in these excluded groups is represented through effective emergence and inherited-profile pathways rather than this HGT matrix. *Campylobacter* is not structurally excluded: it remains in the EntericGramNegative pool.
 
-The baseline compatibility assignments are:
+The baseline compatibility assignments are shown below. The values are effective daily within-model probabilities. Evidence supports the qualitative importance of plasmid host range, phylogenetic barriers, and shared ecology; the numerical spacing between rows is a calibration choice.
 
 | Donor-recipient relationship | Baseline pairwise HGT probability |
 |-----------------------------|-----------------------------------|
-| Same plasmid pool, same bacteria group | `1e-5` |
-| Same plasmid pool, different bacteria group | `1e-6` |
-| Enteric Gram-negative <-> respiratory Gram-negative | `3e-8` |
-| Enteric Gram-negative <-> anaerobe | `3e-7` |
-| Anaerobe <-> anaerobe | `1e-5` |
-| All other cross-pool combinations | `0.0` |
+| Same plasmid pool, same bacteria group<sup>1</sup> | `1e-5` |
+| Same plasmid pool, different bacteria group<sup>1</sup> | `1e-6` |
+| Enteric Gram-negative ↔ respiratory Gram-negative<sup>2</sup> | `3e-8` |
+| Enteric Gram-negative ↔ anaerobe<sup>2</sup> | `3e-7` |
+| Anaerobe ↔ anaerobe<sup>3</sup> | `1e-5` |
+| All other cross-pool combinations<sup>4</sup> | `0.0` |
 
-These values are effective within-model hazards and their purpose is to preserve the current ordering: transfer is easiest within the same ecological/plasmid pool, much weaker across the small set of allowed cross-pool bridges, and structurally absent for excluded groups.
+*Table evidence notes:*
+
+1. Recent gene exchange is enriched among bacteria sharing ecological niches, while plasmid host range, cellular compatibility, restriction systems, and recombination barriers constrain transfer. These findings support higher compatibility within a shared pool and bacteria group, but do not estimate `1e-5`, `1e-6`, or the tenfold difference between them (Thomas CM & Nielsen KM, 2005; Smillie CS et al., 2011; Redondo-Salvo S et al., 2020).
+2. Broad-host-range plasmids and co-residence within a host or body site make occasional transfer across related Gram-negative or gut-associated lineages biologically plausible. The two weak cross-pool bridges and their relative ordering are deliberately compressed modelling choices rather than empirically measured pairwise probabilities (Carattoli A, 2009; McInnes RS et al., 2020; Redondo-Salvo S et al., 2020).
+3. Extensive resistance-gene exchange has been documented among *Bacteroides* species and between *Bacteroides* and other colonic genera, supporting a comparatively permissive shared-anaerobe route. The value `1e-5` remains a calibration parameter, not the transfer frequency reported by that study (Shoemaker NB et al., 2001).
+4. `0.0` denotes a structural exclusion in the current model, not proof that transfer is biologically impossible. Natural HGT barriers generally reduce rather than absolutely prevent gene acquisition, and exceptional routes are outside this coarse pool matrix (Thomas CM & Nielsen KM, 2005).
 
 
 ### 9.2 The HGT process
 
 Each day, after all bacteria have been evaluated, the model evaluates potential gene transfer events among bacteria present in the same person, whether as active infection, asymptomatic carriage, or both. The model evaluates HGT separately for each resistance mechanism, allowing different plasmids or chromosomal determinants (for example KPC and *mcr-1*) to transfer independently rather than as a single all-or-nothing package. Donor eligibility is determined from the compartments in which the organism is actually present: `mechanism_any` supplies active-infection mechanisms and `mechanism_microbiome` supplies carriage mechanisms. Bacteria do not restrict donation only to the dominant active-infection strain; minority active-infection mechanisms and carriage mechanisms can also donate, but they receive the configured minority-donor multiplier because carriage has no separate indicator of the predominant resistance-mechanism profile.
 
-When an HGT event occurs, the mechanism must be classified as transferable and permitted for both the donor and recipient bacteria. A zero de novo emergence coefficient does not block receipt when the pair is `HgtOnly`; `ExcludedHost` does block both donation and receipt. Donor mechanism presence and predominant-strain status are recorded before the day's HGT pair evaluations begin and remain fixed throughout those evaluations. A mechanism received during that phase can therefore be donated from the following simulation day, but cannot cascade through further bacteria on the same day merely because of the order in which bacteria are evaluated. The transferred mechanism is recorded in each compartment where the recipient organism is present: `mechanism_any` for an active infection and `mechanism_microbiome` for asymptomatic carriage. If the recipient is present in both, both records are updated. A carriage-only transfer does not create a corresponding active-infection mechanism when no active infection is present. All HGT rates are scaled by the run-level `run_pathway_hgt_multiplier` (default 1.0) and by `counterfactual_resistance_multiplier`.
+When an HGT event occurs, the mechanism must be classified as transferable and permitted for both the donor and recipient bacteria. A zero de novo emergence coefficient does not block receipt when the pair is `HgtOnly`; `ExcludedHost` does block both donation and receipt. Donor mechanism presence and predominant-strain status are recorded before the day's HGT pair evaluations begin and remain fixed throughout those evaluations. A mechanism received during that phase can therefore be donated from the following simulation day, but cannot cascade through further bacteria on the same day merely because of the order in which bacteria are evaluated. The transferred mechanism is recorded in each compartment where the recipient organism is present: `mechanism_any` for an active infection and `mechanism_microbiome` for asymptomatic carriage. If the recipient is present in both, both records are updated. A carriage-only transfer does not create a corresponding active-infection mechanism when no active infection is present.
 
-| Step | Parameter | Value | Clinical parallel |
-|------|-----------|-------|-------------------|
-| Run-level HGT scaling | `run_pathway_hgt_multiplier` | 1.0 | Neutral sensitivity control that scales all HGT rates up or down uniformly |
-| Base pairwise transfer rate | `hgt_prob_{donor}_to_{recipient}` matrix (defaults from Section 9.1) | `0.0` to `1e-5` | Baseline compatibility hazard determined by plasmid-pool ecology and donor-recipient pairing before context multipliers are applied |
-| Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic use leads to activation of mobile genetic elements and increased conjugation rates by 50% (Beaber JW et al., 2004) — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
-| Hospitalisation boost | hgt_hospital_multiplier | 4.0 (×4.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
-| Co-infection baseline | hgt_coinfection_multiplier | 1.25 (×1.25) | Active multi-pathogen infections slightly increase the probability of genetic collision. |
-| Microbiome-only penalty | hgt_microbiome_only_penalty | 0.65 (×0.65) | Asymptomatic carriage interactions are less frequent than active infection environments. |
-| Gut compartment boost | hgt_gut_compartment_multiplier | 2.0 (×2.0) | The gut has higher bacterial density and provides more conjugation opportunities compared to skin or respiratory tracts. |
-| Minority donor penalty | hgt_minority_donor_multiplier | 0.20 (×0.20) | If an active-infection donor carries the mechanism outside its dominant strain, or if the mechanism is supplied only by carriage where predominant-strain status is not represented, its probability of successful conjugation is penalised by 80%. |
+| Step | Parameter | Value | Clinical or biological interpretation |
+|------|-----------|-------|---------------------------------------|
+| Base pairwise transfer probability | `hgt_prob_{donor}_to_{recipient}` matrix (defaults from Section 9.1) | `0.0` to `1e-5` | Baseline daily compatibility probability determined by plasmid-pool ecology and donor-recipient pairing before context multipliers are applied. |
+| Amplification during antibiotic therapy<sup>1</sup> | `hgt_antibiotic_pressure_multiplier` | 1.50 (×1.5) | Represents antibiotic-associated conditions that can promote transfer or subsequent establishment of mobile resistance elements; it is not a claim of a universal measured 50% increase. |
+| Hospitalisation boost<sup>2</sup> | `hgt_hospital_multiplier` | 4.0 (×4.0) | Represents the concentration of antibiotic exposure, resistant lineages, colonised patients, and shared healthcare environments that can increase opportunities for within-host and hospital-level plasmid dissemination. |
+| Co-infection boost<sup>3</sup> | `hgt_coinfection_multiplier` | 1.25 (×1.25) | Calibrated uplift when donor and recipient organisms are both represented as active infections, used as a coarse proxy for greater co-location or bacterial activity. |
+| Microbiome-only penalty<sup>4</sup> | `hgt_microbiome_only_penalty` | 0.65 (×0.65) | Calibrated down-weight for carriage-only pairs because the model does not resolve strain abundance, inflammation, or activity within carriage; it does not imply that asymptomatic carriage is intrinsically unfavourable to HGT. |
+| Gut compartment boost<sup>4</sup> | `hgt_gut_compartment_multiplier` | 2.0 (×2.0) | Represents the gut as a dense reservoir in which donor and recipient lineages can coexist and plasmid transfer has been observed. |
+| Minority donor penalty<sup>5</sup> | `hgt_minority_donor_multiplier` | 0.20 (×0.20) | Approximates lower transfer opportunity when the mechanism is outside the predominant active-infection strain, or is present in carriage where predominant-strain abundance is not represented; it is not a measured universal 80% reduction. |
+
+*Table evidence notes:*
+
+1. Ciprofloxacin-induced SOS signalling increased transfer of the SXT integrating conjugative element in *Vibrio cholerae*, demonstrating one mechanism by which particular antibiotic–element combinations can promote HGT. The effect is context dependent; the model's ×1.5 multiplier is a calibration value, not the estimate reported by that experiment (Beaber JW et al., 2004).
+2. Genomic epidemiology in hospitalised patients documented pervasive within-patient transfer of a pOXA-48-like plasmid in the gut, together with hospital dissemination hotspots at ward and room level. This supports treating hospital care as an opportunity-rich HGT context, but does not estimate the model's ×4.0 multiplier (León-Sampedro R et al., 2021).
+3. In-vivo co-colonisation experiments have demonstrated rapid exchange of mobile genetic elements when distinct bacterial lineages coexist. The model uses simultaneous active infection only as a tractable proxy for such ecological overlap; it does not explicitly model bacterial density, physical contact, or the anatomical relationship between infection sites, and ×1.25 is calibrated (McCarthy AJ et al., 2014).
+4. The gut can support extensive within-host plasmid transfer, particularly when inflammation or ecological disruption produces blooms of compatible donor and recipient organisms. These findings support the qualitative gut uplift, while also showing why the carriage-only penalty must not be interpreted as a general biological ranking of carriage below infection. Both ×2.0 and ×0.65 are model calibration choices (Stecher B et al., 2012; León-Sampedro R et al., 2021).
+5. Conjugation requires donor-recipient encounter, so the abundance and spatial overlap of the relevant populations affect transfer opportunity. Because the model records mechanism presence and predominant-strain status rather than within-compartment frequencies, ×0.20 is a structural approximation for lower effective donor abundance, not a directly observed effect size (Stecher B et al., 2012).
 
 `microbiome_resistance_transfer_probability_per_day` is a separate parameter used for within-host infection↔microbiome mechanism exchange (Section 8.2), not for inter-species HGT.
 
-The absolute HGT probabilities are intentionally low and should be interpreted as effective daily hazards at the model scale. Their main purpose is to preserve plausible relative ordering between low-contact community settings, antibiotic-stressed microbiomes, and high-contact hospital environments.
+The numerical modifiers in this table are review-informed calibration choices. The cited studies support the biological plausibility or direction of an effect, but none estimates the corresponding model multiplier. After the applicable baseline probability and multipliers are combined, the mechanism-specific daily HGT probability is limited to a maximum of 1. The absolute probabilities are intentionally low and their main purpose is to preserve a plausible relative ordering between lower-opportunity community contexts, antibiotic-affected microbiomes, and higher-opportunity hospital environments.
 
 ## 10. Mortality
 
@@ -2378,27 +2607,13 @@ The code represents the following finite sets of categories as enumerations, or 
 
 ## Appendix B — Parameter Reference
 
-**In this appendix**
+This appendix is auto-generated from the live Rust configuration. Parameters are organised thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults used by the reference configuration. Where a family has a uniform fallback, the fallback is stated and only explicit exceptions are listed. Dynamically parsed era overrides and environmental floors are included. Raw compatibility keys that are loaded nowhere in the executable rules are intentionally excluded.
 
-- [B.1 Global Numeric Parameters](#b1-global-numeric-parameters)
-- [B.2 Drug Properties](#b2-drug-properties)
-- [B.3 Bacteria Properties](#b3-bacteria-properties)
-- [B.4 Drug–Bacteria Potency Matrix](#b4-drugbacteria-potency-matrix)
-- [B.5 Regional Parameters](#b5-regional-parameters)
-- [B.6 Age-Dependent Parameters](#b6-age-dependent-parameters)
-- [B.7 Syndrome Parameters](#b7-syndrome-parameters)
-- [B.8 Clearance Parameters](#b8-clearance-parameters)
-- [B.9 Immunodeficiency, Sex, and Vaccination Parameters](#b9-immunodeficiency-sex-and-vaccination-parameters)
-- [B.10 Resistance Mechanisms](#b10-resistance-mechanisms)
-- [B.11 Horizontal Gene Transfer Matrix](#b11-horizontal-gene-transfer-matrix)
+### B.1 Global Scalar Parameters
 
-This appendix is generated automatically from the current Rust configuration. Parameters are organised thematically into tables of the values used by the model. All values shown are the reference values before any run-level pathway sensitivity multipliers are applied. Where a parameter family uses one value unless a more specific value is supplied, that general value is stated and only the exceptions are listed. Era-specific values and environmental floors are included. Compatibility identifiers that do not affect the current model are intentionally excluded.
+Scalar parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.
 
-### B.1 Global Numeric Parameters
-
-Single numeric parameters that govern model behaviour across multiple processes. They are grouped thematically; each row gives the parameter name and its reference value.
-
-See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.7 Drug toxicity](#67-drug-toxicity), [§2.4 Hospitalisation](#24-hospitalisation), [§2.5 Travel](#25-travel), [§4.3 Sepsis](#43-sepsis), [§7.4 Resistance emergence](#74-resistance-emergence), [§7.5 Resistance reversion](#75-resistance-reversion-and-fitness-costs), [§8 Microbiome and Carriage](#8-microbiome-and-carriage), [§9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), [§10 Mortality](#10-mortality).
+See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.7 Drug toxicity](#67-drug-toxicity), [§2.4 Hospitalisation](#24-hospitalisation), [§2.5 Travel](#25-travel), [§4.3 Sepsis](#43-sepsis), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs), [§8 Microbiome and Carriage](#8-microbiome-and-carriage), [§9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), [§10 Mortality](#10-mortality).
 
 #### Treatment Initiation (logistic model)
 
@@ -2489,7 +2704,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | carriage_duration_max_log_odds_effect | -2 |
 | antibiotic_clearance_log_odds_per_unit_activity | 0.5 |
 | carrier_resistance_inheritance_probability | 0.5 |
-| community_resistance_dilution_factor | 0.3 |
+| community_human_reservoir_profile_probability | 0.3 |
 
 #### Horizontal Gene Transfer Modifiers
 
@@ -2550,7 +2765,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 
 | Parameter | Value |
 | --- | ---: |
-| sepsis_death_base_log_odds | -5.2 |
+| sepsis_death_base_log_odds | -6.2 |
 | sepsis_death_log_odds_age_infant | 1.1 |
 | sepsis_death_log_odds_age_child | -0.7 |
 | sepsis_death_log_odds_age_adult | 0 |
@@ -2673,16 +2888,6 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier | 2.5 |
 | mdr_mycobacterium_tuberculosis_background_drug_effectiveness | 0.8 |
 | mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance | 0.9 |
-
-#### Run-Level Resistance Pathway Controls
-
-| Parameter | Value |
-| --- | ---: |
-| run_pathway_infection_de_novo_multiplier | 1 |
-| run_pathway_reversion_rate_multiplier | 1 |
-| run_pathway_hgt_multiplier | 1 |
-| run_pathway_microbiome_acquisition_multiplier | 1 |
-| run_pathway_ratchet_enabled | 1 |
 
 ### B.2 Drug Properties
 
@@ -2843,11 +3048,11 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | acinetobacter_baumannii | -17.7 | -2 | 0.5 | 5.6 | 0.01 | 0.55 | 5 | 0.1 | 8 | yes |
 | citrobacter_spp. | -16.3 | -2 | 0.5 | 4.6 | 0.01 | 0.5 | 5 | 0.08 | 9.8 | yes |
-| enterobacter_spp. | -16.8 | -2 | 0.5 | 5.2 | 0.01 | 0.5 | 5 | 0.07 | 10.6 | yes |
-| enterococcus_faecalis | -15.1 | -2 | 0.5 | 4.3 | 0.01 | 0.48 | 5 | 0.008 | 11 | yes |
-| enterococcus_faecium | -15.5 | -2 | 0.5 | 5.1 | 0.01 | 0.48 | 5 | 0.06 | 12.1 | yes |
-| escherichia_coli | -11.6 | -2 | 0.5 | 4 | 0.01 | 0.5 | 5 | 0.005 | 6.5 | yes |
-| klebsiella_pneumoniae | -14.7 | -2 | 0.5 | 5 | 0.01 | 0.52 | 5 | 0.03 | 7.4 | yes |
+| enterobacter_spp. | -16.3 | -2 | 0.5 | 5.2 | 0.01 | 0.5 | 5 | 0.07 | 10.6 | yes |
+| enterococcus_faecalis | -17.1 | -2 | 0.5 | 5.3 | 0.01 | 0.48 | 5 | 0.003 | 11 | yes |
+| enterococcus_faecium | -17.7 | -2 | 0.5 | 6 | 0.01 | 0.48 | 5 | 0.008 | 8.5 | yes |
+| escherichia_coli | -11.4 | -2 | 0.5 | 4 | 0.01 | 0.5 | 5 | 0.005 | 6.3 | yes |
+| klebsiella_pneumoniae | -14.2 | -2 | 0.5 | 5 | 0.01 | 0.52 | 5 | 0.03 | 7.4 | yes |
 | morganella_spp. | -17.2 | -2 | 0.5 | 5 | 0.01 | 0.48 | 5 | 0.1 | 10 | yes |
 | proteus_spp. | -16.1 | -2 | 0.5 | 4.4 | 0.01 | 0.5 | 5 | 0.08 | 8.5 | yes |
 | serratia_spp. | -17.3 | -2 | 0.5 | 5 | 0.01 | 0.48 | 5 | 0.1 | 10 | yes |
@@ -2860,25 +3065,25 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | salmonella_enterica_serovar_typhi | -17.3 | -2 | 0.5 | 3 | 0.01 | 0.45 | 5 | 0.003 | -8 | yes |
 | salmonella_enterica_serovar_paratyphi_a | -16.8 | -2 | 0.5 | 2.5 | 0.01 | 0.45 | 5 | 0.15 | -1 | yes |
 | invasive_non-typhoidal_salmonella_spp. | -17.8 | -2 | 0.5 | 3.5 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | yes |
-| shigella_spp. | -12.6 | -2 | 0.5 | 2 | 0.01 | 0.55 | 5 | 0.15 | -0.8 | yes |
+| shigella_spp. | -11.827 | -2 | 0.5 | 2 | 0.01 | 0.55 | 5 | 0.15 | -1.573 | yes |
 | neisseria_gonorrhoeae | -13.5 | -2 | 0.5 | -8 | 0.01 | 0.55 | 5 | 0.2 | 3 | yes |
 | streptococcus_pyogenes | -14.4 | -2 | 0.5 | 3.5 | 0.01 | 0.7 | 5 | 0.08 | 8 | yes |
 | streptococcus_agalactiae | -15.9 | -2 | 0.5 | 4.5 | 0.01 | 0.52 | 5 | 0.06 | 10.2 | yes |
-| haemophilus_influenzae | -18.47 | -1.8 | 0.5 | 3 | 0.01 | 0.55 | 5 | 0.06 | 12.5 | yes |
+| haemophilus_influenzae | -16.5 | -1.8 | 0.5 | 3 | 0.01 | 0.55 | 5 | 0.06 | 14 | yes |
 | chlamydia_trachomatis | -12.8 | -2 | 0.5 | -8.5 | 0.01 | 0.25 | 5 | 0.2 | 4.2 | yes |
 | mycoplasma_genitalium | -12.1 | -2 | 0.5 | -8 | 0.01 | 0.28 | 5 | 0.18 | 4.7 | yes |
-| vibrio_cholerae | -18.65 | -2 | 0.5 | 2 | 0.01 | 0.7 | 5 | 0.15 | 0.3 | yes |
+| vibrio_cholerae | -18.7 | -2 | 0.5 | 2 | 0.01 | 0.7 | 5 | 0.15 | 0.3 | yes |
 | neisseria_meningitidis | -18.5 | -2 | 0.5 | 4.2 | 0.01 | 0.65 | 5 | 0.05 | 10.9 | yes |
 | listeria_monocytogenes | -19 | -2 | 0.5 | 2 | 0.01 | 0.25 | 5 | 0.1 | 12.5 | yes |
-| clostridioides_difficile | -15.15 | -2 | 0.5 | 5.3 | 0.01 | 0.55 | 5 | 0.02 | 6 | yes |
-| bacteroides_fragilis | -15.1 | -2 | 0.5 | 4.5 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | yes |
-| campylobacter_jejuni | -13 | -2 | 0.5 | -7.5 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | yes |
-| enterobacter_cloacae | -17.3 | -2 | 0.5 | 6.8 | 0.01 | 0.5 | 5 | 0.04 | 11.3 | yes |
+| clostridioides_difficile | -15.2 | -2 | 0.5 | 5.3 | 0.01 | 0.55 | 5 | 0.02 | 6 | yes |
+| bacteroides_fragilis | -15.1 | -2 | 0.5 | 5 | 0.01 | 0.42 | 5 | 0.004 | 9.9 | yes |
+| campylobacter_jejuni | -12.1 | -2 | 0.5 | -7.5 | 0.01 | 0.52 | 5 | 0.12 | 1.415 | yes |
+| enterobacter_cloacae | -17.3 | -2 | 0.5 | 6.8 | 0.01 | 0.5 | 5 | 0.04 | 10.5 | yes |
 | yersinia_enterocolitica | -16.6 | -2 | 0.5 | 2 | 0.01 | 0.45 | 5 | 0.25 | 5.5 | yes |
 | moraxella_catarrhalis | -14.6 | -2 | 0.5 | 3.6 | 0.01 | 0.55 | 5 | 0.05 | 10.4 | yes |
 | treponema_pallidum | -12.7 | -2 | 0.5 | -9 | 0.01 | 0.18 | 5 | 0.35 | 5.5 | yes |
-| bordetella_pertussis | -12.32 | -1.4 | 0.5 | 3 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | yes |
-| helicobacter_pylori | -13.5 | -2 | 0.5 | 0 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | no |
+| bordetella_pertussis | -12.3 | -1.4 | 0.5 | 3 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | yes |
+| helicobacter_pylori | -13.8 | -2 | 0.5 | 0 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | no |
 | mdr_mycobacterium_tuberculosis | -16.5 | -2 | 0.5 | 2 | 0.01 | 0.15 | 5 | 0.0015 | -2 | yes |
 | mycoplasma_pneumoniae | -12 | -2 | 0.5 | 2.5 | 0.01 | 0.35 | 5 | 0.01 | 0.1 | yes |
 | legionella_pneumophila | -15.5 | -2 | 0.5 | 3.7 | 0.01 | 0.55 | 5 | 0.01 | -3 | yes |
@@ -2933,65 +3138,65 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 
 #### Clinical Outcomes and Resistance Ecology
 
-| Bacteria | Sepsis base log-odds | Sepsis log-odds/level | Sepsis log-odds/day | Non-sepsis death log-odds | Organism-specific sepsis-death adjustment | Mechanismless reversion/day | Community human-reservoir resistance-mechanism profile probability | Hospital resistance-mechanism profiles with no modelled acquired resistance removed (%) | Community mechanism-reversion multiplier |
+| Bacteria | Sepsis base log-odds | Sepsis log-odds/level | Sepsis log-odds/day | Non-sepsis death log-odds | Sepsis-death override | Mechanismless reversion/day | Community human-profile probability | Hospital susceptible prune % | Community mechanism-reversion multiplier |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| acinetobacter_baumannii | -5.1 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 0.3 | 75 | 3 |
-| citrobacter_spp. | -8.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| enterobacter_spp. | -6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
-| enterococcus_faecalis | -5.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.4 | 55 | 0.1 |
-| enterococcus_faecium | -4.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 3 |
-| escherichia_coli | -10.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
-| klebsiella_pneumoniae | -7.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
-| morganella_spp. | -7.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| proteus_spp. | -6.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| serratia_spp. | -7.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
-| p_stuartii | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| pseudomonas_aeruginosa | -5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
-| stenotrophomonas_maltophilia | -7.3 | 0.08 | 0.012 | -4 | 0 | 4e-4 | 0.3 | 75 | 3 |
-| staphylococcus_aureus | -8.8 | 0.93 | 0.005 | 0 | 0.41 | 4e-4 | 0.8 | 65 | 0.1 |
-| staphylococcus_epidermidis | -7.3 | 0.04 | 0.005 | -6 | 0 | 4e-4 | 0.5 | 65 | 0.1 |
-| streptococcus_pneumoniae | -9.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 50 | 0.1 |
-| salmonella_enterica_serovar_typhi | -8.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 20 | 0.1 |
-| salmonella_enterica_serovar_paratyphi_a | -8.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 20 | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | -8.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
-| shigella_spp. | -20.5 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 0.72 | 25 | 0.1 |
-| neisseria_gonorrhoeae | -23.3 | 0.93 | 0.005 | -2.5 | 0 | 4e-4 | 1 | 50 | 0.01 |
-| streptococcus_pyogenes | -6 | 0.93 | 0.005 | 3 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
-| streptococcus_agalactiae | -6.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
-| haemophilus_influenzae | -8.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
-| chlamydia_trachomatis | -18.3 | 0.93 | 0.005 | -5 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| mycoplasma_genitalium | -12 | 0.93 | 0.005 | -4.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| vibrio_cholerae | -7 | 0.93 | 0.005 | 2.5 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
-| neisseria_meningitidis | -7.2 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 1 | 50 | 0.1 |
-| listeria_monocytogenes | -7.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
-| clostridioides_difficile | -9.8 | 0.93 | 0.005 | 2 | 0 | 4e-4 | 0.3 | 55 | 0.1 |
-| bacteroides_fragilis | -12 | 0.93 | 0.005 | 1.5 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
-| campylobacter_jejuni | -20.2 | 0.93 | 0.005 | -0.5 | 0 | 4e-4 | 0.9 | 25 | 0.1 |
-| enterobacter_cloacae | -6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
-| yersinia_enterocolitica | -8.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
-| moraxella_catarrhalis | -12.4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
-| treponema_pallidum | -10.3 | 0.93 | 0.005 | 3.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| bordetella_pertussis | -500 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| helicobacter_pylori | -500 | 0.93 | 0.005 | 1.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| mdr_mycobacterium_tuberculosis | -38 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| mycoplasma_pneumoniae | -12 | 0.93 | 0.005 | -0.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| legionella_pneumophila | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
-| burkholderia_cepacia_complex | -12 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| acinetobacter_baumannii | -3.9 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 0.3 | 75 | 3 |
+| citrobacter_spp. | -6.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| enterobacter_spp. | -3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| enterococcus_faecalis | -2.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 0.1 |
+| enterococcus_faecium | -1.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 1.5 |
+| escherichia_coli | -9.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
+| klebsiella_pneumoniae | -7.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
+| morganella_spp. | -5.9 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| proteus_spp. | -5.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| serratia_spp. | -5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
+| p_stuartii | -10.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| pseudomonas_aeruginosa | -2.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| stenotrophomonas_maltophilia | -6.1 | 0.08 | 0.012 | -4 | 0 | 4e-4 | 0.3 | 75 | 3 |
+| staphylococcus_aureus | -8.5 | 0.93 | 0.005 | 0 | 0.4 | 4e-4 | 0.8 | 65 | 0.1 |
+| staphylococcus_epidermidis | -6.1 | 0.04 | 0.005 | -6 | 0 | 4e-4 | 0.5 | 65 | 0.1 |
+| streptococcus_pneumoniae | -7.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 50 | 0.1 |
+| salmonella_enterica_serovar_typhi | -6.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 20 | 0.1 |
+| salmonella_enterica_serovar_paratyphi_a | -7.9 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 20 | 0.1 |
+| invasive_non-typhoidal_salmonella_spp. | -6.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
+| shigella_spp. | -20 | 0.93 | 0.005 | -0.5 | 0 | 4e-4 | 0.72 | 25 | 0.1 |
+| neisseria_gonorrhoeae | -50 | 0.93 | 0.005 | -2.5 | 0 | 4e-4 | 1 | 50 | 0.01 |
+| streptococcus_pyogenes | -5 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
+| streptococcus_agalactiae | -3.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
+| haemophilus_influenzae | -7.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
+| chlamydia_trachomatis | -17.1 | 0.93 | 0.005 | -5 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mycoplasma_genitalium | -10.5 | 0.93 | 0.005 | -4.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| vibrio_cholerae | -5.8 | 0.93 | 0.005 | 2.5 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| neisseria_meningitidis | -5 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 1 | 50 | 0.1 |
+| listeria_monocytogenes | -6.1 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| clostridioides_difficile | -8.6 | 0.93 | 0.005 | 2 | 0 | 4e-4 | 0.3 | 55 | 0.1 |
+| bacteroides_fragilis | -10.5 | 0.93 | 0.005 | 1.5 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
+| campylobacter_jejuni | -19 | 0.93 | 0.005 | -0.5 | 0 | 4e-4 | 0.9 | 25 | 0.1 |
+| enterobacter_cloacae | -4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| yersinia_enterocolitica | -7.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| moraxella_catarrhalis | -11.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
+| treponema_pallidum | -9.1 | 0.93 | 0.005 | 3.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| bordetella_pertussis | -8.8 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| helicobacter_pylori | -500 | 0.93 | 0.005 | 0.2 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mdr_mycobacterium_tuberculosis | -37 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| mycoplasma_pneumoniae | -16.8 | 0.93 | 0.005 | -0.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| legionella_pneumophila | -10.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
+| burkholderia_cepacia_complex | -10.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
 
 #### Bacterium-Specific Testing Availability Years
 
-Only explicitly specified bacterium-specific dates are shown; all other organisms use the general bacterial-testing availability date in B.1.
+Only explicit bacterium-specific overrides are shown; all other organisms use the general bacterial-testing availability date in B.1.
 
 | Parameter | Year |
 | --- | ---: |
 
 ### B.4 Drug–Bacteria Potency Matrix
 
-Dimensionless baseline potency when no modelled acquired resistance is present, and initiation multiplier (stewardship weighting for drug selection), for each drug–bacteria pair. Low or zero potency represents intrinsic or baseline non-susceptibility. The values are informed by MICs, clinical breakpoints, microbiological knowledge, and clinical use but are not themselves MICs or breakpoint classifications. 42 bacteria × 62 drugs = 2604 entries.
+Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 62 drugs = 2604 entries.
 
 See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).
 
-| Bacteria | Drug | Potency (no acquired R) | Init multiplier |
+| Bacteria | Drug | Potency (no R) | Init multiplier |
 | --- | ---: | ---: | ---: |
 | acinetobacter_baumannii | sulfanilamide | 0.1 | 0.02 |
 | acinetobacter_baumannii | penicillin_g | 0.05 | 0.01 |
@@ -3198,8 +3403,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecalis | imipenem_c | 0.45 | 0.5 |
 | enterococcus_faecalis | ertapenem | 0.1 | 0.5 |
 | enterococcus_faecalis | aztreonam | 0 | 0.003 |
-| enterococcus_faecalis | erythromycin | 0.7 | 0.01 |
-| enterococcus_faecalis | azithromycin | 0.7 | 0.01 |
+| enterococcus_faecalis | erythromycin | 0.7 | 1 |
+| enterococcus_faecalis | azithromycin | 0.7 | 1 |
 | enterococcus_faecalis | clarithromycin | 0.7 | 1 |
 | enterococcus_faecalis | clindamycin | 0.7 | 1 |
 | enterococcus_faecalis | gentamicin | 0.1 | 20 |
@@ -3260,8 +3465,8 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecium | imipenem_c | 0.1 | 0.5 |
 | enterococcus_faecium | ertapenem | 0.1 | 0.5 |
 | enterococcus_faecium | aztreonam | 0 | 0.003 |
-| enterococcus_faecium | erythromycin | 0.7 | 0.01 |
-| enterococcus_faecium | azithromycin | 0.7 | 0.01 |
+| enterococcus_faecium | erythromycin | 0.7 | 1 |
+| enterococcus_faecium | azithromycin | 0.7 | 1 |
 | enterococcus_faecium | clarithromycin | 0.7 | 1 |
 | enterococcus_faecium | clindamycin | 0.7 | 1 |
 | enterococcus_faecium | gentamicin | 0.75 | 1 |
@@ -5598,7 +5803,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | cefixime | 0.1 | 0.2 |
 | burkholderia_cepacia_complex | nalidixic_acid | 0 | 0 |
 
-#### Time-Varying Drug-Initiation Values
+#### Time-Varying Drug-Initiation Overrides
 
 These values replace the base initiation multiplier before the year encoded in the parameter name. For overlapping cut-offs, the earliest cut-off later than the current simulation year is used.
 
@@ -5716,18 +5921,18 @@ These values replace the base initiation multiplier before the year encoded in t
 
 #### Additional Clinical-Preference Multipliers
 
-These bacterium-drug multipliers use 1.0 when no specific value is supplied. Only explicitly specified values are shown.
+These directly read bacterium-drug multipliers default to 1.0. Only explicit overrides are shown.
 
 | Parameter | Multiplier |
 | --- | ---: |
 
 ### B.5 Regional Parameters
 
-Region-level numeric values (applicable to all bacteria) and the per-region per-bacteria acquisition log-odds adjustments.
+Region-level scalars (applicable to all bacteria) and the per-region per-bacteria acquisition log-odds adjustments.
 
 See: [§2.5 Travel](#25-travel), [§3.1 Community acquisition](#31-community-acquisition).
 
-#### Region-Wide Numeric Parameters
+#### Region Scalars
 
 | Region | Travel mult | Cessation mult | Mortality log-odds | Sepsis log-odds | Sepsis mort mult | Testing mult | Abx init log-odds | Hosp log-odds |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -6158,9 +6363,9 @@ See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Co
 | oceania | infant | 0.1 |
 | oceania | elderly | 0.3 |
 
-#### Explicit Bacterium–Region–Age Values
+#### Explicit Bacterium–Region–Age Overrides
 
-Only explicitly configured three-way values are shown. Every unlisted combination uses the corresponding region-age value above.
+Only explicitly configured three-way overrides are shown. Every unlisted combination inherits the corresponding region-age value above.
 
 | Bacteria | Region | Age category | Log-odds |
 | --- | ---: | ---: | ---: |
@@ -6246,9 +6451,9 @@ Only explicitly configured three-way values are shown. Every unlisted combinatio
 | sepsis_age_log_odds_young_adult | 0 |
 | sepsis_age_log_odds_elderly | 0.69 |
 
-#### Bacterium-Specific Sepsis-Age Values
+#### Bacterium-Specific Sepsis-Age Overrides
 
-Only explicitly specified values are shown; all other combinations contribute 0.
+Only explicit overrides are shown; all other combinations contribute 0.
 
 | Parameter | Log-odds |
 | --- | ---: |
@@ -6273,11 +6478,11 @@ Only explicitly specified values are shown; all other combinations contribute 0.
 
 ### B.7 Syndrome Parameters
 
-Infection-site (syndrome) specific parameters. The ten clinical syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other. ID 0 (`none`) is a reserved no-syndrome value rather than an eleventh clinical syndrome; it also identifies the background prescribing template described in [Section 4.1](#41-syndrome-assignment).
+Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.
 
 See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.4 Drug penetration by syndrome](#64-drug-penetration-by-syndrome).
 
-#### Syndrome-Level Clinical Numeric Parameters
+#### Syndrome-Level Clinical Scalars
 
 | Syndrome | Sepsis log-odds | Initiation multiplier | Non-sepsis death log-odds | Growth multiplier |
 | --- | ---: | ---: | ---: | ---: |
@@ -6299,42 +6504,42 @@ The resolved default for every unlisted syndrome-drug pair is 0.01.
 
 | Syndrome | Drug | Empiric score |
 | --- | ---: | ---: |
-| uti | ampicillin | 0.7 |
-| uti | amoxicillin | 1.4 |
+| uti | ampicillin | 0.616 |
+| uti | amoxicillin | 1.232 |
 | uti | cephalexin | 4 |
 | uti | cefazolin | 3.8 |
 | uti | cefuroxime | 4.6 |
-| uti | ceftriaxone | 2.2 |
-| uti | ceftazidime | 3.5 |
+| uti | ceftriaxone | 1.804 |
+| uti | ceftazidime | 2.87 |
 | uti | cefepime | 4 |
 | uti | meropenem | 25 |
 | uti | imipenem_c | 25 |
 | uti | ertapenem | 25 |
-| uti | gentamicin | 6 |
-| uti | tobramycin | 5 |
-| uti | amikacin | 6 |
-| uti | ciprofloxacin | 0.9 |
-| uti | levofloxacin | 0.8 |
+| uti | gentamicin | 4.92 |
+| uti | tobramycin | 4.1 |
+| uti | amikacin | 4.92 |
+| uti | ciprofloxacin | 0.81 |
+| uti | levofloxacin | 0.72 |
 | uti | vancomycin | 0.3 |
 | uti | linezolid | 0.3 |
-| uti | trim_sulf | 0.6 |
-| uti | nitrofurantoin | 140 |
+| uti | trim_sulf | 0.69 |
+| uti | nitrofurantoin | 156.8 |
 | uti | fosfomycin | 120 |
-| uti | amoxicillin_clavulanate | 7 |
-| uti | piperacillin_tazobactam | 6 |
+| uti | amoxicillin_clavulanate | 7.7 |
+| uti | piperacillin_tazobactam | 6.6 |
 | uti | ceftazidime_avibactam | 10 |
 | uti | meropenem_vaborbactam | 15 |
 | uti | colistin | 0.4 |
 | uti | aztreonam_avibactam | 1 |
-| uti | cefixime | 6.2 |
-| skin_soft_tissue | penicillin_g | 3.4 |
-| skin_soft_tissue | ampicillin | 2.8 |
-| skin_soft_tissue | amoxicillin | 3.4 |
+| uti | cefixime | 5.084 |
+| skin_soft_tissue | penicillin_g | 2.992 |
+| skin_soft_tissue | ampicillin | 2.464 |
+| skin_soft_tissue | amoxicillin | 2.992 |
 | skin_soft_tissue | cephalexin | 5 |
 | skin_soft_tissue | cefazolin | 6.7 |
 | skin_soft_tissue | ceftaroline | 20 |
-| skin_soft_tissue | clindamycin | 3.5 |
-| skin_soft_tissue | ciprofloxacin | 1.4 |
+| skin_soft_tissue | clindamycin | 4.725 |
+| skin_soft_tissue | ciprofloxacin | 1.26 |
 | skin_soft_tissue | doxycycline | 2 |
 | skin_soft_tissue | minocycline | 1.5 |
 | skin_soft_tissue | vancomycin | 90 |
@@ -6343,51 +6548,51 @@ The resolved default for every unlisted syndrome-drug pair is 0.01.
 | skin_soft_tissue | tedizolid | 85 |
 | skin_soft_tissue | daptomycin | 80 |
 | skin_soft_tissue | quinu_dalfo | 8 |
-| skin_soft_tissue | trim_sulf | 0.5 |
+| skin_soft_tissue | trim_sulf | 0.575 |
 | skin_soft_tissue | rifampicin | 0.5 |
-| skin_soft_tissue | amoxicillin_clavulanate | 4.2 |
-| skin_soft_tissue | piperacillin_tazobactam | 4.5 |
-| skin_soft_tissue | flucloxacillin | 14 |
-| respiratory | penicillin_g | 4.5 |
-| respiratory | ampicillin | 2.3 |
-| respiratory | amoxicillin | 4.5 |
+| skin_soft_tissue | amoxicillin_clavulanate | 4.62 |
+| skin_soft_tissue | piperacillin_tazobactam | 4.95 |
+| skin_soft_tissue | flucloxacillin | 12.32 |
+| respiratory | penicillin_g | 3.96 |
+| respiratory | ampicillin | 2.024 |
+| respiratory | amoxicillin | 3.96 |
 | respiratory | cephalexin | 1.2 |
 | respiratory | cefuroxime | 3 |
-| respiratory | ceftriaxone | 6.2 |
+| respiratory | ceftriaxone | 5.084 |
 | respiratory | cefepime | 12 |
 | respiratory | meropenem | 32 |
 | respiratory | imipenem_c | 32 |
 | respiratory | erythromycin | 0.8 |
 | respiratory | azithromycin | 0.9 |
 | respiratory | clarithromycin | 0.99 |
-| respiratory | levofloxacin | 1.1 |
-| respiratory | moxifloxacin | 1.1 |
-| respiratory | ofloxacin | 1.1 |
+| respiratory | levofloxacin | 0.99 |
+| respiratory | moxifloxacin | 0.99 |
+| respiratory | ofloxacin | 0.99 |
 | respiratory | doxycycline | 3 |
 | respiratory | minocycline | 1.5 |
 | respiratory | vancomycin | 8 |
 | respiratory | linezolid | 9 |
-| respiratory | amoxicillin_clavulanate | 8 |
-| respiratory | piperacillin_tazobactam | 8 |
-| respiratory | cefixime | 5.7 |
-| bloodstream | penicillin_g | 4.5 |
-| bloodstream | ampicillin | 4.5 |
-| bloodstream | amoxicillin | 4.5 |
+| respiratory | amoxicillin_clavulanate | 8.8 |
+| respiratory | piperacillin_tazobactam | 8.8 |
+| respiratory | cefixime | 4.674 |
+| bloodstream | penicillin_g | 3.96 |
+| bloodstream | ampicillin | 3.96 |
+| bloodstream | amoxicillin | 3.96 |
 | bloodstream | cephalexin | 2 |
 | bloodstream | cefazolin | 5.9 |
-| bloodstream | ceftriaxone | 7 |
-| bloodstream | ceftazidime | 11 |
+| bloodstream | ceftriaxone | 5.74 |
+| bloodstream | ceftazidime | 9.02 |
 | bloodstream | cefepime | 40 |
 | bloodstream | ceftaroline | 25 |
 | bloodstream | ceftolozane_tazobactam | 28 |
 | bloodstream | meropenem | 1600 |
 | bloodstream | imipenem_c | 1200 |
 | bloodstream | aztreonam | 30 |
-| bloodstream | gentamicin | 90 |
-| bloodstream | tobramycin | 80 |
-| bloodstream | amikacin | 90 |
-| bloodstream | ciprofloxacin | 1.8 |
-| bloodstream | levofloxacin | 1.8 |
+| bloodstream | gentamicin | 73.8 |
+| bloodstream | tobramycin | 65.6 |
+| bloodstream | amikacin | 73.8 |
+| bloodstream | ciprofloxacin | 1.62 |
+| bloodstream | levofloxacin | 1.62 |
 | bloodstream | vancomycin | 150 |
 | bloodstream | dalbavancin | 110 |
 | bloodstream | linezolid | 150 |
@@ -6395,41 +6600,41 @@ The resolved default for every unlisted syndrome-drug pair is 0.01.
 | bloodstream | daptomycin | 140 |
 | bloodstream | quinu_dalfo | 8.5 |
 | bloodstream | rifampicin | 0.5 |
-| bloodstream | amoxicillin_clavulanate | 3.5 |
-| bloodstream | piperacillin_tazobactam | 23 |
-| bloodstream | ampicillin_sulbactam | 8 |
+| bloodstream | amoxicillin_clavulanate | 3.85 |
+| bloodstream | piperacillin_tazobactam | 25.3 |
+| bloodstream | ampicillin_sulbactam | 8.8 |
 | bloodstream | ceftazidime_avibactam | 22 |
 | bloodstream | meropenem_vaborbactam | 600 |
 | bloodstream | colistin | 0.3 |
-| bloodstream | flucloxacillin | 9 |
+| bloodstream | flucloxacillin | 7.92 |
 | bloodstream | aztreonam_avibactam | 2 |
-| intra_abdominal | ampicillin | 5.6 |
-| intra_abdominal | amoxicillin | 5.6 |
-| intra_abdominal | ceftriaxone | 6.2 |
-| intra_abdominal | ceftazidime | 7.9 |
+| intra_abdominal | ampicillin | 4.928 |
+| intra_abdominal | amoxicillin | 4.928 |
+| intra_abdominal | ceftriaxone | 5.084 |
+| intra_abdominal | ceftazidime | 6.478 |
 | intra_abdominal | cefepime | 22 |
 | intra_abdominal | ceftolozane_tazobactam | 23 |
 | intra_abdominal | meropenem | 1300 |
 | intra_abdominal | imipenem_c | 970 |
 | intra_abdominal | ertapenem | 800 |
 | intra_abdominal | aztreonam | 25 |
-| intra_abdominal | gentamicin | 70 |
-| intra_abdominal | amikacin | 70 |
-| intra_abdominal | ciprofloxacin | 1.4 |
-| intra_abdominal | levofloxacin | 1.4 |
-| intra_abdominal | trim_sulf | 0.1 |
+| intra_abdominal | gentamicin | 57.4 |
+| intra_abdominal | amikacin | 57.4 |
+| intra_abdominal | ciprofloxacin | 1.26 |
+| intra_abdominal | levofloxacin | 1.26 |
+| intra_abdominal | trim_sulf | 0.115 |
 | intra_abdominal | metronidazole | 8 |
-| intra_abdominal | amoxicillin_clavulanate | 9 |
-| intra_abdominal | piperacillin_tazobactam | 22 |
-| intra_abdominal | ampicillin_sulbactam | 10 |
+| intra_abdominal | amoxicillin_clavulanate | 9.9 |
+| intra_abdominal | piperacillin_tazobactam | 24.2 |
+| intra_abdominal | ampicillin_sulbactam | 11 |
 | intra_abdominal | ceftazidime_avibactam | 17 |
 | intra_abdominal | meropenem_vaborbactam | 500 |
 | intra_abdominal | colistin | 0.5 |
 | intra_abdominal | aztreonam_avibactam | 2 |
-| cns_meningitis | penicillin_g | 12 |
-| cns_meningitis | ampicillin | 11 |
-| cns_meningitis | ceftriaxone | 11 |
-| cns_meningitis | ceftazidime | 11 |
+| cns_meningitis | penicillin_g | 10.56 |
+| cns_meningitis | ampicillin | 9.68 |
+| cns_meningitis | ceftriaxone | 9.02 |
+| cns_meningitis | ceftazidime | 9.02 |
 | cns_meningitis | cefepime | 18 |
 | cns_meningitis | meropenem | 270 |
 | cns_meningitis | imipenem_c | 210 |
@@ -6437,62 +6642,62 @@ The resolved default for every unlisted syndrome-drug pair is 0.01.
 | cns_meningitis | linezolid | 90 |
 | cns_meningitis | chloramphenicol | 2 |
 | cns_meningitis | rifampicin | 1 |
-| cns_meningitis | piperacillin_tazobactam | 1 |
-| cns_meningitis | cefixime | 0.88 |
-| gastrointestinal | penicillin_g | 2.3 |
-| gastrointestinal | ampicillin | 2.3 |
-| gastrointestinal | amoxicillin | 2.3 |
+| cns_meningitis | piperacillin_tazobactam | 1.1 |
+| cns_meningitis | cefixime | 0.7216 |
+| gastrointestinal | penicillin_g | 2.024 |
+| gastrointestinal | ampicillin | 2.024 |
+| gastrointestinal | amoxicillin | 2.024 |
 | gastrointestinal | cephalexin | 3 |
 | gastrointestinal | cefuroxime | 3 |
 | gastrointestinal | azithromycin | 0.7 |
-| gastrointestinal | ciprofloxacin | 0.8 |
-| gastrointestinal | levofloxacin | 0.83 |
+| gastrointestinal | ciprofloxacin | 0.72 |
+| gastrointestinal | levofloxacin | 0.747 |
 | gastrointestinal | doxycycline | 1.2 |
 | gastrointestinal | minocycline | 1 |
-| gastrointestinal | trim_sulf | 0.2 |
+| gastrointestinal | trim_sulf | 0.23 |
 | gastrointestinal | metronidazole | 2 |
-| gastrointestinal | furazolidone | 0.23 |
+| gastrointestinal | furazolidone | 0.2576 |
 | gastrointestinal | rifampicin | 0.5 |
-| gastrointestinal | amoxicillin_clavulanate | 2.2 |
-| gastrointestinal | ampicillin_sulbactam | 1.8 |
-| gastrointestinal | cefixime | 3.5 |
-| genital_sti | penicillin_g | 4.5 |
-| genital_sti | ampicillin | 3.4 |
-| genital_sti | amoxicillin | 2.3 |
+| gastrointestinal | amoxicillin_clavulanate | 2.42 |
+| gastrointestinal | ampicillin_sulbactam | 1.98 |
+| gastrointestinal | cefixime | 2.87 |
+| genital_sti | penicillin_g | 3.96 |
+| genital_sti | ampicillin | 2.992 |
+| genital_sti | amoxicillin | 2.024 |
 | genital_sti | cephalexin | 4 |
 | genital_sti | cefuroxime | 6 |
-| genital_sti | ceftriaxone | 11 |
+| genital_sti | ceftriaxone | 9.02 |
 | genital_sti | azithromycin | 1 |
-| genital_sti | clindamycin | 4 |
-| genital_sti | ciprofloxacin | 0.5 |
-| genital_sti | levofloxacin | 0.7 |
+| genital_sti | clindamycin | 5.4 |
+| genital_sti | ciprofloxacin | 0.45 |
+| genital_sti | levofloxacin | 0.63 |
 | genital_sti | doxycycline | 4.5 |
-| genital_sti | trim_sulf | 0.1 |
+| genital_sti | trim_sulf | 0.115 |
 | genital_sti | metronidazole | 4 |
 | genital_sti | rifampicin | 0.5 |
-| genital_sti | amoxicillin_clavulanate | 3 |
-| genital_sti | ampicillin_sulbactam | 2.5 |
-| genital_sti | cefixime | 9.2 |
-| bone_joint | penicillin_g | 6.8 |
-| bone_joint | ampicillin | 9 |
+| genital_sti | amoxicillin_clavulanate | 3.3 |
+| genital_sti | ampicillin_sulbactam | 2.75 |
+| genital_sti | cefixime | 7.544 |
+| bone_joint | penicillin_g | 5.984 |
+| bone_joint | ampicillin | 7.92 |
 | bone_joint | cephalexin | 3.5 |
 | bone_joint | cefazolin | 7.6 |
-| bone_joint | ceftriaxone | 9.7 |
+| bone_joint | ceftriaxone | 7.954 |
 | bone_joint | ceftaroline | 25 |
 | bone_joint | meropenem | 690 |
-| bone_joint | clindamycin | 3 |
-| bone_joint | ciprofloxacin | 2.3 |
-| bone_joint | levofloxacin | 2.3 |
+| bone_joint | clindamycin | 4.05 |
+| bone_joint | ciprofloxacin | 2.07 |
+| bone_joint | levofloxacin | 2.07 |
 | bone_joint | vancomycin | 150 |
 | bone_joint | dalbavancin | 110 |
 | bone_joint | linezolid | 150 |
 | bone_joint | tedizolid | 130 |
 | bone_joint | daptomycin | 140 |
-| bone_joint | trim_sulf | 0.5 |
+| bone_joint | trim_sulf | 0.575 |
 | bone_joint | rifampicin | 6 |
-| bone_joint | piperacillin_tazobactam | 6 |
-| bone_joint | flucloxacillin | 14 |
-| other | ceftriaxone | 3.5 |
+| bone_joint | piperacillin_tazobactam | 6.6 |
+| bone_joint | flucloxacillin | 12.32 |
+| other | ceftriaxone | 2.87 |
 | other | cefepime | 40 |
 | other | ceftaroline | 25 |
 | other | ceftolozane_tazobactam | 30 |
@@ -6500,14 +6705,14 @@ The resolved default for every unlisted syndrome-drug pair is 0.01.
 | other | imipenem_c | 1100 |
 | other | aztreonam | 30 |
 | other | azithromycin | 0.5 |
-| other | ciprofloxacin | 2.3 |
+| other | ciprofloxacin | 2.07 |
 | other | vancomycin | 150 |
 | other | linezolid | 150 |
 | other | daptomycin | 140 |
-| other | piperacillin_tazobactam | 12 |
+| other | piperacillin_tazobactam | 13.2 |
 | other | aztreonam_avibactam | 2 |
 
-#### Time-Varying Syndrome Empiric-Score Values
+#### Time-Varying Syndrome Empiric-Score Overrides
 
 These values replace the base syndrome score before the year encoded in the parameter name.
 
@@ -7059,7 +7264,7 @@ See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortal
 
 Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence coefficients.
 
-See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.4 Resistance emergence](#74-resistance-emergence), [§7.5 Resistance reversion](#75-resistance-reversion-and-fitness-costs).
+See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
 #### Mechanism Reversion Rates
 
@@ -7114,7 +7319,7 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 
 #### Mechanism Enhancement Multipliers by Drug Class
 
-Underlying class enhancement values are shown for each mechanism. These values are applied only to bacterium-drug pairs that are permitted by the host and drug-specific eligibility rules in `rules::mechanism_applies_to_drug`; values shown for non-applicable pairs have no effect. Every unlisted mechanism-class pair uses 0.
+Raw class enhancement values loaded for each mechanism. These values are applied only to bacterium-drug pairs admitted by the executable host and drug-specific applicability gates in `rules::mechanism_applies_to_drug`; non-applicable fallback values shown here are inert. The resolved default for every unlisted mechanism-class pair is 0.
 
 | Mechanism | Drug class | Enhancement multiplier |
 | --- | ---: | ---: |
@@ -8504,19 +8709,19 @@ Underlying class enhancement values are shown for each mechanism. These values a
 
 #### Bacteria–Mechanism Emergence Coefficients
 
-De novo emergence coefficient and modelled pathway status for every bacteria–mechanism pair. A zero coefficient does not necessarily exclude the host: transferable mechanisms can remain HGT-only, while non-transferable eligible mechanisms can still be inherited in an existing complete resistance-mechanism profile.
+Resolved de novo emergence coefficient and executable pathway status for every bacteria–mechanism pair. A zero coefficient does not necessarily exclude the host: transferable mechanisms can remain HGT-only, while non-transferable eligible mechanisms can still be inherited in an existing complete profile.
 
 | Bacteria | Mechanism | Emergence coefficient | Status |
 | --- | ---: | ---: | ---: |
-| acinetobacter_baumannii | enzyme_esbl_ctx_m | 4.5e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_esbl_tem | 4.5e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_esbl_shv | 4.5e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_kpc | 4e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_ndm_vim | 4e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_oxa_48 | 4e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_ampc_cmy | 4.5e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | enzyme_ampc_dha | 4.5e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | mutation_ampc_derepression | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_esbl_ctx_m | 4e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_esbl_tem | 4e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_esbl_shv | 4e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_kpc | 1e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_ampc_cmy | 2e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_ampc_dha | 2e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_ampc_derepression | 2e-4 | eligible; de novo enabled |
 | acinetobacter_baumannii | target_site_pbp2a_meca | 0 | excluded host |
 | acinetobacter_baumannii | target_site_van_a | 0 | excluded host |
 | acinetobacter_baumannii | target_site_van_b | 0 | excluded host |
@@ -8546,23 +8751,23 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | acinetobacter_baumannii | enzyme_bla_z | 0 | excluded host |
 | acinetobacter_baumannii | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | acinetobacter_baumannii | enzyme_mph_a | 0 | excluded host |
-| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 3e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 1e-4 | eligible; de novo enabled |
 | acinetobacter_baumannii | mutation_23s_rrna | 0 | excluded host |
 | acinetobacter_baumannii | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
 | acinetobacter_baumannii | efflux_tet_abc | 3e-4 | eligible; de novo enabled |
-| acinetobacter_baumannii | mutation_pbp_mosaic | 4.5e-4 | eligible; de novo enabled |
+| acinetobacter_baumannii | mutation_pbp_mosaic | 2e-4 | eligible; de novo enabled |
 | acinetobacter_baumannii | efflux_mtr_cde | 0 | excluded host |
 | acinetobacter_baumannii | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | acinetobacter_baumannii | mutation_siderophore_uptake | 2e-4 | eligible; de novo enabled |
-| citrobacter_spp. | enzyme_esbl_ctx_m | 0.04 | eligible; de novo enabled |
-| citrobacter_spp. | enzyme_esbl_tem | 0.04 | eligible; de novo enabled |
-| citrobacter_spp. | enzyme_esbl_shv | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_esbl_ctx_m | 0.02 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_esbl_tem | 0.02 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_esbl_shv | 0.02 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_kpc | 1e-4 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
 | citrobacter_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
-| citrobacter_spp. | mutation_ampc_derepression | 0.04 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_ampc_derepression | 0.02 | eligible; de novo enabled |
 | citrobacter_spp. | target_site_pbp2a_meca | 0 | excluded host |
 | citrobacter_spp. | target_site_van_a | 0 | excluded host |
 | citrobacter_spp. | target_site_van_b | 0 | excluded host |
@@ -8572,7 +8777,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | citrobacter_spp. | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
 | citrobacter_spp. | target_site_erm_b | 0 | excluded host |
 | citrobacter_spp. | target_site_cfr | 0 | excluded host |
-| citrobacter_spp. | enzyme_cat | 3 | eligible; de novo enabled |
+| citrobacter_spp. | enzyme_cat | 0.5 | eligible; de novo enabled |
 | citrobacter_spp. | efflux_acrab_tolc | 30 | eligible; de novo enabled |
 | citrobacter_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | citrobacter_spp. | porin_loss_ompk35_36 | 0 | excluded host |
@@ -8581,13 +8786,13 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | citrobacter_spp. | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
 | citrobacter_spp. | global_efflux_pump | 30 | eligible; de novo enabled |
 | citrobacter_spp. | mutation_folate_pathway | 0.1 | eligible; de novo enabled |
-| citrobacter_spp. | mutation_nitroreductase | 1 | eligible; de novo enabled |
+| citrobacter_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_fos | 30 | eligible; de novo enabled |
 | citrobacter_spp. | mutation_mpr_f | 0 | excluded host |
 | citrobacter_spp. | mutation_liafsr_cls | 0 | excluded host |
 | citrobacter_spp. | mutation_rpo_b | 0.001 | eligible; de novo enabled |
 | citrobacter_spp. | protection_fus_b | 0 | excluded host |
-| citrobacter_spp. | protection_tet_m | 0.5 | eligible; de novo enabled |
+| citrobacter_spp. | protection_tet_m | 0.1 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
 | citrobacter_spp. | enzyme_bla_z | 0 | excluded host |
 | citrobacter_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
@@ -8595,20 +8800,20 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | citrobacter_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
 | citrobacter_spp. | mutation_23s_rrna | 0 | excluded host |
 | citrobacter_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| citrobacter_spp. | efflux_tet_abc | 0.5 | eligible; de novo enabled |
+| citrobacter_spp. | efflux_tet_abc | 0.1 | eligible; de novo enabled |
 | citrobacter_spp. | mutation_pbp_mosaic | 0.04 | eligible; de novo enabled |
 | citrobacter_spp. | efflux_mtr_cde | 0 | excluded host |
 | citrobacter_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | citrobacter_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| enterobacter_spp. | enzyme_esbl_ctx_m | 0.02 | eligible; de novo enabled |
-| enterobacter_spp. | enzyme_esbl_tem | 0.02 | eligible; de novo enabled |
-| enterobacter_spp. | enzyme_esbl_shv | 0.02 | eligible; de novo enabled |
-| enterobacter_spp. | enzyme_kpc | 1e-4 | eligible; de novo enabled |
-| enterobacter_spp. | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
-| enterobacter_spp. | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_esbl_ctx_m | 0.01 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_esbl_tem | 0.01 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_esbl_shv | 0.01 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_kpc | 3e-6 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_ndm_vim | 3e-6 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_oxa_48 | 3e-6 | eligible; de novo enabled |
 | enterobacter_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
 | enterobacter_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
-| enterobacter_spp. | mutation_ampc_derepression | 0.01 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_ampc_derepression | 3e-4 | eligible; de novo enabled |
 | enterobacter_spp. | target_site_pbp2a_meca | 0 | excluded host |
 | enterobacter_spp. | target_site_van_a | 0 | excluded host |
 | enterobacter_spp. | target_site_van_b | 0 | excluded host |
@@ -8618,7 +8823,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterobacter_spp. | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
 | enterobacter_spp. | target_site_erm_b | 0 | excluded host |
 | enterobacter_spp. | target_site_cfr | 0 | excluded host |
-| enterobacter_spp. | enzyme_cat | 1 | eligible; de novo enabled |
+| enterobacter_spp. | enzyme_cat | 0.5 | eligible; de novo enabled |
 | enterobacter_spp. | efflux_acrab_tolc | 0.1 | eligible; de novo enabled |
 | enterobacter_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | enterobacter_spp. | porin_loss_ompk35_36 | 0 | excluded host |
@@ -8626,14 +8831,14 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterobacter_spp. | modification_mcr_1 | 2 | eligible; de novo enabled |
 | enterobacter_spp. | mutation_polymyxin_regulatory | 2 | eligible; de novo enabled |
 | enterobacter_spp. | global_efflux_pump | 0.1 | eligible; de novo enabled |
-| enterobacter_spp. | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
-| enterobacter_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_folate_pathway | 0.05 | eligible; de novo enabled |
+| enterobacter_spp. | mutation_nitroreductase | 0.2 | eligible; de novo enabled |
 | enterobacter_spp. | enzyme_fos | 30 | eligible; de novo enabled |
 | enterobacter_spp. | mutation_mpr_f | 0 | excluded host |
 | enterobacter_spp. | mutation_liafsr_cls | 0 | excluded host |
 | enterobacter_spp. | mutation_rpo_b | 3e-4 | eligible; de novo enabled |
 | enterobacter_spp. | protection_fus_b | 0 | excluded host |
-| enterobacter_spp. | protection_tet_m | 0.003 | eligible; de novo enabled |
+| enterobacter_spp. | protection_tet_m | 0.001 | eligible; de novo enabled |
 | enterobacter_spp. | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
 | enterobacter_spp. | enzyme_bla_z | 0 | excluded host |
 | enterobacter_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
@@ -8641,7 +8846,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterobacter_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
 | enterobacter_spp. | mutation_23s_rrna | 0 | excluded host |
 | enterobacter_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| enterobacter_spp. | efflux_tet_abc | 0.003 | eligible; de novo enabled |
+| enterobacter_spp. | efflux_tet_abc | 0.001 | eligible; de novo enabled |
 | enterobacter_spp. | mutation_pbp_mosaic | 0.01 | eligible; de novo enabled |
 | enterobacter_spp. | efflux_mtr_cde | 0 | excluded host |
 | enterobacter_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
@@ -8655,16 +8860,16 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterococcus_faecalis | enzyme_ampc_cmy | 0 | excluded host |
 | enterococcus_faecalis | enzyme_ampc_dha | 0 | excluded host |
 | enterococcus_faecalis | mutation_ampc_derepression | 0 | excluded host |
-| enterococcus_faecalis | target_site_pbp2a_meca | 1e-5 | excluded host |
-| enterococcus_faecalis | target_site_van_a | 0.01 | eligible; de novo enabled |
-| enterococcus_faecalis | target_site_van_b | 0.005 | eligible; de novo enabled |
-| enterococcus_faecalis | mutation_gyra_primary | 30 | eligible; de novo enabled |
-| enterococcus_faecalis | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
+| enterococcus_faecalis | target_site_pbp2a_meca | 1e-6 | excluded host |
+| enterococcus_faecalis | target_site_van_a | 2e-4 | eligible; de novo enabled |
+| enterococcus_faecalis | target_site_van_b | 2e-4 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_gyra_primary | 10 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_gyra_parc_secondary | 10 | eligible; de novo enabled |
 | enterococcus_faecalis | protection_qnr | 0 | excluded host |
 | enterococcus_faecalis | enzyme_16s_rrmt | 0 | excluded host |
 | enterococcus_faecalis | target_site_erm_b | 30 | eligible; de novo enabled |
 | enterococcus_faecalis | target_site_cfr | 1 | eligible; de novo enabled |
-| enterococcus_faecalis | enzyme_cat | 30 | eligible; de novo enabled |
+| enterococcus_faecalis | enzyme_cat | 5 | eligible; de novo enabled |
 | enterococcus_faecalis | efflux_acrab_tolc | 0 | excluded host |
 | enterococcus_faecalis | efflux_mexxy_oprm | 0 | excluded host |
 | enterococcus_faecalis | porin_loss_ompk35_36 | 0 | excluded host |
@@ -8679,16 +8884,16 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterococcus_faecalis | mutation_liafsr_cls | 2 | eligible; de novo enabled |
 | enterococcus_faecalis | mutation_rpo_b | 0.001 | eligible; de novo enabled |
 | enterococcus_faecalis | protection_fus_b | 1e-4 | excluded host |
-| enterococcus_faecalis | protection_tet_m | 0.3 | eligible; de novo enabled |
+| enterococcus_faecalis | protection_tet_m | 0.1 | eligible; de novo enabled |
 | enterococcus_faecalis | enzyme_aac_aph | 5e-5 | eligible; de novo enabled |
 | enterococcus_faecalis | enzyme_bla_z | 0 | excluded host |
 | enterococcus_faecalis | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | enterococcus_faecalis | enzyme_mph_a | 0 | excluded host |
 | enterococcus_faecalis | enzyme_oxa_acinetobacter | 0 | excluded host |
-| enterococcus_faecalis | mutation_23s_rrna | 10 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_23s_rrna | 3 | eligible; de novo enabled |
 | enterococcus_faecalis | mutation_23s_rrna_oxazolidinone | 0.01 | eligible; de novo enabled |
 | enterococcus_faecalis | efflux_tet_abc | 0 | excluded host |
-| enterococcus_faecalis | mutation_pbp_mosaic | 0.003 | eligible; de novo enabled |
+| enterococcus_faecalis | mutation_pbp_mosaic | 3e-5 | eligible; de novo enabled |
 | enterococcus_faecalis | efflux_mtr_cde | 0 | excluded host |
 | enterococcus_faecalis | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | enterococcus_faecalis | mutation_siderophore_uptake | 0 | excluded host |
@@ -8709,7 +8914,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterococcus_faecium | protection_qnr | 0 | excluded host |
 | enterococcus_faecium | enzyme_16s_rrmt | 0 | excluded host |
 | enterococcus_faecium | target_site_erm_b | 30 | eligible; de novo enabled |
-| enterococcus_faecium | target_site_cfr | 10 | eligible; de novo enabled |
+| enterococcus_faecium | target_site_cfr | 3 | eligible; de novo enabled |
 | enterococcus_faecium | enzyme_cat | 30 | eligible; de novo enabled |
 | enterococcus_faecium | efflux_acrab_tolc | 0 | excluded host |
 | enterococcus_faecium | efflux_mexxy_oprm | 0 | excluded host |
@@ -8719,7 +8924,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterococcus_faecium | mutation_polymyxin_regulatory | 0 | excluded host |
 | enterococcus_faecium | global_efflux_pump | 30 | eligible; de novo enabled |
 | enterococcus_faecium | mutation_folate_pathway | 0.005 | eligible; de novo enabled |
-| enterococcus_faecium | mutation_nitroreductase | 3 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
 | enterococcus_faecium | enzyme_fos | 30 | eligible; de novo enabled |
 | enterococcus_faecium | mutation_mpr_f | 0 | excluded host |
 | enterococcus_faecium | mutation_liafsr_cls | 30 | eligible; de novo enabled |
@@ -8732,31 +8937,31 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | enterococcus_faecium | enzyme_mph_a | 0 | excluded host |
 | enterococcus_faecium | enzyme_oxa_acinetobacter | 0 | excluded host |
 | enterococcus_faecium | mutation_23s_rrna | 30 | eligible; de novo enabled |
-| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 0.01 | eligible; de novo enabled |
+| enterococcus_faecium | mutation_23s_rrna_oxazolidinone | 0.003 | eligible; de novo enabled |
 | enterococcus_faecium | efflux_tet_abc | 0 | excluded host |
 | enterococcus_faecium | mutation_pbp_mosaic | 0.001 | eligible; de novo enabled |
 | enterococcus_faecium | efflux_mtr_cde | 0.001 | excluded host |
 | enterococcus_faecium | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | enterococcus_faecium | mutation_siderophore_uptake | 0 | excluded host |
-| escherichia_coli | enzyme_esbl_ctx_m | 0.007 | eligible; de novo enabled |
-| escherichia_coli | enzyme_esbl_tem | 0.007 | eligible; de novo enabled |
-| escherichia_coli | enzyme_esbl_shv | 0.007 | eligible; de novo enabled |
-| escherichia_coli | enzyme_kpc | 2e-7 | eligible; de novo enabled |
-| escherichia_coli | enzyme_ndm_vim | 2e-7 | eligible; de novo enabled |
-| escherichia_coli | enzyme_oxa_48 | 2e-7 | eligible; de novo enabled |
-| escherichia_coli | enzyme_ampc_cmy | 3e-6 | eligible; de novo enabled |
-| escherichia_coli | enzyme_ampc_dha | 3e-6 | eligible; de novo enabled |
-| escherichia_coli | mutation_ampc_derepression | 3e-6 | eligible; de novo enabled |
+| escherichia_coli | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
+| escherichia_coli | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
+| escherichia_coli | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
+| escherichia_coli | enzyme_kpc | 1e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_ndm_vim | 1e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_oxa_48 | 1e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_ampc_cmy | 1e-6 | eligible; de novo enabled |
+| escherichia_coli | enzyme_ampc_dha | 1e-6 | eligible; de novo enabled |
+| escherichia_coli | mutation_ampc_derepression | 1e-6 | eligible; de novo enabled |
 | escherichia_coli | target_site_pbp2a_meca | 0 | excluded host |
 | escherichia_coli | target_site_van_a | 0 | excluded host |
 | escherichia_coli | target_site_van_b | 0 | excluded host |
 | escherichia_coli | mutation_gyra_primary | 1 | eligible; de novo enabled |
 | escherichia_coli | mutation_gyra_parc_secondary | 1 | eligible; de novo enabled |
 | escherichia_coli | protection_qnr | 1 | eligible; de novo enabled |
-| escherichia_coli | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
+| escherichia_coli | enzyme_16s_rrmt | 0.003 | eligible; de novo enabled |
 | escherichia_coli | target_site_erm_b | 0 | excluded host |
 | escherichia_coli | target_site_cfr | 0 | excluded host |
-| escherichia_coli | enzyme_cat | 3e-7 | eligible; de novo enabled |
+| escherichia_coli | enzyme_cat | 1e-8 | eligible; de novo enabled |
 | escherichia_coli | efflux_acrab_tolc | 0.3 | eligible; de novo enabled |
 | escherichia_coli | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | escherichia_coli | porin_loss_ompk35_36 | 0 | excluded host |
@@ -8764,45 +8969,45 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | escherichia_coli | modification_mcr_1 | 1e-4 | eligible; de novo enabled |
 | escherichia_coli | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
 | escherichia_coli | global_efflux_pump | 0.3 | eligible; de novo enabled |
-| escherichia_coli | mutation_folate_pathway | 1 | eligible; de novo enabled |
+| escherichia_coli | mutation_folate_pathway | 0.1 | eligible; de novo enabled |
 | escherichia_coli | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
 | escherichia_coli | enzyme_fos | 2 | eligible; de novo enabled |
 | escherichia_coli | mutation_mpr_f | 0 | excluded host |
 | escherichia_coli | mutation_liafsr_cls | 0 | excluded host |
 | escherichia_coli | mutation_rpo_b | 30 | eligible; de novo enabled |
 | escherichia_coli | protection_fus_b | 0 | excluded host |
-| escherichia_coli | protection_tet_m | 0.15 | eligible; de novo enabled |
-| escherichia_coli | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| escherichia_coli | protection_tet_m | 0.003 | eligible; de novo enabled |
+| escherichia_coli | enzyme_aac_aph | 0.003 | eligible; de novo enabled |
 | escherichia_coli | enzyme_bla_z | 0 | excluded host |
 | escherichia_coli | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-6 | eligible; de novo enabled |
 | escherichia_coli | enzyme_mph_a | 0 | eligible; HGT only |
 | escherichia_coli | enzyme_oxa_acinetobacter | 0 | excluded host |
 | escherichia_coli | mutation_23s_rrna | 0.01 | excluded host |
 | escherichia_coli | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| escherichia_coli | efflux_tet_abc | 0.1 | eligible; de novo enabled |
-| escherichia_coli | mutation_pbp_mosaic | 3e-6 | eligible; de novo enabled |
+| escherichia_coli | efflux_tet_abc | 0.003 | eligible; de novo enabled |
+| escherichia_coli | mutation_pbp_mosaic | 1e-6 | eligible; de novo enabled |
 | escherichia_coli | efflux_mtr_cde | 0 | excluded host |
 | escherichia_coli | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | escherichia_coli | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 3.5e-5 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_esbl_tem | 3.5e-5 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_esbl_shv | 3.5e-5 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_kpc | 1e-6 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-6 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-6 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_ampc_cmy | 2e-5 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_ampc_dha | 2e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 3e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_esbl_tem | 3e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_esbl_shv | 3e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_kpc | 3e-9 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_ndm_vim | 3e-9 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_oxa_48 | 3e-9 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_ampc_cmy | 1.5e-5 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_ampc_dha | 1.5e-5 | eligible; de novo enabled |
 | klebsiella_pneumoniae | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | klebsiella_pneumoniae | target_site_pbp2a_meca | 0 | excluded host |
 | klebsiella_pneumoniae | target_site_van_a | 0 | excluded host |
 | klebsiella_pneumoniae | target_site_van_b | 0 | excluded host |
-| klebsiella_pneumoniae | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
-| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
-| klebsiella_pneumoniae | protection_qnr | 0.3 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_16s_rrmt | 5e-4 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | protection_qnr | 0.1 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_16s_rrmt | 3e-5 | eligible; de novo enabled |
 | klebsiella_pneumoniae | target_site_erm_b | 0 | excluded host |
 | klebsiella_pneumoniae | target_site_cfr | 0 | excluded host |
-| klebsiella_pneumoniae | enzyme_cat | 2e-6 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_cat | 5e-7 | eligible; de novo enabled |
 | klebsiella_pneumoniae | efflux_acrab_tolc | 0.1 | eligible; de novo enabled |
 | klebsiella_pneumoniae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | klebsiella_pneumoniae | porin_loss_ompk35_36 | 3e-6 | eligible; de novo enabled |
@@ -8817,45 +9022,45 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | klebsiella_pneumoniae | mutation_liafsr_cls | 0 | excluded host |
 | klebsiella_pneumoniae | mutation_rpo_b | 30 | eligible; de novo enabled |
 | klebsiella_pneumoniae | protection_fus_b | 0 | excluded host |
-| klebsiella_pneumoniae | protection_tet_m | 0.05 | eligible; de novo enabled |
-| klebsiella_pneumoniae | enzyme_aac_aph | 5e-4 | eligible; de novo enabled |
+| klebsiella_pneumoniae | protection_tet_m | 0.02 | eligible; de novo enabled |
+| klebsiella_pneumoniae | enzyme_aac_aph | 3e-5 | eligible; de novo enabled |
 | klebsiella_pneumoniae | enzyme_bla_z | 0 | excluded host |
 | klebsiella_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
 | klebsiella_pneumoniae | enzyme_mph_a | 0 | eligible; HGT only |
 | klebsiella_pneumoniae | enzyme_oxa_acinetobacter | 0 | excluded host |
 | klebsiella_pneumoniae | mutation_23s_rrna | 0 | excluded host |
 | klebsiella_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| klebsiella_pneumoniae | efflux_tet_abc | 0.05 | eligible; de novo enabled |
+| klebsiella_pneumoniae | efflux_tet_abc | 0.02 | eligible; de novo enabled |
 | klebsiella_pneumoniae | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | klebsiella_pneumoniae | efflux_mtr_cde | 0 | excluded host |
 | klebsiella_pneumoniae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | klebsiella_pneumoniae | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| morganella_spp. | enzyme_esbl_ctx_m | 0.01 | eligible; de novo enabled |
-| morganella_spp. | enzyme_esbl_tem | 0.01 | eligible; de novo enabled |
-| morganella_spp. | enzyme_esbl_shv | 0.01 | eligible; de novo enabled |
-| morganella_spp. | enzyme_kpc | 0.001 | eligible; de novo enabled |
-| morganella_spp. | enzyme_ndm_vim | 0.001 | eligible; de novo enabled |
-| morganella_spp. | enzyme_oxa_48 | 0.001 | eligible; de novo enabled |
+| morganella_spp. | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
+| morganella_spp. | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
+| morganella_spp. | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
+| morganella_spp. | enzyme_kpc | 1e-4 | eligible; de novo enabled |
+| morganella_spp. | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
+| morganella_spp. | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
 | morganella_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
 | morganella_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
-| morganella_spp. | mutation_ampc_derepression | 0.001 | eligible; de novo enabled |
+| morganella_spp. | mutation_ampc_derepression | 1e-4 | eligible; de novo enabled |
 | morganella_spp. | target_site_pbp2a_meca | 0 | excluded host |
 | morganella_spp. | target_site_van_a | 0 | excluded host |
 | morganella_spp. | target_site_van_b | 0 | excluded host |
-| morganella_spp. | mutation_gyra_primary | 0.8 | eligible; de novo enabled |
-| morganella_spp. | mutation_gyra_parc_secondary | 0.8 | eligible; de novo enabled |
-| morganella_spp. | protection_qnr | 0.8 | eligible; de novo enabled |
+| morganella_spp. | mutation_gyra_primary | 0.5 | eligible; de novo enabled |
+| morganella_spp. | mutation_gyra_parc_secondary | 0.5 | eligible; de novo enabled |
+| morganella_spp. | protection_qnr | 0.5 | eligible; de novo enabled |
 | morganella_spp. | enzyme_16s_rrmt | 0.06 | eligible; de novo enabled |
 | morganella_spp. | target_site_erm_b | 0 | excluded host |
 | morganella_spp. | target_site_cfr | 0 | excluded host |
-| morganella_spp. | enzyme_cat | 5 | eligible; de novo enabled |
-| morganella_spp. | efflux_acrab_tolc | 0.8 | eligible; de novo enabled |
+| morganella_spp. | enzyme_cat | 2 | eligible; de novo enabled |
+| morganella_spp. | efflux_acrab_tolc | 0.5 | eligible; de novo enabled |
 | morganella_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | morganella_spp. | porin_loss_ompk35_36 | 0 | excluded host |
 | morganella_spp. | porin_loss_oprd | 0 | excluded host |
 | morganella_spp. | modification_mcr_1 | 10 | eligible; de novo enabled |
 | morganella_spp. | mutation_polymyxin_regulatory | 10 | eligible; de novo enabled |
-| morganella_spp. | global_efflux_pump | 0.8 | eligible; de novo enabled |
+| morganella_spp. | global_efflux_pump | 0.5 | eligible; de novo enabled |
 | morganella_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
 | morganella_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
 | morganella_spp. | enzyme_fos | 0.2 | eligible; de novo enabled |
@@ -8876,117 +9081,117 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | morganella_spp. | efflux_mtr_cde | 0 | excluded host |
 | morganella_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | morganella_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| proteus_spp. | enzyme_esbl_ctx_m | 0.001 | eligible; de novo enabled |
-| proteus_spp. | enzyme_esbl_tem | 0.001 | eligible; de novo enabled |
-| proteus_spp. | enzyme_esbl_shv | 0.001 | eligible; de novo enabled |
-| proteus_spp. | enzyme_kpc | 3e-5 | eligible; de novo enabled |
-| proteus_spp. | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
-| proteus_spp. | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
-| proteus_spp. | enzyme_ampc_cmy | 0.001 | eligible; de novo enabled |
-| proteus_spp. | enzyme_ampc_dha | 0.001 | eligible; de novo enabled |
+| proteus_spp. | enzyme_esbl_ctx_m | 3e-4 | eligible; de novo enabled |
+| proteus_spp. | enzyme_esbl_tem | 3e-4 | eligible; de novo enabled |
+| proteus_spp. | enzyme_esbl_shv | 3e-4 | eligible; de novo enabled |
+| proteus_spp. | enzyme_kpc | 3e-6 | eligible; de novo enabled |
+| proteus_spp. | enzyme_ndm_vim | 3e-6 | eligible; de novo enabled |
+| proteus_spp. | enzyme_oxa_48 | 3e-6 | eligible; de novo enabled |
+| proteus_spp. | enzyme_ampc_cmy | 3e-4 | eligible; de novo enabled |
+| proteus_spp. | enzyme_ampc_dha | 3e-4 | eligible; de novo enabled |
 | proteus_spp. | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | proteus_spp. | target_site_pbp2a_meca | 0 | excluded host |
 | proteus_spp. | target_site_van_a | 0 | excluded host |
 | proteus_spp. | target_site_van_b | 0 | excluded host |
-| proteus_spp. | mutation_gyra_primary | 10 | eligible; de novo enabled |
-| proteus_spp. | mutation_gyra_parc_secondary | 10 | eligible; de novo enabled |
-| proteus_spp. | protection_qnr | 10 | eligible; de novo enabled |
-| proteus_spp. | enzyme_16s_rrmt | 3 | eligible; de novo enabled |
+| proteus_spp. | mutation_gyra_primary | 3 | eligible; de novo enabled |
+| proteus_spp. | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
+| proteus_spp. | protection_qnr | 3 | eligible; de novo enabled |
+| proteus_spp. | enzyme_16s_rrmt | 1 | eligible; de novo enabled |
 | proteus_spp. | target_site_erm_b | 0 | excluded host |
 | proteus_spp. | target_site_cfr | 0 | excluded host |
-| proteus_spp. | enzyme_cat | 3 | eligible; de novo enabled |
-| proteus_spp. | efflux_acrab_tolc | 10 | eligible; de novo enabled |
+| proteus_spp. | enzyme_cat | 1.5 | eligible; de novo enabled |
+| proteus_spp. | efflux_acrab_tolc | 3 | eligible; de novo enabled |
 | proteus_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | proteus_spp. | porin_loss_ompk35_36 | 0 | excluded host |
 | proteus_spp. | porin_loss_oprd | 0 | excluded host |
 | proteus_spp. | modification_mcr_1 | 0.01 | eligible; de novo enabled |
 | proteus_spp. | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
-| proteus_spp. | global_efflux_pump | 10 | eligible; de novo enabled |
-| proteus_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| proteus_spp. | global_efflux_pump | 3 | eligible; de novo enabled |
+| proteus_spp. | mutation_folate_pathway | 0.15 | eligible; de novo enabled |
 | proteus_spp. | mutation_nitroreductase | 0.1 | eligible; de novo enabled |
-| proteus_spp. | enzyme_fos | 0.6 | eligible; de novo enabled |
+| proteus_spp. | enzyme_fos | 0.15 | eligible; de novo enabled |
 | proteus_spp. | mutation_mpr_f | 0 | excluded host |
 | proteus_spp. | mutation_liafsr_cls | 0 | excluded host |
 | proteus_spp. | mutation_rpo_b | 0.001 | eligible; de novo enabled |
 | proteus_spp. | protection_fus_b | 0 | excluded host |
-| proteus_spp. | protection_tet_m | 0.1 | eligible; de novo enabled |
-| proteus_spp. | enzyme_aac_aph | 3 | eligible; de novo enabled |
+| proteus_spp. | protection_tet_m | 0.02 | eligible; de novo enabled |
+| proteus_spp. | enzyme_aac_aph | 1 | eligible; de novo enabled |
 | proteus_spp. | enzyme_bla_z | 0 | excluded host |
 | proteus_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.01 | eligible; de novo enabled |
 | proteus_spp. | enzyme_mph_a | 0 | eligible; HGT only |
 | proteus_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
 | proteus_spp. | mutation_23s_rrna | 0 | excluded host |
 | proteus_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| proteus_spp. | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| proteus_spp. | efflux_tet_abc | 0.02 | eligible; de novo enabled |
 | proteus_spp. | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | proteus_spp. | efflux_mtr_cde | 0 | excluded host |
 | proteus_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | proteus_spp. | mutation_siderophore_uptake | 3e-4 | eligible; de novo enabled |
-| serratia_spp. | enzyme_esbl_ctx_m | 0.005 | eligible; de novo enabled |
-| serratia_spp. | enzyme_esbl_tem | 0.005 | eligible; de novo enabled |
-| serratia_spp. | enzyme_esbl_shv | 0.005 | eligible; de novo enabled |
-| serratia_spp. | enzyme_kpc | 5e-4 | eligible; de novo enabled |
-| serratia_spp. | enzyme_ndm_vim | 5e-4 | eligible; de novo enabled |
-| serratia_spp. | enzyme_oxa_48 | 5e-4 | eligible; de novo enabled |
+| serratia_spp. | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
+| serratia_spp. | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
+| serratia_spp. | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
+| serratia_spp. | enzyme_kpc | 1e-5 | eligible; de novo enabled |
+| serratia_spp. | enzyme_ndm_vim | 1e-5 | eligible; de novo enabled |
+| serratia_spp. | enzyme_oxa_48 | 1e-5 | eligible; de novo enabled |
 | serratia_spp. | enzyme_ampc_cmy | 0 | eligible; HGT only |
 | serratia_spp. | enzyme_ampc_dha | 0 | eligible; HGT only |
-| serratia_spp. | mutation_ampc_derepression | 0.005 | eligible; de novo enabled |
+| serratia_spp. | mutation_ampc_derepression | 0.003 | eligible; de novo enabled |
 | serratia_spp. | target_site_pbp2a_meca | 0 | excluded host |
 | serratia_spp. | target_site_van_a | 0 | excluded host |
 | serratia_spp. | target_site_van_b | 0 | excluded host |
-| serratia_spp. | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
-| serratia_spp. | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
-| serratia_spp. | protection_qnr | 0.3 | eligible; de novo enabled |
-| serratia_spp. | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
+| serratia_spp. | mutation_gyra_primary | 0.15 | eligible; de novo enabled |
+| serratia_spp. | mutation_gyra_parc_secondary | 0.15 | eligible; de novo enabled |
+| serratia_spp. | protection_qnr | 0.15 | eligible; de novo enabled |
+| serratia_spp. | enzyme_16s_rrmt | 0.03 | eligible; de novo enabled |
 | serratia_spp. | target_site_erm_b | 0 | excluded host |
 | serratia_spp. | target_site_cfr | 0 | excluded host |
-| serratia_spp. | enzyme_cat | 1 | eligible; de novo enabled |
-| serratia_spp. | efflux_acrab_tolc | 0.3 | eligible; de novo enabled |
+| serratia_spp. | enzyme_cat | 0.3 | eligible; de novo enabled |
+| serratia_spp. | efflux_acrab_tolc | 0.15 | eligible; de novo enabled |
 | serratia_spp. | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | serratia_spp. | porin_loss_ompk35_36 | 0 | excluded host |
 | serratia_spp. | porin_loss_oprd | 0 | excluded host |
 | serratia_spp. | modification_mcr_1 | 0.01 | eligible; de novo enabled |
 | serratia_spp. | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
 | serratia_spp. | global_efflux_pump | 0.3 | eligible; de novo enabled |
-| serratia_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
+| serratia_spp. | mutation_folate_pathway | 0.1 | eligible; de novo enabled |
 | serratia_spp. | mutation_nitroreductase | 0.01 | eligible; de novo enabled |
 | serratia_spp. | enzyme_fos | 2 | eligible; de novo enabled |
 | serratia_spp. | mutation_mpr_f | 0 | excluded host |
 | serratia_spp. | mutation_liafsr_cls | 0 | excluded host |
 | serratia_spp. | mutation_rpo_b | 0.001 | eligible; de novo enabled |
 | serratia_spp. | protection_fus_b | 0 | excluded host |
-| serratia_spp. | protection_tet_m | 0.1 | eligible; de novo enabled |
-| serratia_spp. | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| serratia_spp. | protection_tet_m | 0.05 | eligible; de novo enabled |
+| serratia_spp. | enzyme_aac_aph | 0.03 | eligible; de novo enabled |
 | serratia_spp. | enzyme_bla_z | 0 | excluded host |
 | serratia_spp. | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
 | serratia_spp. | enzyme_mph_a | 0 | eligible; HGT only |
 | serratia_spp. | enzyme_oxa_acinetobacter | 0 | excluded host |
 | serratia_spp. | mutation_23s_rrna | 0 | excluded host |
 | serratia_spp. | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| serratia_spp. | efflux_tet_abc | 0.1 | eligible; de novo enabled |
+| serratia_spp. | efflux_tet_abc | 0.05 | eligible; de novo enabled |
 | serratia_spp. | mutation_pbp_mosaic | 0.005 | eligible; de novo enabled |
 | serratia_spp. | efflux_mtr_cde | 0 | excluded host |
 | serratia_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | serratia_spp. | mutation_siderophore_uptake | 3e-4 | eligible; de novo enabled |
-| p_stuartii | enzyme_esbl_ctx_m | 0.02 | eligible; de novo enabled |
-| p_stuartii | enzyme_esbl_tem | 0.02 | eligible; de novo enabled |
-| p_stuartii | enzyme_esbl_shv | 0.02 | eligible; de novo enabled |
-| p_stuartii | enzyme_kpc | 0.002 | eligible; de novo enabled |
-| p_stuartii | enzyme_ndm_vim | 0.002 | eligible; de novo enabled |
-| p_stuartii | enzyme_oxa_48 | 0.002 | eligible; de novo enabled |
+| p_stuartii | enzyme_esbl_ctx_m | 0.01 | eligible; de novo enabled |
+| p_stuartii | enzyme_esbl_tem | 0.01 | eligible; de novo enabled |
+| p_stuartii | enzyme_esbl_shv | 0.01 | eligible; de novo enabled |
+| p_stuartii | enzyme_kpc | 3e-5 | eligible; de novo enabled |
+| p_stuartii | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
+| p_stuartii | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
 | p_stuartii | enzyme_ampc_cmy | 0 | eligible; HGT only |
 | p_stuartii | enzyme_ampc_dha | 0 | eligible; HGT only |
-| p_stuartii | mutation_ampc_derepression | 0.02 | eligible; de novo enabled |
+| p_stuartii | mutation_ampc_derepression | 0.01 | eligible; de novo enabled |
 | p_stuartii | target_site_pbp2a_meca | 0 | excluded host |
 | p_stuartii | target_site_van_a | 0 | excluded host |
 | p_stuartii | target_site_van_b | 0 | excluded host |
 | p_stuartii | mutation_gyra_primary | 0.02 | eligible; de novo enabled |
 | p_stuartii | mutation_gyra_parc_secondary | 0.02 | eligible; de novo enabled |
 | p_stuartii | protection_qnr | 0.02 | eligible; de novo enabled |
-| p_stuartii | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
+| p_stuartii | enzyme_16s_rrmt | 0.03 | eligible; de novo enabled |
 | p_stuartii | target_site_erm_b | 0 | excluded host |
 | p_stuartii | target_site_cfr | 0 | excluded host |
-| p_stuartii | enzyme_cat | 9e-5 | eligible; de novo enabled |
+| p_stuartii | enzyme_cat | 5e-5 | eligible; de novo enabled |
 | p_stuartii | efflux_acrab_tolc | 6e-4 | eligible; de novo enabled |
 | p_stuartii | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | p_stuartii | porin_loss_ompk35_36 | 0 | excluded host |
@@ -8996,12 +9201,12 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | p_stuartii | global_efflux_pump | 6e-4 | eligible; de novo enabled |
 | p_stuartii | mutation_folate_pathway | 30 | eligible; de novo enabled |
 | p_stuartii | mutation_nitroreductase | 0.001 | eligible; de novo enabled |
-| p_stuartii | enzyme_fos | 0.2 | eligible; de novo enabled |
+| p_stuartii | enzyme_fos | 0.05 | eligible; de novo enabled |
 | p_stuartii | mutation_mpr_f | 0 | excluded host |
 | p_stuartii | mutation_liafsr_cls | 0 | excluded host |
 | p_stuartii | mutation_rpo_b | 30 | eligible; de novo enabled |
 | p_stuartii | protection_fus_b | 0 | excluded host |
-| p_stuartii | protection_tet_m | 2e-6 | eligible; de novo enabled |
+| p_stuartii | protection_tet_m | 4e-7 | eligible; de novo enabled |
 | p_stuartii | enzyme_aac_aph | 0.05 | eligible; de novo enabled |
 | p_stuartii | enzyme_bla_z | 0 | excluded host |
 | p_stuartii | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
@@ -9009,20 +9214,20 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | p_stuartii | enzyme_oxa_acinetobacter | 0 | excluded host |
 | p_stuartii | mutation_23s_rrna | 0 | excluded host |
 | p_stuartii | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| p_stuartii | efflux_tet_abc | 6e-6 | eligible; de novo enabled |
+| p_stuartii | efflux_tet_abc | 2e-6 | eligible; de novo enabled |
 | p_stuartii | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | p_stuartii | efflux_mtr_cde | 0 | excluded host |
 | p_stuartii | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | p_stuartii | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 5e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_esbl_tem | 5e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_esbl_shv | 5e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_kpc | 1e-4 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_ndm_vim | 1e-4 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_oxa_48 | 1e-4 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_ampc_cmy | 5e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | enzyme_ampc_dha | 5e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | mutation_ampc_derepression | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_tem | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_esbl_shv | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_kpc | 7e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ndm_vim | 7e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_oxa_48 | 7e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ampc_cmy | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | enzyme_ampc_dha | 4e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_ampc_derepression | 4e-5 | eligible; de novo enabled |
 | pseudomonas_aeruginosa | target_site_pbp2a_meca | 0 | excluded host |
 | pseudomonas_aeruginosa | target_site_van_a | 0 | excluded host |
 | pseudomonas_aeruginosa | target_site_van_b | 0 | excluded host |
@@ -9056,56 +9261,56 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | pseudomonas_aeruginosa | mutation_23s_rrna | 0 | excluded host |
 | pseudomonas_aeruginosa | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
 | pseudomonas_aeruginosa | efflux_tet_abc | 3e-5 | eligible; de novo enabled |
-| pseudomonas_aeruginosa | mutation_pbp_mosaic | 5e-5 | eligible; de novo enabled |
+| pseudomonas_aeruginosa | mutation_pbp_mosaic | 4e-5 | eligible; de novo enabled |
 | pseudomonas_aeruginosa | efflux_mtr_cde | 0 | excluded host |
 | pseudomonas_aeruginosa | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | pseudomonas_aeruginosa | mutation_siderophore_uptake | 2e-4 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 2 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_esbl_tem | 2 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_esbl_shv | 2 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_kpc | 5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_ndm_vim | 5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_oxa_48 | 5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_ampc_cmy | 5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_ampc_dha | 5 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_esbl_tem | 1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_esbl_shv | 1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_kpc | 3 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_ndm_vim | 3 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_oxa_48 | 3 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_ampc_cmy | 3 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_ampc_dha | 3 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | stenotrophomonas_maltophilia | target_site_pbp2a_meca | 0 | excluded host |
 | stenotrophomonas_maltophilia | target_site_van_a | 0 | excluded host |
 | stenotrophomonas_maltophilia | target_site_van_b | 0 | excluded host |
-| stenotrophomonas_maltophilia | mutation_gyra_primary | 0.5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 0.5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | protection_qnr | 0.5 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | protection_qnr | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.05 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | target_site_erm_b | 0 | excluded host |
 | stenotrophomonas_maltophilia | target_site_cfr | 0 | excluded host |
-| stenotrophomonas_maltophilia | enzyme_cat | 1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_cat | 0.5 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
 | stenotrophomonas_maltophilia | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | stenotrophomonas_maltophilia | porin_loss_ompk35_36 | 0 | excluded host |
 | stenotrophomonas_maltophilia | porin_loss_oprd | 0 | excluded host |
-| stenotrophomonas_maltophilia | modification_mcr_1 | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | modification_mcr_1 | 0.05 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
-| stenotrophomonas_maltophilia | global_efflux_pump | 0.02 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.01 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | mutation_nitroreductase | 0.1 | excluded host |
+| stenotrophomonas_maltophilia | global_efflux_pump | 0.01 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_folate_pathway | 3e-4 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_nitroreductase | 0.05 | excluded host |
 | stenotrophomonas_maltophilia | enzyme_fos | 30 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | mutation_mpr_f | 0 | excluded host |
 | stenotrophomonas_maltophilia | mutation_liafsr_cls | 0 | excluded host |
-| stenotrophomonas_maltophilia | mutation_rpo_b | 2e-4 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_rpo_b | 1e-4 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | protection_fus_b | 0 | excluded host |
-| stenotrophomonas_maltophilia | protection_tet_m | 0.02 | eligible; de novo enabled |
-| stenotrophomonas_maltophilia | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | protection_tet_m | 0.01 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | enzyme_aac_aph | 0.05 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | enzyme_bla_z | 0 | excluded host |
 | stenotrophomonas_maltophilia | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | stenotrophomonas_maltophilia | enzyme_mph_a | 0 | excluded host |
 | stenotrophomonas_maltophilia | enzyme_oxa_acinetobacter | 0 | eligible; HGT only |
 | stenotrophomonas_maltophilia | mutation_23s_rrna | 0 | excluded host |
 | stenotrophomonas_maltophilia | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| stenotrophomonas_maltophilia | efflux_tet_abc | 0.05 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | efflux_tet_abc | 0.02 | eligible; de novo enabled |
 | stenotrophomonas_maltophilia | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | stenotrophomonas_maltophilia | efflux_mtr_cde | 0 | excluded host |
 | stenotrophomonas_maltophilia | mutation_16s_rrna_tetracycline | 0 | excluded host |
-| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 0.001 | eligible; de novo enabled |
+| stenotrophomonas_maltophilia | mutation_siderophore_uptake | 5e-4 | eligible; de novo enabled |
 | staphylococcus_aureus | enzyme_esbl_ctx_m | 0 | excluded host |
 | staphylococcus_aureus | enzyme_esbl_tem | 0 | excluded host |
 | staphylococcus_aureus | enzyme_esbl_shv | 0 | excluded host |
@@ -9115,14 +9320,14 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | staphylococcus_aureus | enzyme_ampc_cmy | 0 | excluded host |
 | staphylococcus_aureus | enzyme_ampc_dha | 0 | excluded host |
 | staphylococcus_aureus | mutation_ampc_derepression | 0 | excluded host |
-| staphylococcus_aureus | target_site_pbp2a_meca | 3e-5 | eligible; de novo enabled |
-| staphylococcus_aureus | target_site_van_a | 3e-6 | eligible; de novo enabled |
-| staphylococcus_aureus | target_site_van_b | 3e-6 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_pbp2a_meca | 2e-5 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_van_a | 1e-6 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_van_b | 1e-6 | eligible; de novo enabled |
 | staphylococcus_aureus | mutation_gyra_primary | 30 | eligible; de novo enabled |
 | staphylococcus_aureus | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
 | staphylococcus_aureus | protection_qnr | 0 | excluded host |
 | staphylococcus_aureus | enzyme_16s_rrmt | 0 | excluded host |
-| staphylococcus_aureus | target_site_erm_b | 30 | eligible; de novo enabled |
+| staphylococcus_aureus | target_site_erm_b | 10 | eligible; de novo enabled |
 | staphylococcus_aureus | target_site_cfr | 0.5 | eligible; de novo enabled |
 | staphylococcus_aureus | enzyme_cat | 0.01 | eligible; de novo enabled |
 | staphylococcus_aureus | efflux_acrab_tolc | 0 | excluded host |
@@ -9140,12 +9345,12 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | staphylococcus_aureus | mutation_rpo_b | 30 | eligible; de novo enabled |
 | staphylococcus_aureus | protection_fus_b | 30 | eligible; de novo enabled |
 | staphylococcus_aureus | protection_tet_m | 0.3 | eligible; de novo enabled |
-| staphylococcus_aureus | enzyme_aac_aph | 0.1 | eligible; de novo enabled |
-| staphylococcus_aureus | enzyme_bla_z | 2e-4 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_aac_aph | 0.03 | eligible; de novo enabled |
+| staphylococcus_aureus | enzyme_bla_z | 1e-4 | eligible; de novo enabled |
 | staphylococcus_aureus | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | staphylococcus_aureus | enzyme_mph_a | 0 | excluded host |
 | staphylococcus_aureus | enzyme_oxa_acinetobacter | 0 | excluded host |
-| staphylococcus_aureus | mutation_23s_rrna | 30 | excluded host |
+| staphylococcus_aureus | mutation_23s_rrna | 10 | excluded host |
 | staphylococcus_aureus | mutation_23s_rrna_oxazolidinone | 3e-5 | eligible; de novo enabled |
 | staphylococcus_aureus | efflux_tet_abc | 0 | excluded host |
 | staphylococcus_aureus | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
@@ -9210,20 +9415,20 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | streptococcus_pneumoniae | target_site_pbp2a_meca | 0 | excluded host |
 | streptococcus_pneumoniae | target_site_van_a | 0 | eligible; HGT only |
 | streptococcus_pneumoniae | target_site_van_b | 0 | eligible; HGT only |
-| streptococcus_pneumoniae | mutation_gyra_primary | 3 | eligible; de novo enabled |
-| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_gyra_primary | 1 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 1 | eligible; de novo enabled |
 | streptococcus_pneumoniae | protection_qnr | 0 | excluded host |
 | streptococcus_pneumoniae | enzyme_16s_rrmt | 0 | excluded host |
 | streptococcus_pneumoniae | target_site_erm_b | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | target_site_cfr | 0 | eligible; HGT only |
-| streptococcus_pneumoniae | enzyme_cat | 30 | eligible; de novo enabled |
+| streptococcus_pneumoniae | enzyme_cat | 3 | eligible; de novo enabled |
 | streptococcus_pneumoniae | efflux_acrab_tolc | 0 | excluded host |
 | streptococcus_pneumoniae | efflux_mexxy_oprm | 0 | excluded host |
 | streptococcus_pneumoniae | porin_loss_ompk35_36 | 0 | excluded host |
 | streptococcus_pneumoniae | porin_loss_oprd | 0 | excluded host |
 | streptococcus_pneumoniae | modification_mcr_1 | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_polymyxin_regulatory | 0 | excluded host |
-| streptococcus_pneumoniae | global_efflux_pump | 3 | eligible; de novo enabled |
+| streptococcus_pneumoniae | global_efflux_pump | 1 | eligible; de novo enabled |
 | streptococcus_pneumoniae | mutation_folate_pathway | 0.003 | eligible; de novo enabled |
 | streptococcus_pneumoniae | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
 | streptococcus_pneumoniae | enzyme_fos | 0 | eligible; HGT only |
@@ -9231,7 +9436,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | streptococcus_pneumoniae | mutation_liafsr_cls | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_rpo_b | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | protection_fus_b | 0 | excluded host |
-| streptococcus_pneumoniae | protection_tet_m | 0.4 | eligible; de novo enabled |
+| streptococcus_pneumoniae | protection_tet_m | 0.05 | eligible; de novo enabled |
 | streptococcus_pneumoniae | enzyme_aac_aph | 0 | eligible; HGT only |
 | streptococcus_pneumoniae | enzyme_bla_z | 0 | excluded host |
 | streptococcus_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
@@ -9240,18 +9445,18 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | streptococcus_pneumoniae | mutation_23s_rrna | 30 | eligible; de novo enabled |
 | streptococcus_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | streptococcus_pneumoniae | efflux_tet_abc | 0 | excluded host |
-| streptococcus_pneumoniae | mutation_pbp_mosaic | 5e-7 | eligible; de novo enabled |
+| streptococcus_pneumoniae | mutation_pbp_mosaic | 5e-9 | eligible; de novo enabled |
 | streptococcus_pneumoniae | efflux_mtr_cde | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | streptococcus_pneumoniae | mutation_siderophore_uptake | 0 | excluded host |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 1.5e-4 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 1.5e-4 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 1.5e-4 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_kpc | 1e-5 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_ndm_vim | 1e-5 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 1e-5 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 1.5e-4 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 1.5e-4 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_kpc | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_ndm_vim | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 3e-6 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 3e-6 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | salmonella_enterica_serovar_typhi | target_site_pbp2a_meca | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | target_site_van_a | 0 | excluded host |
@@ -9259,10 +9464,10 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | salmonella_enterica_serovar_typhi | mutation_gyra_primary | 3 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | protection_qnr | 3 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 0.2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 0.01 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | target_site_erm_b | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | target_site_cfr | 0 | excluded host |
-| salmonella_enterica_serovar_typhi | enzyme_cat | 3 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_cat | 1 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 3 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | salmonella_enterica_serovar_typhi | porin_loss_ompk35_36 | 0 | excluded host |
@@ -9270,29 +9475,29 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | salmonella_enterica_serovar_typhi | modification_mcr_1 | 30 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | mutation_polymyxin_regulatory | 30 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | global_efflux_pump | 3 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | mutation_folate_pathway | 0.003 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | mutation_nitroreductase | 1e-5 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | enzyme_fos | 3e-5 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | mutation_mpr_f | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | mutation_liafsr_cls | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | mutation_rpo_b | 30 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | protection_fus_b | 0 | excluded host |
-| salmonella_enterica_serovar_typhi | protection_tet_m | 2 | eligible; de novo enabled |
-| salmonella_enterica_serovar_typhi | enzyme_aac_aph | 0.2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | protection_tet_m | 0.1 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | enzyme_aac_aph | 0.01 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | enzyme_bla_z | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | eligible; HGT only |
 | salmonella_enterica_serovar_typhi | enzyme_mph_a | 0 | eligible; HGT only |
 | salmonella_enterica_serovar_typhi | enzyme_oxa_acinetobacter | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | mutation_23s_rrna | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| salmonella_enterica_serovar_typhi | efflux_tet_abc | 2 | eligible; de novo enabled |
+| salmonella_enterica_serovar_typhi | efflux_tet_abc | 0.1 | eligible; de novo enabled |
 | salmonella_enterica_serovar_typhi | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | salmonella_enterica_serovar_typhi | efflux_mtr_cde | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | salmonella_enterica_serovar_typhi | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 0.005 | eligible; de novo enabled |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 0.005 | eligible; de novo enabled |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 0.005 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 0.004 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 0.004 | eligible; de novo enabled |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 0.004 | eligible; de novo enabled |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 3e-4 | eligible; de novo enabled |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 3e-4 | eligible; de novo enabled |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 3e-4 | eligible; de novo enabled |
@@ -9382,14 +9587,14 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 0 | excluded host |
 | invasive_non-typhoidal_salmonella_spp. | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | invasive_non-typhoidal_salmonella_spp. | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| shigella_spp. | enzyme_esbl_ctx_m | 0.002 | eligible; de novo enabled |
-| shigella_spp. | enzyme_esbl_tem | 0.002 | eligible; de novo enabled |
-| shigella_spp. | enzyme_esbl_shv | 0.002 | eligible; de novo enabled |
+| shigella_spp. | enzyme_esbl_ctx_m | 1e-4 | eligible; de novo enabled |
+| shigella_spp. | enzyme_esbl_tem | 1e-4 | eligible; de novo enabled |
+| shigella_spp. | enzyme_esbl_shv | 1e-4 | eligible; de novo enabled |
 | shigella_spp. | enzyme_kpc | 1e-5 | eligible; de novo enabled |
 | shigella_spp. | enzyme_ndm_vim | 1e-5 | eligible; de novo enabled |
 | shigella_spp. | enzyme_oxa_48 | 1e-5 | eligible; de novo enabled |
-| shigella_spp. | enzyme_ampc_cmy | 0.0015 | eligible; de novo enabled |
-| shigella_spp. | enzyme_ampc_dha | 0.0015 | eligible; de novo enabled |
+| shigella_spp. | enzyme_ampc_cmy | 1e-4 | eligible; de novo enabled |
+| shigella_spp. | enzyme_ampc_dha | 1e-4 | eligible; de novo enabled |
 | shigella_spp. | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | shigella_spp. | target_site_pbp2a_meca | 0 | excluded host |
 | shigella_spp. | target_site_van_a | 0 | excluded host |
@@ -9408,7 +9613,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | shigella_spp. | modification_mcr_1 | 30 | eligible; de novo enabled |
 | shigella_spp. | mutation_polymyxin_regulatory | 30 | eligible; de novo enabled |
 | shigella_spp. | global_efflux_pump | 30 | eligible; de novo enabled |
-| shigella_spp. | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| shigella_spp. | mutation_folate_pathway | 0.3 | eligible; de novo enabled |
 | shigella_spp. | mutation_nitroreductase | 0.3 | eligible; de novo enabled |
 | shigella_spp. | enzyme_fos | 0 | eligible; HGT only |
 | shigella_spp. | mutation_mpr_f | 0 | excluded host |
@@ -9444,9 +9649,9 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 3 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | protection_qnr | 3 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.01 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | target_site_erm_b | 0.05 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | target_site_erm_b | 0.001 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | target_site_cfr | 0.001 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | enzyme_cat | 0.3 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_cat | 0.005 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | efflux_acrab_tolc | 3 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | neisseria_gonorrhoeae | porin_loss_ompk35_36 | 0 | excluded host |
@@ -9454,24 +9659,24 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | neisseria_gonorrhoeae | modification_mcr_1 | 0.005 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
 | neisseria_gonorrhoeae | global_efflux_pump | 3 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | mutation_folate_pathway | 0.8 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_folate_pathway | 0.03 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_nitroreductase | 0.03 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_fos | 3e-4 | excluded host |
 | neisseria_gonorrhoeae | mutation_mpr_f | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_liafsr_cls | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_rpo_b | 30 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | protection_fus_b | 0 | excluded host |
-| neisseria_gonorrhoeae | protection_tet_m | 0.8 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | protection_tet_m | 0.035 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_aac_aph | 0.01 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_bla_z | 0 | excluded host |
-| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.2 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.05 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_mph_a | 0 | excluded host |
 | neisseria_gonorrhoeae | enzyme_oxa_acinetobacter | 0 | excluded host |
-| neisseria_gonorrhoeae | mutation_23s_rrna | 0.1 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_23s_rrna | 0.001 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| neisseria_gonorrhoeae | efflux_tet_abc | 0.8 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.005 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | efflux_mtr_cde | 0.05 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_tet_abc | 0.035 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.003 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_mtr_cde | 0.003 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_siderophore_uptake | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_esbl_ctx_m | 0 | excluded host |
@@ -9486,34 +9691,34 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | streptococcus_pyogenes | target_site_pbp2a_meca | 0 | excluded host |
 | streptococcus_pyogenes | target_site_van_a | 0 | eligible; HGT only |
 | streptococcus_pyogenes | target_site_van_b | 0 | eligible; HGT only |
-| streptococcus_pyogenes | mutation_gyra_primary | 0.01 | eligible; de novo enabled |
-| streptococcus_pyogenes | mutation_gyra_parc_secondary | 0.01 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
 | streptococcus_pyogenes | protection_qnr | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_16s_rrmt | 0 | excluded host |
-| streptococcus_pyogenes | target_site_erm_b | 0.005 | eligible; de novo enabled |
-| streptococcus_pyogenes | target_site_cfr | 0.02 | eligible; de novo enabled |
-| streptococcus_pyogenes | enzyme_cat | 0.002 | eligible; de novo enabled |
+| streptococcus_pyogenes | target_site_erm_b | 1 | eligible; de novo enabled |
+| streptococcus_pyogenes | target_site_cfr | 10 | eligible; de novo enabled |
+| streptococcus_pyogenes | enzyme_cat | 0.02 | eligible; de novo enabled |
 | streptococcus_pyogenes | efflux_acrab_tolc | 0 | excluded host |
 | streptococcus_pyogenes | efflux_mexxy_oprm | 0 | excluded host |
 | streptococcus_pyogenes | porin_loss_ompk35_36 | 0 | excluded host |
 | streptococcus_pyogenes | porin_loss_oprd | 0 | excluded host |
 | streptococcus_pyogenes | modification_mcr_1 | 0 | excluded host |
 | streptococcus_pyogenes | mutation_polymyxin_regulatory | 0 | excluded host |
-| streptococcus_pyogenes | global_efflux_pump | 0.02 | eligible; de novo enabled |
-| streptococcus_pyogenes | mutation_folate_pathway | 0.2 | eligible; de novo enabled |
+| streptococcus_pyogenes | global_efflux_pump | 0.5 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_folate_pathway | 30 | eligible; de novo enabled |
 | streptococcus_pyogenes | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
 | streptococcus_pyogenes | enzyme_fos | 0 | eligible; HGT only |
-| streptococcus_pyogenes | mutation_mpr_f | 0.001 | excluded host |
+| streptococcus_pyogenes | mutation_mpr_f | 0.03 | excluded host |
 | streptococcus_pyogenes | mutation_liafsr_cls | 0 | excluded host |
-| streptococcus_pyogenes | mutation_rpo_b | 0.003 | eligible; de novo enabled |
-| streptococcus_pyogenes | protection_fus_b | 0.01 | excluded host |
-| streptococcus_pyogenes | protection_tet_m | 3e-4 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_rpo_b | 0.1 | eligible; de novo enabled |
+| streptococcus_pyogenes | protection_fus_b | 0.3 | excluded host |
+| streptococcus_pyogenes | protection_tet_m | 0.01 | eligible; de novo enabled |
 | streptococcus_pyogenes | enzyme_aac_aph | 0 | eligible; HGT only |
 | streptococcus_pyogenes | enzyme_bla_z | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_mph_a | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_oxa_acinetobacter | 0 | excluded host |
-| streptococcus_pyogenes | mutation_23s_rrna | 0.01 | eligible; de novo enabled |
+| streptococcus_pyogenes | mutation_23s_rrna | 1 | eligible; de novo enabled |
 | streptococcus_pyogenes | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | streptococcus_pyogenes | efflux_tet_abc | 0 | excluded host |
 | streptococcus_pyogenes | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
@@ -9529,40 +9734,40 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | streptococcus_agalactiae | enzyme_ampc_cmy | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_ampc_dha | 0 | excluded host |
 | streptococcus_agalactiae | mutation_ampc_derepression | 0 | excluded host |
-| streptococcus_agalactiae | target_site_pbp2a_meca | 1e-5 | excluded host |
-| streptococcus_agalactiae | target_site_van_a | 0.001 | eligible; de novo enabled |
-| streptococcus_agalactiae | target_site_van_b | 0.001 | eligible; de novo enabled |
-| streptococcus_agalactiae | mutation_gyra_primary | 0.03 | eligible; de novo enabled |
-| streptococcus_agalactiae | mutation_gyra_parc_secondary | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_pbp2a_meca | 1e-4 | excluded host |
+| streptococcus_agalactiae | target_site_van_a | 0.01 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_van_b | 0.01 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
 | streptococcus_agalactiae | protection_qnr | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_16s_rrmt | 0 | excluded host |
-| streptococcus_agalactiae | target_site_erm_b | 3 | eligible; de novo enabled |
-| streptococcus_agalactiae | target_site_cfr | 3 | eligible; de novo enabled |
-| streptococcus_agalactiae | enzyme_cat | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_erm_b | 30 | eligible; de novo enabled |
+| streptococcus_agalactiae | target_site_cfr | 30 | eligible; de novo enabled |
+| streptococcus_agalactiae | enzyme_cat | 0.3 | eligible; de novo enabled |
 | streptococcus_agalactiae | efflux_acrab_tolc | 0 | excluded host |
 | streptococcus_agalactiae | efflux_mexxy_oprm | 0 | excluded host |
 | streptococcus_agalactiae | porin_loss_ompk35_36 | 0 | excluded host |
 | streptococcus_agalactiae | porin_loss_oprd | 0 | excluded host |
 | streptococcus_agalactiae | modification_mcr_1 | 0 | excluded host |
 | streptococcus_agalactiae | mutation_polymyxin_regulatory | 0 | excluded host |
-| streptococcus_agalactiae | global_efflux_pump | 0.1 | eligible; de novo enabled |
-| streptococcus_agalactiae | mutation_folate_pathway | 0.5 | eligible; de novo enabled |
+| streptococcus_agalactiae | global_efflux_pump | 1 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_folate_pathway | 30 | eligible; de novo enabled |
 | streptococcus_agalactiae | mutation_nitroreductase | 0 | eligible; no de novo or HGT |
 | streptococcus_agalactiae | enzyme_fos | 0 | eligible; HGT only |
-| streptococcus_agalactiae | mutation_mpr_f | 0.03 | excluded host |
+| streptococcus_agalactiae | mutation_mpr_f | 0.3 | excluded host |
 | streptococcus_agalactiae | mutation_liafsr_cls | 0 | excluded host |
-| streptococcus_agalactiae | mutation_rpo_b | 0.003 | eligible; de novo enabled |
-| streptococcus_agalactiae | protection_fus_b | 0.03 | excluded host |
-| streptococcus_agalactiae | protection_tet_m | 5 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_rpo_b | 0.03 | eligible; de novo enabled |
+| streptococcus_agalactiae | protection_fus_b | 0.3 | excluded host |
+| streptococcus_agalactiae | protection_tet_m | 30 | eligible; de novo enabled |
 | streptococcus_agalactiae | enzyme_aac_aph | 0 | eligible; HGT only |
 | streptococcus_agalactiae | enzyme_bla_z | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_mph_a | 0 | excluded host |
 | streptococcus_agalactiae | enzyme_oxa_acinetobacter | 0 | excluded host |
-| streptococcus_agalactiae | mutation_23s_rrna | 5 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_23s_rrna | 30 | eligible; de novo enabled |
 | streptococcus_agalactiae | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | streptococcus_agalactiae | efflux_tet_abc | 0 | excluded host |
-| streptococcus_agalactiae | mutation_pbp_mosaic | 3e-6 | eligible; de novo enabled |
+| streptococcus_agalactiae | mutation_pbp_mosaic | 3e-5 | eligible; de novo enabled |
 | streptococcus_agalactiae | efflux_mtr_cde | 0 | excluded host |
 | streptococcus_agalactiae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | streptococcus_agalactiae | mutation_siderophore_uptake | 0 | excluded host |
@@ -9670,8 +9875,8 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | mycoplasma_genitalium | target_site_pbp2a_meca | 0 | excluded host |
 | mycoplasma_genitalium | target_site_van_a | 0 | excluded host |
 | mycoplasma_genitalium | target_site_van_b | 0 | excluded host |
-| mycoplasma_genitalium | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
-| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.3 | eligible; de novo enabled |
+| mycoplasma_genitalium | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
+| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
 | mycoplasma_genitalium | protection_qnr | 0 | eligible; HGT only |
 | mycoplasma_genitalium | enzyme_16s_rrmt | 0 | eligible; HGT only |
 | mycoplasma_genitalium | target_site_erm_b | 3 | eligible; de novo enabled |
@@ -9683,7 +9888,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | mycoplasma_genitalium | porin_loss_oprd | 0 | excluded host |
 | mycoplasma_genitalium | modification_mcr_1 | 0 | eligible; HGT only |
 | mycoplasma_genitalium | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
-| mycoplasma_genitalium | global_efflux_pump | 0.3 | eligible; de novo enabled |
+| mycoplasma_genitalium | global_efflux_pump | 0.1 | eligible; de novo enabled |
 | mycoplasma_genitalium | mutation_folate_pathway | 0 | eligible; HGT only |
 | mycoplasma_genitalium | mutation_nitroreductase | 0.05 | eligible; de novo enabled |
 | mycoplasma_genitalium | enzyme_fos | 0 | excluded host |
@@ -9691,7 +9896,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | mycoplasma_genitalium | mutation_liafsr_cls | 0 | excluded host |
 | mycoplasma_genitalium | mutation_rpo_b | 0 | eligible; no de novo or HGT |
 | mycoplasma_genitalium | protection_fus_b | 0 | excluded host |
-| mycoplasma_genitalium | protection_tet_m | 0.05 | eligible; de novo enabled |
+| mycoplasma_genitalium | protection_tet_m | 0.02 | eligible; de novo enabled |
 | mycoplasma_genitalium | enzyme_aac_aph | 0 | eligible; HGT only |
 | mycoplasma_genitalium | enzyme_bla_z | 0 | excluded host |
 | mycoplasma_genitalium | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
@@ -9835,7 +10040,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | listeria_monocytogenes | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | listeria_monocytogenes | enzyme_mph_a | 0 | excluded host |
 | listeria_monocytogenes | enzyme_oxa_acinetobacter | 0 | excluded host |
-| listeria_monocytogenes | mutation_23s_rrna | 0 | eligible; no de novo or HGT |
+| listeria_monocytogenes | mutation_23s_rrna | 0.1 | eligible; de novo enabled |
 | listeria_monocytogenes | mutation_23s_rrna_oxazolidinone | 0 | eligible; no de novo or HGT |
 | listeria_monocytogenes | efflux_tet_abc | 0 | excluded host |
 | listeria_monocytogenes | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
@@ -9894,8 +10099,8 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | bacteroides_fragilis | enzyme_kpc | 3e-5 | eligible; de novo enabled |
 | bacteroides_fragilis | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
 | bacteroides_fragilis | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
-| bacteroides_fragilis | enzyme_ampc_cmy | 0.01 | eligible; de novo enabled |
-| bacteroides_fragilis | enzyme_ampc_dha | 0.01 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_ampc_cmy | 0.003 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_ampc_dha | 0.003 | eligible; de novo enabled |
 | bacteroides_fragilis | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | bacteroides_fragilis | target_site_pbp2a_meca | 0 | excluded host |
 | bacteroides_fragilis | target_site_van_a | 0 | excluded host |
@@ -9906,7 +10111,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | bacteroides_fragilis | enzyme_16s_rrmt | 0.1 | eligible; de novo enabled |
 | bacteroides_fragilis | target_site_erm_b | 30 | eligible; de novo enabled |
 | bacteroides_fragilis | target_site_cfr | 30 | eligible; de novo enabled |
-| bacteroides_fragilis | enzyme_cat | 1e-9 | eligible; de novo enabled |
+| bacteroides_fragilis | enzyme_cat | 3e-12 | eligible; de novo enabled |
 | bacteroides_fragilis | efflux_acrab_tolc | 0.03 | eligible; de novo enabled |
 | bacteroides_fragilis | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | bacteroides_fragilis | porin_loss_ompk35_36 | 0 | excluded host |
@@ -9915,7 +10120,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | bacteroides_fragilis | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
 | bacteroides_fragilis | global_efflux_pump | 0.03 | eligible; de novo enabled |
 | bacteroides_fragilis | mutation_folate_pathway | 30 | eligible; de novo enabled |
-| bacteroides_fragilis | mutation_nitroreductase | 0.001 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_nitroreductase | 2e-4 | eligible; de novo enabled |
 | bacteroides_fragilis | enzyme_fos | 0 | excluded host |
 | bacteroides_fragilis | mutation_mpr_f | 0 | excluded host |
 | bacteroides_fragilis | mutation_liafsr_cls | 0 | excluded host |
@@ -9930,7 +10135,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | bacteroides_fragilis | mutation_23s_rrna | 0 | excluded host |
 | bacteroides_fragilis | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
 | bacteroides_fragilis | efflux_tet_abc | 0 | excluded host |
-| bacteroides_fragilis | mutation_pbp_mosaic | 0.01 | eligible; de novo enabled |
+| bacteroides_fragilis | mutation_pbp_mosaic | 0.003 | eligible; de novo enabled |
 | bacteroides_fragilis | efflux_mtr_cde | 0 | excluded host |
 | bacteroides_fragilis | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | bacteroides_fragilis | mutation_siderophore_uptake | 0 | excluded host |
@@ -9950,9 +10155,9 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | campylobacter_jejuni | mutation_gyra_parc_secondary | 30 | eligible; de novo enabled |
 | campylobacter_jejuni | protection_qnr | 0 | excluded host |
 | campylobacter_jejuni | enzyme_16s_rrmt | 0 | excluded host |
-| campylobacter_jejuni | target_site_erm_b | 0.01 | eligible; de novo enabled |
+| campylobacter_jejuni | target_site_erm_b | 0.003 | eligible; de novo enabled |
 | campylobacter_jejuni | target_site_cfr | 0.003 | eligible; de novo enabled |
-| campylobacter_jejuni | enzyme_cat | 0.001 | eligible; de novo enabled |
+| campylobacter_jejuni | enzyme_cat | 3e-5 | eligible; de novo enabled |
 | campylobacter_jejuni | efflux_acrab_tolc | 0 | excluded host |
 | campylobacter_jejuni | efflux_mexxy_oprm | 0 | excluded host |
 | campylobacter_jejuni | porin_loss_ompk35_36 | 0 | excluded host |
@@ -9973,67 +10178,67 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | campylobacter_jejuni | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | campylobacter_jejuni | enzyme_mph_a | 0 | excluded host |
 | campylobacter_jejuni | enzyme_oxa_acinetobacter | 0 | excluded host |
-| campylobacter_jejuni | mutation_23s_rrna | 0.01 | eligible; de novo enabled |
+| campylobacter_jejuni | mutation_23s_rrna | 0.003 | eligible; de novo enabled |
 | campylobacter_jejuni | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
 | campylobacter_jejuni | efflux_tet_abc | 2.5 | excluded host |
 | campylobacter_jejuni | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | campylobacter_jejuni | efflux_mtr_cde | 0 | excluded host |
 | campylobacter_jejuni | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | campylobacter_jejuni | mutation_siderophore_uptake | 0 | excluded host |
-| enterobacter_cloacae | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_kpc | 3e-5 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_ndm_vim | 3e-5 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_oxa_48 | 3e-5 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_esbl_ctx_m | 4e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_esbl_tem | 4e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_esbl_shv | 4e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_kpc | 1e-7 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_ndm_vim | 1e-7 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_oxa_48 | 1e-7 | eligible; de novo enabled |
 | enterobacter_cloacae | enzyme_ampc_cmy | 0 | eligible; HGT only |
 | enterobacter_cloacae | enzyme_ampc_dha | 0 | eligible; HGT only |
-| enterobacter_cloacae | mutation_ampc_derepression | 1e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_ampc_derepression | 1e-5 | eligible; de novo enabled |
 | enterobacter_cloacae | target_site_pbp2a_meca | 0 | excluded host |
 | enterobacter_cloacae | target_site_van_a | 0 | excluded host |
 | enterobacter_cloacae | target_site_van_b | 0 | excluded host |
-| enterobacter_cloacae | mutation_gyra_primary | 0.1 | eligible; de novo enabled |
-| enterobacter_cloacae | mutation_gyra_parc_secondary | 0.1 | eligible; de novo enabled |
-| enterobacter_cloacae | protection_qnr | 0.1 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_16s_rrmt | 0.02 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_gyra_primary | 0.02 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_gyra_parc_secondary | 0.02 | eligible; de novo enabled |
+| enterobacter_cloacae | protection_qnr | 0.03 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_16s_rrmt | 0.002 | eligible; de novo enabled |
 | enterobacter_cloacae | target_site_erm_b | 0 | excluded host |
 | enterobacter_cloacae | target_site_cfr | 0 | excluded host |
-| enterobacter_cloacae | enzyme_cat | 0.5 | eligible; de novo enabled |
-| enterobacter_cloacae | efflux_acrab_tolc | 0.01 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_cat | 0.2 | eligible; de novo enabled |
+| enterobacter_cloacae | efflux_acrab_tolc | 0.003 | eligible; de novo enabled |
 | enterobacter_cloacae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | enterobacter_cloacae | porin_loss_ompk35_36 | 0 | excluded host |
 | enterobacter_cloacae | porin_loss_oprd | 0 | excluded host |
-| enterobacter_cloacae | modification_mcr_1 | 0.1 | eligible; de novo enabled |
-| enterobacter_cloacae | mutation_polymyxin_regulatory | 0.1 | eligible; de novo enabled |
-| enterobacter_cloacae | global_efflux_pump | 0.01 | eligible; de novo enabled |
-| enterobacter_cloacae | mutation_folate_pathway | 0.03 | eligible; de novo enabled |
-| enterobacter_cloacae | mutation_nitroreductase | 0.2 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_fos | 2 | eligible; de novo enabled |
+| enterobacter_cloacae | modification_mcr_1 | 0.4 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_polymyxin_regulatory | 0.4 | eligible; de novo enabled |
+| enterobacter_cloacae | global_efflux_pump | 0.003 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_folate_pathway | 0.002 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_nitroreductase | 0.1 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_fos | 5 | eligible; de novo enabled |
 | enterobacter_cloacae | mutation_mpr_f | 0 | excluded host |
 | enterobacter_cloacae | mutation_liafsr_cls | 0 | excluded host |
-| enterobacter_cloacae | mutation_rpo_b | 0.001 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_rpo_b | 3e-4 | eligible; de novo enabled |
 | enterobacter_cloacae | protection_fus_b | 0 | excluded host |
-| enterobacter_cloacae | protection_tet_m | 0.002 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_aac_aph | 0.02 | eligible; de novo enabled |
+| enterobacter_cloacae | protection_tet_m | 5e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_aac_aph | 0.002 | eligible; de novo enabled |
 | enterobacter_cloacae | enzyme_bla_z | 0 | excluded host |
-| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 1e-5 | eligible; de novo enabled |
-| enterobacter_cloacae | enzyme_mph_a | 2e-6 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_narrow_spectrum_gram_negative_penicillinase | 3e-6 | eligible; de novo enabled |
+| enterobacter_cloacae | enzyme_mph_a | 3e-7 | eligible; de novo enabled |
 | enterobacter_cloacae | enzyme_oxa_acinetobacter | 0 | excluded host |
 | enterobacter_cloacae | mutation_23s_rrna | 0 | excluded host |
 | enterobacter_cloacae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| enterobacter_cloacae | efflux_tet_abc | 0.01 | eligible; de novo enabled |
-| enterobacter_cloacae | mutation_pbp_mosaic | 1e-4 | eligible; de novo enabled |
+| enterobacter_cloacae | efflux_tet_abc | 0.003 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_pbp_mosaic | 3e-5 | eligible; de novo enabled |
 | enterobacter_cloacae | efflux_mtr_cde | 0 | excluded host |
 | enterobacter_cloacae | mutation_16s_rrna_tetracycline | 0 | excluded host |
-| enterobacter_cloacae | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
-| yersinia_enterocolitica | enzyme_esbl_ctx_m | 0.015 | eligible; de novo enabled |
-| yersinia_enterocolitica | enzyme_esbl_tem | 0.015 | eligible; de novo enabled |
-| yersinia_enterocolitica | enzyme_esbl_shv | 0.015 | eligible; de novo enabled |
+| enterobacter_cloacae | mutation_siderophore_uptake | 3e-5 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_esbl_ctx_m | 0.01 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_esbl_tem | 0.01 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_esbl_shv | 0.01 | eligible; de novo enabled |
 | yersinia_enterocolitica | enzyme_kpc | 3e-4 | eligible; de novo enabled |
 | yersinia_enterocolitica | enzyme_ndm_vim | 3e-4 | eligible; de novo enabled |
 | yersinia_enterocolitica | enzyme_oxa_48 | 3e-4 | eligible; de novo enabled |
-| yersinia_enterocolitica | enzyme_ampc_cmy | 0.015 | eligible; de novo enabled |
-| yersinia_enterocolitica | enzyme_ampc_dha | 0.015 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_ampc_cmy | 0.01 | eligible; de novo enabled |
+| yersinia_enterocolitica | enzyme_ampc_dha | 0.01 | eligible; de novo enabled |
 | yersinia_enterocolitica | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | yersinia_enterocolitica | target_site_pbp2a_meca | 0 | excluded host |
 | yersinia_enterocolitica | target_site_van_a | 0 | excluded host |
@@ -10318,7 +10523,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-8 | eligible; de novo enabled |
 | mycoplasma_pneumoniae | protection_qnr | 0 | eligible; HGT only |
 | mycoplasma_pneumoniae | enzyme_16s_rrmt | 0 | eligible; HGT only |
-| mycoplasma_pneumoniae | target_site_erm_b | 0.003 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | target_site_erm_b | 0.001 | eligible; de novo enabled |
 | mycoplasma_pneumoniae | target_site_cfr | 3e-10 | eligible; de novo enabled |
 | mycoplasma_pneumoniae | enzyme_cat | 3e-10 | eligible; de novo enabled |
 | mycoplasma_pneumoniae | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
@@ -10341,7 +10546,7 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | mycoplasma_pneumoniae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | mycoplasma_pneumoniae | enzyme_mph_a | 0 | excluded host |
 | mycoplasma_pneumoniae | enzyme_oxa_acinetobacter | 0 | excluded host |
-| mycoplasma_pneumoniae | mutation_23s_rrna | 0.003 | eligible; de novo enabled |
+| mycoplasma_pneumoniae | mutation_23s_rrna | 0.001 | eligible; de novo enabled |
 | mycoplasma_pneumoniae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
 | mycoplasma_pneumoniae | efflux_tet_abc | 0 | eligible; HGT only |
 | mycoplasma_pneumoniae | mutation_pbp_mosaic | 1e-4 | eligible; de novo enabled |
@@ -10394,56 +10599,56 @@ De novo emergence coefficient and modelled pathway status for every bacteria–m
 | legionella_pneumophila | efflux_mtr_cde | 0 | eligible; no de novo or HGT |
 | legionella_pneumophila | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | legionella_pneumophila | mutation_siderophore_uptake | 0 | excluded host |
-| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 0.003 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_esbl_tem | 0.003 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_esbl_shv | 0.003 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_kpc | 6e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_ndm_vim | 6e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_oxa_48 | 6e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_ampc_cmy | 0.003 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_ampc_dha | 0.003 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_ctx_m | 1e-5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_tem | 1e-5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_esbl_shv | 1e-5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_kpc | 5e-6 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ndm_vim | 5e-6 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_oxa_48 | 5e-6 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ampc_cmy | 1e-5 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_ampc_dha | 1e-5 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_ampc_derepression | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | target_site_pbp2a_meca | 0 | excluded host |
 | burkholderia_cepacia_complex | target_site_van_a | 0 | excluded host |
 | burkholderia_cepacia_complex | target_site_van_b | 0 | excluded host |
-| burkholderia_cepacia_complex | mutation_gyra_primary | 0.3 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 0.9 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | protection_qnr | 0.9 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_16s_rrmt | 10 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_gyra_primary | 0.01 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_gyra_parc_secondary | 0.01 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | protection_qnr | 0.01 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_16s_rrmt | 0 | eligible; HGT only |
 | burkholderia_cepacia_complex | target_site_erm_b | 0 | excluded host |
 | burkholderia_cepacia_complex | target_site_cfr | 0 | excluded host |
-| burkholderia_cepacia_complex | enzyme_cat | 0.001 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_cat | 1e-8 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | efflux_acrab_tolc | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | porin_loss_ompk35_36 | 0 | excluded host |
 | burkholderia_cepacia_complex | porin_loss_oprd | 0 | excluded host |
-| burkholderia_cepacia_complex | modification_mcr_1 | 0.03 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | modification_mcr_1 | 0.005 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
-| burkholderia_cepacia_complex | global_efflux_pump | 0.1 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | mutation_folate_pathway | 0.02 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | global_efflux_pump | 0.005 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_folate_pathway | 0.002 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_nitroreductase | 0 | excluded host |
-| burkholderia_cepacia_complex | enzyme_fos | 0.03 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_fos | 0.005 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_mpr_f | 0 | excluded host |
 | burkholderia_cepacia_complex | mutation_liafsr_cls | 0 | excluded host |
-| burkholderia_cepacia_complex | mutation_rpo_b | 0.01 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_rpo_b | 0.001 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | protection_fus_b | 0 | excluded host |
-| burkholderia_cepacia_complex | protection_tet_m | 1e-4 | eligible; de novo enabled |
-| burkholderia_cepacia_complex | enzyme_aac_aph | 10 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | protection_tet_m | 2e-7 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | enzyme_aac_aph | 0 | eligible; HGT only |
 | burkholderia_cepacia_complex | enzyme_bla_z | 0 | excluded host |
 | burkholderia_cepacia_complex | enzyme_narrow_spectrum_gram_negative_penicillinase | 0 | excluded host |
 | burkholderia_cepacia_complex | enzyme_mph_a | 0 | excluded host |
 | burkholderia_cepacia_complex | enzyme_oxa_acinetobacter | 0 | eligible; HGT only |
 | burkholderia_cepacia_complex | mutation_23s_rrna | 0 | excluded host |
 | burkholderia_cepacia_complex | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| burkholderia_cepacia_complex | efflux_tet_abc | 1e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | efflux_tet_abc | 2e-7 | eligible; de novo enabled |
 | burkholderia_cepacia_complex | mutation_pbp_mosaic | 0 | eligible; no de novo or HGT |
 | burkholderia_cepacia_complex | efflux_mtr_cde | 0 | excluded host |
 | burkholderia_cepacia_complex | mutation_16s_rrna_tetracycline | 0 | excluded host |
-| burkholderia_cepacia_complex | mutation_siderophore_uptake | 1e-4 | eligible; de novo enabled |
+| burkholderia_cepacia_complex | mutation_siderophore_uptake | 5e-6 | eligible; de novo enabled |
 
 #### Environmental and Exogenous Mechanism Floors
 
-All unspecified bacteria–mechanism floors use 0. The table lists every explicitly specified base or `_before_YYYY` value, including explicit zeroes that mark the start of an era sequence.
+All unspecified bacteria–mechanism floors resolve to 0. The table lists every explicit base or `_before_YYYY` override, including explicit zeroes that mark the start of an era sequence.
 
 | Parameter | Assignment probability |
 | --- | ---: |
@@ -11936,7 +12141,7 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-vaccination-status"></a>`vaccination_status[b]` | Age crossing birth, simulation year, eligible bacterial vaccine, random draw. | `vaccine_{vaccine}_availability_year`; `vaccine_{vaccine}_birth_coverage_target`; `vaccine_{vaccine}_rollout_years`. | Eligible birth cohorts receive one coverage draw as they enter the active population; successful status remains true. | Only mapped bacterial vaccine targets are supported; this is birth-cohort vaccination, not an all-age campaign. | `rules::prepare_individual_for_active_day`; `config::VaccinationParameters` |
 | <a id="rule-infection-has-caused-symptoms"></a>`infection_has_caused_symptoms[b]` | `level[b]`, duration since acquisition, bacterium. | `{bacterium}_symptom_onset_base_log_odds`; `{bacterium}_symptom_onset_threshold_level`; `{bacterium}_symptom_onset_delay_days`; `{bacterium}_symptom_onset_log_odds_per_level_unit`. | An eligible asymptomatic infection receives a daily onset draw; a positive indicator remains true for that infection episode. | Operationally includes symptoms or another indication represented as presentation for testing; reset at resolution. | Symptom-onset block in `rules::apply_rules` |
 | <a id="rule-test-identified-infection"></a>`test_identified_infection[b]` | Active symptomatic infection, infection duration, year, region, hospital status, immunodeficiency, sepsis. | `test_delay_days`; `bacterial_testing_available_from_day`; `{bacterium}_test_availability_year`; `bacterial_testing_base_rate_per_day`; adoption, hospital, region, immunosuppression, sepsis and policy testing multipliers. | Eligible unresolved infections receive a daily identification draw; a positive identification remains recorded for the episode. | Adoption follows a fixed 40-year sigmoid; reset at resolution. | Diagnostic-testing block in `rules::apply_rules` |
-| <a id="rule-test-for-resistance"></a>`test_for_resistance[b]` | `test_identified_infection[b]`, active infection, AST eligibility and initiation draw. | `resistance_testing_available_from_day`; `resistance_testing_base_rate_per_day`; AST adoption, hospital and policy multipliers. | Set when AST is initiated after bacterial identification. | It denotes test initiation, not result readiness. | Resistance-testing block in `rules::apply_rules` |
+| <a id="rule-test-for-resistance"></a>`test_for_resistance[b]` | `resistance_test_initiated_day[b]`, current day and retained bacterial identification. | `resistance_test_result_delay_days`; `test_r_error_probability`; `test_r_error_value`. | Set when the pending AST panel becomes ready and its per-drug reported results are written to `test_r`. | It denotes result readiness, not AST initiation; a ready all-zero panel is valid. | Resistance-testing block in `rules::apply_rules` |
 | <a id="rule-resistance-test-initiated-day"></a>`resistance_test_initiated_day[b]` | AST initiation event, current day. | `resistance_test_result_delay_days`. | Set on AST initiation; used to determine when `test_r` results become available; reset with the infection episode. | A special missing value represents no test initiated. | Resistance-testing block and result-readiness calculation in `rules` |
 | <a id="rule-cur-use-drug"></a>`cur_use_drug[d]` | Treatment initiation, cessation, toxicity stopping, failure switching and restart decisions. | Antibiotic-initiation and cessation families; treatment-failure and restart parameters. | Set by `start_drug_course` and cleared by `stop_drug_course`. | True identifies an active course; residual concentration can remain after it becomes false. | `rules::start_drug_course`; `rules::stop_drug_course`; treatment-selection blocks |
 | <a id="rule-drug-use-context"></a>`drug_use_context[d]` | Infection activity, symptoms, bacterial identification, prophylaxis or other-use pathway. | Fixed contexts: empiric, targeted, prophylaxis and other. | Assigned when a course starts and cleared when it stops. | The context records the selection pathway; it does not change retrospectively. | `rules::start_drug_course`; antibiotic-initiation block |
@@ -11998,14 +12203,14 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-infection-acquisition-probability"></a>`infection_acquisition_probability[b]` | Infection-episode absence (`level[b] == 0`), age, region, hospital status, vaccination, carriage, exposure context and policy state. | `{bacterium}_acquisition_log_odds_baseline`; age and region acquisition families; hospital, vaccination, carriage-versus-infection, pathway and policy multipliers. | Recomputed daily for each eligible person-bacterium pair and copied to `predicted_infection_risk[b]` before the initial acquisition draw. | A fading positive episode is not eligible; the incoming resistance mechanisms and existing therapy can subsequently determine whether an eligible candidate becomes established. | Infection-acquisition block in `rules::apply_rules` |
 | <a id="rule-incoming-infection-mechanism-mask"></a>`incoming_infection_mechanism_mask[b]` | Mechanisms from a sampled local resistance-mechanism profile or the exogenous pathway, `mechanism_microbiome[b]`, the MDR-TB rule and current acquisition setting. | Circulating resistance-mechanism profile library and ratchet parameters; `carrier_resistance_inheritance_probability`; `infection_from_microbiome_dampening`; mechanism applicability. | Calculated only after an infection-acquisition draw succeeds, then restricted to mechanisms permitted for the bacterium. | Assigned if the infection becomes established or discarded if existing therapy prevents establishment. | Resistance-mechanism profile assembly in `rules::apply_rules`; `simulation::MechanismCache` |
 | <a id="rule-existing-therapy-prevention-probability"></a>`existing_therapy_prevention_probability[b]` | Current drug use and levels, bacterium-drug potency, and resistance implied by the incoming resistance-mechanism profile. | `antibiotic_infection_prevention_efficacy`; potency; current drug level; `max_resistance_level`; fixed effective-activity threshold of 0.5. | Evaluated for each current drug after the prospective infection mechanisms have been assembled. | Any successful prevention draw blocks establishment; syndrome penetration is not used because syndrome assignment occurs only after establishment. | Infection-acquisition prevention block in `rules::apply_rules` |
-| <a id="rule-de-novo-emergence-probability"></a>`de_novo_emergence_probability[b,m]` | Active infection, absent applicable mechanism, bacterium level, selecting drug exposure and cross-resistance context. | Unbounded `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` coefficient; `run_pathway_infection_de_novo_multiplier`; counterfactual resistance multiplier; `resistance_emergence_bacteria_level_multiplier`; potency threshold; multidrug inhibition parameters; drug level and syndrome penetration. | Recomputed for each eligible bacterium-mechanism route, bounded to `[0,1]`, then used for one daily Bernoulli draw. | Standardized site exposure is current level divided by initial level and multiplied by syndrome penetration. Exactly zero site exposure has factor 0; positive exposure uses a fixed Gaussian peak at 0.5, sigma 0.2 and floor 0.01. Zero-site-exposure and inapplicable routes are skipped. | De novo resistance block in `rules::apply_rules` |
+| <a id="rule-de-novo-emergence-probability"></a>`de_novo_emergence_probability[b,m]` | Active infection, absent applicable mechanism, bacterium level, selecting drug exposure and cross-resistance context. | Unbounded `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` coefficient; counterfactual resistance multiplier; `resistance_emergence_bacteria_level_multiplier`; potency threshold; multidrug inhibition parameters; drug level and syndrome penetration. | Recomputed for each eligible bacterium-mechanism route, bounded to `[0,1]`, then used for one daily Bernoulli draw. | Standardized site exposure is current level divided by initial level and multiplied by syndrome penetration. Exactly zero site exposure has factor 0; positive exposure uses a fixed Gaussian peak at 0.5, sigma 0.2 and floor 0.01. Zero-site-exposure and inapplicable routes are skipped. | De novo resistance block in `rules::apply_rules` |
 | <a id="rule-minority-promotion-probability"></a>`minority_promotion_probability[b,m]` | Minority mechanism in `mechanism_any[b]`, absence from `mechanism_majority[b]`, selecting drug pressure. | `majority_r_evolution_rate_per_day_when_drug_present`; mechanism-drug applicability. | One draw is made per eligible minority mechanism under selecting pressure. | Promotion changes predominant-strain status, not whether any strain carries the mechanism. | `rules::promote_minority_mechanisms_once`; resistance-evolution block |
-| <a id="rule-mechanism-reversion-probability"></a>`mechanism_reversion_probability[b,m]` | Present eligible mechanism, predominant or carriage compartment, absence of current selection. | Mechanism-specific reversion-rate parameters; `run_pathway_reversion_rate_multiplier`; applicability and selection conditions. | Recomputed for eligible unselected mechanisms before daily loss draws. | Infection and carriage mechanism sets are updated separately; selected mechanisms do not revert through this route. | Reversion blocks and precomputed parameters in `rules` |
-| <a id="rule-hgt-probability"></a>`hgt_probability[recipient_b,m]` | Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor-recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; `run_pathway_hgt_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor-recipient-mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
+| <a id="rule-mechanism-reversion-probability"></a>`mechanism_reversion_probability[b,m]` | Present eligible mechanism, predominant or carriage compartment, absence of current selection. | Mechanism-specific reversion-rate parameters; applicability and selection conditions. | Recomputed for eligible unselected mechanisms before daily loss draws. | Infection and carriage mechanism sets are updated separately; selected mechanisms do not revert through this route. | Reversion blocks and precomputed parameters in `rules` |
+| <a id="rule-hgt-probability"></a>`hgt_probability[recipient_b,m]` | Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor-recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor-recipient-mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
 | <a id="rule-new-bacteria-level"></a>`new_bacteria_level[b]` | Previous `level[b]`, growth modifiers, applied drug activity and response multiplier. | Initial and maximum level; base growth; age, immunodeficiency and syndrome growth multipliers; potency, penetration, activity and treatment-response parameters. | Calculated once per positive infection-episode day, bounded, then stored in `level[b]` unless resolution supersedes it. | Fading positive episodes continue this update; MDR-TB multidrug synergy and background effectiveness are explicit exceptions. | Infection-progression block in `rules::apply_rules` |
 | <a id="rule-symptom-onset-probability"></a>`symptom_onset_probability[b]` | `level[b]`, infection duration and current symptom indicator. | `{bacterium}_symptom_onset_base_log_odds`; threshold, delay and per-level log-odds parameters. | Recomputed for eligible infections until the symptom indicator becomes true. | No further onset draws after symptoms have occurred in that episode. | Symptom-onset block in `rules::apply_rules` |
 | <a id="rule-bacterial-identification-probability"></a>`bacterial_identification_probability[b]` | Active symptomatic infection, duration, year, hospital status, region, immunodeficiency and sepsis. | Bacterial-testing delay, availability, base rate, adoption, hospital, region, immunosuppression, sepsis and policy parameters. | Recomputed for eligible unidentified infections before the daily testing draw. | Adoption uses a fixed 40-year sigmoid. | Diagnostic-testing block in `rules::apply_rules` |
-| <a id="rule-resistance-testing-probability"></a>`resistance_testing_probability[b]` | Bacterial identification, active infection, year, hospital status and policy state. | AST availability, base rate, initial adoption, maximum temporal, hospital and policy multipliers. | Recomputed for eligible uninitiated AST before the daily initiation draw. | Adoption uses a fixed 50-year sigmoid; result delivery occurs later. | Resistance-testing block in `rules::apply_rules` |
+| <a id="rule-resistance-testing-probability"></a>`resistance_testing_probability[b]` | Bacterial identification, year, hospital status, region, immunodeficiency, sepsis and policy state. | AST availability, base rate, initial adoption, maximum temporal, hospital, region, immunosuppression, sepsis and policy multipliers. | Recomputed for eligible uninitiated AST before the daily initiation draw. | Adoption uses a fixed 50-year sigmoid; result delivery occurs later. | Resistance-testing block in `rules::apply_rules` |
 | <a id="rule-infection-resolution-type"></a>`infection_resolution_type[b]` | Resolution cause, treatment exposure, sepsis and fatal pathway. | Fixed resolution categories. | Assigned when an infection clears or ends in death and immediately converted to a daily count. | Temporary classification avoids counting one episode in multiple resolution categories. | Resolution and mortality blocks in `rules::apply_rules` |
 | <a id="rule-effective-carriage-activity"></a>`effective_carriage_activity[b,d]` | Drug exposure, no-acquired-resistance potency and `microbiome_r[b][d]`. | `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; `max_resistance_level`; fixed exposure and activity thresholds of 0.1. | Recomputed during carriage and contributes to antibiotic-associated clearance log-odds. | Carriage activity does not use an infection syndrome penetration term. | Carriage-clearance activity code in `rules::apply_rules` |
 | <a id="rule-applied-activity-observation"></a>`applied_activity_observation[b]` | Active infection, all drug exposures, potency, penetration, `any_r`, and treatment contexts. | Same potency, penetration and resistance parameters as dynamic activity; fixed observation values. | Aggregates applied, potential, pure and best activity when drug exposure exists, then records a daily rule event. | Used only for reporting; dynamic level change uses the underlying activity calculation directly. | `rules::applied_activity_observation`; event aggregation in `simulation` |
@@ -12018,6 +12223,8 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Ali M, Nelson AR, Lopez AL, Sack DA. Updated global burden of cholera in endemic countries. *PLoS Negl Trop Dis.* 2015;9(6):e0003832. doi:10.1371/journal.pntd.0003832
 
+- Alonso A, Martínez JL. Cloning and characterization of SmeDEF, a novel multidrug efflux pump from *Stenotrophomonas maltophilia*. *Antimicrob Agents Chemother.* 2000;44(11):3079–3086. doi:10.1128/AAC.44.11.3079-3086.2000
+
 - Andersson DI, Hughes D. Antibiotic resistance and its cost: is it possible to reverse resistance? *Nat Rev Microbiol.* 2010;8(4):260–271. doi:10.1038/nrmicro2319
 
 - Arcilla MS, van Hattem JM, Haverkate MR, et al. Import and spread of extended-spectrum β-lactamase-producing Enterobacteriaceae by international travellers (COMBAT study): a prospective, multicentre cohort study. *Lancet Infect Dis.* 2017;17(1):78–85. doi:10.1016/S1473-3099(16)30319-X
@@ -12029,6 +12236,8 @@ References marked with \* are retained for completeness but are not explicitly c
 - Baptista M, Rodrigues P, Depardieu F, Courvalin P, Arthur M. Single-cell analysis of glycopeptide resistance gene expression in teicoplanin-resistant mutants of VanB-type *Enterococcus faecalis*. *Mol Microbiol.* 1999;32(1):17–28. doi:10.1046/j.1365-2958.1999.01308.x
 
 - Barlam TF, Cosgrove SE, Abbo LM, et al. Implementing an antibiotic stewardship program: guidelines by the Infectious Diseases Society of America and the Society for Healthcare Epidemiology of America. *Clin Infect Dis.* 2016;62(10):e51–e77. doi:10.1093/cid/ciw118
+
+- Bartlett JG, Onderdonk AB, Cisneros RL, Kasper DL. Clindamycin-associated colitis due to a toxin-producing species of *Clostridium* in hamsters. *J Infect Dis.* 1977;136(5):701–705. doi:10.1093/infdis/136.5.701
 
 - Bassetti M, Vena A, Croxatto A, Righi E, Guery B. How to manage *Pseudomonas aeruginosa* infections. *Drugs Context.* 2018;7:212527. doi:10.7573/dic.212527
 
@@ -12044,6 +12253,8 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Blaser MJ. Epidemiologic and clinical features of *Campylobacter jejuni* infections. *J Infect Dis.* 1997;176(Suppl 2):S103–S105.
 
+- Blumberg HM, Rimland D, Carroll DJ, Terry P, Wachsmuth IK. Rapid development of ciprofloxacin resistance in methicillin-susceptible and -resistant *Staphylococcus aureus*. *J Infect Dis.* 1991;163(6):1279–1285. doi:10.1093/infdis/163.6.1279
+
 - Bogaert D, De Groot R, Hermans PWM. *Streptococcus pneumoniae* colonisation: the key to pneumococcal disease. *Lancet Infect Dis.* 2004;4(3):144–154. doi:10.1016/S1473-3099(04)00938-7
 
 - Borger AL, Abarca AA, Dötsch A, et al. Mobile resistance genes in *Mycobacterium tuberculosis*: current evidence and future perspectives. *Lancet Infect Dis.* 2023;23(7):e268–e278. doi:10.1016/S1473-3099(22)00785-0
@@ -12056,19 +12267,31 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Brunton LL, Hilal-Dandan R, Knollmann BC, eds. *Goodman & Gilman's: The Pharmacological Basis of Therapeutics.* 13th ed. New York: McGraw-Hill; 2018.
 
+- Bryan LE, Kwan S. Roles of ribosomal binding, membrane potential, and electron transport in bacterial uptake of streptomycin and gentamicin. *Antimicrob Agents Chemother.* 1983;23(6):835–845. doi:10.1128/AAC.23.6.835
+
 - \* Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. *Microbiome.* 2017;5(1):154. doi:10.1186/s40168-017-0369-0
 
 - Carapetis JR, Steer AC, Mulholland EK, Weber M. The global burden of group A streptococcal diseases. *Lancet Infect Dis.* 2005;5(11):685–694. doi:10.1016/S1473-3099(05)70267-X
 
 - Carattoli A. Resistance plasmid families in Enterobacteriaceae. *Antimicrob Agents Chemother.* 2009;53(6):2227–2238. doi:10.1128/AAC.01707-08
 
+- Centers for Disease Control and Prevention. 1993 sexually transmitted diseases treatment guidelines. *MMWR Recomm Rep.* 1993;42(RR-14):1–102. https://www.cdc.gov/mmwr/preview/mmwrhtml/00023296.htm
+
+- Centers for Disease Control and Prevention. Update to CDC's sexually transmitted diseases treatment guidelines, 2006: fluoroquinolones no longer recommended for treatment of gonococcal infections. *MMWR Morb Mortal Wkly Rep.* 2007;56(14):332–336. https://www.cdc.gov/mmwr/preview/mmwrhtml/mm5614a3.htm
+
 - Centers for Disease Control and Prevention. *Antibiotic Resistance Threats in the United States, 2019.* Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2019. https://www.cdc.gov/antimicrobial-resistance/data-research/threats/index.html
 
 - Centers for Disease Control and Prevention. *COVID-19: U.S. Impact on Antimicrobial Resistance, Special Report 2022.* Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2022. https://www.cdc.gov/antimicrobial-resistance/data-research/threats/covid-19.html
 
+- Centers for Disease Control and Prevention. *Salmonellosis, nontyphoidal.* In: *CDC Yellow Book 2024: Health Information for International Travel.* Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2023. https://wwwnc.cdc.gov/travel/yellowbook/2024/infections%E2%80%90diseases/salmonellosis%E2%80%90nontyphoidal
+
+- Centers for Disease Control and Prevention. *Clinical guidance for group A streptococcal pharyngitis.* Updated November 18, 2025. Accessed August 25, 2026. https://www.cdc.gov/group-a-strep/hcp/clinical-guidance/strep-throat.html
+
+- Centers for Disease Control and Prevention. *Treatment of pertussis.* Updated December 2, 2025. Accessed August 25, 2026. https://www.cdc.gov/pertussis/hcp/clinical-care/index.html
+
 - Cox G, Edwards TA, O'Neill AJ. Mutagenesis mapping of the protein-protein interaction underlying FusB-type fusidic acid resistance. *Antimicrob Agents Chemother.* 2013;57(10):4640–4644. doi:10.1128/AAC.00198-13
 
-- \* Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of *Stenotrophomonas maltophilia* reveals an organism heavily shielded by drug resistance determinants. *Genome Biol.* 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74
+- Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of *Stenotrophomonas maltophilia* reveals an organism heavily shielded by drug resistance determinants. *Genome Biol.* 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74
 
 - Cutts FT, Zaman SMA, Enwere G, et al. Efficacy of nine-valent pneumococcal conjugate vaccine against pneumonia and invasive pneumococcal disease in The Gambia: randomised, double-blind, placebo-controlled trial. *Lancet.* 2005;365(9465):1139–1146. doi:10.1016/S0140-6736(05)71876-6
 
@@ -12106,9 +12329,13 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Fleming-Dutra KE, Hersh AL, Shapiro DJ, et al. Prevalence of inappropriate antibiotic prescriptions among US ambulatory care visits, 2010–2011. *JAMA.* 2016;315(17):1864–1873. doi:10.1001/jama.2016.4151
 
+- Freifeld AG, Bow EJ, Sepkowitz KA, et al. Clinical practice guideline for the use of antimicrobial agents in neutropenic patients with cancer: 2010 update by the Infectious Diseases Society of America. *Clin Infect Dis.* 2011;52(4):e56–e93. doi:10.1093/cid/cir073
+
 - Forslund K, Sunagawa S, Kultima JR, et al. Country-specific antibiotic use practices impact the human gut resistome. *Genome Res.* 2013;23(7):1163–1169. doi:10.1101/gr.155465.113
 
 - Foucault ML, Depardieu F, Courvalin P, Grillot-Courvalin C. Inducible expression eliminates the fitness cost of vancomycin resistance in enterococci. *Proc Natl Acad Sci USA.* 2010;107(39):16964–16969. doi:10.1073/pnas.1006855107
+
+- Frasca D, Dahyot-Fizelier C, Adier C, et al. Metronidazole and hydroxymetronidazole central nervous system distribution: 1. Microdialysis assessment of brain extracellular fluid concentrations in patients with acute brain injury. *Antimicrob Agents Chemother.* 2014;58(2):1019–1023. doi:10.1128/AAC.01760-13
 
 - Gagneux S, Long CD, Small PM, Van T, Schoolnik GK, Bohannan BJM. The competitive cost of antibiotic resistance in *Mycobacterium tuberculosis*. *Science.* 2006;312(5782):1944–1946. doi:10.1126/science.1124410
 
@@ -12118,13 +12345,21 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - GBD 2021 Global Sepsis Collaborators. Global, regional, and national sepsis incidence and mortality, 1990–2021: a systematic analysis. *Lancet Glob Health.* 2025;13(12):e2013–e2026. doi:10.1016/S2214-109X(25)00356-0
 
+- Gerber JS, Hersh AL, Kronman MP, Newland JG, Ross RK, Metjian TA. Development and application of an antibiotic spectrum index for benchmarking antibiotic selection patterns across hospitals. *Infect Control Hosp Epidemiol.* 2017;38(8):993–997. doi:10.1017/ice.2017.94
+
+- Georgopapadakou NH, Smith SA, Cimarusti CM, Sykes RB. Binding of monobactams to penicillin-binding proteins of *Escherichia coli* and *Staphylococcus aureus*: relation to antibacterial activity. *Antimicrob Agents Chemother.* 1983;23(1):98–104. doi:10.1128/AAC.23.1.98
+
 - Gerrits MM, de Zoete MR, Arents NLA, Kuipers EJ, Kusters JG. 16S rRNA mutation-mediated tetracycline resistance in *Helicobacter pylori*. *Antimicrob Agents Chemother.* 2002;46(9):2996–3000. doi:10.1128/AAC.46.9.2996-3000.2002
 
 - Gibreel A, Sköld O. Sulfonamide resistance in clinical isolates of *Campylobacter jejuni*: mutational changes in the chromosomal dihydropteroate synthase. *Antimicrob Agents Chemother.* 1999;43(9):2156–2160. doi:10.1128/AAC.43.9.2156
 
 - Giufrè M, Daprai L, Cardines R, et al. Carriage of *Haemophilus influenzae* in the oropharynx of young children and molecular epidemiology of the isolates after fifteen years of *H. influenzae* type b vaccination in Italy. *Vaccine.* 2015;33(46):6227–6234. doi:10.1016/j.vaccine.2015.09.082
 
+- Gonzales M, Pepin J, Frost EH, et al. Faecal pharmacokinetics of orally administered vancomycin in patients with suspected *Clostridium difficile* infection. *BMC Infect Dis.* 2010;10:363. doi:10.1186/1471-2334-10-363
+
 - Goodwin A, Kersulyte D, Sisson G, Veldhuyzen van Zanten SJ, Berg DE, Hoffman PS. Metronidazole resistance in *Helicobacter pylori* is due to null mutations in a gene (*rdxA*) that encodes an oxygen-insensitive NADPH nitroreductase. *Mol Microbiol.* 1998;28(2):383–393. doi:10.1046/j.1365-2958.1998.00806.x
+
+- Gordon O, Lee DE, Liu B, et al. Dynamic PET-facilitated modeling and high-dose rifampin regimens for *Staphylococcus aureus* orthopedic implant-associated infections. *Sci Transl Med.* 2021;13(622):eabl6851. doi:10.1126/scitranslmed.abl6851
 
 - Gorrie CL, Mirčeta M, Wick RR, et al. Gastrointestinal carriage is a major reservoir of *Klebsiella pneumoniae* infection in intensive care patients. *Clin Infect Dis.* 2017;65(2):208–215. doi:10.1093/cid/cix270
 
@@ -12140,17 +12375,27 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Havelaar AH, Kirk MD, Torgerson PR, et al. World Health Organization global estimates and regional comparisons of the burden of foodborne disease in 2010. *PLoS Med.* 2015;12(12):e1001923. doi:10.1371/journal.pmed.1001923
 
+- Hofreuter D, Odenbreit S, Püls J, Schwan D, Haas R. Genetic competence in *Helicobacter pylori*: mechanisms and biological implications. *Res Microbiol.* 2000;151(6):487–491. doi:10.1016/S0923-2508(00)00164-9
+
+- Honeybourne D, Tobin C, Jevons G, Andrews J, Wise R. Intrapulmonary penetration of linezolid. *J Antimicrob Chemother.* 2003;51(6):1431–1434. doi:10.1093/jac/dkg262
+
 - Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of *Helicobacter pylori* infection: systematic review and meta-analysis. *Gastroenterology.* 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022
 
 - Human Microbiome Project Consortium. Structure, function and diversity of the healthy human microbiome. *Nature.* 2012;486(7402):207–214. doi:10.1038/nature11234
 
+- Huttner A, Wijma RA, Stewardson AJ, et al. The pharmacokinetics of nitrofurantoin in healthy female volunteers: a randomized crossover study. *J Antimicrob Chemother.* 2019;74(6):1656–1661. doi:10.1093/jac/dkz095
+
 - Ikuta KS, Swetschinski LR, Robles Aguilar G, et al. Global mortality associated with 33 bacterial pathogens in 2019: a systematic analysis for the Global Burden of Disease Study 2019. *Lancet.* 2022;400(10369):2221–2248. doi:10.1016/S0140-6736(22)02185-7
+
+- Ilges D, Tande AJ, Stevens RW. A broad spectrum of possibilities: spectrum scores as a unifying metric of antibiotic utilization. *Clin Infect Dis.* 2023;77(2):167–173. doi:10.1093/cid/ciad189
 
 - \* International Organization for Standardization. *ISO 20776-2:2021 Clinical laboratory testing and in vitro diagnostic test systems - Susceptibility testing of infectious agents and evaluation of performance of antimicrobial susceptibility test devices - Part 2: Evaluation of performance of antimicrobial susceptibility test devices against reference broth micro-dilution.* Geneva: ISO; 2021.
 
 - \* Ito A, Sato T, Ota M, et al. In vitro antibacterial properties of cefiderocol, a novel siderophore cephalosporin, against Gram-negative bacteria. *Antimicrob Agents Chemother.* 2018;62(1):e01454-17. doi:10.1128/AAC.01454-17
 
 - Jacobs J, Hardy L, Semret M, et al. Diagnostic bacteriology in district hospitals in sub-Saharan Africa: at the forefront of the containment of antimicrobial resistance. *Front Med (Lausanne).* 2019;6:205. doi:10.3389/fmed.2019.00205
+
+- Karjagin J, Lefeuvre S, Oselin K, et al. Pharmacokinetics of meropenem determined by microdialysis in the peritoneal fluid of patients with severe peritonitis associated with septic shock. *Clin Pharmacol Ther.* 2008;83(3):452–459. doi:10.1038/sj.clpt.6100312
 
 - Klein EY, Van Boeckel TP, Martinez EM, et al. Global increase and geographic convergence in antibiotic consumption between 2000 and 2015. *Proc Natl Acad Sci USA.* 2018;115(15):E3463–E3470. doi:10.1073/pnas.1717295115
 
@@ -12160,6 +12405,8 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Korenromp EL, Rowley J, Alonso M, et al. Global burden of maternal and congenital syphilis and associated adverse birth outcomes — Estimates for 2016 and progress since 2012. *PLoS One.* 2019;14(2):e0211720. doi:10.1371/journal.pone.0211720
 
+- Kullar R, Chin JN, Edwards DJ, Parker D, Coplin WM, Rybak MJ. Pharmacokinetics of single-dose daptomycin in patients with suspected or confirmed neurological infections. *Antimicrob Agents Chemother.* 2011;55(7):3505–3509. doi:10.1128/AAC.01741-10
+
 - Langevin AM, Dunlop MJ. Stress introduction rate alters the benefit of AcrAB-TolC efflux pumps. *J Bacteriol.* 2018;200(1):e00525-17. doi:10.1128/JB.00525-17
 
 - Lau CHF, Hughes D, Poole K. MexY-promoted aminoglycoside resistance in *Pseudomonas aeruginosa*: involvement of a putative proximal binding pocket in aminoglycoside recognition. *mBio.* 2014;5(2):e01068-14. doi:10.1128/mBio.01068-14
@@ -12167,6 +12414,8 @@ References marked with \* are retained for completeness but are not explicitly c
 - Lauretti L, Riccio ML, Mazzariol A, et al. Cloning and characterization of *bla*VIM, a new integron-borne metallo-beta-lactamase gene from a *Pseudomonas aeruginosa* clinical isolate. *Antimicrob Agents Chemother.* 1999;43(7):1584–1590. doi:10.1128/AAC.43.7.1584
 
 - Lee CF, Cowling BJ, Feng S, et al. Impact of antibiotic stewardship programmes in Asia: a systematic review and meta-analysis. *J Antimicrob Chemother.* 2018;73(4):844–851. doi:10.1093/jac/dkx492
+
+- León-Sampedro R, DelaFuente J, Díaz-Agero C, et al. Pervasive transmission of a carbapenem resistance plasmid in the gut microbiota of hospitalized patients. *Nat Microbiol.* 2021;6:606–616. doi:10.1038/s41564-021-00879-y
 
 - Levy MM, Dellinger RP, Townsend SR, et al. The Surviving Sepsis Campaign: results of an international guideline-based performance improvement program targeting severe sepsis. *Intensive Care Med.* 2010;36(2):222–231. doi:10.1007/s00134-009-1738-3
 
@@ -12180,11 +12429,25 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Llewelyn MJ, Fitzpatrick JM, Darwin E, et al. The antibiotic course has had its day. *BMJ.* 2017;358:j3418. doi:10.1136/bmj.j3418
 
+- Lloyd D, Pedersen JZ. Metronidazole radical anion generation in vivo in *Trichomonas vaginalis*: oxygen quenching is enhanced in a drug-resistant strain. *J Gen Microbiol.* 1985;131(1):87–92. doi:10.1099/00221287-131-1-87
+
 - Long KS, Poehlsgaard J, Kehrenberg C, Schwarz S, Vester B. A bacterial resistance gene with multiple antibiotic specificities. *Antimicrob Agents Chemother.* 2006;50(7):2500–2505. doi:10.1128/AAC.00230-06
+
+- Lovering AM, Zhang J, Bannister GC, et al. Penetration of linezolid into bone, fat, muscle and haematoma of patients undergoing routine hip replacement. *J Antimicrob Chemother.* 2002;50(1):73–77. doi:10.1093/jac/dkf066
+
+- Luangtongkum T, Jeon B, Han J, Plummer P, Logue CM, Zhang Q. Antibiotic resistance in *Campylobacter*: emergence, transmission and persistence. *Future Microbiol.* 2009;4(2):189–200. doi:10.2217/17460913.4.2.189
+
+- Lukehart SA, Godornes C, Molini BJ, et al. Macrolide resistance in *Treponema pallidum* in the United States and Ireland. *N Engl J Med.* 2004;351(2):154–158. doi:10.1056/NEJMoa040216
+
+- Luque S, Grau S, Alvarez-Lerma F, et al. Plasma and cerebrospinal fluid concentrations of linezolid in neurosurgical critically ill patients with proven or suspected central nervous system infections. *Int J Antimicrob Agents.* 2014;44(5):409–415. doi:10.1016/j.ijantimicag.2014.07.001
 
 - Magill SS, O'Leary E, Janelle SJ, et al. Changes in prevalence of health care–associated infections in U.S. hospitals. *N Engl J Med.* 2018;379(18):1732–1744. doi:10.1056/NEJMoa1801550
 
+- Malfertheiner P, Megraud F, Rokkas T, et al. Management of *Helicobacter pylori* infection: the Maastricht VI/Florence consensus report. *Gut.* 2022;71(9):1724–1762. doi:10.1136/gutjnl-2022-327745
+
 - Majowicz SE, Colston JM, Kirk MD, et al., on behalf of the Foodborne Disease Burden Epidemiology Reference Group for 2021-2025. WHO estimates of the global, regional, and national burden of 14 foodborne diarrhoeal enteric hazards, 2000-21: an updated data synthesis. *Lancet Glob Health.* 2026. doi:10.1016/j.langlo.2026.103997
+
+- Männistö PT, Karhunen M, Mattila J, et al. Concentrations of metronidazole and tinidazole in female reproductive organs after a single intravenous infusion and after repetitive oral administration. *Infection.* 1984;12(3):197–201. doi:10.1007/BF01640899
 
 - Marcusson LL, Frimodt-Møller N, Hughes D. Interplay in the selection of fluoroquinolone resistance and bacterial fitness. *PLoS Pathog.* 2009;5(8):e1000541. doi:10.1371/journal.ppat.1000541
 
@@ -12192,11 +12455,15 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Martinson ML, Lapham J. Prevalence of immunosuppression among US adults. *JAMA.* 2024;331(10):880–882. doi:10.1001/jama.2023.28019
 
+- McCarthy AJ, Loeffler A, Witney AA, Gould KA, Lloyd DH, Lindsay JA. Extensive horizontal gene transfer during *Staphylococcus aureus* co-colonization in vivo. *Genome Biol Evol.* 2014;6(10):2697–2708. doi:10.1093/gbe/evu214
+
+- McDonald LC, Gerding DN, Johnson S, et al. Clinical practice guidelines for *Clostridium difficile* infection in adults and children: 2017 update by the Infectious Diseases Society of America and Society for Healthcare Epidemiology of America. *Clin Infect Dis.* 2018;66(7):e1–e48. doi:10.1093/cid/cix1085
+
 - McInnes RS, McCallum GE, Lamberte LE, van Schaik W. Horizontal transfer of antibiotic resistance genes in the human gut microbiome. *Curr Opin Microbiol.* 2020;53:35–43. doi:10.1016/j.mib.2020.02.002
 
 - McMurry L, Petrucci RE Jr, Levy SB. Active efflux of tetracycline encoded by four genetically different tetracycline resistance determinants in *Escherichia coli*. *Proc Natl Acad Sci USA.* 1980;77(7):3974–3977. doi:10.1073/pnas.77.7.3974
 
-- \* Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. *Am J Respir Crit Care Med.* 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST
+- Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. *Am J Respir Crit Care Med.* 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST
 
 - Morosini MI, Ayala JA, Baquero F, Martínez JL, Blázquez J. Biological cost of AmpC production for *Salmonella enterica* serotype Typhimurium. *Antimicrob Agents Chemother.* 2000;44(11):3137–3143. doi:10.1128/AAC.44.11.3137-3143.2000
 
@@ -12209,6 +12476,8 @@ References marked with \* are retained for completeness but are not explicitly c
 - Noto MJ, Fox PM, Archer GL. Spontaneous deletion of the methicillin resistance determinant, *mecA*, partially compensates for the fitness cost associated with high-level vancomycin resistance in *Staphylococcus aureus*. *Antimicrob Agents Chemother.* 2008;52(4):1221–1229. doi:10.1128/AAC.01164-07
 
 - Partridge SR, Kwong SM, Firth N, Jensen SO. Mobile genetic elements associated with antimicrobial resistance. *Clin Microbiol Rev.* 2018;31(4):e00088-17. doi:10.1128/CMR.00088-17
+
+- Phillips I, Warren C. Activity of sulfamethoxazole and trimethoprim against *Bacteroides fragilis*. *Antimicrob Agents Chemother.* 1976;9(5):736–740. doi:10.1128/AAC.9.5.736
 
 - Pikis A, Donkersloot JA, Rodriguez WJ, Keith JM. A conservative amino acid mutation in the chromosome-encoded dihydrofolate reductase confers trimethoprim resistance in *Streptococcus pneumoniae*. *J Infect Dis.* 1998;178(3):700–706. doi:10.1086/515371
 
@@ -12224,9 +12493,15 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Read RC, Baxter D, Chadwick DR, et al. Effect of a quadrivalent meningococcal ACWY glycoconjugate or a serogroup B meningococcal vaccine on meningococcal carriage: an observer-blind, phase 3 randomised clinical trial. *Lancet.* 2014;384(9960):2123–2131. doi:10.1016/S0140-6736(14)60842-4
 
+- Redondo-Salvo S, Fernández-López R, Ruiz R, et al. Pathways for horizontal gene transfer in bacteria revealed by a global map of their plasmids. *Nat Commun.* 2020;11(1):3602. doi:10.1038/s41467-020-17278-2
+
 - \* Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. *Intensive Care Med.* 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6
 
+- Rice LB. Emergence of vancomycin-resistant enterococci. *Emerg Infect Dis.* 2001;7(2):183–187. doi:10.3201/eid0702.700183
+
 - Roch M, Gagetti P, Davis J, et al. Daptomycin resistance in clinical MRSA strains is associated with a high biological fitness cost. *Front Microbiol.* 2017;8:2303. doi:10.3389/fmicb.2017.02303
+
+- Ronald AR, Turck M, Petersdorf RG. A critical evaluation of nalidixic acid in urinary-tract infections. *N Engl J Med.* 1966;275(20):1081–1089. doi:10.1056/NEJM196611172752001
 
 - Rowley J, Vander Hoorn S, Korenromp EL, et al. Chlamydia, gonorrhoea, trichomoniasis and syphilis: global prevalence and incidence estimates, 2016. *Bull World Health Organ.* 2019;97(8):548–562P. doi:10.2471/BLT.18.228486
 
@@ -12244,11 +12519,19 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Schuts EC, Hulscher MEJL, Mouton JW, et al. Current evidence on hospital antimicrobial stewardship objectives: a systematic review and meta-analysis. *Lancet Infect Dis.* 2016;16(7):847–856. doi:10.1016/S1473-3099(16)00065-7
 
+- Sears P, Crook DW, Louie TJ, Miller MA, Weiss K. Fidaxomicin attains high fecal concentrations with minimal plasma concentrations following oral administration in patients with *Clostridium difficile* infection. *Clin Infect Dis.* 2012;55(Suppl 2):S116–S120. doi:10.1093/cid/cis337
+
 - Seale AC, Blencowe H, Zaidi A, et al. Neonatal severe bacterial infection impairment estimates in South Asia, sub-Saharan Africa, and Latin America for 2010. *Pediatr Res.* 2013;74(S1):73–85. doi:10.1038/pr.2013.207
+
+- Shoemaker NB, Vlamakis H, Hayes K, Salyers AA. Evidence for extensive resistance gene transfer among *Bacteroides* spp. and among *Bacteroides* and other genera in the human colon. *Appl Environ Microbiol.* 2001;67(2):561–568. doi:10.1128/AEM.67.2.561-568.2001
+
+- Silverman JA, Mortin LI, Vanpraagh ADG, Li T, Alder J. Inhibition of daptomycin by pulmonary surfactant: in vitro modeling and clinical impact. *J Infect Dis.* 2005;191(12):2149–2152. doi:10.1086/430352
 
 - Singer M, Deutschman CS, Seymour CW, et al. The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3). *JAMA.* 2016;315(8):801–810. doi:10.1001/jama.2016.0287
 
 - Slimings C, Riley TV. Antibiotics and healthcare facility-associated *Clostridioides difficile* infection: updated systematic review and meta-analysis. *J Antimicrob Chemother.* 2021;76(7):1676–1688. doi:10.1093/jac/dkab091
+
+- Smillie CS, Smith MB, Friedman J, Cordero OX, David LA, Alm EJ. Ecology drives a global network of gene exchange connecting the human microbiome. *Nature.* 2011;480(7376):241–244. doi:10.1038/nature10571
 
 - Skurnik D, Roux D, Cattoir V, et al. Enhanced in vivo fitness of carbapenem-resistant *oprD* mutants of *Pseudomonas aeruginosa* revealed through high-throughput sequencing. *Proc Natl Acad Sci USA.* 2013;110(51):20747–20752. doi:10.1073/pnas.1221552110
 
@@ -12264,11 +12547,21 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Starikova I, Al-Haroni M, Werner G, et al. Fitness costs of various mobile genetic elements in *Enterococcus faecium* and *Enterococcus faecalis*. *J Antimicrob Chemother.* 2013;68(12):2755–2765. doi:10.1093/jac/dkt270
 
+- Stecher B, Denzler R, Maier L, et al. Gut inflammation can boost horizontal gene transfer between pathogenic and commensal Enterobacteriaceae. *Proc Natl Acad Sci USA.* 2012;109(4):1269–1274. doi:10.1073/pnas.1113246109
+
 - Stevens DL, Bisno AL, Chambers HF, et al. Practice guidelines for the diagnosis and management of skin and soft tissue infections: 2014 update by the Infectious Diseases Society of America. *Clin Infect Dis.* 2014;59(2):e10–e52. doi:10.1093/cid/ciu296
+
+- Taylor-Robinson D, Jensen JS. *Mycoplasma genitalium*: from chrysalis to multicolored butterfly. *Clin Microbiol Rev.* 2011;24(3):498–514. doi:10.1128/CMR.00006-11
 
 - Taplitz RA, Kennedy EB, Bow EJ, et al. Antimicrobial prophylaxis for adult patients with cancer-related immunosuppression: ASCO and IDSA clinical practice guideline update. *J Clin Oncol.* 2018;36(30):3043–3054. doi:10.1200/JCO.18.00374
 
+- Tamma PD, Bonomo RA, Heil EL, et al. *Infectious Diseases Society of America 2026 guidance on the treatment of antimicrobial-resistant Gram-negative infections.* Published July 30, 2026. https://www.idsociety.org/practice-guideline/amr-guidance/
+
 - Thacharodi A, Lamont IL. Aminoglycoside-modifying enzymes are sufficient to make *Pseudomonas aeruginosa* clinically resistant to key antibiotics. *Antibiotics (Basel).* 2022;11(7):884. doi:10.3390/antibiotics11070884
+
+- Then RL, Angehrn P. Low trimethoprim susceptibility of anaerobic bacteria due to insensitive dihydrofolate reductases. *Antimicrob Agents Chemother.* 1979;15(1):1–6. doi:10.1128/AAC.15.1.1
+
+- Thomas CM, Nielsen KM. Mechanisms of, and barriers to, horizontal gene transfer between bacteria. *Nat Rev Microbiol.* 2005;3(9):711–721. doi:10.1038/nrmicro1234
 
 - Tong SYC, Davis JS, Eichenberger E, Holland TL, Fowler VG Jr. *Staphylococcus aureus* infections: epidemiology, pathophysiology, clinical manifestations, and management. *Clin Microbiol Rev.* 2015;28(3):603–661. doi:10.1128/CMR.00134-14
 
@@ -12304,6 +12597,8 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Verani JR, McGee L, Schrag SJ; Division of Bacterial Diseases, National Center for Immunization and Respiratory Diseases, Centers for Disease Control and Prevention. Prevention of perinatal group B streptococcal disease - revised guidelines from CDC, 2010. *MMWR Recomm Rep.* 2010;59(RR-10):1–36.
 
+- Vervoort J, Xavier BB, Stewardson A, et al. Metagenomic analysis of the impact of nitrofurantoin treatment on the human faecal microbiota. *J Antimicrob Chemother.* 2015;70(7):1989–1992. doi:10.1093/jac/dkv062
+
 - Versalovic J, Shortridge D, Kibler K, et al. Mutations in 23S rRNA are associated with clarithromycin resistance in *Helicobacter pylori*. *Antimicrob Agents Chemother.* 1996;40(2):477–480. doi:10.1128/AAC.40.2.477
 
 - Vezzulli L, Pruzzo C, Huq A, Colwell RR. Environmental reservoirs of *Vibrio cholerae* and their role in cholera. *Environ Microbiol Rep.* 2010;2(1):27–33. doi:10.1111/j.1758-2229.2009.00128.x
@@ -12320,9 +12615,21 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - WHO Collaborating Centre for Drug Statistics Methodology. *DDD: definition and general considerations.* Accessed June 22, 2026. https://atcddd.fhi.no/ddd/definition_and_general_considera/
 
+- Wijma RA, Koch BCP, van Gelder T, Mouton JW. High interindividual variability in urinary fosfomycin concentrations in healthy female volunteers. *Clin Microbiol Infect.* 2018;24(5):528–532. doi:10.1016/j.cmi.2017.08.023
+
+- Wise R, Gee T, Andrews JM, Dvorchik B, Marshall G. Pharmacokinetics and inflammatory fluid penetration of intravenous daptomycin in volunteers. *Antimicrob Agents Chemother.* 2002;46(1):31–33. doi:10.1128/AAC.46.1.31-33.2002
+
 - World Health Organization. *ATC/DDD Toolkit: DDD indicators.* Accessed August 18, 2026. https://www.who.int/tools/atc-ddd-toolkit/indicators
 
-- \* Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
+- World Health Organization. *WHO bacterial priority pathogens list, 2024: bacterial pathogens of public health importance to guide research, development and strategies to prevent and control antimicrobial resistance.* Geneva: WHO; 2024. ISBN 978-92-4-009346-1. https://www.who.int/publications/i/item/9789240093461
+
+- World Health Organization. *Guidelines for the control of shigellosis, including epidemics due to Shigella dysenteriae type 1.* Geneva: WHO; 2005. ISBN 92-4-159233-0. https://www.who.int/publications/i/item/9241592330
+
+- World Health Organization. *WHO guidelines on meningitis diagnosis, treatment and care.* Geneva: WHO; 2025. ISBN 978-92-4-010804-2. https://www.who.int/publications/i/item/9789240108042
+
+- World Health Organization. Typhoid vaccines: WHO position paper – March 2018. *Wkly Epidemiol Rec.* 2018;93(13):153–172. https://iris.who.int/handle/10665/272273
+
+- Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
 
 - World Bank. *Air transport, passengers carried (IS.AIR.PSGR).* World Development Indicators; source: International Civil Aviation Organization (ICAO). Accessed March 24, 2026. https://data.worldbank.org/indicator/IS.AIR.PSGR
 
@@ -12336,13 +12643,21 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - World Health Organization. *Global Antimicrobial Resistance and Use Surveillance System (GLASS) report: antibiotic use data for 2022.* Geneva: WHO; 2025. ISBN 9789240108127. https://www.who.int/publications/i/item/9789240108127
 
+- World Health Organization. *GLASS guidance for national reference laboratories.* Geneva: WHO; 2020. ISBN 978-92-4-001058-1. https://www.who.int/publications/i/item/9789240010581
+
 - World Health Organization. *Global tuberculosis report 2025.* Geneva: WHO; 2025. https://www.who.int/teams/global-tuberculosis-programme/tb-reports/global-tuberculosis-report-2025
+
+- World Health Organization. *Latent tuberculosis infection: updated and consolidated guidelines for programmatic management.* Geneva: WHO; 2018. ISBN 978-92-4-155023-9. https://www.who.int/publications/i/item/9789241550239
 
 - World Health Organization. *Sexually transmitted infections (STIs).* Fact sheet. Updated September 10, 2025. Accessed June 22, 2026. https://www.who.int/news-room/fact-sheets/detail/sexually-transmitted-infections-(stis)
 
 - World Health Organization. *Universal health coverage (UHC).* Fact sheet, 2025. Accessed March 24, 2026. https://www.who.int/news-room/fact-sheets/detail/universal-health-coverage-(uhc)
 
+- World Health Organization. *WHO consolidated guidelines on tuberculosis: module 4: treatment and care.* Geneva: WHO; 2025. ISBN 978-92-4-010724-3. https://www.who.int/publications/i/item/9789240107243
+
 - World Health Organization. *WHO consolidated guidelines on drug-resistant tuberculosis treatment.* Geneva: WHO; 2020. ISBN 978-92-4-155056-7. Available at: https://www.who.int/publications/i/item/9789241550567
+
+- World Health Organization Regional Office for Africa. *Cholera management guidelines.* 2023 ed. Brazzaville: WHO Regional Office for Africa; 2023. https://www.afro.who.int/countries/kenya/publication/cholera-management-guidelines-2023-edition
 
 - Wunderink RG, Matsunaga Y, Ariyasu M, et al. Cefiderocol versus high-dose, extended-infusion meropenem for the treatment of Gram-negative nosocomial pneumonia (APEKS-NP): a randomised, double-blind, phase 3, non-inferiority trial. *Lancet Infect Dis.* 2021;21(2):213–225. doi:10.1016/S1473-3099(20)30731-3
 
@@ -12351,6 +12666,8 @@ References marked with \* are retained for completeness but are not explicitly c
 - Yadav K, Garoff L, Huseby DL, Hughes D. Phenotypic and genetic barriers to establishment of horizontally transferred genes encoding ribosomal protection proteins. *J Antimicrob Chemother.* 2021;76(6):1441–1447. doi:10.1093/jac/dkab056
 
 - Yang Q, Li M, Spiller OB, et al. Balancing *mcr-1* expression and bacterial survival is a delicate equilibrium between essential cellular defence mechanisms. *Nat Commun.* 2017;8:2054. doi:10.1038/s41467-017-02149-0
+
+- Yarlagadda V, Manjunath GB, Sarkar P, et al. Glycopeptide antibiotic to overcome the intrinsic resistance of Gram-negative bacteria. *ACS Infect Dis.* 2016;2(2):132–139. doi:10.1021/acsinfecdis.5b00114
 
 - Yeung KHT, Duclos P, Nelson EAS, Hutubessy RCW. An update of the global burden of pertussis in children younger than 5 years: a modelling study. *Lancet Infect Dis.* 2017;17(9):974–980. doi:10.1016/S1473-3099(17)30390-0
 

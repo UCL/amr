@@ -528,12 +528,12 @@ fn carriage_profile_sampling_probability(
     pathway_multiplier: f64,
     counterfactual_multiplier: f64,
     is_hospitalized: bool,
-    community_dilution_factor: f64,
+    community_human_reservoir_profile_probability: f64,
 ) -> f64 {
     let source_profile_fraction = if is_hospitalized {
         1.0
     } else {
-        community_dilution_factor
+        community_human_reservoir_profile_probability
     };
     resistance_pathway_probability(
         pathway_multiplier * source_profile_fraction,
@@ -5234,14 +5234,15 @@ pub(crate) fn apply_rules(
                         };
                         // Gate carriage profile sampling with the run-level acquisition multiplier.
                         // Hospital acquisitions draw from the hospital profile stratum without an
-                        // additional source dilution. Community acquisitions also apply the same
-                        // per-bacterium source-mixture factor used for infection acquisition.
+                        // additional source-choice probability. Community acquisitions also apply
+                        // the same per-bacterium human-reservoir probability used for infection
+                        // acquisition.
                         let is_hospitalized = individual.hospital_status.is_hospitalized();
                         let profile_sampling_probability = carriage_profile_sampling_probability(
                             microbiome_acquisition_sampling_multiplier,
                             counterfactual_resistance_multiplier,
                             is_hospitalized,
-                            store.bacteria.community_resistance_dilution_factor[b_idx],
+                            store.bacteria.community_human_reservoir_profile_probability[b_idx],
                         );
 
                         if rng.gen::<f64>() < profile_sampling_probability {
@@ -5457,15 +5458,16 @@ pub(crate) fn apply_rules(
                         r => r as usize,
                     };
 
-                    // Community dilution is the probability of drawing from the human
-                    // circulating-profile cache rather than the exogenous source.
-                    let community_dilution = if !is_hospital_acquired {
-                        store.bacteria.community_resistance_dilution_factor[b_idx]
+                    // For community acquisition, this is the probability of drawing from the
+                    // human circulating-profile cache rather than the exogenous source.
+                    let human_reservoir_profile_probability = if !is_hospital_acquired {
+                        store.bacteria.community_human_reservoir_profile_probability[b_idx]
                     } else {
                         1.0
                     };
 
-                    let from_human_reservoir = rng.gen_bool(community_dilution.clamp(0.0, 1.0));
+                    let from_human_reservoir =
+                        rng.gen_bool(human_reservoir_profile_probability.clamp(0.0, 1.0));
 
                     // Sample a complete mechanism genotype from the profile reservoir.
                     // Hospital-acquired infections can downweight a configured fraction of
@@ -8610,7 +8612,8 @@ mod tests {
                     mechanism.as_str()
                 );
                 assert!(
-                    store.bacteria.community_resistance_dilution_factor[bacteria_idx] < 1.0,
+                    store.bacteria.community_human_reservoir_profile_probability[bacteria_idx]
+                        < 1.0,
                     "configured floor cannot reach the exogenous branch: {bacterium}/{}",
                     mechanism.as_str()
                 );

@@ -306,7 +306,7 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
-    pub community_resistance_dilution_factor: f64,
+    pub community_human_reservoir_profile_probability: f64,
     pub hospital_profile_cache_retention: f64,
     pub hgt_hospital_multiplier: f64,
     pub hgt_antibiotic_pressure_multiplier: f64,
@@ -934,9 +934,9 @@ impl GlobalScalars {
                 "carrier_resistance_inheritance_probability",
                 0.32,
             ),
-            community_resistance_dilution_factor: get_or_default(
+            community_human_reservoir_profile_probability: get_or_default(
                 map,
-                "community_resistance_dilution_factor",
+                "community_human_reservoir_profile_probability",
                 0.50,
             ),
             // Fraction of hospital profiles retained at each cache refresh.
@@ -2133,9 +2133,9 @@ pub struct BacteriaParameters {
     /// Positive = higher CFR given sepsis (e.g. N. meningitidis purpura fulminans).
     /// Negative = lower CFR given sepsis.  Default 0.0 (no adjustment).
     pub sepsis_death_log_odds_override: Vec<f64>,
-    /// Per-bacterium probability multiplier for sampling a community acquisition from
-    /// the circulating human profile cache rather than the exogenous source pathway.
-    pub community_resistance_dilution_factor: Vec<f64>,
+    /// Per-bacterium probability that a community acquisition uses a complete profile from the
+    /// local human circulating-profile reservoir rather than the exogenous source.
+    pub community_human_reservoir_profile_probability: Vec<f64>,
     /// Per-bacteria hospital cache prune percentage for mechanism-free profiles.
     /// Before sampling a hospital acquisition profile, this percentage of all-zero
     /// profiles is temporarily removed from the candidate pool.
@@ -2171,7 +2171,7 @@ impl BacteriaParameters {
         let mut sepsis_log_odds_infection_duration = Vec::with_capacity(num_bacteria);
         let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
         let mut sepsis_death_log_odds_override = Vec::with_capacity(num_bacteria);
-        let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
+        let mut community_human_reservoir_profile_probability = Vec::with_capacity(num_bacteria);
         let mut hospital_resistance_prune_susceptible_percent = Vec::with_capacity(num_bacteria);
         let mut community_mechanism_reversion_multiplier = Vec::with_capacity(num_bacteria);
         let mut treatment_failure_no_second_line_probability = Vec::with_capacity(num_bacteria);
@@ -2281,10 +2281,10 @@ impl BacteriaParameters {
                 &format!("{}_sepsis_death_log_odds_override", prefix),
                 0.0,
             ));
-            community_resistance_dilution_factor.push(get_or_default(
+            community_human_reservoir_profile_probability.push(get_or_default(
                 map,
-                &format!("{}_community_resistance_dilution_factor", prefix),
-                get_or_default(map, "community_resistance_dilution_factor", 0.30),
+                &format!("{}_community_human_reservoir_profile_probability", prefix),
+                get_or_default(map, "community_human_reservoir_profile_probability", 0.30),
             ));
             hospital_resistance_prune_susceptible_percent.push(get_or_default(
                 map,
@@ -2325,7 +2325,7 @@ impl BacteriaParameters {
             sepsis_log_odds_infection_duration,
             infection_non_sepsis_mortality_log_odds,
             sepsis_death_log_odds_override,
-            community_resistance_dilution_factor,
+            community_human_reservoir_profile_probability,
             hospital_resistance_prune_susceptible_percent,
             community_mechanism_reversion_multiplier,
             treatment_failure_no_second_line_probability,
@@ -3259,9 +3259,9 @@ impl BacteriaMechanismStatuses {
 /// Per-bacteria, per-mechanism background resistance floor applied to the exogenous fraction
 /// of community acquisitions.
 ///
-/// When a community infection is acquired from the "non-cache" fraction of the reservoir
-/// (the `1 - community_resistance_dilution_factor` draw that does not sample the local human
-/// profile cache), each mechanism is independently rolled against this floor probability.
+/// When a community infection is acquired from the exogenous fraction of the reservoir
+/// (the `1 - community_human_reservoir_profile_probability` draw that does not sample the local
+/// human profile cache), each mechanism is independently rolled against this floor probability.
 ///
 /// This models resistance maintained outside the local human profile cache, including
 /// animal/food-chain reservoirs, global importation, and explicitly represented off-model
@@ -7488,63 +7488,63 @@ lazy_static! {
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Effect of existing carriage on infection acquisition
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
 
-        // Per-bacterium community resistance dilution factor.
-        // Probability that a community-acquired infection or microbiome colonisation draws its
-        // resistance profile from the circulating cache rather than the exogenous source. The
-        // exogenous source may still add configured environmental-floor mechanisms.
+        // Per-bacterium probability that a community-acquired infection or microbiome
+        // colonisation draws a complete resistance profile from the local human circulating
+        // cache rather than the exogenous source. The exogenous source may still add configured
+        // environmental-floor mechanisms to active infections.
 
         // Predominantly environmental or waterborne acquisition.
-        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.30); // 0.03
-        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.30); // 0.03
-        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.30); // 0.03
-        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.30); // 0.03
-        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.30); // 0.03
-        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.30); // 0.03
+        map.insert("acinetobacter_baumannii_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.03
+        map.insert("pseudomonas_aeruginosa_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.03
+        map.insert("stenotrophomonas_maltophilia_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.03
+        map.insert("burkholderia_cepacia_complex_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.03
+        map.insert("legionella_pneumophila_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.03
+        map.insert("vibrio_cholerae_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.03
         // Foodborne and enteric acquisition. Campylobacter uses a high cache
         // fraction as a proxy for pre-selected food-chain resistance profiles.
-        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.90);
-        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.95); // Obligate human pathogen
-        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.75); // Predominantly human transmission
-        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.30); // 0.07
-        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.30); // 0.07
-        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.30); // 0.07
-        map.insert("shigella_spp._community_resistance_dilution_factor".to_string(), 0.72); // Human transmission plus an exogenous global-import fraction
+        map.insert("campylobacter_jejuni_community_human_reservoir_profile_probability".to_string(), 0.90);
+        map.insert("salmonella_enterica_serovar_typhi_community_human_reservoir_profile_probability".to_string(), 0.95); // Obligate human pathogen
+        map.insert("salmonella_enterica_serovar_paratyphi_a_community_human_reservoir_profile_probability".to_string(), 0.75); // Predominantly human transmission
+        map.insert("invasive_non-typhoidal_salmonella_spp._community_human_reservoir_profile_probability".to_string(), 0.30); // 0.07
+        map.insert("yersinia_enterocolitica_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.07
+        map.insert("listeria_monocytogenes_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.07
+        map.insert("shigella_spp._community_human_reservoir_profile_probability".to_string(), 0.72); // Human transmission plus an exogenous global-import fraction
 
         // Healthcare-associated organisms that also colonise the community.
-        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.30); // 0.20 Environmental persistence plus human selection
-        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.30); // 0.15  Gut and environmental reservoirs
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.30); // 0.15  0.05
-        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.22  Gut and environmental reservoirs
-        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.30); // Gut and environmental reservoirs
-        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
-        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
-        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.35); // 0.20 Gut commensal
-        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.45); // 0.30 Human and environmental reservoirs
-        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.80); // Human gut and environmental reservoirs
-        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.80); // Human gut and environmental reservoirs
-        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.50); // 0.25 Human skin and healthcare reservoirs
+        map.insert("clostridioides_difficile_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.20 Environmental persistence plus human selection
+        map.insert("enterobacter_spp._community_human_reservoir_profile_probability".to_string(), 0.30); // 0.15  Gut and environmental reservoirs
+        map.insert("enterobacter_cloacae_community_human_reservoir_profile_probability".to_string(), 0.30); // 0.15  0.05
+        map.insert("citrobacter_spp._community_human_reservoir_profile_probability".to_string(), 0.35); // 0.22  Gut and environmental reservoirs
+        map.insert("serratia_spp._community_human_reservoir_profile_probability".to_string(), 0.30); // Gut and environmental reservoirs
+        map.insert("morganella_spp._community_human_reservoir_profile_probability".to_string(), 0.35); // 0.20 Gut commensal
+        map.insert("proteus_spp._community_human_reservoir_profile_probability".to_string(), 0.35); // 0.20 Gut commensal
+        map.insert("p_stuartii_community_human_reservoir_profile_probability".to_string(), 0.35); // 0.20 Gut commensal
+        map.insert("klebsiella_pneumoniae_community_human_reservoir_profile_probability".to_string(), 0.45); // 0.30 Human and environmental reservoirs
+        map.insert("enterococcus_faecium_community_human_reservoir_profile_probability".to_string(), 0.80); // Human gut and environmental reservoirs
+        map.insert("enterococcus_faecalis_community_human_reservoir_profile_probability".to_string(), 0.80); // Human gut and environmental reservoirs
+        map.insert("staphylococcus_epidermidis_community_human_reservoir_profile_probability".to_string(), 0.50); // 0.25 Human skin and healthcare reservoirs
 
         // Endogenous flora and high-carriage human commensals.
-        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.75); // Human gut plus food-chain exposure
-        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.80); // 0.65 Human carriage plus livestock exposure
-        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.65); // Human gut reservoir
-        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.65); // Human nasopharyngeal reservoir
-        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.60); // Human nasopharyngeal reservoir
-        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.95); // Human nasopharyngeal reservoir
-        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.75); // Human transmission
-        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.60); // Predominantly human carriage
-        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 1.00); // 0.80 Human transmission
+        map.insert("escherichia_coli_community_human_reservoir_profile_probability".to_string(), 0.75); // Human gut plus food-chain exposure
+        map.insert("staphylococcus_aureus_community_human_reservoir_profile_probability".to_string(), 0.80); // 0.65 Human carriage plus livestock exposure
+        map.insert("bacteroides_fragilis_community_human_reservoir_profile_probability".to_string(), 0.65); // Human gut reservoir
+        map.insert("haemophilus_influenzae_community_human_reservoir_profile_probability".to_string(), 0.65); // Human nasopharyngeal reservoir
+        map.insert("moraxella_catarrhalis_community_human_reservoir_profile_probability".to_string(), 0.60); // Human nasopharyngeal reservoir
+        map.insert("streptococcus_pneumoniae_community_human_reservoir_profile_probability".to_string(), 0.95); // Human nasopharyngeal reservoir
+        map.insert("streptococcus_pyogenes_community_human_reservoir_profile_probability".to_string(), 0.75); // Human transmission
+        map.insert("streptococcus_agalactiae_community_human_reservoir_profile_probability".to_string(), 0.60); // Predominantly human carriage
+        map.insert("helicobacter_pylori_community_human_reservoir_profile_probability".to_string(), 1.00); // 0.80 Human transmission
 
         // Pathogens modeled as drawing all community profiles from the
         // circulating cache.
-        map.insert("neisseria_gonorrhoeae_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("neisseria_meningitidis_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("chlamydia_trachomatis_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("mycoplasma_genitalium_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("mycoplasma_pneumoniae_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("treponema_pallidum_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("bordetella_pertussis_community_resistance_dilution_factor".to_string(), 1.00);
-        map.insert("mdr_mycobacterium_tuberculosis_community_resistance_dilution_factor".to_string(), 1.00);
+        map.insert("neisseria_gonorrhoeae_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("neisseria_meningitidis_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("chlamydia_trachomatis_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("mycoplasma_genitalium_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("mycoplasma_pneumoniae_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("treponema_pallidum_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("bordetella_pertussis_community_human_reservoir_profile_probability".to_string(), 1.00);
+        map.insert("mdr_mycobacterium_tuberculosis_community_human_reservoir_profile_probability".to_string(), 1.00);
 
 
     // Per-bacterium hospital cache pruning of mechanism-free profiles.
@@ -9040,7 +9040,7 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce KPC
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce MBLs
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce OXA-48
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.005         ); // classes: chl
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.003         ); // classes: chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01       ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0; gonococcal beta-lactam target resistance uses PBP mosaic changes, not mecA
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
@@ -9057,24 +9057,24 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0; OprD is modelled only for P. aeruginosa
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.005          ); // classes: poly
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 0.0); // de novo rate currently 0; N. gonorrhoeae is inherently not susceptible to polymyxins (constitutive LPS phosphoethanolamine modification via LptA/PptA; zero potency); modelled via potency
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03     ); // classes: sulf
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.02     ); // classes: sulf
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.03           ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_fos_emergence_rate".to_string(), 0.000_3          ); // configured class: other (fosfomycin); positive rate is currently blocked by the executable host gate
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_liafsr_cls_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 30.0        ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.035          ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.025          ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01  ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0 - gonococcal PPNG is TEM-family, not staphylococcal blaZ
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.05 ); // classes: pen; plasmid-mediated PPNG route
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.02 ); // classes: pen; plasmid-mediated PPNG route
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // tier 0 (EnzymeMphA: Enterobacterales + EntericPathogen only)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.035            ); // classes: tet (tetracycline + doxycycline only; minocycline and tigecycline not effluxed by TetABC)
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.003        ); // classes: pen, flu, bli, ceph, mono; penA mosaic route
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.003       ); // classes: pen, mac, tet, chl
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.025            ); // classes: tet (tetracycline + doxycycline only; minocycline and tigecycline not effluxed by TetABC)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.005        ); // classes: pen, flu, bli, ceph, mono; penA mosaic route
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.005       ); // classes: pen, mac, tet, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0 ); // tier 0
 
@@ -11474,39 +11474,39 @@ lazy_static! {
         // best-guess placeholders rather than direct empirical probabilities.
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
     ("acinetobacter_baumannii", -3.9),
-    ("citrobacter_spp.", -6.7),
-    ("enterobacter_spp.", -3.0),
-    ("enterococcus_faecalis", -2.5),
-    ("enterococcus_faecium", -1.5),
+    ("citrobacter_spp.", -6.2),
+    ("enterobacter_spp.", -2.3),
+    ("enterococcus_faecalis", -1.8),
+    ("enterococcus_faecium", -1.3),
     ("escherichia_coli", -9.7 ),
-    ("klebsiella_pneumoniae", -7.2),
+    ("klebsiella_pneumoniae", -7.5),
     ("morganella_spp.", -5.9),
     ("proteus_spp.", -5.6),
-    ("serratia_spp.", -5.0),
-    ("pseudomonas_aeruginosa", -2.6),
+    ("serratia_spp.", -4.3),
+    ("pseudomonas_aeruginosa", -2.0),
     ("stenotrophomonas_maltophilia", -6.1),
-    ("staphylococcus_aureus", -8.5),
+    ("staphylococcus_aureus", -9.0),
     ("staphylococcus_epidermidis", -6.1),
     ("streptococcus_pneumoniae", -7.7),
-    ("salmonella_enterica_serovar_typhi", -6.7),
+    ("salmonella_enterica_serovar_typhi", -6.2),
     ("salmonella_enterica_serovar_paratyphi_a", -7.9),
     ("invasive_non-typhoidal_salmonella_spp.", -6.5),
     ("shigella_spp.", -20.0),
     ("neisseria_gonorrhoeae", -50.0),
     ("streptococcus_pyogenes", -5.0),
-    ("streptococcus_agalactiae", -3.7),
-    ("haemophilus_influenzae", -7.7),
+    ("streptococcus_agalactiae", -3.0),
+    ("haemophilus_influenzae", -10.0),
     ("chlamydia_trachomatis", -17.1),
     ("vibrio_cholerae", -5.8),
     ("neisseria_meningitidis", -5.0),
     ("listeria_monocytogenes", -6.1),
     ("clostridioides_difficile", -8.6),
     ("campylobacter_jejuni", -19.0),
-    ("enterobacter_cloacae", -4.0),
+    ("enterobacter_cloacae", -3.3),
     ("yersinia_enterocolitica", -7.6),
-    ("moraxella_catarrhalis", -11.5),
+    ("moraxella_catarrhalis", -12.5),
     ("treponema_pallidum", -9.1),
-    ("bordetella_pertussis", -8.8 ),
+    ("bordetella_pertussis", -8.1 ),
     ("helicobacter_pylori", -500.0),
     ("mdr_mycobacterium_tuberculosis", -37.0),
     ("mycoplasma_pneumoniae", -16.8),
@@ -11527,9 +11527,7 @@ lazy_static! {
         // Neisseria meningitidis: purpura fulminans / DIC drives CFR ~20-30% for septicaemic form
         //   even with treatment.
         map.insert("neisseria_meningitidis_sepsis_death_log_odds_override".to_string(), 0.69); // ~2x CFR given sepsis vs average
-        // Staphylococcus aureus: endocarditis, MRSA bacteraemia CFR 20-30%; higher than average gram-positive sepsis
-        map.insert("staphylococcus_aureus_sepsis_death_log_odds_override".to_string(), 0.4 ); // exp(0.4) x CFR given sepsis vs average
-        // Acinetobacter baumannii: XDR VAP/bacteraemia CFR 40-60% in ICU; worst gram-negative prognosis
+         // Acinetobacter baumannii: XDR VAP/bacteraemia CFR 40-60% in ICU; worst gram-negative prognosis
         map.insert("acinetobacter_baumannii_sepsis_death_log_odds_override".to_string(), 0.69); // ~2x CFR given sepsis vs average
 
         map.insert("log_odds_sepsis_infection_level".to_string(), 0.93); // Log odds increase per unit bacterial level
@@ -11731,8 +11729,8 @@ lazy_static! {
         // profile to a newly established infection. Individual mechanisms then transfer
         // according to infection_from_microbiome_dampening.
         map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);
-        // Direct structural community-reservoir dilution parameter.
-        map.insert("community_resistance_dilution_factor".to_string(), 0.30);
+        // Default probability of using the community human-reservoir profile pathway.
+        map.insert("community_human_reservoir_profile_probability".to_string(), 0.30);
         map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Daily marginal retention of each stored hospital infection-day profile (~693-refresh half-life)
         map.insert("opat_admission_probability".to_string(), 0.70);
 
@@ -12878,5 +12876,5 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
 //
 // Microbiome reservoir seeding  (run_pathway_microbiome_acquisition_multiplier)
 //   Scales resistant-profile sampling during new microbiome acquisition. Community
-//   acquisitions are also gated by the bacterium-specific dilution factor.
+//   acquisitions are also gated by the bacterium-specific human-reservoir profile probability.
 // ============================================================================

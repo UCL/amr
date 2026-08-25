@@ -309,7 +309,7 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
-    pub community_resistance_dilution_factor: f64,
+    pub community_human_reservoir_profile_probability: f64,
     pub hgt_hospital_multiplier: f64,
     pub hgt_antibiotic_pressure_multiplier: f64,
     pub hgt_coinfection_multiplier: f64,
@@ -867,9 +867,9 @@ impl GlobalScalars {
                 "carrier_resistance_inheritance_probability",
                 0.32,  // 0.32 ***
             ),
-            community_resistance_dilution_factor: get_or_default(
+            community_human_reservoir_profile_probability: get_or_default(
                 map,
-                "community_resistance_dilution_factor",
+                "community_human_reservoir_profile_probability",
                 0.50,  // 0.50 ***
             ),
             hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),  // 3.0  ***
@@ -10090,7 +10090,7 @@ lazy_static! {
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
         map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);  // 0.10 0.55  ---
-        map.insert("community_resistance_dilution_factor".to_string(), 0.50);
+        map.insert("community_human_reservoir_profile_probability".to_string(), 0.50);
 
  //     map.insert(
  //         "majority_r_memory_retention_per_day".to_string(),
