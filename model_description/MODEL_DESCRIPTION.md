@@ -123,22 +123,22 @@ The population is created at day 0 (representing the calendar year 1930). Each i
 - **Birth sex**: Male or female, assigned with equal probability.
 - **Region**: Sampled from demographic weights reflecting the global population distribution.
 
-The six regions and their approximate population shares determine the starting geographical distribution:
+Region and age are sampled jointly from 108 configured weights (6 regions × 18 age bands), rather than from an independent region-share parameter. Summing and normalising the current Rust weights gives the following regional shares. The whole-cohort column includes people assigned a negative initial age who will be born later; the initially living column is restricted to people whose initial age is zero or greater.
 
 Where a table in this document includes a **Citation / source** column, that citation should usually be read as support for the presence, direction, or broad ordering of the modelled effect rather than as a claim that the exact tuned numeric value is taken directly from a single empirical estimate.
 
-| Region | Population Share |
-|--------|------------------|
-| Asia | ~55% |
-| Europe | ~15% |
-| Africa | ~12% |
-| North America | ~9% |
-| South America | ~6% |
-| Oceania | ~3% |
+| Region | Share of whole configured cohort | Share among people initially living |
+|--------|---------------------------------:|------------------------------------:|
+| Asia | 55.3% | 46.1% |
+| Africa | 17.7% | 15.5% |
+| Europe | 12.7% | 19.2% |
+| North America | 6.6% | 8.3% |
+| South America | 4.9% | 5.2% |
+| Oceania | 2.8% | 5.7% |
 
-*Table source: UN DESA Population Division, 2024.*
+*Broad demographic source: UN DESA Population Division, 2024. The percentages shown are calculated from the configured Rust sampling weights.*
 
-These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations World Population Prospects 2024, which provides official demographic estimates and projections across global regions and countries.
+These are model sampling weights, not a literal census reconstruction of any single year. The difference between the two columns arises because the configured negative-age weights also shape future births over the simulation horizon. Their broad regional ordering is informed by the United Nations World Population Prospects 2024; the complete 108 values are listed in Appendix B.9.
 
 The regions differ in antibiotic availability, hospital capacity, testing rates, and the prevalence of specific pathogens. A person's region shapes nearly every aspect of their simulated clinical journey.
 
@@ -231,7 +231,7 @@ Given the concentration of resistant organisms, broad-spectrum antibiotic use, a
 Independent of this baseline logistic admission process, starting a **hospital-managed antibiotic** also triggers inpatient management. In the current model this includes a broad set of parenteral hospital drugs plus a narrow oral reserve subset (`linezolid`, `tedizolid`) used as a proxy for infections that would usually be managed in hospital. This is a simplification: in real practice, some prolonged IV courses are delivered through outpatient parenteral antimicrobial therapy (OPAT), especially in higher-income settings and particularly for infections such as bone and joint disease that may require 4-6 weeks of IV treatment.
 
 
-**Length of stay:** Once admitted, patients face a baseline discharge hazard of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. This baseline applies only to relatively uncomplicated admissions. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; in the current model, septic patients therefore remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any hospital-managed treatment course has finished.  The `0.28` figure should therefore be interpreted as an **effective all-cause discharge hazard for clinically stable inpatients**, not as a claim that sepsis admissions average only 3.6 days or that every real-world admission has the same geometric length-of-stay distribution.
+**Length of stay:** Once admitted, patients face a baseline discharge probability of `0.28` per day (average stay ~3.6 days if that probability operated alone), with a configured 30-day fallback discharge point. Both apply only when a person is eligible for discharge. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; the 30-day value is therefore not an absolute maximum length of stay. In the current model, septic patients remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any discharge-blocking hospital-managed treatment course has finished. The `0.28` figure should therefore be interpreted as an **effective all-cause discharge probability for clinically stable inpatients**, not as a claim that sepsis admissions average only 3.6 days or that every real-world admission has the same geometric length-of-stay distribution.
 
 **Regional healthcare access:**
 
@@ -358,7 +358,7 @@ The organism-specific effects in the table are model-scale parameters, not direc
 
 The current acquisition calculation uses additive log-odds across six age bands (`infant`, `preschool`, `school`, `young_adult`, `middle_age`, and `elderly`). Each bacterium can have its own age profile, and each region can further replace the age adjustment for a particular bacterium. This preserves broad patterns such as childhood enteric disease, vulnerability at the extremes of age, and young-adult concentration of sexually transmitted infections without applying a generic syndrome template as an active multiplier. Appendix B.6 lists the bacterium-age and bacterium-region-age values.
 
-**2026 enteric-incidence recalibration.** The active-infection acquisition intercepts for *E. coli*, *Shigella* spp., and *C. jejuni* were increased by `ln(new incidence target / previous incidence target)`: +0.247, +0.773, and +1.085 log-odds, respectively. Their configured baselines are therefore -11.353, -11.827, and -11.915. Because the same baseline also enters the separate carriage-acquisition calculation, each organism's `{bacterium}_log_odds_microbiome_vs_infection` value was reduced by the same amount. This leaves its combined carriage intercept unchanged while making the intended first-order change to active-infection acquisition. Realised incidence is still nonlinear because the rule also includes age, region, vaccination, existing carriage, hospital status, and prevention by current treatment, so the new targets require verification in fresh stochastic calibration runs.
+**2026 enteric-incidence recalibration.** The current active-infection acquisition intercepts for *E. coli*, *Shigella* spp., and *C. jejuni* are -11.4, -11.827, and -12.1, respectively. Their corresponding `{bacterium}_log_odds_microbiome_vs_infection` values are 6.3, -1.573, and 1.415. These two sets of parameters were tuned jointly because the acquisition intercept also enters the separate carriage-acquisition calculation. Realised incidence is nonlinear because the rule also includes age, region, vaccination, existing carriage, hospital status, and prevention by current treatment, so the configured values still require verification in stochastic calibration runs.
 
 ### 3.2 Hospital acquisition
 
@@ -426,7 +426,7 @@ When a person develops an active infection, the model assigns one of ten **anato
 - **Empiric drug choice** (prescribing guidelines differ by site — see Section 6.2)
 - **Drug penetration** (varies by tissue — see Section 6.4)
 - **Replication rate** (e.g. bloodstream supports rapid growth; bone does not)
-- **Sepsis and mortality risk** (e.g. bloodstream infections are more dangerous than skin infections)
+- **Sepsis-onset risk**, which can affect mortality indirectly by determining entry into the sepsis pathway (e.g. bloodstream infections have higher sepsis-onset log-odds than skin infections)
 
 The ten clinical syndromes correspond to the major infectious disease presentations encountered in clinical microbiology:
 
@@ -488,7 +488,7 @@ Each day, for each active infection that is not already septic, the model calcul
 
 | Component | Parameter(s) | Current value / pattern | Interpretation |
 |-----------|--------------|-------------------------|----------------|
-| Per-bacterium baseline sepsis propensity | `<bacterium>_sepsis_baseline_log_odds`; otherwise `sepsis_baseline_log_odds` | When no organism-specific value is supplied, the model uses −12.0. Explicit organism values range from values that represent effectively no sepsis propensity, such as *H. pylori* (−500.0) and MDR-TB (−38.0), through low-sepsis organisms, to high-risk invasive pathogens such as *P. aeruginosa* (−5.0) and *S. pyogenes* (−6.0). | Captures organism-level invasive potential and virulence at a given bacterial burden. This is separate from the syndrome/site term below: it says how septic this organism tends to be, not where the infection is. |
+| Per-bacterium baseline sepsis propensity | `<bacterium>_sepsis_baseline_log_odds`; otherwise `sepsis_baseline_log_odds` | When no organism-specific value is supplied, the model uses −10.5. Explicit organism values range from values that represent effectively no sepsis propensity, such as *H. pylori* (−500.0) and MDR-TB (−37.0), through low-sepsis organisms, to high-risk invasive pathogens such as *P. aeruginosa* (−2.0) and *S. pyogenes* (−5.0). | Captures organism-level invasive potential and virulence at a given bacterial burden. This is separate from the syndrome/site term below: it says how septic this organism tends to be, not where the infection is. |
 | Bacterial burden | `<bacterium>_log_odds_sepsis_infection_level`; otherwise `log_odds_sepsis_infection_level` | Reference value +0.93 per unit of infection level. Configured organism-specific values include smaller level effects for *S. epidermidis* (+0.04) and *S. maltophilia* (+0.08). | Higher simulated bacterial burden increases daily sepsis-onset risk. |
 | Duration of infection | `<bacterium>_log_odds_sepsis_infection_duration`; otherwise `log_odds_sepsis_infection_duration` | Reference value +0.005 per day since acquisition. Configured organism-specific values include *S. epidermidis* (+0.005) and *S. maltophilia* (+0.012). | Longer-standing infections gradually become more dangerous, especially if not brought under control. |
 | Age and bacterium-age interaction | `sepsis_age_log_odds_baseline`, `sepsis_age_log_odds_neonatal`, `sepsis_age_log_odds_pediatric`, `sepsis_age_log_odds_young_adult`, `sepsis_age_log_odds_elderly`, plus `<bacterium>_<age_category>_sepsis_log_odds` | General age terms: baseline 0.0; neonatal (≤28 days) +1.10; paediatric (>28 days to 18 years) +0.18; young adult (>18 to 65 years) 0.0; elderly (>65 years) +0.69. Selected organisms add extra age-specific deltas, e.g. neonatal GBS, neonatal *E. coli*, paediatric pneumococcus/*H. influenzae*/*N. meningitidis*, elderly pneumococcus/*E. coli*/*Klebsiella*/*Pseudomonas*/*Acinetobacter*/VRE/*S. aureus*, and young-adult meningococcus/*S. aureus*. | Captures both general host vulnerability and pathogen-specific age patterns. The detailed organism-age terms are review-informed estimates rather than direct empirical case-fatality estimates. |
@@ -923,24 +923,24 @@ The model uses a simplified pharmacokinetic representation in which each drug ha
 
 #### Selected drug half-lives
 
-Half-lives vary enormously — from penicillin G (cleared within an hour, needing frequent dosing) to dalbavancin (which persists for two weeks, enabling single-dose therapy):
+Half-lives vary enormously — from penicillin G (cleared within about an hour, needing frequent dosing) to dalbavancin (represented by an approximately 10-day half-life, enabling single-dose therapy):
 
 | Drug | Half-life (days) | Clinical note | Citation / source |
 |------|-----------------|---------------|-------------------|
 | colistin | 0.08 (~2 hours) | Very short — rapidly cleared by kidneys; poor CNS penetration (0.05) except in meningitis; reserved for pan-resistant Gram-negatives; toxicity includes nephrotoxicity and neurotoxicity (rare dosing-related; rare pre-existing) | Li J et al., 2006 |
-| penicillin_g | 0.042 (~1 hour) | Very short — needs IV infusion or frequent dosing | Brunton LL et al., 2018 |
-| ampicillin | 0.063 (~1.5 hours) | Short-acting penicillin | Brunton LL et al., 2018 |
-| meropenem | 0.042 (~1 hour) | Short — given as IV infusion TDS | Brunton LL et al., 2018 |
+| penicillin_g | 0.04 (~1 hour) | Very short — needs IV infusion or frequent dosing | Brunton LL et al., 2018 |
+| ampicillin | 0.04 (~1 hour) | Short-acting penicillin | Brunton LL et al., 2018 |
+| meropenem | 0.04 (~1 hour) | Short — given as IV infusion TDS | Brunton LL et al., 2018 |
 | cefiderocol | 0.10 (~2.4 hours) | Short-acting novel siderophore cephalosporin | Wunderink RG et al., 2021 |
 | ciprofloxacin | 0.17 (~4 hours) | Moderate — allows twice-daily oral dosing | Brunton LL et al., 2018 |
 | nalidixic_acid | 0.08 (~2 hours) | Short — first-generation quinolone; rapid renal elimination; only renally/GI concentrated | Brunton LL et al., 2018 |
 | linezolid | 0.21 (~5 hours) | Moderate | Brunton LL et al., 2018 |
 | vancomycin | 0.25 (~6 hours) | Requires therapeutic drug monitoring | Rybak MJ et al., 2020 |
-| sulfanilamide | 0.29 (~7 hours) | Historical agent | Brunton LL et al., 2018 |
+| sulfanilamide | 0.45 (~11 hours) | Historical agent | Brunton LL et al., 2018 |
 | ceftriaxone | 0.33 (~8 hours) | Long enough for once-daily dosing | Brunton LL et al., 2018 |
 | doxycycline | 0.75 (~18 hours) | Long — convenient once or twice-daily oral | Brunton LL et al., 2018 |
-| azithromycin | 2.92 (~70 hours) | Very long tissue half-life — enables 3–5 day courses | Brunton LL et al., 2018 |
-| dalbavancin | 14.0 (2 weeks) | Ultra-long — allows single-dose outpatient treatment | Dunne MW et al., 2016 |
+| azithromycin | 2.8 (~67 hours) | Very long tissue half-life — enables 3–5 day courses | Brunton LL et al., 2018 |
+| dalbavancin | 10.0 (~10 days) | Ultra-long — allows single-dose outpatient treatment | Dunne MW et al., 2016 |
 
 
 
@@ -1052,7 +1052,7 @@ These modifiers directly affect treatment outcomes in the model: a drug with a 0
 
 ### 6.5 Drug potency matrix
 
-The model encodes **potency** as a 42×62 matrix (42 bacteria × 62 named drugs). Each cell represents the baseline activity of that drug against that bacterial species when no modelled acquired resistance mechanism is present. Resistance mechanisms are applied separately through the 39-class enhancement system described in Section 7.2.
+The model encodes **potency** as a 42×62 matrix (42 bacteria × 62 named drugs). Each cell represents the baseline activity of that drug against that bacterial species when no modelled acquired resistance mechanism is present. The 46 resistance mechanisms are applied separately through enhancement values spanning the model's 39 drug classes, as described in Section 7.2.
 
 Potency values range from 0.0 (no baseline activity) to 1.0 (maximum baseline activity). They are dimensionless model quantities informed by published MIC data, clinical breakpoints, microbiological knowledge, and clinical use; they are not MICs or breakpoint classifications. Potency does not include the person's drug exposure or penetration to the infection site. Effective activity during treatment combines potency with those factors and with the remaining susceptibility after acquired resistance is applied.
 
@@ -1105,14 +1105,14 @@ The model makes antibiotics available from their configured introduction days. S
 |--------|---------------|
 | North America | Full access to all drugs |
 | Europe | Full access to all drugs |
-| Asia | Most drugs available; limited access to tedizolid, ceftaroline (30%) |
-| Oceania | Good access; limited novel agents (50%) |
-| South America | Limited newer drugs (tedizolid 10%, linezolid 50%, carbapenems 60–70%) |
-| Africa | Basic antibiotics available (80–100%); ceftriaxone 60%; vancomycin 30%; carbapenems 10–20%; most novel drugs 0–10% |
+| Asia | Most drugs at full availability; ceftaroline 30%, teicoplanin 70%, and tedizolid 30% |
+| Oceania | Most drugs at full availability; ceftaroline and tedizolid 50% |
+| South America | Most drugs at full availability; cefepime 80%, ceftaroline 10%, teicoplanin 30%, linezolid 50%, and tedizolid 10% |
+| Africa | Many established drugs at 60–90%; ceftriaxone 60%, meropenem and imipenem 60%, ertapenem 50%, vancomycin 30%, and most newer reserve agents 0–10% |
 
 
 
-This has major implications for AMR: in Africa, where carbapenems are rarely available, carbapenem resistance may emerge more slowly — but when it does arrive (via travel or HGT), there are no last-resort drugs available to treat it.
+This has major implications for AMR. In Africa, current carbapenem availability is reduced to 50–60% of the full-access reference, while many newer reserve options are only 0–10% available. Selection pressure and access to treatment can therefore differ substantially from full-access regions when carbapenem resistance arises or is imported through travel or HGT.
 
 These availability tiers should be interpreted as qualitative access strata rather than audited procurement shares. They summarise broad world patterns in which older essential antibiotics are much more widely available than newer reserve agents, and in which stewardship, financing, regulatory approval, supply-chain reliability, and laboratory support jointly determine whether a drug is realistically usable in practice (World Health Organization GLASS-AMU report, 2025; World Health Organization UHC fact sheet, 2025).
 
@@ -1140,11 +1140,11 @@ Toxicity can cause two outcomes:
 | Avoidance window | `toxicity_discontinuation_avoidance_days` | 30 days | How long the prescriber avoids re-prescribing the toxicity-stopped drug |
 
 
-**2. Drug-related death (lethal toxicity):** Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure.  The model uses a **multiplicative hazard** model: each drug has a per-unit daily hazard rate (typically in the 10⁻⁸ range), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.
+**2. Drug-related death (lethal toxicity):** Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure. The model uses a **multiplicative hazard** model: each drug has a per-unit daily hazard rate (0 to 2.5×10⁻⁸ in the current configuration), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.
 
 | Factor | Parameter | Value | Effect |
 |--------|-----------|-------|--------|
-| Drug-specific hazard | Per-drug hazard rate | ~10⁻⁸ (varies by drug) | Colistin and aminoglycosides carry the highest per-unit hazard |
+| Drug-specific hazard | Per-drug hazard rate | 0 to 2.5×10⁻⁸ | Colistin has the highest configured per-unit hazard, followed by the aminoglycosides |
 | Infant vulnerability | `toxicity_age_multiplier_infant` | ×1.8 | Neonates more vulnerable to drug toxicity |
 | Child vulnerability | `toxicity_age_multiplier_child` | ×1.2 | Moderate additional risk |
 | Adult (reference) | `toxicity_age_multiplier_adult` | ×1.0 | Reference group |
@@ -1352,7 +1352,7 @@ The configured source probabilities use broad ecological groupings. These groupi
 |----------|---------------:|------------------|----------------|
 | Environmental or waterborne<sup>1</sup> | 0.30 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition has a substantial exogenous component |
 | Food-, water-, or mixed exogenous acquisition<sup>2</sup> | 0.30–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | Food, water, animal, or other acquisition sources outside the current local human-infection profile library remain important, to differing degrees |
-| Healthcare-associated<sup>3</sup> | 0.30–0.50 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Community acquisitions retain a material exogenous component while resistance is amplified in hospitals |
+| Healthcare-associated<sup>3</sup> | 0.30–0.80 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Community acquisitions retain a material exogenous component while resistance is amplified in hospitals; the two enterococci use 0.80 in the current configuration |
 | Endogenous flora or human-associated<sup>4</sup> | 0.60–1.00 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology; *H. pylori* has no separate modelled carriage compartment |
 | Obligate human pathogen or STI<sup>5</sup> | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | The community source is treated as the human circulating reservoir |
 
@@ -1579,12 +1579,12 @@ The current global community multiplier is **0.1**. Most bacteria use that value
 |---|---:|---:|---|
 | *Acinetobacter baumannii*<sup>1</sup> | 3.0 | 3× faster | Effective community turnover of predominantly healthcare-associated resistance-mechanism profiles |
 | *Stenotrophomonas maltophilia*<sup>1</sup> | 3.0 | 3× faster | Effective loss of healthcare/device-associated resistance-mechanism profiles outside their main ecological niche |
-| *Enterococcus faecium*<sup>1</sup> | 3.0 | 3× faster | Maintains a hospital-community contrast for hospital-adapted VRE lineages |
+| *Enterococcus faecium*<sup>1</sup> | 1.5 | 1.5× faster | Maintains a hospital-community contrast for hospital-adapted VRE lineages |
 | *Neisseria gonorrhoeae*<sup>2</sup> | 0.01 | 100× slower | Strong persistence of resistant gonococcal lineages after the original selecting pressure falls |
 
 *Table evidence notes:*
 
-1. The three `3.0` values are compressed ecological calibration terms used to preserve plausible hospital–community contrasts. Outside-hospital reservoirs of *A. baumannii*, the predominantly opportunistic healthcare/device ecology of *S. maltophilia*, and the hospital-adapted spread of VRE lineages support the qualitative direction of these contrasts; general evidence also shows that resistance costs and persistence vary strongly with the organism, determinant, genetic background, and compensatory evolution (Eveillard M et al., 2013; Brooke JS, 2012; Werner G et al., 2008; Andersson DI & Hughes D, 2010; San Millán A & MacLean RC, 2017). No cited source estimates the multiplier `3.0`. It is 30 times the ordinary `0.1` community multiplier but only three times the same mechanism's hospital/base rate, and it applies to every eligible mechanism for the organism rather than only to carbapenemases or VanA/VanB.
+1. The `3.0` values for *A. baumannii* and *S. maltophilia*, and the `1.5` value for *E. faecium*, are compressed ecological calibration terms used to preserve plausible hospital–community contrasts. Outside-hospital reservoirs of *A. baumannii*, the predominantly opportunistic healthcare/device ecology of *S. maltophilia*, and the hospital-adapted spread of VRE lineages support the qualitative direction of these contrasts; general evidence also shows that resistance costs and persistence vary strongly with the organism, determinant, genetic background, and compensatory evolution (Eveillard M et al., 2013; Brooke JS, 2012; Werner G et al., 2008; Andersson DI & Hughes D, 2010; San Millán A & MacLean RC, 2017). No cited source estimates these exact multipliers. Relative to the ordinary `0.1` community multiplier, they are 30 and 15 times larger; relative to the same mechanism's hospital/base rate, they are three and 1.5 times larger. Each applies to every eligible mechanism for the organism rather than only to carbapenemases or VanA/VanB.
 2. The `0.01` value is a calibration motivated by durable population-level persistence of fluoroquinolone-resistant gonococcal lineages after fluoroquinolones were withdrawn from treatment guidelines (Unemo M & Shafer WM, 2014; Unemo M et al., 2021). Neither source estimates the multiplier `0.01`. The multiplier applies to every eligible gonococcal mechanism, although *gyrA*/*parC* resistance is the motivating example.
 
 
@@ -1954,7 +1954,7 @@ The numerical modifiers in this table are review-informed calibration choices. T
 - [10.1 Background mortality](#101-background-mortality)
 - [10.2 Sepsis mortality](#102-sepsis-mortality)
 - [10.3 Non-sepsis infection death](#103-non-sepsis-infection-death)
-- [10.4 Infection mortality — syndrome multipliers](#104-infection-mortality-syndrome-multipliers)
+- [10.4 Infection mortality — syndrome effects](#104-infection-mortality-syndrome-effects)
 
 The model tracks mortality from three sources: background (non-infection) causes, **bacterial infection induced sepsis**, and **non-sepsis (bacterial) infection death** (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2020).
 
@@ -1970,7 +1970,7 @@ Every individual faces a baseline daily death risk shaped by age, sex, region, i
 | Historical improvement | `mortality_baseline_1930_multiplier` / `mortality_baseline_2035_multiplier` / `mortality_improvement_half_life_years` | ×3 / ×1 / 35 yrs | Normalised exponential decline from a 3× higher 1930 rate to the configured 2035 reference rate exactly; half-life controls how front-loaded that improvement is |
 | Linear age effect | `log_odds_mortality_per_year_of_age` | 0.055 | Each year of age adds a constant increment to log-odds (≈ ×1.06/year on the odds scale) |
 | Elderly frailty acceleration | `log_odds_mortality_per_year_of_age_squared` | 0.008 | Quadratic term applied **only above age 80** — steepens mortality in the very elderly without making age-90 mortality implausibly extreme |
-| Region | `log_odds_mortality_region_{name}` | N. America 0; S. America +0.26; Africa +0.69; Asia +0.18; Europe −0.11; Oceania 0 | Reflects broad differences in background mortality environment, healthcare access, and non-communicable disease burden |
+| Region | `log_odds_mortality_region_{name}` | N. America 0; S. America +0.26; Africa +0.69; Asia +0.18; Europe −0.105; Oceania 0 | Reflects broad differences in background mortality environment, healthcare access, and non-communicable disease burden |
 | Sex | `log_odds_mortality_sex_male` / `_female` | +0.095 / −0.105 | Male ≈ ×1.1, female ≈ ×0.9 all-cause mortality differential |
 | Immunosuppression | `log_odds_mortality_immunosuppressed` | +0.916 | ≈ ×2.5 higher risk when `immunodeficiency_type` is set |
 | Hospital status | `log_odds_mortality_hospitalized` | +0.262 | ≈ ×1.3 higher risk while in hospital (captures inpatient case-mix and residual non-infectious acuity rather than HCAI, which is modelled separately) |
@@ -1992,54 +1992,54 @@ Sepsis is the primary death pathway for classic invasive bacterial pathogens. Wh
 
 The mortality model also applies the existing `sepsis_death_log_odds_not_under_care` penalty (+1.4) when none of the three person-level care signals is present: current antibiotic use, hospitalisation, or bacterial identification for a still-active infection. This term represents nonspecific medical and supportive care rather than organism-specific antimicrobial effectiveness. Effective antibiotics additionally alter bacterial activity, burden, and clearance through the separate treatment pathways described in Section 6.
 
-Since sepsis mortality varies enormously by organism — from near-zero for non-invasive STI pathogens to >30% for *S. aureus* bacteraemia (Tong SYC et al., 2015) — the model assigns per-bacterium sepsis baseline log-odds. The current configured values are:
+Entry into the sepsis pathway varies substantially by organism. The model therefore assigns each bacterium a sepsis-**onset** baseline log-odds. These values affect the daily probability that an active infection becomes septic; they are not organism-specific case-fatality parameters. Once sepsis is present, the death model described below uses a global base log-odds of -6.2 plus the two currently configured organism-specific case-fatality adjustments. The current sepsis-onset baselines are:
 
-| Bacterium | Sepsis baseline log odds | Clinical rationale |
+| Bacterium | Sepsis-onset baseline log-odds | Clinical rationale |
 |-----------|----------------|-------------------|
-| *Acinetobacter baumannii* | -4.4 | Healthcare-associated invasive pathogen, especially ventilator-associated pneumonia and ICU bacteraemia; often severe and drug-resistant |
-| *Citrobacter* spp. | -7.9 | Opportunistic Enterobacterales; can cause invasive infection but less commonly than *E. coli* or *Klebsiella* |
-| *Enterobacter* spp. | -5.3 | Opportunistic hospital-associated Enterobacterales with meaningful bloodstream-infection potential |
-| *Enterococcus faecalis* | -4.5 | Endocarditis and line-related bacteraemia |
-| *Enterococcus faecium* | -3.5 | Hospital-acquired bloodstream infections, especially VRE |
-| *Escherichia coli* | -9.8 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe than highly invasive ICU pathogens (Poolman JT et al., 2016) |
-| *Klebsiella pneumoniae* | -7.4 | Gram-negative sepsis; carbapenem-resistant strains carry high mortality (Xu L et al., 2017) |
-| *Morganella* spp. | -6.4 | Opportunistic Enterobacterales associated with urinary, wound, and healthcare-associated invasive infection |
-| *Proteus* spp. | -6.1 | UTI-associated Enterobacterales with potential for urosepsis, especially in older or catheterised patients |
-| *Serratia* spp. | -6.6 | Opportunistic healthcare-associated Enterobacterales with bloodstream-infection potential |
-| *Providencia stuartii* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Pseudomonas aeruginosa* | -4.3 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
-| *Stenotrophomonas maltophilia* | -6.6 | Opportunistic non-fermenter, mainly in severely ill or immunocompromised patients |
-| *Staphylococcus aureus* | -8.6 | Aggressive bloodstream pathogen; 20-30% mortality in bacteraemia (Tong SYC et al., 2015) |
-| *Staphylococcus epidermidis* | -6.6 | Device-associated and line-related infection; lower virulence than *S. aureus* but clinically important in hospitalised patients |
-| *Streptococcus pneumoniae* | -9.2 | Invasive pneumococcal disease can cause sepsis, but many infections are respiratory and non-bacteraemic |
-| *Salmonella enterica* serovar Typhi | -7.7 | Enteric fever with potential for systemic invasive disease |
-| *Salmonella enterica* serovar Paratyphi A | -8.0 | Enteric fever with occasional septic complications |
-| Invasive non-typhoidal *Salmonella* spp. | -7.8 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2019) |
-| *Shigella* spp. | -21.8 | Primarily dysentery/dehydration mortality; sepsis is not the dominant pathway |
-| *Neisseria gonorrhoeae* | -22.6 | Disseminated gonococcal infection is rare |
-| *Streptococcus pyogenes* | -5.3 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS can be highly lethal (Carapetis JR et al., 2005) |
-| *Streptococcus agalactiae* | -5.4 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2013) |
-| *Haemophilus influenzae* | -7.8 | Invasive respiratory pathogen, especially in young children, older adults, and unvaccinated populations |
-| *Chlamydia trachomatis* | -17.6 | STI; essentially never causes classic bacterial sepsis |
-| *Mycoplasma genitalium* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Vibrio cholerae* | -6.3 | Mortality is usually dehydration-mediated, but severe systemic illness is possible in vulnerable hosts |
-| *Neisseria meningitidis* | -6.5 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC (Tunkel AR et al., 2004; van de Beek D et al., 2012) |
-| *Listeria monocytogenes* | -6.6 | Invasive disease in neonates, pregnancy, older adults, and immunocompromised patients |
-| *Clostridioides difficile* | -9.1 | Deaths are often toxin-mediated colitis rather than classic bloodstream sepsis |
-| *Bacteroides fragilis* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Campylobacter jejuni* | -19.5 | Usually enteritis; bacteraemia/sepsis is rare |
-| *Enterobacter cloacae* | -5.3 | Opportunistic hospital-associated Enterobacterales with bloodstream-infection potential |
-| *Yersinia enterocolitica* | -8.1 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
-| *Moraxella catarrhalis* | -11.7 | Usually respiratory mucosal infection; invasive sepsis is uncommon |
-| *Treponema pallidum* | -9.6 | Syphilis mortality is typically chronic, congenital, or cardiovascular/neurologic rather than acute sepsis |
-| *Bordetella pertussis* | -499.3 | Classic sepsis is suppressed; pertussis mortality is represented through the non-sepsis respiratory-failure pathway |
-| *Helicobacter pylori* | -499.3 | Gastric pathogen; a fixed model rule sets sepsis risk to zero when this is the sole active infection |
-| MDR *Mycobacterium tuberculosis* | -37.3 | Chronic mycobacterial disease rather than acute bacterial sepsis |
-| *Mycoplasma pneumoniae* | -17.3 | Atypical respiratory pathogen; acute bacterial sepsis is uncommon |
-| *Legionella pneumophila* | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
-| *Burkholderia cepacia* complex | -11.3 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Acinetobacter baumannii* | -3.9 | Healthcare-associated invasive pathogen, especially ventilator-associated pneumonia and ICU bacteraemia; often severe and drug-resistant |
+| *Citrobacter* spp. | -6.2 | Opportunistic Enterobacterales; can cause invasive infection but less commonly than *E. coli* or *Klebsiella* |
+| *Enterobacter* spp. | -2.3 | Opportunistic hospital-associated Enterobacterales with meaningful bloodstream-infection potential |
+| *Enterococcus faecalis* | -1.8 | Endocarditis and line-related bacteraemia |
+| *Enterococcus faecium* | -1.3 | Hospital-acquired bloodstream infections, especially VRE |
+| *Escherichia coli* | -9.7 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe than highly invasive ICU pathogens (Poolman JT et al., 2016) |
+| *Klebsiella pneumoniae* | -7.5 | Gram-negative sepsis; carbapenem-resistant strains carry high mortality (Xu L et al., 2017) |
+| *Morganella* spp. | -5.9 | Opportunistic Enterobacterales associated with urinary, wound, and healthcare-associated invasive infection |
+| *Proteus* spp. | -5.6 | UTI-associated Enterobacterales with potential for urosepsis, especially in older or catheterised patients |
+| *Serratia* spp. | -4.3 | Opportunistic healthcare-associated Enterobacterales with bloodstream-infection potential |
+| *Providencia stuartii* | -10.5 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Pseudomonas aeruginosa* | -2.0 | High-risk ICU infection and opportunistic disease in immunocompromised hosts (Bassetti M et al., 2018) |
+| *Stenotrophomonas maltophilia* | -6.1 | Opportunistic non-fermenter, mainly in severely ill or immunocompromised patients |
+| *Staphylococcus aureus* | -9.0 | Aggressive bloodstream pathogen; 20-30% mortality in bacteraemia (Tong SYC et al., 2015) |
+| *Staphylococcus epidermidis* | -6.1 | Device-associated and line-related infection; lower virulence than *S. aureus* but clinically important in hospitalised patients |
+| *Streptococcus pneumoniae* | -7.7 | Invasive pneumococcal disease can cause sepsis, but many infections are respiratory and non-bacteraemic |
+| *Salmonella enterica* serovar Typhi | -6.2 | Enteric fever with potential for systemic invasive disease |
+| *Salmonella enterica* serovar Paratyphi A | -7.9 | Enteric fever with occasional septic complications |
+| Invasive non-typhoidal *Salmonella* spp. | -6.5 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2019) |
+| *Shigella* spp. | -20.0 | Primarily dysentery/dehydration mortality; sepsis is not the dominant pathway |
+| *Neisseria gonorrhoeae* | -50.0 | Disseminated gonococcal infection is rare |
+| *Streptococcus pyogenes* | -5.0 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS can be highly lethal (Carapetis JR et al., 2005) |
+| *Streptococcus agalactiae* | -3.0 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2013) |
+| *Haemophilus influenzae* | -10.0 | Invasive respiratory pathogen, especially in young children, older adults, and unvaccinated populations |
+| *Chlamydia trachomatis* | -17.1 | STI; essentially never causes classic bacterial sepsis |
+| *Mycoplasma genitalium* | -10.5 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Vibrio cholerae* | -5.8 | Mortality is usually dehydration-mediated, but severe systemic illness is possible in vulnerable hosts |
+| *Neisseria meningitidis* | -5.0 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC (Tunkel AR et al., 2004; van de Beek D et al., 2012) |
+| *Listeria monocytogenes* | -6.1 | Invasive disease in neonates, pregnancy, older adults, and immunocompromised patients |
+| *Clostridioides difficile* | -8.6 | Deaths are often toxin-mediated colitis rather than classic bloodstream sepsis |
+| *Bacteroides fragilis* | -10.5 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Campylobacter jejuni* | -19.0 | Usually enteritis; bacteraemia/sepsis is rare |
+| *Enterobacter cloacae* | -3.3 | Opportunistic hospital-associated Enterobacterales with bloodstream-infection potential |
+| *Yersinia enterocolitica* | -7.6 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
+| *Moraxella catarrhalis* | -12.5 | Usually respiratory mucosal infection; invasive sepsis is uncommon |
+| *Treponema pallidum* | -9.1 | Syphilis mortality is typically chronic, congenital, or cardiovascular/neurologic rather than acute sepsis |
+| *Bordetella pertussis* | -8.1 | Sepsis is uncommon; pertussis mortality is also represented through the non-sepsis respiratory-failure pathway |
+| *Helicobacter pylori* | -500.0 | Gastric pathogen; a fixed model rule sets sepsis risk to zero when this is the sole active infection |
+| MDR *Mycobacterium tuberculosis* | -37.0 | Chronic mycobacterial disease rather than acute bacterial sepsis |
+| *Mycoplasma pneumoniae* | -16.8 | Atypical respiratory pathogen; acute bacterial sepsis is uncommon |
+| *Legionella pneumophila* | -10.5 (global value) | No organism-specific value configured; uses the global sepsis baseline |
+| *Burkholderia cepacia* complex | -10.5 (global value) | No organism-specific value configured; uses the global sepsis baseline |
 
-Rows marked as using the global value use `sepsis_baseline_log_odds = -11.3` because no organism-specific `{bacterium}_sepsis_baseline_log_odds` value is configured in `src/config.rs`. To align sepsis incidence calibration with the updated bacterial-sepsis target, all entry intercepts were increased by 0.7 relative to the preceding calibration, multiplying sepsis-onset odds by approximately `exp(0.7) = 2.01`. The global sepsis-death intercept was reduced from -5.2 to -5.9 at the same time, multiplying daily death odds conditional on the other predictors by approximately `exp(-0.7) = 0.50`. Because both models are logistic and sepsis duration and competing outcomes also change, these are odds multipliers rather than guarantees that realised incidence doubles or case fatality halves.
+Rows marked as using the global value use `sepsis_baseline_log_odds = -10.5` because no organism-specific `{bacterium}_sepsis_baseline_log_odds` value is configured in `src/config.rs`. These are the current configured values; Appendix B.3 provides the generated implementation reference.
 
 
 
@@ -2050,12 +2050,11 @@ These per-bacterium sepsis baselines are qualitative severity orderings anchored
 
 In addition to the per-bacterium sepsis entry baseline (Section 10.2), the model supports an **additive per-organism log-odds adjustment to the daily death probability given sepsis** (parameter name: `{organism}_sepsis_death_log_odds_override`). This term is added on top of all other factors in the sepsis death calculation — age, region, bacterial burden, medical-care status, and immunosuppression. Where multiple bacteria are simultaneously septic, the largest organism-specific adjustment takes effect.
 
-Three organisms currently receive non-zero adjustments:
+Two organisms currently receive non-zero adjustments:
 
 | Bacterium | CFR adjustment | Relative CFR | Clinical rationale |
 |-----------|---------------|--------------|-------------------|
 | *N. meningitidis* | +0.69 | ≈×2 | Purpura fulminans and DIC; meningococcal sepsis has among the highest 24-hour CFR of any bacterial pathogen (Tunkel AR et al., 2004; van de Beek D et al., 2012) |
-| *S. aureus* | +0.41 | ≈×1.5 | Infective endocarditis and MRSA bacteraemia; 30-day mortality 20–30% even with appropriate therapy (Tong SYC et al., 2015) |
 | *A. baumannii* | +0.69 | ≈×2 | XDR ventilator-associated pneumonia and bloodstream infection; attributable mortality >30% in carbapenem-resistant strains (Bassetti M et al., 2018) |
 
 All other organisms default to 0.0 (no adjustment).
@@ -2077,9 +2076,10 @@ where the total log-odds combines:
 | Per-bacterium adjustment | 0.0 (default) | How lethal this organism is via non-sepsis mechanisms |
 | Per-syndrome adjustment | 0.0 (default) | How dangerous this body site is |
 | Bacterial level × coefficient | level × 0.0 | Higher burden → higher risk |
-| Age adjustment | varies | Infants and elderly at higher risk |
+| Age adjustment | 0.0 in every age group | No direct age adjustment is active in the current non-sepsis death calculation |
 | Hospital adjustment | 0.0 | Modified risk in hospital |
 | Immunosuppression | 0.0 | Additional risk for immunocompromised |
+| Minimum bacterial level | 0.5 | The non-sepsis death pathway is evaluated only above this infection-level threshold |
 
 
 
@@ -2098,10 +2098,10 @@ The per-bacterium adjustments are the primary calibration lever. **Negative valu
 | *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths (Korenromp EL et al., 2019) |
 | *V. cholerae* | +2.5 | Death from dehydration, not bacteraemia (Ali M et al., 2015) |
 | *C. difficile* | +2.0 | Colitis and toxic megacolon deaths (Guh AY et al., 2020) |
-| *S. pyogenes* | +3.0 | STSS and superantigen (SPE-A/C/SMEZ)-mediated rapid death independent of bacterial burden, plus rheumatic heart disease and post-streptococcal complications (Carapetis JR et al., 2005; Watkins DA et al., 2017) |
+| *S. pyogenes* | +1.0 | STSS and superantigen-mediated disease, together with post-streptococcal complications, motivate an additional non-sepsis pathway (Carapetis JR et al., 2005; Watkins DA et al., 2017) |
 | *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
-| *H. pylori* | +1.7 | Effective non-sepsis mortality proxy applied only while an active gastric-infection episode exists; the model does not explicitly simulate gastric-cancer latency or progression, and *H. pylori* deaths are excluded from the main reportable infection-death calibration output (Plummer M et al., 2015) |
-| *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2018) |
+| *H. pylori* | +0.2 | Effective non-sepsis mortality proxy applied only while an active gastric-infection episode exists; the model does not explicitly simulate gastric-cancer latency or progression, and *H. pylori* deaths are excluded from the main reportable infection-death calibration output (Plummer M et al., 2015) |
+| *Shigella* spp. | −0.5 | Dysentery is represented mainly outside the sepsis pathway, but the current calibrated organism adjustment is below the global non-sepsis intercept (Troeger C et al., 2018) |
 
 
 
@@ -2110,24 +2110,25 @@ This dual-pathway design means that the model can reproduce both the typical sep
 The non-sepsis adjustments are therefore best viewed as compensating structural terms for important death pathways that a pure sepsis model would miss, rather than as direct organism-specific fatality estimates. That is especially important for globally important syndromes such as cholera, pertussis, diarrhoeal disease, and chronic-sequelae-associated infections. For the last group, the model includes only a contemporaneous active-infection proxy and should not be interpreted as a mechanistic natural-history model.
 
 
-### 10.4 Infection mortality — syndrome multipliers
+### 10.4 Infection mortality — syndrome effects
 
-Both death pathways are modulated by the anatomical site of infection. The syndrome multipliers reflect how dangerous each body site is:
+The current Rust implementation does **not** multiply either daily death probability by the obsolete syndrome multipliers previously shown here. Syndrome affects mortality mainly by altering the probability that an infection enters the sepsis pathway. The syndrome-specific sepsis-onset log-odds values are the same terms described in Section 4.3. The non-sepsis death model also supports a separate syndrome-specific log-odds adjustment, but every one of those adjustments is currently 0.0.
 
-| Syndrome | Multiplier | Rationale |
-|----------|-----------|-----------|
-| Genital | 0.05 | Rarely fatal (localised mucosal infections) |
-| Skin / Ear | 0.1 | Low systemic risk unless secondary bacteraemia |
-| UTI | 0.5 | Usually self-limiting, but untreated or inadequately treated UTI — particularly in the elderly, pregnant women, or those with structural abnormalities — can ascend to urosepsis and carries meaningful mortality in that context |
-| Bone/Joint | 0.8 | Serious but often slow-progressing; mortality arises from surgical complications, but also from haematogenous spread — bacteraemia, sepsis, and seeding of distant sites (e.g. vertebral osteomyelitis seeding cardiac valves) |
-| Intra-abdominal | 1.5 | Peritonitis carries high mortality even with surgery |
-| Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally (GBD 2019 Lower Respiratory Infections Collaborators, 2022) |
-| CNS | 3.0 | Meningitis/brain abscess — poor penetration of many antibiotics (Tunkel AR et al., 2004) |
-| Bloodstream | 4.0 | Bacteraemia/sepsis — the most immediately life-threatening |
+| Syndrome | Sepsis-onset log-odds | Non-sepsis death log-odds | Interpretation |
+|----------|----------------------:|--------------------------:|----------------|
+| None / unspecified | 0.0 | 0.0 | Neutral technical state |
+| UTI | −2.0 | 0.0 | Lower direct progression to sepsis than the respiratory reference |
+| Skin / soft tissue | −1.0 | 0.0 | Usually localised, while invasive progression remains possible |
+| Respiratory | 0.0 | 0.0 | Reference syndrome |
+| Bloodstream | +1.5 | 0.0 | Strongest configured increase in sepsis onset |
+| Intra-abdominal | +0.8 | 0.0 | Increased sepsis-onset risk |
+| CNS / meningitis | +1.2 | 0.0 | High sepsis-onset risk (Tunkel AR et al., 2004) |
+| Gastrointestinal | −0.5 | 0.0 | Lower sepsis-onset risk for predominantly local enteric disease |
+| Genital / STI | −1.5 | 0.0 | Lowest configured sepsis-onset adjustment |
+| Bone / joint | +0.5 | 0.0 | Moderate increase in sepsis-onset risk |
+| Other | 0.0 | 0.0 | No explicit override; uses the default |
 
-
-
-These syndrome multipliers encode the broad global ordering in which bloodstream and CNS infections are most lethal, respiratory and intra-abdominal infections are high-risk, and genital or superficial infections are usually much less fatal unless they progress, which is the main pattern needed for policy comparisons in the model.
+Once a person is septic, the sepsis-death calculation uses age, region, bacterial level, sepsis duration, early phase, immunodeficiency, care status, and the organism-specific adjustment described in Section 10.2; syndrome is not a separate term in that calculation. The syndrome effects above can nevertheless change infection mortality indirectly by changing how often infections progress to sepsis.
 
 ---
 
@@ -3141,29 +3142,29 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | Bacteria | Sepsis base log-odds | Sepsis log-odds/level | Sepsis log-odds/day | Non-sepsis death log-odds | Sepsis-death override | Mechanismless reversion/day | Community human-profile probability | Hospital susceptible prune % | Community mechanism-reversion multiplier |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | acinetobacter_baumannii | -3.9 | 0.93 | 0.005 | 0 | 0.69 | 4e-4 | 0.3 | 75 | 3 |
-| citrobacter_spp. | -6.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| enterobacter_spp. | -3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
-| enterococcus_faecalis | -2.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 0.1 |
-| enterococcus_faecium | -1.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 1.5 |
+| citrobacter_spp. | -6.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
+| enterobacter_spp. | -2.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| enterococcus_faecalis | -1.8 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 0.1 |
+| enterococcus_faecium | -1.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 75 | 1.5 |
 | escherichia_coli | -9.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
-| klebsiella_pneumoniae | -7.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
+| klebsiella_pneumoniae | -7.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.45 | 75 | 0.1 |
 | morganella_spp. | -5.9 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
 | proteus_spp. | -5.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| serratia_spp. | -5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
+| serratia_spp. | -4.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
 | p_stuartii | -10.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.35 | 65 | 0.1 |
-| pseudomonas_aeruginosa | -2.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| pseudomonas_aeruginosa | -2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
 | stenotrophomonas_maltophilia | -6.1 | 0.08 | 0.012 | -4 | 0 | 4e-4 | 0.3 | 75 | 3 |
-| staphylococcus_aureus | -8.5 | 0.93 | 0.005 | 0 | 0.4 | 4e-4 | 0.8 | 65 | 0.1 |
+| staphylococcus_aureus | -9 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.8 | 65 | 0.1 |
 | staphylococcus_epidermidis | -6.1 | 0.04 | 0.005 | -6 | 0 | 4e-4 | 0.5 | 65 | 0.1 |
 | streptococcus_pneumoniae | -7.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 50 | 0.1 |
-| salmonella_enterica_serovar_typhi | -6.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 20 | 0.1 |
+| salmonella_enterica_serovar_typhi | -6.2 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.95 | 20 | 0.1 |
 | salmonella_enterica_serovar_paratyphi_a | -7.9 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.75 | 20 | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | -6.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 65 | 0.1 |
 | shigella_spp. | -20 | 0.93 | 0.005 | -0.5 | 0 | 4e-4 | 0.72 | 25 | 0.1 |
 | neisseria_gonorrhoeae | -50 | 0.93 | 0.005 | -2.5 | 0 | 4e-4 | 1 | 50 | 0.01 |
 | streptococcus_pyogenes | -5 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 0.75 | 50 | 0.1 |
-| streptococcus_agalactiae | -3.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
-| haemophilus_influenzae | -7.7 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
+| streptococcus_agalactiae | -3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
+| haemophilus_influenzae | -10 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
 | chlamydia_trachomatis | -17.1 | 0.93 | 0.005 | -5 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | mycoplasma_genitalium | -10.5 | 0.93 | 0.005 | -4.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | vibrio_cholerae | -5.8 | 0.93 | 0.005 | 2.5 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
@@ -3172,11 +3173,11 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | clostridioides_difficile | -8.6 | 0.93 | 0.005 | 2 | 0 | 4e-4 | 0.3 | 55 | 0.1 |
 | bacteroides_fragilis | -10.5 | 0.93 | 0.005 | 1.5 | 0 | 4e-4 | 0.65 | 50 | 0.1 |
 | campylobacter_jejuni | -19 | 0.93 | 0.005 | -0.5 | 0 | 4e-4 | 0.9 | 25 | 0.1 |
-| enterobacter_cloacae | -4 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
+| enterobacter_cloacae | -3.3 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 75 | 0.1 |
 | yersinia_enterocolitica | -7.6 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.3 | 50 | 0.1 |
-| moraxella_catarrhalis | -11.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
+| moraxella_catarrhalis | -12.5 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 0.6 | 50 | 0.1 |
 | treponema_pallidum | -9.1 | 0.93 | 0.005 | 3.5 | 0 | 4e-4 | 1 | 50 | 0.1 |
-| bordetella_pertussis | -8.8 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 1 | 50 | 0.1 |
+| bordetella_pertussis | -8.1 | 0.93 | 0.005 | 1 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | helicobacter_pylori | -500 | 0.93 | 0.005 | 0.2 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | mdr_mycobacterium_tuberculosis | -37 | 0.93 | 0.005 | 0 | 0 | 4e-4 | 1 | 50 | 0.1 |
 | mycoplasma_pneumoniae | -16.8 | 0.93 | 0.005 | -0.7 | 0 | 4e-4 | 1 | 50 | 0.1 |
@@ -9651,7 +9652,7 @@ Resolved de novo emergence coefficient and executable pathway status for every b
 | neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.01 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | target_site_erm_b | 0.001 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | target_site_cfr | 0.001 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | enzyme_cat | 0.005 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_cat | 0.003 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | efflux_acrab_tolc | 3 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | efflux_mexxy_oprm | 0 | eligible; no de novo or HGT |
 | neisseria_gonorrhoeae | porin_loss_ompk35_36 | 0 | excluded host |
@@ -9659,24 +9660,24 @@ Resolved de novo emergence coefficient and executable pathway status for every b
 | neisseria_gonorrhoeae | modification_mcr_1 | 0.005 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_polymyxin_regulatory | 0 | eligible; no de novo or HGT |
 | neisseria_gonorrhoeae | global_efflux_pump | 3 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | mutation_folate_pathway | 0.03 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_folate_pathway | 0.02 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_nitroreductase | 0.03 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_fos | 3e-4 | excluded host |
 | neisseria_gonorrhoeae | mutation_mpr_f | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_liafsr_cls | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_rpo_b | 30 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | protection_fus_b | 0 | excluded host |
-| neisseria_gonorrhoeae | protection_tet_m | 0.035 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | protection_tet_m | 0.025 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_aac_aph | 0.01 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_bla_z | 0 | excluded host |
-| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.05 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | enzyme_narrow_spectrum_gram_negative_penicillinase | 0.02 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | enzyme_mph_a | 0 | excluded host |
 | neisseria_gonorrhoeae | enzyme_oxa_acinetobacter | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_23s_rrna | 0.001 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_23s_rrna_oxazolidinone | 0 | excluded host |
-| neisseria_gonorrhoeae | efflux_tet_abc | 0.035 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.003 | eligible; de novo enabled |
-| neisseria_gonorrhoeae | efflux_mtr_cde | 0.003 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_tet_abc | 0.025 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.005 | eligible; de novo enabled |
+| neisseria_gonorrhoeae | efflux_mtr_cde | 0.005 | eligible; de novo enabled |
 | neisseria_gonorrhoeae | mutation_16s_rrna_tetracycline | 0 | excluded host |
 | neisseria_gonorrhoeae | mutation_siderophore_uptake | 0 | excluded host |
 | streptococcus_pyogenes | enzyme_esbl_ctx_m | 0 | excluded host |
@@ -12219,6 +12220,8 @@ rule used by the model rather than a configurable parameter.
 
 ## References
 
+^^^^^ means I only have a web link and do not hold a pdf
+
 References marked with \* are retained for completeness but are not explicitly cited in the text.
 
 - Ali M, Nelson AR, Lopez AL, Sack DA. Updated global burden of cholera in endemic countries. *PLoS Negl Trop Dis.* 2015;9(6):e0003832. doi:10.1371/journal.pntd.0003832
@@ -12257,7 +12260,8 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Bogaert D, De Groot R, Hermans PWM. *Streptococcus pneumoniae* colonisation: the key to pneumococcal disease. *Lancet Infect Dis.* 2004;4(3):144–154. doi:10.1016/S1473-3099(04)00938-7
 
-- Borger AL, Abarca AA, Dötsch A, et al. Mobile resistance genes in *Mycobacterium tuberculosis*: current evidence and future perspectives. *Lancet Infect Dis.* 2023;23(7):e268–e278. doi:10.1016/S1473-3099(22)00785-0
+- Borger AL, Abarca AA, Dötsch A, et al. Mobile resistance genes in Mycobacterium tuberculosis: current evidence and future perspectives. Lancet Infect Dis. 2023;23(7):e268–e278. doi:10.1016/S1473-3099(22)00785-0
+^^^^^
 
 - Bratzler DW, Dellinger EP, Olsen KM, et al. Clinical practice guidelines for antimicrobial prophylaxis in surgery. *Am J Health-Syst Pharm.* 2013;70(3):195–283. doi:10.2146/ajhp120568
 
@@ -12265,7 +12269,7 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Browne AJ, Chipeta MG, Haines-Woodhouse G, et al. Global antibiotic consumption and usage in humans, 2000–18: a spatial modelling study. *Lancet Planet Health.* 2021;5(12):e893–e904. doi:10.1016/S2542-5196(21)00280-1
 
-- Brunton LL, Hilal-Dandan R, Knollmann BC, eds. *Goodman & Gilman's: The Pharmacological Basis of Therapeutics.* 13th ed. New York: McGraw-Hill; 2018.
+- Brunton LL, Hilal-Dandan R, Knollmann BC, eds. Goodman & Gilman's: The Pharmacological Basis of Therapeutics.* 13th ed. New York: McGraw-Hill; 2018.  ^^^^^
 
 - Bryan LE, Kwan S. Roles of ribosomal binding, membrane potential, and electron transport in bacterial uptake of streptomycin and gentamicin. *Antimicrob Agents Chemother.* 1983;23(6):835–845. doi:10.1128/AAC.23.6.835
 
@@ -12284,10 +12288,12 @@ References marked with \* are retained for completeness but are not explicitly c
 - Centers for Disease Control and Prevention. *COVID-19: U.S. Impact on Antimicrobial Resistance, Special Report 2022.* Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2022. https://www.cdc.gov/antimicrobial-resistance/data-research/threats/covid-19.html
 
 - Centers for Disease Control and Prevention. *Salmonellosis, nontyphoidal.* In: *CDC Yellow Book 2024: Health Information for International Travel.* Atlanta, GA: U.S. Department of Health and Human Services, CDC; 2023. https://wwwnc.cdc.gov/travel/yellowbook/2024/infections%E2%80%90diseases/salmonellosis%E2%80%90nontyphoidal
+^^^^^
 
-- Centers for Disease Control and Prevention. *Clinical guidance for group A streptococcal pharyngitis.* Updated November 18, 2025. Accessed August 25, 2026. https://www.cdc.gov/group-a-strep/hcp/clinical-guidance/strep-throat.html
+- Centers for Disease Control and Prevention. *Clinical guidance for group A streptococcal pharyngitis.* Updated November 18, 2025.  https://www.cdc.gov/group-a-strep/hcp/clinical-guidance/strep-throat.html
+^^^^^
 
-- Centers for Disease Control and Prevention. *Treatment of pertussis.* Updated December 2, 2025. Accessed August 25, 2026. https://www.cdc.gov/pertussis/hcp/clinical-care/index.html
+- Centers for Disease Control and Prevention. *Treatment of pertussis.* Updated December 2, 2025. Accessed August 25, 2026. https://www.cdc.gov/pertussis/hcp/clinical-care/index.html  ^^^^^
 
 - Cox G, Edwards TA, O'Neill AJ. Mutagenesis mapping of the protein-protein interaction underlying FusB-type fusidic acid resistance. *Antimicrob Agents Chemother.* 2013;57(10):4640–4644. doi:10.1128/AAC.00198-13
 
