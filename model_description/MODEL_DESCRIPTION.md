@@ -12437,7 +12437,7 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Lloyd D, Pedersen JZ. Metronidazole radical anion generation in vivo in *Trichomonas vaginalis*: oxygen quenching is enhanced in a drug-resistant strain. *J Gen Microbiol.* 1985;131(1):87–92. doi:10.1099/00221287-131-1-87
 
-- Long KS, Poehlsgaard J, Kehrenberg C, Schwarz S, Vester B. A bacterial resistance gene with multiple antibiotic specificities. *Antimicrob Agents Chemother.* 2006;50(7):2500–2505. doi:10.1128/AAC.00230-06
+- Long KS, Poehlsgaard J, Kehrenberg C, Schwarz S, Vester B. The Cfr rRNA Methyltransferase Confers Resistance to Phenicols, Lincosamides, Oxazolidinones, Pleuromutilins, and Streptogramin A Antibiotics. *Antimicrob Agents Chemother.* 2006;50(7):2500–2505. doi:10.1128/AAC.00230-06
 
 - Lovering AM, Zhang J, Bannister GC, et al. Penetration of linezolid into bone, fat, muscle and haematoma of patients undergoing routine hip replacement. *J Antimicrob Chemother.* 2002;50(1):73–77. doi:10.1093/jac/dkf066
 
@@ -12487,8 +12487,6 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Pikis A, Donkersloot JA, Rodriguez WJ, Keith JM. A conservative amino acid mutation in the chromosome-encoded dihydrofolate reductase confers trimethoprim resistance in *Streptococcus pneumoniae*. *J Infect Dis.* 1998;178(3):700–706. doi:10.1086/515371
 
-- \* Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. *Medical Microbiology.* 19th ed. Edinburgh: Churchill Livingstone; 2019.
-
 - Plummer M, Franceschi S, Vignat J, Forman D, de Martel C. Global burden of gastric cancer attributable to *Helicobacter pylori*. *Int J Cancer.* 2015;136(2):487–490. doi:10.1002/ijc.28999
 
 - Poirel L, Héritier C, Tolün V, Nordmann P. Emergence of oxacillinase-mediated resistance to imipenem in *Klebsiella pneumoniae*. *Antimicrob Agents Chemother.* 2004;48(1):15–22. doi:10.1128/AAC.48.1.15-22.2004
@@ -12500,8 +12498,6 @@ References marked with \* are retained for completeness but are not explicitly c
 - Read RC, Baxter D, Chadwick DR, et al. Effect of a quadrivalent meningococcal ACWY glycoconjugate or a serogroup B meningococcal vaccine on meningococcal carriage: an observer-blind, phase 3 randomised clinical trial. *Lancet.* 2014;384(9960):2123–2131. doi:10.1016/S0140-6736(14)60842-4
 
 - Redondo-Salvo S, Fernández-López R, Ruiz R, et al. Pathways for horizontal gene transfer in bacteria revealed by a global map of their plasmids. *Nat Commun.* 2020;11(1):3602. doi:10.1038/s41467-020-17278-2
-
-- \* Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. *Intensive Care Med.* 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6
 
 - Rice LB. Emergence of vancomycin-resistant enterococci. *Emerg Infect Dis.* 2001;7(2):183–187. doi:10.3201/eid0702.700183
 
@@ -12608,8 +12604,6 @@ References marked with \* are retained for completeness but are not explicitly c
 - Versalovic J, Shortridge D, Kibler K, et al. Mutations in 23S rRNA are associated with clarithromycin resistance in *Helicobacter pylori*. *Antimicrob Agents Chemother.* 1996;40(2):477–480. doi:10.1128/AAC.40.2.477
 
 - Vezzulli L, Pruzzo C, Huq A, Colwell RR. Environmental reservoirs of *Vibrio cholerae* and their role in cholera. *Environ Microbiol Rep.* 2010;2(1):27–33. doi:10.1111/j.1758-2229.2009.00128.x
-
-- \* Wain J, Kilmarx PH, eds. *Practical Laboratory Manual for National Tuberculosis Programmes.* Geneva: WHO; 2006.
 
 - Warfel JM, Zimmerman LI, Merkel TJ. Acellular pertussis vaccines protect against disease but fail to prevent infection and transmission in a nonhuman primate model. *Proc Natl Acad Sci USA.* 2014;111(2):787–792. doi:10.1073/pnas.1314688110
 

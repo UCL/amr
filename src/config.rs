@@ -8041,15 +8041,15 @@ lazy_static! {
 
          // K. pneumoniae - Gram-negative, Enterobacterales
         // Band 7 (x10)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_025 ); // classes: pen, flu, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_025  ); // classes: pen, flu, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_025 ); // classes: pen, flu, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01   ); // classes: pen, flu, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01   ); // classes: pen, flu, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_001   ); // classes: pen, flu, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_001   ); // classes: pen, flu, bli, ceph, mono
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_ampc_derepression_emergence_rate".to_string(), 0.0); // tier 0; plasmid AmpC routes are modeled separately
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_000_3  ); // classes: pen, flu, bli, ceph, carb, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_000_3    ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_000_3    ); // classes: pen, flu, bli, ceph, carb
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_1  ); // classes: pen, flu, bli, ceph, carb, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_1    ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_1    ); // classes: pen, flu, bli, ceph, carb
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_5  ); // classes: chl
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_03    ); // classes: ag
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
@@ -8057,13 +8057,13 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1   ); // classes: fq
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.1     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.1   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.05     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.05   ); // classes: fq
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.05     ); // classes: fq (ciprofloxacin, ofloxacin, levofloxacin, moxifloxacin)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.05   ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_003  ); // classes: beta-lactams (plain penicillins, BLI combinations, cephalosporins, monobactams, carbapenems); exact K. pneumoniae host
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.05       ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_000_3  ); // classes: beta-lactams (plain penicillins, BLI combinations, cephalosporins, monobactams, carbapenems); exact K. pneumoniae host
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0; OprD is modelled only for P. aeruginosa
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 1.0      ); // classes: poly
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_polymyxin_regulatory_emergence_rate".to_string(), 1.0  ); // classes: poly; chromosomal colistin resistance
@@ -8792,7 +8792,7 @@ lazy_static! {
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_kpc_emergence_rate".to_string(), 3.0         ); // classes: pen, flu, bli, ceph, carb, mono
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 3.0   ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 3.0         ); // classes: pen, flu, bli, ceph, carb
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_cat_emergence_rate".to_string(), 0.5       ); // classes: chl; modeled CAT route
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_cat_emergence_rate".to_string(), 0.3       ); // classes: chl; modeled CAT route
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.05   ); // classes: ag
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
@@ -9067,14 +9067,14 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.02           ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01  ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0 - gonococcal PPNG is TEM-family, not staphylococcal blaZ
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.02 ); // classes: pen; plasmid-mediated PPNG route
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.003 ); // classes: pen; plasmid-mediated PPNG route
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // tier 0 (EnzymeMphA: Enterobacterales + EntericPathogen only)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_3  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.02            ); // classes: tet (tetracycline + doxycycline only; minocycline and tigecycline not effluxed by TetABC)
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.002        ); // classes: pen, flu, bli, ceph, mono; penA mosaic route
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.002       ); // classes: pen, mac, tet, chl
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_3      ); // classes: pen, flu, bli, ceph, mono; penA mosaic route
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_3     ); // classes: pen, mac, tet, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0 ); // tier 0
 
@@ -11473,19 +11473,19 @@ lazy_static! {
         // Bacterium-specific sepsis baseline log-odds. These are calibrated
         // best-guess placeholders rather than direct empirical probabilities.
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-    ("acinetobacter_baumannii", -3.9),
-    ("citrobacter_spp.", -6.2),
-    ("enterobacter_spp.", -1.6),
-    ("enterococcus_faecalis", -1.3),
-    ("enterococcus_faecium", -1.0),
-    ("escherichia_coli", -9.7 ),
-    ("klebsiella_pneumoniae", -7.7),
+    ("acinetobacter_baumannii", -3.5),
+    ("citrobacter_spp.", -5.5),
+    ("enterobacter_spp.", -1.0),
+    ("enterococcus_faecalis", -0.8),
+    ("enterococcus_faecium", -0.8),
+    ("escherichia_coli", -9.9 ),
+    ("klebsiella_pneumoniae", -8.1),
     ("morganella_spp.", -5.9),
     ("proteus_spp.", -5.6),
-    ("serratia_spp.", -2.8),
-    ("pseudomonas_aeruginosa", -1.3),
+    ("serratia_spp.", -2.1),
+    ("pseudomonas_aeruginosa", -1.0),
     ("stenotrophomonas_maltophilia", -6.1),
-    ("staphylococcus_aureus", -8.3),
+    ("staphylococcus_aureus", -8.8),
     ("staphylococcus_epidermidis", -6.1),
     ("streptococcus_pneumoniae", -7.7),
     ("salmonella_enterica_serovar_typhi", -6.2),
@@ -11494,15 +11494,15 @@ lazy_static! {
     ("shigella_spp.", -22.0),
     ("neisseria_gonorrhoeae", -50.0),
     ("streptococcus_pyogenes", -5.0),
-    ("streptococcus_agalactiae", -2.3),
+    ("streptococcus_agalactiae", -1.6),
     ("haemophilus_influenzae", -10.0),
     ("chlamydia_trachomatis", -17.1),
     ("vibrio_cholerae", -5.8),
-    ("neisseria_meningitidis", -4.3),
+    ("neisseria_meningitidis", -3.6),
     ("listeria_monocytogenes", -6.1),
     ("clostridioides_difficile", -8.6),
     ("campylobacter_jejuni", -19.0),
-    ("enterobacter_cloacae", -2.8),
+    ("enterobacter_cloacae", -2.2),
     ("yersinia_enterocolitica", -7.6),
     ("moraxella_catarrhalis", -12.5),
     ("treponema_pallidum", -9.1),
@@ -11510,7 +11510,7 @@ lazy_static! {
     ("helicobacter_pylori", -500.0),
     ("mdr_mycobacterium_tuberculosis", -37.0),
     ("mycoplasma_pneumoniae", -16.8),
-    ("legionella_pneumophila", -8.0),
+    ("legionella_pneumophila", -7.0),
 ];
 
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
