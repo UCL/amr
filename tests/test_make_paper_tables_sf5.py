@@ -21,12 +21,13 @@ def _sf5_frame(
     counts: list[object],
     *,
     collection_enabled: object = True,
+    schema_version: int = SUPPORTED_SUMMARY_SCHEMA_VERSION,
 ) -> pd.DataFrame:
     if len(counts) != len(_SF5_STAGES):
         raise AssertionError("one count is required for each SF5 stage")
 
     data: dict[str, list[object]] = {
-        SUMMARY_SCHEMA_VERSION_COLUMN: [SUPPORTED_SUMMARY_SCHEMA_VERSION],
+        SUMMARY_SCHEMA_VERSION_COLUMN: [schema_version],
         "time_in_years": [92.0],
         "policy_option": [0],
         "run_id": [7],
@@ -131,6 +132,21 @@ class SupplementaryFigureS5ContractTests(unittest.TestCase):
         self.assertIn("diagnostic-cascade collection is unavailable", message)
         self.assertIn(f"{_SF5_COLLECTION_ENABLED_COLUMN}=false", message)
 
+    def test_legacy_schemas_remain_rejected_even_with_complete_sf5_columns(self) -> None:
+        for schema_version in (1, 2):
+            with self.subTest(schema_version=schema_version):
+                rows, problems = _parse_frame(
+                    _sf5_frame(
+                        [100, 80, 20, 60, 50],
+                        schema_version=schema_version,
+                    )
+                )
+
+                self.assertEqual(rows, [])
+                message = " ".join(problems)
+                self.assertIn("unsupported simulation-summary schema", message)
+                self.assertIn("requires version 3", message)
+
     def test_stage_metadata_and_definitions_match_the_model_contract(self) -> None:
         parents = {str(stage["key"]): stage["parent"] for stage in _SF5_STAGES}
         self.assertEqual(
@@ -148,7 +164,9 @@ class SupplementaryFigureS5ContractTests(unittest.TestCase):
         self.assertIn("completion of resistance/susceptibility testing", definitions)
         self.assertIn("excludes H. pylori", definitions)
         self.assertIn("T. pallidum remains included", definitions)
-        self.assertIn("Reselection of an active course", definitions)
+        self.assertIn("genuinely new course", definitions)
+        self.assertIn("active identified bacteria", definitions)
+        self.assertIn("not restricted to the newly selected drug", definitions)
 
 
 if __name__ == "__main__":

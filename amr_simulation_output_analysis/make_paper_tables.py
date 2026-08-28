@@ -10,6 +10,9 @@ Usage
 Single run:
     python amr_simulation_output_analysis/make_paper_tables.py output_graphs/calibration_summary_958282.txt
 
+Legacy schema 1/2 run (all outputs except Supplementary Figure S5):
+    python amr_simulation_output_analysis/make_paper_tables.py --legacy-without-sf5 output_graphs/calibration_summary_958282.txt
+
 Multiple runs (pass explicit paths or a glob):
     python amr_simulation_output_analysis/make_paper_tables.py output_graphs/calibration_summary_*.txt
 
@@ -57,14 +60,17 @@ paper_tables/
 from __future__ import annotations
 
 import glob
+import html
 import io
 import json
 import math
 import re
 import shutil
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Callable, Union
+from typing import Callable, Iterator, Union
 
 import matplotlib
 matplotlib.use("Agg")
@@ -98,6 +104,48 @@ OUT_DIR = REPO_ROOT / "paper_tables"
 CALIBRATION_TARGETS_PATH = REPO_ROOT / "data" / "calibration_targets.json"
 CALIBRATION_TARGET_RANGES_PATH = REPO_ROOT / "data" / "calibration_target_ranges_v1.csv"
 SIMULATION_OUTPUTS_DIR = REPO_ROOT / "amr_simulation_output_analysis_outputs"
+LEGACY_WITHOUT_SF5_FLAG = "--legacy-without-sf5"
+
+# The shared schema validator deliberately remains strict by default.  This
+# context is enabled only while building explicitly requested non-SF5 paper
+# outputs from schemas 1/2.  ContextVar tokens guarantee that direct helper
+# calls and later builds in the same interpreter return to strict validation.
+_ALLOW_LEGACY_NON_SF5_SCHEMAS: ContextVar[bool] = ContextVar(
+    "allow_legacy_non_sf5_schemas",
+    default=False,
+)
+
+
+@contextmanager
+def _legacy_non_sf5_schema_validation(enabled: bool) -> Iterator[None]:
+    token = _ALLOW_LEGACY_NON_SF5_SCHEMAS.set(bool(enabled))
+    try:
+        yield
+    finally:
+        _ALLOW_LEGACY_NON_SF5_SCHEMAS.reset(token)
+
+
+def _validate_paper_summary_frame(
+    frame: pd.DataFrame,
+    source: object = None,
+) -> int | None:
+    """Validate a paper input under the current, explicitly scoped workflow."""
+
+    return validate_summary_frame(
+        frame,
+        source,
+        allow_legacy_calibration_schemas=_ALLOW_LEGACY_NON_SF5_SCHEMAS.get(),
+    )
+
+
+def _paper_schema_contract_note() -> str:
+    if _ALLOW_LEGACY_NON_SF5_SCHEMAS.get():
+        return (
+            "This explicitly requested compatibility build accepts simulation-summary "
+            "schemas 1-3 for outputs unaffected by the diagnostic-cascade schema changes; "
+            "Supplementary Figure S5 is omitted."
+        )
+    return "The paper-output build accepts only the current versioned simulation-summary schema."
 
 # Figure 2 toggle. Options:
 #   "median_range" - simulation median with 5th-95th percentile range
@@ -1532,8 +1580,174 @@ def _read_csv_selected(csv_path: Path, usecols: list[str] | set[str]) -> pd.Data
         frame = pd.read_csv(csv_path, usecols=selected, engine="pyarrow")
     except Exception:
         frame = pd.read_csv(csv_path, usecols=selected)
-    validate_summary_frame(frame, csv_path)
+    _validate_paper_summary_frame(frame, csv_path)
     return frame
+
+
+def _unique_csv_paths(csv_paths: list[Path]) -> list[Path]:
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for csv_path in csv_paths:
+        resolved = csv_path.resolve(strict=False)
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append(csv_path)
+    return unique
+
+
+def _preflight_simulation_csv_schemas(
+    csv_paths: list[Path],
+    *,
+    allow_legacy: bool,
+) -> dict[Path, int]:
+    """Validate every discovered CSV before generated output folders are removed."""
+
+    versions: dict[Path, int] = {}
+    for csv_path in _unique_csv_paths(csv_paths):
+        # Reading the header first produces the project's explicit missing-schema
+        # diagnostic instead of pandas' less actionable usecols error.
+        columns = _simulation_csv_column_names(csv_path)
+        if columns is None:
+            raise SimulationSummarySchemaError(
+                f"{csv_path} has no readable simulation-summary header."
+            )
+        validate_summary_header(columns, csv_path)
+        try:
+            probe = pd.read_csv(csv_path, usecols=[SUMMARY_SCHEMA_VERSION_COLUMN])
+        except (FileNotFoundError, OSError, ValueError, pd.errors.EmptyDataError) as exc:
+            raise SimulationSummarySchemaError(
+                f"Unable to read the simulation-summary schema from {csv_path}: {exc}"
+            ) from exc
+        version = validate_summary_frame(
+            probe,
+            csv_path,
+            allow_legacy_calibration_schemas=allow_legacy,
+        )
+        if version is None:
+            raise SimulationSummarySchemaError(
+                f"{csv_path} contains no data rows from which to verify its "
+                "simulation-summary schema."
+            )
+        versions[csv_path] = int(version)
+    return versions
+
+
+def _reported_calibration_schema(meta: dict[str, object]) -> int | None:
+    raw = meta.get("simulation_summary_schema")
+    if raw is None or not str(raw).strip():
+        return None
+    match = re.fullmatch(r"\s*(\d+)\s*(?:\([^)]*\))?\s*", str(raw))
+    if match is None:
+        source = meta.get("source_file", "calibration summary")
+        raise SimulationSummarySchemaError(
+            f"{source} contains malformed Simulation summary schema metadata: {raw!r}."
+        )
+    return int(match.group(1))
+
+
+def _validate_reported_calibration_schemas(
+    runs: list[dict],
+    *,
+    allow_legacy: bool,
+) -> None:
+    """Validate schema provenance embedded in newly generated calibration summaries."""
+
+    allowed = {1, 2, 3} if allow_legacy else {3}
+    for run in runs:
+        meta = run.get("meta", {})
+        if not isinstance(meta, dict):
+            continue
+        version = _reported_calibration_schema(meta)
+        if version is not None and version not in allowed:
+            source = meta.get("source_file", "calibration summary")
+            requirement = (
+                "--legacy-without-sf5 accepts only schemas 1, 2, and 3"
+                if allow_legacy
+                else "the default paper build requires schema 3"
+            )
+            raise SimulationSummarySchemaError(
+                f"{source} reports simulation-summary schema {version}; {requirement}."
+            )
+
+
+def _paper_build_provenance_text(
+    input_paths: list[Path],
+    runs: list[dict],
+    csv_schema_versions: dict[Path, int],
+    *,
+    legacy_without_sf5: bool,
+) -> str:
+    mode = (
+        "legacy compatibility (--legacy-without-sf5)"
+        if legacy_without_sf5
+        else "current schema only"
+    )
+    lines = [
+        "Paper-output build provenance",
+        f"Validation mode: {mode}",
+        "Supplementary Figure S5: "
+        + ("omitted by compatibility mode" if legacy_without_sf5 else "enabled"),
+        "",
+        "Calibration-summary inputs:",
+    ]
+    lines.extend(f"- {path.resolve(strict=False)}" for path in input_paths)
+
+    lines.extend(["", "Calibration-summary reported provenance:"])
+    any_reported = False
+    for run in runs:
+        meta = run.get("meta", {})
+        if not isinstance(meta, dict):
+            continue
+        reported_schema = _reported_calibration_schema(meta)
+        reported_csv = str(meta.get("simulation_source_csv") or "not reported")
+        source_file = str(meta.get("source_file") or meta.get("run_id") or "unknown")
+        if reported_schema is not None or reported_csv != "not reported":
+            any_reported = True
+        schema_text = str(reported_schema) if reported_schema is not None else "not reported"
+        lines.append(
+            f"- {source_file}: source CSV={reported_csv}; schema={schema_text}"
+        )
+    if not any_reported:
+        lines.append("- not reported by the supplied calibration summaries")
+
+    lines.extend(["", "Discovered simulation-summary CSVs (authoritative preflight):"])
+    if csv_schema_versions:
+        for csv_path, version in csv_schema_versions.items():
+            status = "current" if version == 3 else "legacy"
+            lines.append(
+                f"- {csv_path.resolve(strict=False)}: schema {version} ({status})"
+            )
+    else:
+        lines.append("- none discovered")
+
+    if legacy_without_sf5:
+        lines.extend(
+            [
+                "",
+                "Compatibility statement: schemas 1-3 are accepted only for paper outputs "
+                "unaffected by the diagnostic-cascade changes. Supplementary Figure S5 is "
+                "not generated or represented by a placeholder in this build.",
+            ]
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _paper_build_provenance_html(
+    provenance_text: str,
+    *,
+    legacy_without_sf5: bool,
+) -> str:
+    body = ""
+    if legacy_without_sf5:
+        body += (
+            "<div class='meta-box' style='border-left-color:#d97706'>"
+            "<strong>Legacy compatibility build.</strong> Simulation-summary schemas 1-3 "
+            "are accepted only for outputs unaffected by the diagnostic-cascade changes. "
+            "Supplementary Figure S5 was intentionally omitted.</div>\n"
+        )
+    body += "<h2>Build provenance</h2>\n"
+    body += "<pre>" + html.escape(provenance_text) + "</pre>\n"
+    return body
 
 
 _F6_SERIOUS_RESISTANCE_COLUMN = "infection_acquisition_people_with_serious_r_count"
@@ -7441,7 +7655,7 @@ def _supplementary_table_s1_placeholder(
             body += f"<li>{problem}</li>\n"
         body += "</ul>\n"
     body += _html_footnotes([
-        "The paper-output build accepts only the current versioned simulation-summary schema.",
+        _paper_schema_contract_note(),
         "No supplementary-table-specific CSV or person-level output is required.",
     ])
     body += "</body></html>"
@@ -7763,7 +7977,7 @@ def _s8_placeholder(
         _S8_TITLE,
         message,
         [
-            "The paper-output build accepts only the current versioned simulation-summary schema.",
+            _paper_schema_contract_note(),
             "No new model-output CSV file is required or produced.",
         ],
         agg=agg,
@@ -10274,7 +10488,7 @@ def _sf4_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
         try:
             chunk_iter = pd.read_csv(csv_path, usecols=wanted, chunksize=4000)
             for chunk in chunk_iter:
-                validate_summary_frame(chunk, source=csv_path)
+                _validate_paper_summary_frame(chunk, source=csv_path)
                 if chunk.empty:
                     continue
                 if "policy_option" in chunk.columns:
@@ -10569,14 +10783,14 @@ _SF5_STAGES: list[dict[str, str | None]] = [
         "parent": "id",
         "label": "Targeted antibiotic treatment started",
         "column": "diagnostic_cascade_targeted_treatment_started",
-        "definition": "A targeted-context antibiotic has its stored initiation date set to the current day while the active infection is identified.",
+        "definition": "A genuinely new targeted-context antibiotic course is selected while the bacterium is in the active identified-bacteria selection set.",
     },
     {
         "key": "effective",
         "parent": "targeted",
         "label": "Effective targeted antibiotic treatment started",
         "column": "diagnostic_cascade_effective_targeted_treatment_started",
-        "definition": "A targeted-context active antibiotic reaches activity_r >= 0.500 for the bacterium.",
+        "definition": "After an attributed targeted-course start, an active targeted-context antibiotic reaches activity_r >= 0.500 for the bacterium; the effective drug need not be the newly selected drug.",
     },
 ]
 _SF5_SETTINGS = [
@@ -10615,8 +10829,8 @@ def _sf5_definitions_table_html() -> str:
             "Hospital status is captured at cascade entry. Community means not hospitalized; hospital means hospitalized.",
             "Identification requires eligibility; AST-result availability and targeted treatment each require identification; effective targeted treatment requires targeted treatment.",
             "The Rust flag records completion of resistance/susceptibility testing and result availability.",
-            "A targeted-context active antibiotic with resistance-adjusted activity_r >= 0.500 for the bacterium.",
-            "Targeted context is stored per person-drug rather than per bacterium. Reselection of an active course can refresh its stored initiation date, so the same-day marker is not guaranteed to denote a pharmacologically new course.",
+            "After an attributed targeted-course start, any active targeted-context antibiotic with resistance-adjusted activity_r >= 0.500 for the bacterium.",
+            "The targeted stage requires a genuinely new course and snapshots all active identified bacteria supplied to that selection decision. Inclusion means the bacterium was considered by selection, not that it uniquely caused the drug choice. Later effectiveness is regimen-level and is not restricted to the newly selected drug.",
             "All downstream stages are assigned back to the episode's cascade-entry timestep/year. The model uses daily timesteps, so same-day order is not a precise sub-day clinical timestamp.",
             "The diagnostic-cascade aggregate excludes H. pylori. T. pallidum remains included.",
             "Counts are raw simulated counts. Episodes that resolve, die, or are censored before a later stage remain in the earlier-stage denominator and are not imputed into later stages.",
@@ -11108,8 +11322,8 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
         "Community and hospital groups use hospital status at cascade entry; community means not hospitalized and hospital means hospitalized.",
         "Stage percentages use the declared prerequisite: identification uses eligible episodes; AST-result availability and targeted treatment use identified episodes; effective targeted treatment uses targeted treatment.",
         "The resistance-testing stage records completed AST/resistance testing with a result available.",
-        "Effective targeted therapy means a targeted-context active antibiotic with activity_r >= 0.500 for the bacterium, matching the sepsis effective-therapy threshold.",
-        "Targeted context is person-drug-level rather than bacterium-owned, and active-course reselection can refresh the stored initiation date used by the same-day targeted marker.",
+        "The targeted stage requires a genuinely new targeted-context course and includes only bacteria in the active identified selection set captured when that course was selected; active-course reselection emits no start event.",
+        "Effective targeted therapy means that, after an attributed targeted start, any active targeted-context antibiotic reaches activity_r >= 0.500 for the bacterium. The effective drug is not necessarily the newly selected drug.",
         "The model uses daily timesteps, so same-model-day ordering is not a precise sub-day clinical timestamp.",
         "Data source: aggregate simulation_summary_run#.csv fields only. calibration_summary_*.txt is not used as a reader-facing substitute for this figure.",
         "The diagnostic-cascade aggregate excludes H. pylori and includes T. pallidum.",
@@ -11195,7 +11409,7 @@ def _sf6_placeholder(
             "infection denominators by bacterium for the 2022-2025 serious-R window.",
             "calibration_summary_*.txt is an internal diagnostic file and is not required "
             "to interpret this reader-facing page.",
-            "The paper-output build accepts only the current versioned simulation-summary schema.",
+            _paper_schema_contract_note(),
         ],
         agg=agg,
         extra_html=extra_html,
@@ -13085,12 +13299,23 @@ def _index_existing_link_items(
     return body
 
 
-def make_index(agg: dict, out_dir: Path) -> None:
+def make_index(
+    agg: dict,
+    out_dir: Path,
+    *,
+    build_provenance: str = "",
+    legacy_without_sf5: bool = False,
+) -> None:
     n = agg.get("n_runs", 1)
 
     body  = _html_head("Paper Outputs — AMR Simulation")
     body += "<h1>Paper outputs — AMR Simulation Calibration</h1>\n"
     body += f"<p class='note'>Accepted runs: {n}</p>\n"
+    if build_provenance:
+        body += _paper_build_provenance_html(
+            build_provenance,
+            legacy_without_sf5=legacy_without_sf5,
+        )
 
     body += "<h2>Tables</h2>\n<ul>\n"
     body += (
@@ -13255,17 +13480,32 @@ def make_index(agg: dict, out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def main(input_args: list[str]) -> None:
-    if not input_args:
+    legacy_without_sf5 = False
+    path_args: list[str] = []
+    for arg in input_args:
+        if arg == LEGACY_WITHOUT_SF5_FLAG:
+            legacy_without_sf5 = True
+        elif arg.startswith("--"):
+            print(f"Unknown option: {arg}")
+            print(
+                "Usage: python -m amr_simulation_output_analysis.make_paper_tables "
+                f"[{LEGACY_WITHOUT_SF5_FLAG}] <calibration_summary_*.txt> [...]"
+            )
+            sys.exit(1)
+        else:
+            path_args.append(arg)
+
+    if not path_args:
         print(
             "Usage: python -m amr_simulation_output_analysis.make_paper_tables "
-            "<calibration_summary_*.txt> [...]"
+            f"[{LEGACY_WITHOUT_SF5_FLAG}] <calibration_summary_*.txt> [...]"
         )
         sys.exit(1)
 
     # Expand any glob patterns
     paths: list[Path] = []
     seen_paths: set[Path] = set()
-    for arg in input_args:
+    for arg in path_args:
         candidates = [_resolve_project_path(item) for item in glob.glob(arg)]
         if not candidates and not Path(arg).is_absolute():
             candidates = [Path(item) for item in glob.glob(str(REPO_ROOT / arg))]
@@ -13298,16 +13538,55 @@ def main(input_args: list[str]) -> None:
     # Auto-discover matching simulation_summary CSVs for simulation-output figures.
     csv_paths = _discover_f1_simulation_csvs(paths)
     csv_runs_with_scale = _discover_simulation_csvs_with_scale(paths)
+    all_discovered_csvs = _unique_csv_paths(
+        [*csv_paths, *(csv_path for csv_path, _ in csv_runs_with_scale)]
+    )
+    try:
+        _validate_reported_calibration_schemas(
+            runs,
+            allow_legacy=legacy_without_sf5,
+        )
+        csv_schema_versions = _preflight_simulation_csv_schemas(
+            all_discovered_csvs,
+            allow_legacy=legacy_without_sf5,
+        )
+    except SimulationSummarySchemaError as exc:
+        print(f"  [ERROR] Paper-output schema preflight failed: {exc}")
+        if not legacy_without_sf5:
+            print(
+                "  To build unaffected outputs from a schema 1/2 summary while omitting "
+                f"Supplementary Figure S5, rerun with {LEGACY_WITHOUT_SF5_FLAG}."
+            )
+        sys.exit(2)
+
+    if legacy_without_sf5:
+        print(
+            "  [WARN] Legacy paper compatibility is enabled. Supplementary Figure S5 "
+            "will be omitted from the entire build."
+        )
+        if csv_schema_versions:
+            for csv_path, version in csv_schema_versions.items():
+                status = "current" if version == 3 else "legacy"
+                print(f"         {csv_path}: schema {version} ({status})")
+        else:
+            print("         No matching simulation-summary CSVs were discovered.")
+
     if csv_paths:
+        supplementary_csv_figures = "S1, S3, S6, and S8"
+        if not legacy_without_sf5:
+            supplementary_csv_figures = "S1, S3, S5, S6, and S8"
         print(
             f"  Found {len(csv_paths)} simulation CSV(s) for Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, and 12, "
-            "and Supplementary Figures S1, S3, S5, S6, and S8. "
+            f"and Supplementary Figures {supplementary_csv_figures}. "
             "Supplementary Table S2, Figure 13, and Supplementary Figure S2 use calibration summary tables."
         )
     else:
+        supplementary_csv_figures = "S1, S3, S6, and S8"
+        if not legacy_without_sf5:
+            supplementary_csv_figures = "S1, S3, S5, S6, and S8"
         print(
             "  No matching simulation CSVs found; Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, and 12, and "
-            "Supplementary Figures S1, S3, S5, S6, and S8 may render as placeholders. "
+            f"Supplementary Figures {supplementary_csv_figures} may render as placeholders. "
             "Supplementary Table S2, Figure 13, and Supplementary Figure S2 use calibration summary tables."
         )
 
@@ -13327,21 +13606,23 @@ def main(input_args: list[str]) -> None:
         "Supplementary Figure S3",
     )
     figure_12_csv_paths = csv_paths
-    sf5_required_columns = [
-        column
-        for _, suffix in _SF5_SETTINGS
-        for column in _sf5_stage_columns_for_suffix(suffix)
-    ]
-    sf5_csv_paths = _filter_simulation_csvs_with_columns(
-        csv_paths,
-        [
-            "time_in_years",
-            "policy_option",
-            _SF5_COLLECTION_ENABLED_COLUMN,
-            *sf5_required_columns,
-        ],
-        "Supplementary Figure S5",
-    )
+    sf5_csv_paths: list[Path] = []
+    if not legacy_without_sf5:
+        sf5_required_columns = [
+            column
+            for _, suffix in _SF5_SETTINGS
+            for column in _sf5_stage_columns_for_suffix(suffix)
+        ]
+        sf5_csv_paths = _filter_simulation_csvs_with_columns(
+            csv_paths,
+            [
+                "time_in_years",
+                "policy_option",
+                _SF5_COLLECTION_ENABLED_COLUMN,
+                *sf5_required_columns,
+            ],
+            "Supplementary Figure S5",
+        )
     sf6_csv_paths = _filter_simulation_csvs_with_columns(
         csv_paths,
         [_SF6_TOTAL_COLUMN],
@@ -13349,49 +13630,79 @@ def main(input_args: list[str]) -> None:
     )
 
     out = OUT_DIR
+    build_provenance = _paper_build_provenance_text(
+        paths,
+        runs,
+        csv_schema_versions,
+        legacy_without_sf5=legacy_without_sf5,
+    )
     print(f"\nGenerating paper outputs in {out.absolute()} ...")
     _prepare_output_dirs(out)
-    make_t1(out)
-    make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
-    make_figure_1_calibration_headline_metrics(agg, out, runs=runs)
-    make_figure_2_paper_parts(
-        agg,
-        out,
-        runs=runs,
-        summary_mode=FIGURE2_SUMMARY_MODE,
-    )
-    make_figure_2a_hospital_resistance_fit(
-        agg,
-        out,
-        csv_paths,
-        summary_mode=FIGURE2_SUMMARY_MODE,
-    )
-    make_figure_2b_community_resistance_fit(
-        agg,
-        out,
-        csv_paths,
-        summary_mode=FIGURE2_SUMMARY_MODE,
-    )
-    make_figure_3_calibration_drug_class_share(agg, out, runs=runs)
-    make_figure_4_calibration_infection_deaths(agg, out, runs=runs)
-    make_figure_5_calibration_carriage_prevalence(agg, out, runs=runs)
-    make_supplementary_figure_s1_potential_activity_retained(sf1_csv_paths, out, agg=agg)
-    make_supplementary_figure_s2_microbiome_resistance_reservoir(runs, out, agg=agg)
-    make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(sf3_csv_paths, out, agg=agg)
-    make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(sf5_csv_paths, out, agg=agg)
-    make_supplementary_figure_s6_new_active_infection_denominators(sf6_csv_paths, paths, out, agg=agg)
-    make_supplementary_figure_s8_infection_outcome_pathway(st1_csv_paths, out, agg=agg)
-    make_figure_6_resistance_trend(csv_paths, out)
-    make_figure_6b_resistance_trend_by_bacterium(csv_paths, out)
-    make_figure_6c_serious_r_trend_by_bacterium(csv_paths, out)
-    make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
-    make_figure_7_infection_death_rate_by_region(csv_paths, out, agg=agg)
-    make_figure_8_antibiotic_use_by_context(csv_runs_with_scale, out, agg=agg)
-    make_figure_11_sepsis_context_effective_therapy(csv_paths, out, agg=agg)
-    make_figure_15_mean_activity_by_bacteria(csv_paths, out, agg=agg)
-    make_figure_12_resistance_mechanisms_by_bacterium(figure_12_csv_paths, out, agg=agg)
-    make_figure_13_active_infection_incidence(agg, out, runs=runs)
-    make_index(agg, out)
+    _save(out / "build_provenance.txt", build_provenance)
+    with _legacy_non_sf5_schema_validation(legacy_without_sf5):
+        make_t1(out)
+        make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
+        make_figure_1_calibration_headline_metrics(agg, out, runs=runs)
+        make_figure_2_paper_parts(
+            agg,
+            out,
+            runs=runs,
+            summary_mode=FIGURE2_SUMMARY_MODE,
+        )
+        make_figure_2a_hospital_resistance_fit(
+            agg,
+            out,
+            csv_paths,
+            summary_mode=FIGURE2_SUMMARY_MODE,
+        )
+        make_figure_2b_community_resistance_fit(
+            agg,
+            out,
+            csv_paths,
+            summary_mode=FIGURE2_SUMMARY_MODE,
+        )
+        make_figure_3_calibration_drug_class_share(agg, out, runs=runs)
+        make_figure_4_calibration_infection_deaths(agg, out, runs=runs)
+        make_figure_5_calibration_carriage_prevalence(agg, out, runs=runs)
+        make_supplementary_figure_s1_potential_activity_retained(sf1_csv_paths, out, agg=agg)
+        make_supplementary_figure_s2_microbiome_resistance_reservoir(runs, out, agg=agg)
+        make_supplementary_figure_s3_carrier_vs_non_carrier_incidence(sf3_csv_paths, out, agg=agg)
+        if not legacy_without_sf5:
+            # SF5 always retains the strict current-schema contract, even if a
+            # caller requested compatibility mode for the other outputs.
+            with _legacy_non_sf5_schema_validation(False):
+                make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
+                    sf5_csv_paths,
+                    out,
+                    agg=agg,
+                )
+        make_supplementary_figure_s6_new_active_infection_denominators(
+            sf6_csv_paths,
+            paths,
+            out,
+            agg=agg,
+        )
+        make_supplementary_figure_s8_infection_outcome_pathway(st1_csv_paths, out, agg=agg)
+        make_figure_6_resistance_trend(csv_paths, out)
+        make_figure_6b_resistance_trend_by_bacterium(csv_paths, out)
+        make_figure_6c_serious_r_trend_by_bacterium(csv_paths, out)
+        make_figure_20_serious_r_by_hospital_community(paths, out, agg=agg)
+        make_figure_7_infection_death_rate_by_region(csv_paths, out, agg=agg)
+        make_figure_8_antibiotic_use_by_context(csv_runs_with_scale, out, agg=agg)
+        make_figure_11_sepsis_context_effective_therapy(csv_paths, out, agg=agg)
+        make_figure_15_mean_activity_by_bacteria(csv_paths, out, agg=agg)
+        make_figure_12_resistance_mechanisms_by_bacterium(
+            figure_12_csv_paths,
+            out,
+            agg=agg,
+        )
+        make_figure_13_active_infection_incidence(agg, out, runs=runs)
+        make_index(
+            agg,
+            out,
+            build_provenance=build_provenance,
+            legacy_without_sf5=legacy_without_sf5,
+        )
 
     print(f"\nDone. Open {out / 'index.html'} to browse paper outputs.")
 

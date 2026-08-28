@@ -90,23 +90,90 @@ const DRUG_ASSISTED_CLEARANCE_EFFECT_THRESHOLD: f64 = 1e-6;
 // DRUG AVAILABILITY HELPER
 // =====================================================================================
 
-/// Return whether a drug has been introduced and its regional availability is at least 0.01.
-#[inline]
-fn is_drug_available(
-    drug_idx: usize,
-    drug_name: &str,
-    region_cur_in: &str,
-    region_living: &str,
+const DRUG_AVAILABILITY_REGION_COUNT: usize = 7;
+const DRUG_AVAILABILITY_REGIONS: [Region; DRUG_AVAILABILITY_REGION_COUNT] = [
+    Region::NorthAmerica,
+    Region::SouthAmerica,
+    Region::Africa,
+    Region::Asia,
+    Region::Europe,
+    Region::Oceania,
+    Region::Home,
+];
+
+/// Time-aware drug availability and eligible formularies indexed by effective region.
+///
+/// Availability depends only on the timestep, effective region, and drug. Building this once
+/// per timestep avoids repeating formatted parameter-key construction and the full formulary
+/// scan for every person-day.
+pub(crate) struct DrugAvailabilityCache {
     time_step: usize,
-    param_cache: &ParameterKeyCache,
-) -> bool {
-    let intro_step = param_cache.drug_introduction_day[drug_idx];
-    if time_step < intro_step {
-        return false;
+    values: Vec<f64>,
+    available_drug_indices: Vec<usize>,
+    available_drug_counts: [usize; DRUG_AVAILABILITY_REGION_COUNT],
+}
+
+impl DrugAvailabilityCache {
+    pub(crate) fn new(time_step: usize, param_cache: &ParameterKeyCache) -> Self {
+        let drug_count = DRUG_SHORT_NAMES.len();
+        let mut values = Vec::with_capacity(DRUG_AVAILABILITY_REGION_COUNT * drug_count);
+        let mut available_drug_indices = vec![0; DRUG_AVAILABILITY_REGION_COUNT * drug_count];
+        let mut available_drug_counts = [0; DRUG_AVAILABILITY_REGION_COUNT];
+        for (region_idx, region) in DRUG_AVAILABILITY_REGIONS.into_iter().enumerate() {
+            // Preserve the former Home/Home fallback exactly. Normal Home locations resolve to
+            // the individual's actual living region before lookup.
+            let region_living = (region == Region::Home).then_some(region.as_str());
+            for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                let availability = get_drug_availability_time_aware(
+                    drug_name,
+                    region.as_str(),
+                    region_living,
+                    time_step,
+                );
+                values.push(availability);
+                if time_step >= param_cache.drug_introduction_day[drug_idx] && availability >= 0.01
+                {
+                    // Appending in canonical drug-index order preserves the former per-person
+                    // scan order used by weighted treatment selection.
+                    let available_idx = region_idx * drug_count + available_drug_counts[region_idx];
+                    available_drug_indices[available_idx] = drug_idx;
+                    available_drug_counts[region_idx] += 1;
+                }
+            }
+        }
+        Self {
+            time_step,
+            values,
+            available_drug_indices,
+            available_drug_counts,
+        }
     }
-    let avail =
-        get_drug_availability_time_aware(drug_name, region_cur_in, Some(region_living), time_step);
-    avail >= 0.01
+
+    #[inline]
+    fn region_idx(effective_region: Region) -> usize {
+        match effective_region {
+            Region::NorthAmerica => 0,
+            Region::SouthAmerica => 1,
+            Region::Africa => 2,
+            Region::Asia => 3,
+            Region::Europe => 4,
+            Region::Oceania => 5,
+            Region::Home => 6,
+        }
+    }
+
+    #[inline]
+    fn availability(&self, effective_region: Region, drug_idx: usize) -> f64 {
+        let region_idx = Self::region_idx(effective_region);
+        self.values[region_idx * DRUG_SHORT_NAMES.len() + drug_idx]
+    }
+
+    #[inline]
+    fn available_drugs(&self, effective_region: Region) -> &[usize] {
+        let region_idx = Self::region_idx(effective_region);
+        let start = region_idx * DRUG_SHORT_NAMES.len();
+        &self.available_drug_indices[start..start + self.available_drug_counts[region_idx]]
+    }
 }
 
 #[inline]
@@ -1371,7 +1438,7 @@ fn start_drug_course(
     drug_idx: usize,
     time_step: usize,
     context: AntibioticUseContext,
-) {
+) -> bool {
     let is_new_course =
         !individual.cur_use_drug[drug_idx] || individual.date_drug_initiated[drug_idx] == i32::MIN;
     individual.cur_use_drug[drug_idx] = true;
@@ -1381,6 +1448,7 @@ fn start_drug_course(
     if is_new_course {
         set_drug_context(individual, drug_idx, context);
     }
+    is_new_course
 }
 
 #[inline]
@@ -2129,6 +2197,44 @@ pub(crate) struct AppliedActivityObservation {
     pub best_activity: f64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One genuine targeted drug-course start, with the bacteria that were
+/// identified and active at the point of drug selection. This reporting-only
+/// event is ephemeral and does not alter or persist treatment state.
+pub(crate) struct TargetedCourseStartEvent {
+    pub drug_idx: usize,
+    identified_bacteria_mask: u64,
+}
+
+impl TargetedCourseStartEvent {
+    pub(crate) fn from_identified_bacteria(drug_idx: usize, identified_bacteria: &[usize]) -> Self {
+        let mut identified_bacteria_mask = 0u64;
+        for &bacteria_idx in identified_bacteria {
+            debug_assert!(bacteria_idx < u64::BITS as usize);
+            identified_bacteria_mask |= 1u64 << bacteria_idx;
+        }
+        Self {
+            drug_idx,
+            identified_bacteria_mask,
+        }
+    }
+
+    pub(crate) fn includes_bacterium(self, bacteria_idx: usize) -> bool {
+        bacteria_idx < u64::BITS as usize
+            && self.identified_bacteria_mask & (1u64 << bacteria_idx) != 0
+    }
+}
+
+fn targeted_course_start_event(
+    is_new_course: bool,
+    drug_idx: usize,
+    context: AntibioticUseContext,
+    identified_bacteria: &[usize],
+) -> Option<TargetedCourseStartEvent> {
+    (is_new_course && context == AntibioticUseContext::Targeted && !identified_bacteria.is_empty())
+        .then(|| TargetedCourseStartEvent::from_identified_bacteria(drug_idx, identified_bacteria))
+}
+
 #[derive(Debug)]
 pub(crate) struct SparseRuleEvents<T> {
     first: Option<T>,
@@ -2169,6 +2275,7 @@ pub(crate) struct RuleEvents {
     pub infection_acquisitions: SparseRuleEvents<InfectionAcquisitionEvent>,
     pub sepsis_onset_mask: u64,
     pub toxicity_stop_mask: u64,
+    pub targeted_course_start: Option<TargetedCourseStartEvent>,
     pub applied_activity: SparseRuleEvents<AppliedActivityObservation>,
 }
 
@@ -2300,6 +2407,7 @@ pub(crate) fn apply_rules(
     rng: &mut impl Rng,
     mechanism_cache: &MechanismCache,
     param_cache: &ParameterKeyCache,
+    drug_availability_cache: &DrugAvailabilityCache,
     policy: &PolicyAdjustments,
 ) -> RuleEvents {
     let mut events = RuleEvents::default();
@@ -2947,24 +3055,12 @@ pub(crate) fn apply_rules(
     let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
 
     // Drug initiation first decides whether to prescribe, then selects a drug.
-    let region_cur_str = individual.region_cur_in.as_str();
-    let region_liv_str = individual.region_living.as_str();
-    let mut available_drugs_buf = [0usize; 70];
-    let mut available_drugs_len = 0;
-    for (idx, &name) in DRUG_SHORT_NAMES.iter().enumerate() {
-        if is_drug_available(
-            idx,
-            name,
-            region_cur_str,
-            region_liv_str,
-            time_step,
-            param_cache,
-        ) {
-            available_drugs_buf[available_drugs_len] = idx;
-            available_drugs_len += 1;
-        }
-    }
-    let available_drugs = &available_drugs_buf[..available_drugs_len];
+    let effective_region = match individual.region_cur_in {
+        Region::Home => individual.region_living,
+        region => region,
+    };
+    debug_assert_eq!(drug_availability_cache.time_step, time_step);
+    let available_drugs = drug_availability_cache.available_drugs(effective_region);
     let available_drugs_count = available_drugs.len();
     let min_available_drugs = 5;
     // Compensate initiation odds when the historical formulary contains fewer than five drugs.
@@ -4389,12 +4485,8 @@ pub(crate) fn apply_rules(
                     }
                 }
                 // Availability is both an eligibility gate and a continuous score weight.
-                let drug_availability = get_drug_availability_time_aware(
-                    drug_name,
-                    region_cur_str,
-                    Some(region_liv_str),
-                    time_step,
-                );
+                let drug_availability =
+                    drug_availability_cache.availability(effective_region, drug_idx);
 
                 score *= drug_availability;
                 // Retain a defensive introduction gate after scoring.
@@ -4470,7 +4562,17 @@ pub(crate) fn apply_rules(
                     } else {
                         AntibioticUseContext::OtherNoActiveModelledInfection
                     };
-                    start_drug_course(individual, chosen_drug_idx, time_step, course_context);
+                    let is_new_course =
+                        start_drug_course(individual, chosen_drug_idx, time_step, course_context);
+                    if let Some(event) = targeted_course_start_event(
+                        is_new_course,
+                        chosen_drug_idx,
+                        course_context,
+                        identified_bacteria,
+                    ) {
+                        debug_assert!(events.targeted_course_start.is_none());
+                        events.targeted_course_start = Some(event);
+                    }
 
                     if matches!(selection_trigger, DrugSelectionTrigger::TreatmentFailure) {
                         // Active drugs are not attributed to individual infections, so the
@@ -6873,15 +6975,20 @@ mod tests {
         resistance_emergence_bacteria_level_factor, resistance_emergence_exposure_factor,
         resistance_emergence_multi_drug_penalty, resistance_pathway_probability,
         revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
-        standardized_site_drug_level, targeted_initiation_multiplier,
-        vaccination_acquisition_log_odds, ParameterKeyCache, RuleEvents, TreatmentFailureOutcome,
+        standardized_site_drug_level, start_drug_course, targeted_course_start_event,
+        targeted_initiation_multiplier, vaccination_acquisition_log_odds, DrugAvailabilityCache,
+        ParameterKeyCache, RuleEvents, TargetedCourseStartEvent, TreatmentFailureOutcome,
+        DRUG_AVAILABILITY_REGIONS,
     };
-    use crate::config::{parameter_store, BacteriumMechanismStatus};
+    use crate::config::{
+        get_drug_availability_time_aware, parameter_store, BacteriumMechanismStatus,
+    };
     use crate::simulation::population::{
         bacterium_mechanism_host_is_eligible, days_since_recorded_event, infection_episode_present,
         infection_episode_should_retire, infection_is_active, load_float,
-        mechanism_is_hgt_transferable, store_float, DrugClass, HospitalStatus, Individual, Region,
-        ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MISSING_EVENT_DATE,
+        mechanism_is_hgt_transferable, store_float, AntibioticUseContext, DrugClass,
+        HospitalStatus, Individual, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
+        INFECTION_EPS, MISSING_EVENT_DATE,
     };
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -7031,13 +7138,16 @@ mod tests {
             MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
         let policy = test_policy_adjustments();
         let mut rng = StepRng::new(u64::MAX, 0);
+        let time_step = original_date as usize + 1;
+        let drug_availability_cache = DrugAvailabilityCache::new(time_step, &param_cache);
 
         let events = apply_rules(
             &mut individual,
-            original_date as usize + 1,
+            time_step,
             &mut rng,
             &mechanism_cache,
             &param_cache,
+            &drug_availability_cache,
             &policy,
         );
 
@@ -7176,22 +7286,191 @@ mod tests {
         individual
     }
 
-    fn run_treatment_failure_case(mut individual: Individual, seed: u64) -> Individual {
+    fn run_treatment_failure_case_with_events(
+        mut individual: Individual,
+        seed: u64,
+    ) -> (Individual, RuleEvents) {
         let param_cache = ParameterKeyCache::new();
         let mechanism_cache =
             MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
         let policy = test_policy_adjustments();
         let mut rng = SmallRng::seed_from_u64(seed);
+        let drug_availability_cache =
+            DrugAvailabilityCache::new(FAILURE_SELECTION_TEST_DAY, &param_cache);
 
-        apply_rules(
+        let events = apply_rules(
             &mut individual,
             FAILURE_SELECTION_TEST_DAY,
             &mut rng,
             &mechanism_cache,
             &param_cache,
+            &drug_availability_cache,
             &policy,
         );
-        individual
+        (individual, events)
+    }
+
+    fn run_treatment_failure_case(individual: Individual, seed: u64) -> Individual {
+        run_treatment_failure_case_with_events(individual, seed).0
+    }
+
+    #[test]
+    fn drug_availability_cache_matches_direct_time_aware_lookup() {
+        let param_cache = ParameterKeyCache::new();
+        // Check the day before, at, and after every historical availability transition:
+        // sulfanilamide/penicillin introduction and regional ramp completion, plus colistin's
+        // introduction, interruption, and reintroduction.
+        let mut time_steps = vec![0, 35_040];
+        for years_since_start in [7, 12, 13, 17, 18, 22, 25, 30, 40, 65] {
+            let boundary = years_since_start * 365;
+            time_steps.extend([boundary - 1, boundary, boundary + 1]);
+        }
+        for &introduction_day in &param_cache.drug_introduction_day {
+            time_steps.extend([
+                introduction_day.saturating_sub(1),
+                introduction_day,
+                introduction_day + 1,
+            ]);
+        }
+        time_steps.sort_unstable();
+        time_steps.dedup();
+
+        for time_step in time_steps {
+            let cache = DrugAvailabilityCache::new(time_step, &param_cache);
+            for current_region in DRUG_AVAILABILITY_REGIONS {
+                for living_region in DRUG_AVAILABILITY_REGIONS {
+                    let effective_region = match current_region {
+                        Region::Home => living_region,
+                        region => region,
+                    };
+                    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                        let direct = get_drug_availability_time_aware(
+                            drug_name,
+                            current_region.as_str(),
+                            Some(living_region.as_str()),
+                            time_step,
+                        );
+                        assert_eq!(
+                            cache.availability(effective_region, drug_idx).to_bits(),
+                            direct.to_bits(),
+                            "availability mismatch for {drug_name}, current={current_region}, living={living_region}, time_step={time_step}"
+                        );
+                        assert_eq!(
+                            cache.available_drugs(effective_region).contains(&drug_idx),
+                            time_step >= param_cache.drug_introduction_day[drug_idx]
+                                && direct >= 0.01,
+                            "eligibility mismatch for {drug_name}, current={current_region}, living={living_region}, time_step={time_step}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn drug_course_start_reports_new_course_without_changing_reselection_mutations() {
+        let (mut individual, _) = individual_with_seed(1000);
+        let amoxicillin_idx = drug_idx("amoxicillin");
+        let first_day = FAILURE_SELECTION_TEST_DAY;
+
+        assert!(start_drug_course(
+            &mut individual,
+            amoxicillin_idx,
+            first_day,
+            AntibioticUseContext::Empiric,
+        ));
+        assert!(individual.cur_use_drug[amoxicillin_idx]);
+        assert!(individual.ever_taken_drug[amoxicillin_idx]);
+        assert_eq!(
+            individual.date_drug_initiated[amoxicillin_idx],
+            first_day as i32
+        );
+        assert_eq!(
+            individual.date_drug_initiated_keep[amoxicillin_idx],
+            first_day as i32
+        );
+        assert_eq!(
+            individual.drug_use_context[amoxicillin_idx],
+            AntibioticUseContext::Empiric
+        );
+
+        let reselection_day = first_day + 1;
+        assert!(!start_drug_course(
+            &mut individual,
+            amoxicillin_idx,
+            reselection_day,
+            AntibioticUseContext::Targeted,
+        ));
+        assert!(individual.cur_use_drug[amoxicillin_idx]);
+        assert!(individual.ever_taken_drug[amoxicillin_idx]);
+        assert_eq!(
+            individual.date_drug_initiated[amoxicillin_idx],
+            reselection_day as i32
+        );
+        assert_eq!(
+            individual.date_drug_initiated_keep[amoxicillin_idx],
+            reselection_day as i32
+        );
+        assert_eq!(
+            individual.drug_use_context[amoxicillin_idx],
+            AntibioticUseContext::Empiric
+        );
+    }
+
+    #[test]
+    fn targeted_course_start_event_owns_exact_selection_time_bacteria_mask() {
+        let drug_idx = drug_idx("ceftriaxone");
+        let first_bacteria_idx = bacteria_idx("escherichia_coli");
+        let second_bacteria_idx = bacteria_idx("staphylococcus_aureus");
+        let later_bacteria_idx = bacteria_idx("klebsiella_pneumoniae");
+        let mut identified_bacteria = vec![first_bacteria_idx, second_bacteria_idx];
+
+        let event =
+            TargetedCourseStartEvent::from_identified_bacteria(drug_idx, &identified_bacteria);
+        identified_bacteria.clear();
+        identified_bacteria.push(later_bacteria_idx);
+
+        assert_eq!(event.drug_idx, drug_idx);
+        assert_eq!(
+            event.identified_bacteria_mask,
+            (1u64 << first_bacteria_idx) | (1u64 << second_bacteria_idx)
+        );
+        assert!(event.includes_bacterium(first_bacteria_idx));
+        assert!(event.includes_bacterium(second_bacteria_idx));
+        assert!(!event.includes_bacterium(later_bacteria_idx));
+        assert!(!event.includes_bacterium(u64::BITS as usize));
+    }
+
+    #[test]
+    fn targeted_course_start_event_requires_new_targeted_course_with_known_bacterium() {
+        let drug_idx = drug_idx("ceftriaxone");
+        let bacteria_idx = bacteria_idx("escherichia_coli");
+
+        assert!(targeted_course_start_event(
+            true,
+            drug_idx,
+            AntibioticUseContext::Targeted,
+            &[bacteria_idx],
+        )
+        .is_some());
+        assert!(targeted_course_start_event(
+            false,
+            drug_idx,
+            AntibioticUseContext::Targeted,
+            &[bacteria_idx],
+        )
+        .is_none());
+        assert!(targeted_course_start_event(
+            true,
+            drug_idx,
+            AntibioticUseContext::Empiric,
+            &[bacteria_idx],
+        )
+        .is_none());
+        assert!(
+            targeted_course_start_event(true, drug_idx, AntibioticUseContext::Targeted, &[],)
+                .is_none()
+        );
     }
 
     #[test]
@@ -7224,6 +7503,28 @@ mod tests {
         );
         assert!(!e_coli.cur_use_drug[drug_idx("amoxicillin")]);
         assert!(!klebsiella.cur_use_drug[drug_idx("amoxicillin")]);
+    }
+
+    #[test]
+    fn identified_failure_replacement_emits_genuine_targeted_course_start() {
+        let (base, _) = individual_with_seed(1006);
+        let e_coli_idx = bacteria_idx("escherichia_coli");
+        let (identified, identified_events) = run_treatment_failure_case_with_events(
+            treatment_failure_case(&base, "escherichia_coli", true, None),
+            2006,
+        );
+        let (_unidentified, unidentified_events) = run_treatment_failure_case_with_events(
+            treatment_failure_case(&base, "escherichia_coli", false, None),
+            2006,
+        );
+
+        let event = identified_events
+            .targeted_course_start
+            .expect("identified failure replacement should start a new targeted course");
+        assert!(event.includes_bacterium(e_coli_idx));
+        assert_ne!(event.drug_idx, drug_idx("amoxicillin"));
+        assert!(identified.ever_taken_drug[event.drug_idx]);
+        assert!(unidentified_events.targeted_course_start.is_none());
     }
 
     #[test]
@@ -7426,6 +7727,7 @@ mod tests {
             MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
         let policy = test_policy_adjustments();
         let mut rng = StepRng::new(0, 0);
+        let drug_availability_cache = DrugAvailabilityCache::new(time_step, &param_cache);
 
         apply_rules(
             &mut individual,
@@ -7433,6 +7735,7 @@ mod tests {
             &mut rng,
             &mechanism_cache,
             &param_cache,
+            &drug_availability_cache,
             &policy,
         );
 
@@ -7461,6 +7764,7 @@ mod tests {
             MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
         let policy = test_policy_adjustments();
         let mut rng = StepRng::new(u64::MAX, 0);
+        let drug_availability_cache = DrugAvailabilityCache::new(evaluation_day, &param_cache);
 
         individual.date_last_infected_keep[e_coli_idx] = 0;
         individual.date_drug_initiated_keep[amoxicillin_idx] = 0;
@@ -7471,6 +7775,7 @@ mod tests {
             &mut rng,
             &mechanism_cache,
             &param_cache,
+            &drug_availability_cache,
             &policy,
         );
 

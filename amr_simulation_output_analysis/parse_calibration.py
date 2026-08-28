@@ -297,6 +297,9 @@ def parse_file(path: Union[str, Path]) -> dict:
     for line in sec.get("_header", []):
         s = line.strip()
         for raw_key, label in [
+            ("Simulation source CSV:",       "simulation_source_csv"),
+            ("Simulation summary schema:",   "simulation_summary_schema"),
+            ("Legacy compatibility:",        "legacy_compatibility"),
             ("Target year:",                "target_year"),
             ("Calibration window duration:", "window_duration"),
             ("Mean simulated population",   "mean_pop"),

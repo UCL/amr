@@ -19,6 +19,7 @@ import gc
 from .config import DataConfig, PlotConfig
 from .column_selector import get_required_columns, estimate_memory_savings
 from .summary_schema import (
+    SUMMARY_SCHEMA_VERSION_COLUMN,
     SimulationSummarySchemaError,
     validate_summary_frame,
     validate_summary_header,
@@ -50,6 +51,21 @@ def get_csv_columns(csv_path: Path) -> List[str]:
     columns = pd.read_csv(csv_path, nrows=0).columns.tolist()
     validate_summary_header(columns, csv_path)
     return columns
+
+
+def _validate_summary_schema_probe(
+    csv_path: Path,
+    *,
+    allow_legacy_calibration_schemas: bool = False,
+) -> None:
+    """Validate the schema column before loading the wide simulation summary."""
+
+    schema_frame = pd.read_csv(csv_path, usecols=[SUMMARY_SCHEMA_VERSION_COLUMN])
+    validate_summary_frame(
+        schema_frame,
+        csv_path,
+        allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+    )
 
 
 def _missing_required_analysis_columns(
@@ -122,6 +138,7 @@ class DataCache:
         use_column_subset: bool = True,
         include_detail_plots: bool = False,
         enabled_detail_plots: Optional[List[str]] = None,
+        allow_legacy_calibration_schemas: bool = False,
     ) -> Optional[pd.DataFrame]:
         """
         Get cached simulation data, loading if necessary.
@@ -132,21 +149,52 @@ class DataCache:
             use_column_subset: Only load columns needed for grouped plots + calibration
             include_detail_plots: DEPRECATED - use enabled_detail_plots instead
             enabled_detail_plots: List of specific detail plot names to load columns for
+            allow_legacy_calibration_schemas: Permit schemas 1-3 only for the
+                calibration-summary compatibility workflow
             
         Returns:
             DataFrame with simulation data or None if loading failed
         """
-        if self._simulation_data is None or force_reload:
-            if csv_file is None:
-                csv_file = str(DataConfig().simulation_file)
+        if csv_file is None:
+            csv_file = str(DataConfig().simulation_file)
+        csv_path = Path(csv_file)
 
-            csv_path = Path(csv_file)
+        if self._simulation_csv_path is not None:
+            previous_path = self._simulation_csv_path.resolve(strict=False)
+            requested_path = csv_path.resolve(strict=False)
+            if previous_path != requested_path:
+                self._simulation_data = None
+                self._preprocessed_data = None
+                self._bacteria_list = None
+                self._drug_list = None
+                self._resistance_mechanisms = None
+                self._preprocess_options = {}
+                force_reload = True
+
+        if self._simulation_data is not None and not force_reload:
+            validate_summary_frame(
+                self._simulation_data,
+                self._simulation_csv_path or csv_path,
+                allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+            )
+            return self._simulation_data
+
+        if force_reload:
+            self._simulation_data = None
+            self._preprocessed_data = None
+            self._bacteria_list = None
+            self._drug_list = None
+            self._resistance_mechanisms = None
+            self._preprocess_options = {}
+
+        if self._simulation_data is None:
             self._simulation_csv_path = csv_path
             self._simulation_data = load_simulation_data(
                 str(csv_path),
                 use_column_subset=use_column_subset,
                 include_detail_plots=include_detail_plots,
                 enabled_detail_plots=enabled_detail_plots,
+                allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
             )
             
             # Clear dependent cached data when simulation data reloads
@@ -444,6 +492,7 @@ def load_simulation_data(
     use_column_subset: bool = True,
     include_detail_plots: bool = False,
     enabled_detail_plots: Optional[List[str]] = None,
+    allow_legacy_calibration_schemas: bool = False,
 ) -> Optional[pd.DataFrame]:
     """
     Load simulation data from CSV file with optional column subsetting.
@@ -457,6 +506,8 @@ def load_simulation_data(
         use_column_subset: If True, only load columns needed for grouped plots + calibration
         include_detail_plots: DEPRECATED - use enabled_detail_plots instead
         enabled_detail_plots: List of specific detail plot names to include columns for
+        allow_legacy_calibration_schemas: Permit schemas 1-3 only for the
+            calibration-summary compatibility workflow
         
     Returns:
         DataFrame with simulation data or None if loading failed
@@ -469,9 +520,12 @@ def load_simulation_data(
         print(f"Error: {csv_file} not found. Run the Rust simulation first.")
         return None
 
-    # Validate before consulting caches or selecting columns. Legacy summaries are
-    # intentionally not interpreted under the current output contract.
+    # Validate before consulting caches or selecting thousands of wide columns.
     all_columns = get_csv_columns(csv_path)
+    _validate_summary_schema_probe(
+        csv_path,
+        allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+    )
 
     parquet_path: Optional[Path] = None
     parquet_compression = getattr(data_cfg, 'parquet_cache_compression', 'snappy')
@@ -511,7 +565,11 @@ def load_simulation_data(
             if cache_is_fresh:
                 cache_df = _read_parquet_cache(parquet_path)
                 if cache_df is not None:
-                    validate_summary_frame(cache_df, parquet_path)
+                    validate_summary_frame(
+                        cache_df,
+                        parquet_path,
+                        allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+                    )
                     if usecols:
                         missing_cached_cols = [col for col in usecols if col not in cache_df.columns]
                         if missing_cached_cols:
@@ -543,7 +601,11 @@ def load_simulation_data(
                 del polars_df
                 gc.collect()
                 if df is not None:
-                    validate_summary_frame(df, csv_path)
+                    validate_summary_frame(
+                        df,
+                        csv_path,
+                        allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+                    )
                     # Downcast floating-point columns to reduce memory use.
                     df = downcast_floats(df)
                     _write_parquet_cache(df, parquet_path, parquet_compression)
@@ -561,7 +623,11 @@ def load_simulation_data(
     try:
         print(f"[MEMORY] Loading CSV with pandas (usecols={len(usecols) if usecols else 'all'} columns)...")
         df = pd.read_csv(csv_file, usecols=usecols)
-        validate_summary_frame(df, csv_path)
+        validate_summary_frame(
+            df,
+            csv_path,
+            allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+        )
         logger.info(f"Loaded {len(df)} time steps, {len(df.columns)} columns from {csv_file}")
         print(f"Loaded {len(df)} time steps × {len(df.columns)} columns")
         df = downcast_floats(df)

@@ -53,10 +53,12 @@ if __package__ is None or __package__ == "":
         generate_calibration_summary,
     )
     from amr_simulation_output_analysis.data_loader import DataCache
+    from amr_simulation_output_analysis.summary_schema import SimulationSummarySchemaError
 else:
     from . import create_all_plots, PlotConfig
     from .calibration_summary import generate_calibration_summary
     from .data_loader import DataCache
+    from .summary_schema import SimulationSummarySchemaError
 print(f"[TIME] Module imports took {_time.time() - _t_mod:.1f}s")
 print(f"[TIME] Total import time: {_time.time() - _script_start:.1f}s")
 
@@ -141,6 +143,7 @@ def main():
 
     # Run the configured analysis workflow.
     print("Running comprehensive AMR analysis...")
+    comprehensive_completed = False
     try:
         config = PlotConfig()
         # Include the three carriage-focused detail outputs in the standalone run.
@@ -151,6 +154,7 @@ def main():
         
         # Force garbage collection after all plots are done
         gc.collect()
+        comprehensive_completed = True
         print("   [OK] Comprehensive analysis completed successfully!\n")
     except MemoryError:
         print("\n   [ERROR] OUT OF MEMORY!")
@@ -159,6 +163,10 @@ def main():
         print("   2. Disable some figures in config.py (set create_grouped_figure_X = False)")
         print("   3. Delete the .parquet cache files and re-run")
         print("   4. Run with fewer time steps in the Rust simulation\n")
+        gc.collect()
+    except SimulationSummarySchemaError as e:
+        print(f"   [WARN] Comprehensive analysis skipped: {e}")
+        print("   Calibration-only legacy compatibility will be attempted next.\n")
         gc.collect()
     except Exception as e:  # noqa: BLE001 - top-level CLI
         print(f"   [ERROR] Error: {e}\n")
@@ -177,7 +185,10 @@ def main():
     # Summary
     print("=== Analysis Complete ===")
     print("Generated outputs:")
-    print("\nAll plots saved to 'output_graphs/' directory.")
+    if comprehensive_completed:
+        print("\nAll plots saved to 'output_graphs/' directory.")
+    else:
+        print("\nCalibration snapshot generated; comprehensive plots were skipped.")
 
 
 if __name__ == "__main__":

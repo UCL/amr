@@ -11747,10 +11747,15 @@ amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv
 where `NNNNNN` is a zero-padded run identifier.
 
 Every current file records its output-format version in
-`simulation_summary_schema_version`; this document describes version `2`. The Python
+`simulation_summary_schema_version`; this document describes version `3`. The Python
 analysis accepts only the file-structure version for which it was written. An unversioned
 or differently versioned file must be analysed with its matching repository revision or
 regenerated, rather than interpreted by matching column names alone.
+
+For the final pre-schema-3 runs, a narrow compatibility exception is available for the
+calibration snapshot because schemas 1-3 have identical calibration inputs. Paper outputs
+may consume those legacy calibration snapshots only with `--legacy-without-sf5`; that mode
+omits Supplementary Figure S5 entirely. Comprehensive analysis and SF5 remain schema-3-only.
 
 
 
@@ -11773,7 +11778,7 @@ In the type column, `int` means a whole number and `float` means a number that m
 | Column | Type | Description |
 |--------|------|-------------|
 | `time_step` | int | Simulation day, numbered from 0 |
-| `simulation_summary_schema_version` | int | Output-format version; currently `2` |
+| `simulation_summary_schema_version` | int | Output-format version; currently `3` |
 | `diagnostic_cascade_collection_enabled` | int | `1` when diagnostic-cascade counters were collected and `0` when that output group was omitted. When this value is `0`, zero-valued cascade columns are unavailable placeholders, not observed zero counts. |
 | `time_in_years` | float | Years since the 1930 simulation epoch |
 | `total_population` | int | Living people at the summary observation point |
@@ -11864,19 +11869,19 @@ recorded.
 | `diagnostic_cascade_eligible_symptomatic_infections` | Eligible infection episodes entering cascade follow-up |
 | `diagnostic_cascade_bacterial_identification_done` | Episodes for which bacterial identification is available |
 | `diagnostic_cascade_resistance_testing_done` | Episodes for which the AST result panel is available |
-| `diagnostic_cascade_targeted_treatment_started` | Identified episodes with a same-day targeted-context course start |
-| `diagnostic_cascade_effective_targeted_treatment_started` | Episodes with recorded targeted treatment for which an active targeted-context drug reaches the fixed effective-activity threshold for that bacterium |
+| `diagnostic_cascade_targeted_treatment_started` | Identified episodes included in the selection-time bacterium set for a genuinely new targeted-context course |
+| `diagnostic_cascade_effective_targeted_treatment_started` | Episodes with recorded targeted treatment for which any active targeted-context drug reaches the fixed effective-activity threshold for that bacterium |
 | The same names with `_community` or `_hospital` suffixes | The corresponding counts classified by care setting at cascade entry |
 
 These fields are reporting-only and do not change testing, prescribing, infection state,
-or random draws. Targeted context is stored for each person-drug course rather than as
-durable course-to-bacterium ownership. In a person with concurrent identified infections,
-a targeted-context course start can therefore be observed for more than one bacterium;
-effectiveness is still evaluated separately against each bacterium. In addition, reselection
-of an already-active course can refresh its stored initiation date, so the current same-day
-marker is not guaranteed to denote a pharmacologically new course. The cascade dependency
-guards prevent stages from being recorded out of order but do not remove these attribution
-limitations.
+or random draws. A targeted-start event is emitted only for a genuinely new course and
+snapshots the active identified bacteria supplied to that selection decision. Reselection of
+an already-active course therefore does not create another targeted-start count, and a
+bacterium identified later in the same model day is not retroactively added. One start may
+still be observed for several concurrent bacteria because inclusion means each bacterium was
+visible to selection, not that it uniquely caused the drug choice. Later effectiveness remains
+regimen-level: after an attributed start, any active targeted-context drug can satisfy the
+activity threshold, not necessarily the newly selected drug.
 
 
 
@@ -12180,8 +12185,8 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-diagnostic-cascade-entry-hospitalized"></a>`diagnostic_cascade_entry_hospitalized[b]` | `hospital_status` at cascade entry. | None. | Recorded once when the cascade opens. | Reporting only. | Diagnostic cascade reporting in `simulation` |
 | <a id="rule-diagnostic-cascade-bacterial-identification-recorded"></a>`diagnostic_cascade_bacterial_identification_recorded[b]` | `test_identified_infection[b]`, cascade state. | None. | Remains true after bacterial identification is counted for the episode. | Prevents duplicate output counting. | Diagnostic cascade reporting in `simulation` |
 | <a id="rule-diagnostic-cascade-resistance-testing-recorded"></a>`diagnostic_cascade_resistance_testing_recorded[b]` | Recorded bacterial identification, `test_for_resistance[b]`, and cascade state. | AST readiness and reporting rules. | Remains true after the result-ready AST stage is counted for the episode. | AST initiation alone is not a completed result; AST and targeted treatment are sibling stages after identification. | Diagnostic cascade reporting in `simulation` |
-| <a id="rule-diagnostic-cascade-targeted-treatment-recorded"></a>`diagnostic_cascade_targeted_treatment_recorded[b]` | Recorded bacterial identification and a subsequent person-drug targeted-course start. | Fixed targeted-treatment classification. | Remains true after a targeted course is counted. | Reporting only; the course context is not durable drug-to-bacterium ownership. | Diagnostic cascade reporting in `simulation` |
-| <a id="rule-diagnostic-cascade-effective-targeted-treatment-recorded"></a>`diagnostic_cascade_effective_targeted_treatment_recorded[b]` | Recorded targeted treatment and activity of an active targeted-context drug against the bacterium. | Fixed effective-therapy reporting definition. | Remains true after effective targeted therapy is counted. | Reporting only; this stage cannot be recorded before targeted treatment. | Diagnostic cascade reporting in `simulation` |
+| <a id="rule-diagnostic-cascade-targeted-treatment-recorded"></a>`diagnostic_cascade_targeted_treatment_recorded[b]` | Recorded bacterial identification and a genuine new-course event whose selection-time identified-bacterium set contains `b`. | Fixed targeted-treatment classification. | Remains true after an attributed targeted course is counted. | Reporting only; selection-set inclusion is not proof that `b` uniquely caused the drug choice. | Diagnostic cascade reporting in `simulation` |
+| <a id="rule-diagnostic-cascade-effective-targeted-treatment-recorded"></a>`diagnostic_cascade_effective_targeted_treatment_recorded[b]` | Recorded targeted treatment and activity of an active targeted-context drug against the bacterium. | Fixed effective-therapy reporting definition. | Remains true after effective targeted therapy is counted. | Reporting only; this stage cannot precede targeted treatment, but the effective drug need not be the attributed start-event drug. | Diagnostic cascade reporting in `simulation` |
 | <a id="rule-infection-prevented-by-drug"></a>`infection_prevented_by_drug[b]` | Candidate infection, current therapy and prevention draw. | Potency and exposure inputs; `antibiotic_infection_prevention_efficacy`. | Set true for the day when existing therapy blocks a successful candidate infection. | Daily output state, not persistent protection. | Infection-acquisition block in `rules::apply_rules`; aggregation in `simulation` |
 | <a id="rule-presence-microbiome"></a>`presence_microbiome[b]` | Carriage acquisition and clearance draws. | Carriage acquisition and clearance parameter families. | Set on carriage acquisition and cleared on carriage loss. | Infection and carriage are represented separately and can interact through resistance inheritance. | Carriage blocks in `rules::apply_rules` |
 | <a id="rule-microbiome-disruption-level"></a>`microbiome_disruption_level` | Previous disruption, current drug exposure. | `antibiotic_disruption_decay_half_life_days`; `drug_{drug}_microbiome_disruption_log_odds`; fixed exposure threshold 0.1. | Decays daily and is increased by qualifying antibiotic exposure. | Shared person-level state rather than one value per bacterium. | Microbiome-disruption block in `rules::apply_rules` |

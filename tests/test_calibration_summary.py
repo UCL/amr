@@ -17,6 +17,7 @@ from amr_simulation_output_analysis.calibration_summary import (
     _build_headline_table,
     _build_drug_class_calibration_window_table,
     _build_resistance_provenance_summary,
+    _calibration_schema_provenance_text,
     _calculate_calibration_score,
     _calculate_resistance_fit_metrics,
     _calculate_serious_resistance_locus_table,
@@ -62,6 +63,28 @@ class BaselinePolicySelectionTests(unittest.TestCase):
         frame = pd.DataFrame({"time_step": [1, 2]})
 
         self.assertIs(_select_baseline_policy_rows(frame), frame)
+
+
+class CalibrationSchemaProvenanceTests(unittest.TestCase):
+    def test_legacy_schema_warning_is_preserved_in_snapshot_text(self) -> None:
+        text = _calibration_schema_provenance_text(
+            Path("simulation_summary_078562.csv"),
+            1,
+        )
+
+        self.assertIn("simulation_summary_078562.csv", text)
+        self.assertIn("Simulation summary schema: 1 (legacy)", text)
+        self.assertIn("calibration snapshot only", text)
+        self.assertIn("Supplementary Figure S5", text)
+
+    def test_current_schema_is_recorded_without_legacy_warning(self) -> None:
+        text = _calibration_schema_provenance_text(
+            Path("simulation_summary_123456.csv"),
+            3,
+        )
+
+        self.assertIn("Simulation summary schema: 3 (current)", text)
+        self.assertNotIn("Legacy compatibility", text)
 
 
 class DrugClassCalibrationWindowTests(unittest.TestCase):

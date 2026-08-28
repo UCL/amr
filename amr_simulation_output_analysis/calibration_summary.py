@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
@@ -12,9 +14,19 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 import numpy as np
 import pandas as pd
 
-from .config import PlotConfig
-from .data_loader import DataCache
-from .utils import extract_simulation_run_id
+if __package__ is None or __package__ == "":
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from amr_simulation_output_analysis.config import PlotConfig
+    from amr_simulation_output_analysis.data_loader import DataCache
+    from amr_simulation_output_analysis.summary_schema import (
+        SUPPORTED_SUMMARY_SCHEMA_VERSION,
+    )
+    from amr_simulation_output_analysis.utils import extract_simulation_run_id
+else:
+    from .config import PlotConfig
+    from .data_loader import DataCache
+    from .summary_schema import SUPPORTED_SUMMARY_SCHEMA_VERSION
+    from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -467,6 +479,8 @@ def _contributor_group_key(block: object, target: object) -> str:
 
 def _gather_calibration_context(
     config: Optional[PlotConfig] = None,
+    *,
+    allow_legacy_calibration_schemas: bool = False,
 ) -> Optional[Dict[str, object]]:
     """Collect shared calibration tables for reuse across outputs."""
 
@@ -479,12 +493,29 @@ def _gather_calibration_context(
     df = data_cache.get_simulation_data(
         use_column_subset=True,
         include_detail_plots=False,
+        allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
     )
     if df is None or df.empty:
         return None
 
-    df = _select_baseline_policy_rows(df)
     simulation_csv_path = data_cache.get_simulation_csv_path()
+    schema_values = pd.to_numeric(
+        df["simulation_summary_schema_version"], errors="raise"
+    ).astype(int)
+    simulation_summary_schema_version = int(schema_values.iloc[0])
+    legacy_schema_compatibility = (
+        simulation_summary_schema_version != SUPPORTED_SUMMARY_SCHEMA_VERSION
+    )
+    if legacy_schema_compatibility:
+        print(
+            "[WARN] Legacy schema "
+            f"v{simulation_summary_schema_version} accepted for calibration-summary "
+            "generation only. Diagnostic-cascade outputs, including Supplementary "
+            f"Figure S5, remain unsupported; use schema v{SUPPORTED_SUMMARY_SCHEMA_VERSION} "
+            "for comprehensive analysis, or --legacy-without-sf5 for compatible paper outputs."
+        )
+
+    df = _select_baseline_policy_rows(df)
 
     # Avoid full DataFrame copy - only add columns as needed
     if "time_in_years" not in df.columns and "time_step" in df.columns:
@@ -595,6 +626,8 @@ def _gather_calibration_context(
         "scalar_new_infections_total": scalar_new_infections_total,
         "reserve_drug_stats": _calculate_reserve_drug_stats(year_df),
         "simulation_csv_path": simulation_csv_path,
+        "simulation_summary_schema_version": simulation_summary_schema_version,
+        "legacy_schema_compatibility": legacy_schema_compatibility,
     }
 
 
@@ -4420,10 +4453,34 @@ def _calculate_age_region_death_rate_table(
     return pd.DataFrame(records, columns=cols)
 
 
+def _calibration_schema_provenance_text(
+    simulation_csv_path: object,
+    schema_version: int,
+) -> str:
+    """Render durable source/schema provenance for a calibration snapshot."""
+
+    source = str(simulation_csv_path) if simulation_csv_path is not None else "unknown"
+    status = "current" if schema_version == SUPPORTED_SUMMARY_SCHEMA_VERSION else "legacy"
+    lines = [
+        f"Simulation source CSV: {source}",
+        f"Simulation summary schema: {schema_version} ({status})",
+    ]
+    if schema_version != SUPPORTED_SUMMARY_SCHEMA_VERSION:
+        lines.append(
+            "Legacy compatibility: calibration snapshot only. Compatible paper outputs require "
+            "--legacy-without-sf5; diagnostic-cascade outputs including Supplementary Figure "
+            "S5 are not valid under current definitions."
+        )
+    return "\n".join(lines) + "\n"
+
+
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
     """Generate calibration summary file and return its path."""
 
-    context = _gather_calibration_context(config)
+    context = _gather_calibration_context(
+        config,
+        allow_legacy_calibration_schemas=True,
+    )
     if context is None:
         print("[WARNING] No simulation data available for calibration summary.")
         return None
@@ -4519,6 +4576,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     )
 
     simulation_csv_path = context.get("simulation_csv_path")
+    schema_version_obj = context.get("simulation_summary_schema_version")
+    if not isinstance(schema_version_obj, (int, np.integer)):
+        raise TypeError("Calibration context missing simulation summary schema version")
+    simulation_summary_schema_version = int(schema_version_obj)
     run_identifier = getattr(config, "simulation_run_id", None) or extract_simulation_run_id(simulation_csv_path)
     summary_suffix = f"_{run_identifier}" if run_identifier else ""
 
@@ -4528,6 +4589,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
+        handle.write(
+            _calibration_schema_provenance_text(
+                simulation_csv_path,
+                simulation_summary_schema_version,
+            )
+        )
         handle.write(f"Target year: {targets.target_year}\n")
         handle.write(
             f"Calibration window duration: {window_years:.2f} simulated years"
@@ -5343,8 +5410,26 @@ def get_bacteria_burden_table(
     }
 
 
+def main() -> int:
+    """Generate only the calibration snapshot for the configured simulation CSV."""
+
+    project_root = Path(__file__).resolve().parents[1]
+    if Path.cwd() != project_root:
+        os.chdir(project_root)
+    output_path = generate_calibration_summary()
+    if output_path is None:
+        return 1
+    print(f"[OK] Calibration snapshot written to {output_path}")
+    return 0
+
+
 __all__ = [
     "generate_calibration_summary",
     "get_resistance_benchmark_table",
     "get_bacteria_burden_table",
+    "main",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

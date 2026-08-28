@@ -55610,10 +55610,14 @@ their names describe the intended column structure, not downloaded observations.
 </code></pre>
 <p>where <code>NNNNNN</code> is a zero-padded run identifier.</p>
 <p>Every current file records its output-format version in
-<code>simulation_summary_schema_version</code>; this document describes version <code>2</code>. The Python
+<code>simulation_summary_schema_version</code>; this document describes version <code>3</code>. The Python
 analysis accepts only the file-structure version for which it was written. An unversioned
 or differently versioned file must be analysed with its matching repository revision or
 regenerated, rather than interpreted by matching column names alone.</p>
+<p>For the final pre-schema-3 runs, a narrow compatibility exception is available for the
+calibration snapshot because schemas 1-3 have identical calibration inputs. Paper outputs
+may consume those legacy calibration snapshots only with <code>--legacy-without-sf5</code>; that mode
+omits Supplementary Figure S5 entirely. Comprehensive analysis and SF5 remain schema-3-only.</p>
 <h3 id="c2-row-structure">C.2 Row Structure</h3>
 <p>Each retained row represents one simulated day. Non-calibration runs normally retain the
 full daily history. Calibration modes can retain only the configured calibration period or
@@ -55638,7 +55642,7 @@ selected rows, so row count is not in general equal to the number of simulated t
 <tr>
 <td><code>simulation_summary_schema_version</code></td>
 <td>int</td>
-<td>Output-format version; currently <code>2</code></td>
+<td>Output-format version; currently <code>3</code></td>
 </tr>
 <tr>
 <td><code>diagnostic_cascade_collection_enabled</code></td>
@@ -55864,11 +55868,11 @@ recorded.</p>
 </tr>
 <tr>
 <td><code>diagnostic_cascade_targeted_treatment_started</code></td>
-<td>Identified episodes with a same-day targeted-context course start</td>
+<td>Identified episodes included in the selection-time bacterium set for a genuinely new targeted-context course</td>
 </tr>
 <tr>
 <td><code>diagnostic_cascade_effective_targeted_treatment_started</code></td>
-<td>Episodes with recorded targeted treatment for which an active targeted-context drug reaches the fixed effective-activity threshold for that bacterium</td>
+<td>Episodes with recorded targeted treatment for which any active targeted-context drug reaches the fixed effective-activity threshold for that bacterium</td>
 </tr>
 <tr>
 <td>The same names with <code>_community</code> or <code>_hospital</code> suffixes</td>
@@ -55877,14 +55881,14 @@ recorded.</p>
 </tbody>
 </table>
 <p>These fields are reporting-only and do not change testing, prescribing, infection state,
-or random draws. Targeted context is stored for each person-drug course rather than as
-durable course-to-bacterium ownership. In a person with concurrent identified infections,
-a targeted-context course start can therefore be observed for more than one bacterium;
-effectiveness is still evaluated separately against each bacterium. In addition, reselection
-of an already-active course can refresh its stored initiation date, so the current same-day
-marker is not guaranteed to denote a pharmacologically new course. The cascade dependency
-guards prevent stages from being recorded out of order but do not remove these attribution
-limitations.</p>
+or random draws. A targeted-start event is emitted only for a genuinely new course and
+snapshots the active identified bacteria supplied to that selection decision. Reselection of
+an already-active course therefore does not create another targeted-start count, and a
+bacterium identified later in the same model day is not retroactively added. One start may
+still be observed for several concurrent bacteria because inclusion means each bacterium was
+visible to selection, not that it uniquely caused the drug choice. Later effectiveness remains
+regimen-level: after an attributed start, any active targeted-context drug can satisfy the
+activity threshold, not necessarily the newly selected drug.</p>
 <h4 id="per-region-columns-6-each">Per-region columns (~6 each)</h4>
 <table>
 <thead>
@@ -57268,10 +57272,10 @@ rule used by the model rather than a configurable parameter.</p>
 </tr>
 <tr>
 <td><a id="rule-diagnostic-cascade-targeted-treatment-recorded"></a><code>diagnostic_cascade_targeted_treatment_recorded[b]</code></td>
-<td>Recorded bacterial identification and a subsequent person-drug targeted-course start.</td>
+<td>Recorded bacterial identification and a genuine new-course event whose selection-time identified-bacterium set contains <code>b</code>.</td>
 <td>Fixed targeted-treatment classification.</td>
-<td>Remains true after a targeted course is counted.</td>
-<td>Reporting only; the course context is not durable drug-to-bacterium ownership.</td>
+<td>Remains true after an attributed targeted course is counted.</td>
+<td>Reporting only; selection-set inclusion is not proof that <code>b</code> uniquely caused the drug choice.</td>
 <td>Diagnostic cascade reporting in <code>simulation</code></td>
 </tr>
 <tr>
@@ -57279,7 +57283,7 @@ rule used by the model rather than a configurable parameter.</p>
 <td>Recorded targeted treatment and activity of an active targeted-context drug against the bacterium.</td>
 <td>Fixed effective-therapy reporting definition.</td>
 <td>Remains true after effective targeted therapy is counted.</td>
-<td>Reporting only; this stage cannot be recorded before targeted treatment.</td>
+<td>Reporting only; this stage cannot precede targeted treatment, but the effective drug need not be the attributed start-event drug.</td>
 <td>Diagnostic cascade reporting in <code>simulation</code></td>
 </tr>
 <tr>
