@@ -10536,38 +10536,44 @@ def make_figure_12_resistance_mechanisms_by_bacterium(
 
 _SF5_TITLE = "Supplementary Figure S5. Diagnostic testing and targeted-treatment cascade, 2022\u20132025"
 _SF5_STEM = "Supplementary_Figure_S5__diagnostic_testing_targeted_treatment_cascade"
+_SF5_COLLECTION_ENABLED_COLUMN = "diagnostic_cascade_collection_enabled"
 _SF5_REQUIRED_MESSAGE = (
-    "Supplementary Figure S5 requires simulation_summary aggregate columns for eligible "
-    "symptomatic infections, bacterial identification, resistance testing, targeted treatment, "
-    "and effective targeted treatment."
+    "Supplementary Figure S5 requires diagnostic-cascade collection to be enabled and "
+    "simulation_summary aggregate columns for eligible symptomatic infections, bacterial "
+    "identification, result-ready AST, targeted treatment, and effective targeted treatment."
 )
-_SF5_STAGES: list[dict[str, str]] = [
+_SF5_STAGES: list[dict[str, str | None]] = [
     {
         "key": "eligible",
+        "parent": None,
         "label": "Eligible symptomatic infection",
         "column": "diagnostic_cascade_eligible_symptomatic_infections",
         "definition": "First model day when an active bacterium-specific infection is symptomatic and eligible for diagnostic testing logic.",
     },
     {
         "key": "id",
+        "parent": "eligible",
         "label": "Bacterial identification done",
         "column": "diagnostic_cascade_bacterial_identification_done",
         "definition": "The model's bacterium-specific identification flag has become true for the infection episode.",
     },
     {
         "key": "ast",
-        "label": "Resistance testing initiated",
+        "parent": "id",
+        "label": "AST result available",
         "column": "diagnostic_cascade_resistance_testing_done",
-        "definition": "The Rust flag records resistance/susceptibility testing initiation; this is labelled as initiation even though the compatibility column name says done.",
+        "definition": "The model's bacterium-specific antimicrobial susceptibility/resistance test has completed and its result is available.",
     },
     {
         "key": "targeted",
+        "parent": "id",
         "label": "Targeted antibiotic treatment started",
         "column": "diagnostic_cascade_targeted_treatment_started",
-        "definition": "A course-start targeted-context antibiotic is observed for the identified active infection.",
+        "definition": "A targeted-context antibiotic has its stored initiation date set to the current day while the active infection is identified.",
     },
     {
         "key": "effective",
+        "parent": "targeted",
         "label": "Effective targeted antibiotic treatment started",
         "column": "diagnostic_cascade_effective_targeted_treatment_started",
         "definition": "A targeted-context active antibiotic reaches activity_r >= 0.500 for the bacterium.",
@@ -10581,7 +10587,10 @@ _SF5_SETTINGS = [
 
 
 def _sf5_stage_columns_for_suffix(suffix: str) -> list[str]:
-    return [f"{stage['column']}{suffix}" for stage in _SF5_STAGES]
+    return [f"{str(stage['column'])}{suffix}" for stage in _SF5_STAGES]
+
+
+_SF5_STAGE_BY_KEY = {str(stage["key"]): stage for stage in _SF5_STAGES}
 
 
 def _sf5_definitions_table_html() -> str:
@@ -10591,8 +10600,10 @@ def _sf5_definitions_table_html() -> str:
             "Time window",
             "Data source",
             "Community/hospital split",
+            "Stage prerequisites",
             "Resistance testing stage",
             "Effective targeted therapy",
+            "Treatment attribution",
             "Timing semantics",
             "Organism exclusions",
             "Exclusions and caveats",
@@ -10602,10 +10613,12 @@ def _sf5_definitions_table_html() -> str:
             "Baseline-policy cascade-entry years 2022-2025, using rows from simulation_summary_run#.csv.",
             "Aggregate simulation_summary_run#.csv columns only; calibration_summary_*.txt is not reader-facing for this figure.",
             "Hospital status is captured at cascade entry. Community means not hospitalized; hospital means hospitalized.",
-            "The Rust flag records resistance/susceptibility testing initiation, not confirmed result availability.",
+            "Identification requires eligibility; AST-result availability and targeted treatment each require identification; effective targeted treatment requires targeted treatment.",
+            "The Rust flag records completion of resistance/susceptibility testing and result availability.",
             "A targeted-context active antibiotic with resistance-adjusted activity_r >= 0.500 for the bacterium.",
+            "Targeted context is stored per person-drug rather than per bacterium. Reselection of an active course can refresh its stored initiation date, so the same-day marker is not guaranteed to denote a pharmacologically new course.",
             "All downstream stages are assigned back to the episode's cascade-entry timestep/year. The model uses daily timesteps, so same-day order is not a precise sub-day clinical timestamp.",
-            "The Rust aggregate excludes organisms returned by is_microbiome_excluded (currently treponema_pallidum). H. pylori is not separately excluded by that helper in the current code.",
+            "The diagnostic-cascade aggregate excludes H. pylori. T. pallidum remains included.",
             "Counts are raw simulated counts. Episodes that resolve, die, or are censored before a later stage remain in the earlier-stage denominator and are not imputed into later stages.",
         ],
     })
@@ -10616,6 +10629,12 @@ def _sf5_stage_definition_table_html() -> str:
     stages = pd.DataFrame({
         "Cascade stage": [str(stage["label"]) for stage in _SF5_STAGES],
         "simulation_summary column": [str(stage["column"]) for stage in _SF5_STAGES],
+        "Prerequisite stage": [
+            "\u2014"
+            if stage["parent"] is None
+            else str(_SF5_STAGE_BY_KEY[str(stage["parent"])]["label"])
+            for stage in _SF5_STAGES
+        ],
         "Definition": [str(stage["definition"]) for stage in _SF5_STAGES],
     })
     return "<h2>Stage Definitions</h2>\n" + _html_table(stages)
@@ -10665,22 +10684,143 @@ def _sf5_format_percent(value: object) -> str:
     return f"{value_f:.1f}"
 
 
-def _sf5_reliability_flag(eligible: float, count: float, previous_count: float | None) -> str:
+def _sf5_reliability_flag(
+    eligible: float,
+    count: float,
+    prerequisite_count: float | None,
+    prerequisite_stage: str | None,
+) -> str:
     flags: list[str] = []
     if not np.isfinite(eligible) or eligible <= 0.0:
         flags.append("zero eligible denominator")
     elif eligible < 100.0:
         flags.append("low eligible denominator")
-    if previous_count is not None and np.isfinite(previous_count) and np.isfinite(count):
-        if count > previous_count:
-            flags.append("non-monotonic cascade count")
+    if (
+        prerequisite_count is not None
+        and np.isfinite(prerequisite_count)
+        and np.isfinite(count)
+        and count > prerequisite_count
+    ):
+        label = prerequisite_stage or "declared prerequisite"
+        flags.append(f"hierarchy violation: count exceeds prerequisite {label}")
     return "; ".join(flags)
+
+
+def _sf5_collection_enabled_value(value: object) -> bool | None:
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if isinstance(value, (int, np.integer)) and int(value) in (0, 1):
+        return bool(value)
+    if isinstance(value, (float, np.floating)):
+        value_f = float(value)
+        if np.isfinite(value_f) and value_f in (0.0, 1.0):
+            return bool(int(value_f))
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1"}:
+            return True
+        if normalized in {"false", "0"}:
+            return False
+    return None
+
+
+def _sf5_collection_status(series: pd.Series) -> tuple[bool | None, str | None]:
+    parsed: list[bool] = []
+    invalid: list[str] = []
+    for value in series.tolist():
+        enabled = _sf5_collection_enabled_value(value)
+        if enabled is None:
+            invalid.append(repr(value))
+        else:
+            parsed.append(enabled)
+    if invalid:
+        examples = ", ".join(dict.fromkeys(invalid[:3]))
+        return None, (
+            f"{_SF5_COLLECTION_ENABLED_COLUMN} contains malformed value(s): {examples}. "
+            "Expected true/false or 1/0."
+        )
+    statuses = set(parsed)
+    if len(statuses) != 1:
+        return None, (
+            f"{_SF5_COLLECTION_ENABLED_COLUMN} is inconsistent within the run "
+            "(both enabled and disabled rows are present)."
+        )
+    return statuses.pop(), None
+
+
+def _sf5_validated_count_frame(
+    group: pd.DataFrame,
+    stage_columns: list[str],
+) -> tuple[pd.DataFrame | None, list[str]]:
+    numeric = pd.DataFrame(index=group.index)
+    problems: list[str] = []
+    for column in stage_columns:
+        raw = group[column]
+        parsed = pd.to_numeric(raw, errors="coerce")
+        values = np.asarray(parsed, dtype=float)
+        malformed = ~np.isfinite(values)
+        negative = np.isfinite(values) & (values < 0.0)
+        fractional = np.isfinite(values) & (values >= 0.0) & (values != np.floor(values))
+
+        for mask, description in (
+            (malformed, "malformed or non-finite"),
+            (negative, "negative"),
+            (fractional, "fractional"),
+        ):
+            if mask.any():
+                examples = ", ".join(
+                    dict.fromkeys(repr(value) for value in raw.loc[mask].tolist())
+                )
+                problems.append(f"{column} contains {description} count value(s): {examples}")
+
+        if not (malformed | negative | fractional).any():
+            numeric[column] = [int(value) for value in values]
+
+    if problems:
+        return None, problems
+    return numeric, []
+
+
+def _sf5_snapshot_problems(
+    counts_by_setting: dict[str, dict[str, int]],
+    context: str,
+) -> list[str]:
+    problems: list[str] = []
+    overall = counts_by_setting["Overall"]
+    community = counts_by_setting["Community-onset / cascade-entry"]
+    hospital = counts_by_setting["Hospital-onset / cascade-entry"]
+
+    for stage in _SF5_STAGES:
+        key = str(stage["key"])
+        split_total = community[key] + hospital[key]
+        if overall[key] != split_total:
+            problems.append(
+                f"{context}: {stage['label']} overall count {overall[key]} does not equal "
+                f"community + hospital ({community[key]} + {hospital[key]} = {split_total})"
+            )
+
+    for setting_label, _ in _SF5_SETTINGS:
+        counts = counts_by_setting[setting_label]
+        for stage in _SF5_STAGES:
+            parent_key = stage["parent"]
+            if parent_key is None:
+                continue
+            key = str(stage["key"])
+            parent = _SF5_STAGE_BY_KEY[str(parent_key)]
+            if counts[key] > counts[str(parent_key)]:
+                problems.append(
+                    f"{context}: {setting_label} {stage['label']} count {counts[key]} exceeds "
+                    f"prerequisite {parent['label']} count {counts[str(parent_key)]} "
+                    f"({key} requires {parent_key})"
+                )
+    return problems
 
 
 def _sf5_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]], list[str]]:
     rows: list[dict[str, object]] = []
     problems: list[str] = []
-    required = ["time_in_years", "policy_option"] + [
+    required = ["time_in_years", "policy_option", _SF5_COLLECTION_ENABLED_COLUMN] + [
         column
         for _, suffix in _SF5_SETTINGS
         for column in _sf5_stage_columns_for_suffix(suffix)
@@ -10719,16 +10859,89 @@ def _sf5_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
             df["run_id"] = csv_path.stem
 
         for run_id, group in df.groupby("run_id", dropna=False):
+            run_context = f"{csv_path.name}, run {run_id}"
+            collection_enabled, collection_problem = _sf5_collection_status(
+                group[_SF5_COLLECTION_ENABLED_COLUMN]
+            )
+            if collection_problem is not None:
+                problems.append(f"{run_context}: {collection_problem}")
+                continue
+            if collection_enabled is False:
+                problems.append(
+                    f"{run_context}: diagnostic-cascade collection is unavailable "
+                    f"({_SF5_COLLECTION_ENABLED_COLUMN}=false)."
+                )
+                continue
+
+            all_stage_columns = [
+                column
+                for _, suffix in _SF5_SETTINGS
+                for column in _sf5_stage_columns_for_suffix(suffix)
+            ]
+            numeric, numeric_problems = _sf5_validated_count_frame(group, all_stage_columns)
+            if numeric is None:
+                problems.append(
+                    f"{run_context}: invalid diagnostic-cascade count data: "
+                    + "; ".join(numeric_problems[:4])
+                )
+                continue
+
+            row_hierarchy_problems: list[str] = []
+            for row_index in numeric.index:
+                row_counts = {
+                    setting_label: {
+                        str(stage["key"]): int(
+                            numeric.at[row_index, f"{str(stage['column'])}{suffix}"]
+                        )
+                        for stage in _SF5_STAGES
+                    }
+                    for setting_label, suffix in _SF5_SETTINGS
+                }
+                row_hierarchy_problems.extend(
+                    _sf5_snapshot_problems(row_counts, f"CSV row {row_index + 2}")
+                )
+            if row_hierarchy_problems:
+                problems.append(
+                    f"{run_context}: invalid diagnostic-cascade hierarchy: "
+                    + "; ".join(row_hierarchy_problems[:4])
+                )
+                continue
+
+            counts_by_setting = {
+                setting_label: {
+                    str(stage["key"]): sum(
+                        int(value)
+                        for value in numeric[f"{str(stage['column'])}{suffix}"].tolist()
+                    )
+                    for stage in _SF5_STAGES
+                }
+                for setting_label, suffix in _SF5_SETTINGS
+            }
+            aggregate_problems = _sf5_snapshot_problems(
+                counts_by_setting, "filtered run aggregate"
+            )
+            if aggregate_problems:
+                problems.append(
+                    f"{run_context}: invalid diagnostic-cascade hierarchy: "
+                    + "; ".join(aggregate_problems[:4])
+                )
+                continue
+
             for setting_label, suffix in _SF5_SETTINGS:
-                stage_columns = _sf5_stage_columns_for_suffix(suffix)
-                counts = [
-                    float(pd.to_numeric(group[column], errors="coerce").fillna(0.0).sum())
-                    for column in stage_columns
-                ]
-                eligible = counts[0] if counts else 0.0
+                counts = counts_by_setting[setting_label]
+                eligible = counts["eligible"]
                 for stage_idx, stage in enumerate(_SF5_STAGES):
-                    previous_count = counts[stage_idx - 1] if stage_idx > 0 else None
-                    count = counts[stage_idx]
+                    key = str(stage["key"])
+                    parent_key = stage["parent"]
+                    count = counts[key]
+                    prerequisite_count = (
+                        None if parent_key is None else counts[str(parent_key)]
+                    )
+                    prerequisite_stage = (
+                        None
+                        if parent_key is None
+                        else str(_SF5_STAGE_BY_KEY[str(parent_key)]["label"])
+                    )
                     rows.append({
                         "source": csv_path.name,
                         "run": str(run_id),
@@ -10738,14 +10951,31 @@ def _sf5_rows_from_csvs(csv_paths: list[Path]) -> tuple[list[dict[str, object]],
                         "definition": str(stage["definition"]),
                         "count": count,
                         "eligible_denominator": eligible,
-                        "previous_denominator": np.nan if previous_count is None else previous_count,
-                        "pct_of_eligible": _sf5_percent(count, eligible),
-                        "pct_of_previous_stage": (
-                            np.nan if previous_count is None else _sf5_percent(count, previous_count)
+                        "parent_key": parent_key,
+                        "prerequisite_stage": prerequisite_stage,
+                        "prerequisite_denominator": (
+                            np.nan if prerequisite_count is None else prerequisite_count
                         ),
-                        "reliability_flag": _sf5_reliability_flag(eligible, count, previous_count),
+                        "pct_of_eligible": _sf5_percent(count, eligible),
+                        "pct_of_prerequisite_stage": (
+                            np.nan
+                            if prerequisite_count is None
+                            else _sf5_percent(count, prerequisite_count)
+                        ),
+                        "reliability_flag": _sf5_reliability_flag(
+                            eligible,
+                            count,
+                            prerequisite_count,
+                            prerequisite_stage,
+                        ),
                     })
     return rows, problems
+
+
+def _sf5_median(series: pd.Series) -> float:
+    values = pd.to_numeric(series, errors="coerce").to_numpy(float)
+    finite = values[np.isfinite(values)]
+    return np.nan if finite.size == 0 else float(np.median(finite))
 
 
 def _sf5_summarise(rows: list[dict[str, object]]) -> pd.DataFrame:
@@ -10761,11 +10991,13 @@ def _sf5_summarise(rows: list[dict[str, object]]) -> pd.DataFrame:
             "stage_idx": int(stage_idx),
             "stage": str(stage),
             "definition": str(group["definition"].iloc[0]),
-            "count": float(np.nanmedian(pd.to_numeric(group["count"], errors="coerce"))),
-            "eligible_denominator": float(np.nanmedian(pd.to_numeric(group["eligible_denominator"], errors="coerce"))),
-            "previous_denominator": float(np.nanmedian(pd.to_numeric(group["previous_denominator"], errors="coerce"))),
-            "pct_of_eligible": float(np.nanmedian(pd.to_numeric(group["pct_of_eligible"], errors="coerce"))),
-            "pct_of_previous_stage": float(np.nanmedian(pd.to_numeric(group["pct_of_previous_stage"], errors="coerce"))),
+            "count": _sf5_median(group["count"]),
+            "eligible_denominator": _sf5_median(group["eligible_denominator"]),
+            "parent_key": group["parent_key"].iloc[0],
+            "prerequisite_stage": group["prerequisite_stage"].iloc[0],
+            "prerequisite_denominator": _sf5_median(group["prerequisite_denominator"]),
+            "pct_of_eligible": _sf5_median(group["pct_of_eligible"]),
+            "pct_of_prerequisite_stage": _sf5_median(group["pct_of_prerequisite_stage"]),
             "n_runs": int(group["run"].nunique()),
         }
         flags = sorted(
@@ -10792,7 +11024,7 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
         if problems:
             message += " Parser notes: " + " ".join(problems[:3])
         _sf5_placeholder(out_dir, agg, message)
-        print("  Supplementary Figure S5: placeholder (required diagnostic-cascade fields missing).")
+        print("  Supplementary Figure S5: placeholder (diagnostic-cascade data unavailable or invalid).")
         return
 
     overall = summary[summary["setting"] == "Overall"].sort_values("stage_idx")
@@ -10847,12 +11079,9 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
         "Definition": overall["definition"],
         "Raw simulated count": overall["count"].map(_sf5_format_count),
         "% of eligible episodes": overall["pct_of_eligible"].map(_sf5_format_percent),
-        "% of previous stage": overall["pct_of_previous_stage"].map(_sf5_format_percent),
-        "Denominator": np.where(
-            overall["stage_idx"].eq(0),
-            "Eligible symptomatic infection episodes",
-            "Previous cascade stage",
-        ),
+        "% of prerequisite stage": overall["pct_of_prerequisite_stage"].map(_sf5_format_percent),
+        "Prerequisite stage": overall["prerequisite_stage"].fillna("\u2014"),
+        "Prerequisite denominator": overall["prerequisite_denominator"].map(_sf5_format_count),
         "Reliability flag": overall["reliability_flag"],
     })
     setting_table = pd.DataFrame({
@@ -10860,7 +11089,9 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
         "Stage": by_setting["stage"],
         "Raw simulated count": by_setting["count"].map(_sf5_format_count),
         "% of setting-specific eligible episodes": by_setting["pct_of_eligible"].map(_sf5_format_percent),
-        "% of previous stage": by_setting["pct_of_previous_stage"].map(_sf5_format_percent),
+        "% of prerequisite stage": by_setting["pct_of_prerequisite_stage"].map(_sf5_format_percent),
+        "Prerequisite stage": by_setting["prerequisite_stage"].fillna("\u2014"),
+        "Prerequisite denominator": by_setting["prerequisite_denominator"].map(_sf5_format_count),
         "Eligible denominator": by_setting["eligible_denominator"].map(_sf5_format_count),
         "Reliability flag": by_setting["reliability_flag"],
     })
@@ -10875,11 +11106,13 @@ def make_supplementary_figure_s5_diagnostic_testing_targeted_treatment_cascade(
         "Counts are raw simulated counts. When multiple runs are supplied, counts and percentages are calculated within each run first and shown as medians across runs.",
         "All stages after eligibility are assigned back to the episode's cascade-entry timestep/year, so the 2022-2025 filter is based on cascade-entry year.",
         "Community and hospital groups use hospital status at cascade entry; community means not hospitalized and hospital means hospitalized.",
-        "The resistance-testing stage is labelled as initiation because the Rust flag records AST/resistance testing initiation, not final result availability.",
+        "Stage percentages use the declared prerequisite: identification uses eligible episodes; AST-result availability and targeted treatment use identified episodes; effective targeted treatment uses targeted treatment.",
+        "The resistance-testing stage records completed AST/resistance testing with a result available.",
         "Effective targeted therapy means a targeted-context active antibiotic with activity_r >= 0.500 for the bacterium, matching the sepsis effective-therapy threshold.",
+        "Targeted context is person-drug-level rather than bacterium-owned, and active-course reselection can refresh the stored initiation date used by the same-day targeted marker.",
         "The model uses daily timesteps, so same-model-day ordering is not a precise sub-day clinical timestamp.",
         "Data source: aggregate simulation_summary_run#.csv fields only. calibration_summary_*.txt is not used as a reader-facing substitute for this figure.",
-        "The Rust aggregate excludes organisms returned by is_microbiome_excluded (currently treponema_pallidum). H. pylori is not separately excluded by that helper in the current code.",
+        "The diagnostic-cascade aggregate excludes H. pylori and includes T. pallidum.",
         f"Values shown are medians across {n_runs} simulation run{'s' if n_runs != 1 else ''}.",
     ]
     if problems:
@@ -13101,7 +13334,12 @@ def main(input_args: list[str]) -> None:
     ]
     sf5_csv_paths = _filter_simulation_csvs_with_columns(
         csv_paths,
-        ["time_in_years", "policy_option", *sf5_required_columns],
+        [
+            "time_in_years",
+            "policy_option",
+            _SF5_COLLECTION_ENABLED_COLUMN,
+            *sf5_required_columns,
+        ],
         "Supplementary Figure S5",
     )
     sf6_csv_paths = _filter_simulation_csvs_with_columns(

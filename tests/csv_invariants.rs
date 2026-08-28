@@ -3,7 +3,7 @@ use amr_project::simulation::population::{
     store_float, Individual, BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 use amr_project::simulation::simulation::{
-    CalibrationMode, Simulation, SIMULATION_SUMMARY_SCHEMA_VERSION,
+    CalibrationMode, Simulation, SummaryContentFlags, SIMULATION_SUMMARY_SCHEMA_VERSION,
 };
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -65,6 +65,26 @@ fn assert_summary_schema_version(path: &Path) {
             .parse::<u32>()
             .expect("schema version should parse as u32");
         assert_eq!(version, SIMULATION_SUMMARY_SCHEMA_VERSION);
+    }
+}
+
+fn assert_diagnostic_cascade_collection_enabled(path: &Path, expected: u8) {
+    let mut reader = csv::Reader::from_path(path).expect("CSV should open");
+    let header = reader
+        .headers()
+        .expect("CSV should include headers")
+        .clone();
+    let enabled_idx = header
+        .iter()
+        .position(|column| column == "diagnostic_cascade_collection_enabled")
+        .expect("summary CSV should identify whether diagnostic cascade data were collected");
+
+    for record in reader.records() {
+        let record = record.expect("CSV data row should parse");
+        let enabled = record[enabled_idx]
+            .parse::<u8>()
+            .expect("diagnostic cascade collection flag should parse as an integer");
+        assert_eq!(enabled, expected);
     }
 }
 
@@ -549,6 +569,7 @@ fn assert_summary_has_supplementary_figure_s4_columns(path: &Path) {
 fn assert_summary_has_supplementary_figure_s5_columns(path: &Path) {
     let header = csv_header(path);
     let expected = [
+        "diagnostic_cascade_collection_enabled",
         "diagnostic_cascade_eligible_symptomatic_infections",
         "diagnostic_cascade_bacterial_identification_done",
         "diagnostic_cascade_resistance_testing_done",
@@ -638,6 +659,20 @@ fn summary_csv_rows_match_header_width_for_tiny_run() {
     assert_summary_has_supplementary_figure_s3_columns(&path);
     assert_summary_has_supplementary_figure_s4_columns(&path);
     assert_summary_has_supplementary_figure_s5_columns(&path);
+    assert_diagnostic_cascade_collection_enabled(&path, 1);
+
+    let mut testing_disabled = SummaryContentFlags::all();
+    testing_disabled.testing = false;
+    for summary in &mut simulation.summary_log {
+        summary.apply_content_flags(testing_disabled);
+    }
+    let disabled_path = output_path("summary_schema_diagnostic_cascade_disabled");
+    simulation
+        .export_summary_to_csv(&disabled_path)
+        .expect("disabled diagnostic summary export should succeed");
+    assert_csv_rows_match_header_width(&disabled_path);
+    assert_summary_schema_version(&disabled_path);
+    assert_diagnostic_cascade_collection_enabled(&disabled_path, 0);
 }
 
 #[test]

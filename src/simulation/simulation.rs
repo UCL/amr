@@ -78,7 +78,7 @@ const RESISTANCE_MECHANISM_FAMILY_SLUGS: [&str; RESISTANCE_MECHANISM_FAMILY_COUN
     "other_unknown",
 ];
 const REGION_COUNT: usize = 6;
-pub const SIMULATION_SUMMARY_SCHEMA_VERSION: u32 = 1;
+pub const SIMULATION_SUMMARY_SCHEMA_VERSION: u32 = 2;
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const CALIBRATION_COUNTERFACTUAL_BRANCH_YEAR: f64 = 2022.0;
@@ -1084,6 +1084,14 @@ fn best_active_targeted_antibiotic_activity(individual: &Individual, bacteria_id
         }
     }
     best_activity
+}
+
+fn diagnostic_effective_targeted_recordable(individual: &Individual, bacteria_idx: usize) -> bool {
+    individual.diagnostic_cascade_bacterial_identification_recorded[bacteria_idx]
+        && individual.diagnostic_cascade_targeted_treatment_recorded[bacteria_idx]
+        && !individual.diagnostic_cascade_effective_targeted_treatment_recorded[bacteria_idx]
+        && best_active_targeted_antibiotic_activity(individual, bacteria_idx)
+            >= EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD
 }
 
 fn record_diagnostic_cascade_stage(
@@ -5122,7 +5130,9 @@ impl Simulation {
                                         [b_idx] = true;
                                 }
 
-                                if individual.test_for_resistance[b_idx]
+                                if individual
+                                    .diagnostic_cascade_bacterial_identification_recorded[b_idx]
+                                    && individual.test_for_resistance[b_idx]
                                     && !individual
                                         .diagnostic_cascade_resistance_testing_recorded
                                         [b_idx]
@@ -5141,7 +5151,11 @@ impl Simulation {
                                         [b_idx] = true;
                                 }
 
-                                if targeted_drug_started_today_for_bacterium(individual, b_idx, t)
+                                if individual
+                                    .diagnostic_cascade_bacterial_identification_recorded[b_idx]
+                                    && targeted_drug_started_today_for_bacterium(
+                                        individual, b_idx, t,
+                                    )
                                     && !individual
                                         .diagnostic_cascade_targeted_treatment_recorded
                                         [b_idx]
@@ -5160,30 +5174,7 @@ impl Simulation {
                                         [b_idx] = true;
                                 }
 
-                                if best_active_targeted_antibiotic_activity(individual, b_idx)
-                                    >= EFFECTIVE_THERAPY_ACTIVITY_THRESHOLD
-                                    && !individual
-                                        .diagnostic_cascade_effective_targeted_treatment_recorded
-                                        [b_idx]
-                                {
-                                    if !individual
-                                        .diagnostic_cascade_targeted_treatment_recorded
-                                        [b_idx]
-                                    {
-                                        record_diagnostic_cascade_stage(
-                                            policy.policy_option,
-                                            t,
-                                            individual,
-                                            b_idx,
-                                            DIAGNOSTIC_CASCADE_TARGETED_TREATMENT_IDX,
-                                            &mut lt.diagnostic_cascade_stage_counts,
-                                            &mut lt
-                                                .diagnostic_cascade_stage_counts_by_setting,
-                                            &mut lt.diagnostic_cascade_assignments,
-                                        );
-                                        individual.diagnostic_cascade_targeted_treatment_recorded
-                                            [b_idx] = true;
-                                    }
+                                if diagnostic_effective_targeted_recordable(individual, b_idx) {
                                     record_diagnostic_cascade_stage(
                                         policy.policy_option,
                                         t,
@@ -6975,6 +6966,7 @@ impl Simulation {
             "infection_acquisition_people_serious_r_marker_eligible_count,",
             "new_drug_initiations_count,new_drug_initiations_with_active_infection_count,",
             "infection_acquisition_people_past_year,",
+            "diagnostic_cascade_collection_enabled,",
             "diagnostic_cascade_eligible_symptomatic_infections,",
             "diagnostic_cascade_bacterial_identification_done,",
             "diagnostic_cascade_resistance_testing_done,",
@@ -7867,6 +7859,14 @@ impl Simulation {
                 summary.new_drug_initiations_count_infected
             ))?;
             append_scalar(format_args!("{}", summary.newly_infected_past_year))?;
+            let diagnostic_cascade_collection_enabled =
+                summary.diagnostic_cascade_stage_counts.len() == DIAGNOSTIC_CASCADE_STAGE_COUNT
+                    && summary.diagnostic_cascade_stage_counts_by_setting.len()
+                        == DIAGNOSTIC_CASCADE_STAGE_COUNT * DIAGNOSTIC_CASCADE_SETTING_COUNT;
+            append_scalar(format_args!(
+                "{}",
+                usize::from(diagnostic_cascade_collection_enabled)
+            ))?;
             append_scalar(format_args!(
                 "{}",
                 diagnostic_stage_count(DIAGNOSTIC_CASCADE_ELIGIBLE_IDX)
@@ -8616,12 +8616,15 @@ impl Simulation {
 mod tests {
     use super::{
         bacterium_is_in_general_clinical_reporting_scope, current_antibiotic_context_priority,
-        diagnostic_cascade_entry_eligible, has_active_reportable_infection,
+        diagnostic_cascade_entry_eligible, diagnostic_cascade_stage_setting_index,
+        diagnostic_effective_targeted_recordable, has_active_reportable_infection,
         infection_death_has_model_scope_contributor, is_new_person_level_sepsis_episode,
-        person_day_vital_status, sample_hypergeometric_left_count, BranchSnapshot, CalibrationMode,
-        MechanismCache, MechanismProfileCache, PolicyAdjustments, Simulation, SummaryContentFlags,
-        DAYS_PER_YEAR, DIAGNOSTIC_CASCADE_ELIGIBLE_IDX, MAX_MECHANISM_PROFILES,
-        SIMULATION_START_YEAR,
+        person_day_vital_status, record_diagnostic_cascade_stage, sample_hypergeometric_left_count,
+        BranchSnapshot, CalibrationMode, MechanismCache, MechanismProfileCache, PolicyAdjustments,
+        Simulation, SummaryContentFlags, DAYS_PER_YEAR, DIAGNOSTIC_CASCADE_COMMUNITY_IDX,
+        DIAGNOSTIC_CASCADE_EFFECTIVE_TARGETED_TREATMENT_IDX, DIAGNOSTIC_CASCADE_ELIGIBLE_IDX,
+        DIAGNOSTIC_CASCADE_HOSPITAL_IDX, DIAGNOSTIC_CASCADE_SETTING_COUNT,
+        DIAGNOSTIC_CASCADE_STAGE_COUNT, MAX_MECHANISM_PROFILES, SIMULATION_START_YEAR,
     };
     use crate::rules::ParameterKeyCache;
     use crate::simulation::population::{
@@ -9143,6 +9146,194 @@ mod tests {
         let not_yet_born = person_day_vital_status(&individual, time_step);
         assert!(!not_yet_born.died_today);
         assert!(!not_yet_born.counts_as_living_stock);
+    }
+
+    fn assert_death_day_diagnostic_cascade_counts(
+        target_identified: bool,
+        targeted_course_started_today: bool,
+        expected_stage_counts: [usize; DIAGNOSTIC_CASCADE_STAGE_COUNT],
+    ) {
+        let time_step = 33_580;
+        let mut simulation = Simulation::new(
+            1,
+            time_step + 1,
+            false,
+            Some(73_100 + usize::from(target_identified) as u64),
+            CalibrationMode::Partial,
+        );
+        let source_bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "klebsiella_pneumoniae")
+            .expect("K. pneumoniae must be modelled");
+        let target_bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        let drug_idx = 0;
+
+        {
+            let individual = &mut simulation.population.individuals[0];
+            individual.age = 40 * 365;
+            individual.date_of_death = Some(time_step);
+            individual.level.fill(0.0);
+            individual.infection_has_caused_symptoms.fill(false);
+            individual.test_identified_infection.fill(false);
+            individual.test_for_resistance.fill(false);
+            individual.date_last_infected.fill(MISSING_EVENT_DATE);
+            individual.cur_use_drug.fill(false);
+            individual.drug_use_context.fill(AntibioticUseContext::None);
+            individual.date_drug_initiated.fill(i32::MIN);
+
+            // The targeted person-level course represents treatment selected for a different,
+            // identified infection. Only the target bacterium opens a cascade episode.
+            individual.level[source_bacteria_idx] = 1.0;
+            individual.test_identified_infection[source_bacteria_idx] = true;
+            individual.level[target_bacteria_idx] = 1.0;
+            individual.infection_has_caused_symptoms[target_bacteria_idx] = true;
+            individual.date_last_infected[target_bacteria_idx] = time_step as i32 - 10;
+            individual.test_identified_infection[target_bacteria_idx] = target_identified;
+
+            individual.cur_use_drug[drug_idx] = true;
+            individual.cur_level_drug[drug_idx] = 1.0;
+            individual.drug_use_context[drug_idx] = AntibioticUseContext::Targeted;
+            individual.date_drug_initiated[drug_idx] = if targeted_course_started_today {
+                time_step as i32
+            } else {
+                time_step as i32 - 1
+            };
+            individual.resistances[target_bacteria_idx][drug_idx].activity_r = store_float(1.0);
+        }
+
+        simulation
+            .run_from(time_step, None)
+            .expect("death-day diagnostic cascade timestep should run");
+
+        assert_eq!(simulation.summary_log.len(), 1);
+        let summary = &simulation.summary_log[0];
+        assert_eq!(
+            summary.diagnostic_cascade_stage_counts,
+            expected_stage_counts.to_vec()
+        );
+
+        let mut expected_by_setting =
+            vec![0; DIAGNOSTIC_CASCADE_STAGE_COUNT * DIAGNOSTIC_CASCADE_SETTING_COUNT];
+        for (stage_idx, &count) in expected_stage_counts.iter().enumerate() {
+            expected_by_setting[diagnostic_cascade_stage_setting_index(
+                stage_idx,
+                DIAGNOSTIC_CASCADE_COMMUNITY_IDX,
+            )] = count;
+        }
+        assert_eq!(
+            summary.diagnostic_cascade_stage_counts_by_setting,
+            expected_by_setting
+        );
+    }
+
+    #[test]
+    fn unidentified_episode_does_not_inherit_prior_targeted_course() {
+        assert_death_day_diagnostic_cascade_counts(false, false, [1, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn identified_episode_does_not_backfill_prior_targeted_course() {
+        assert_death_day_diagnostic_cascade_counts(true, false, [1, 1, 0, 0, 0]);
+    }
+
+    #[test]
+    fn identified_episode_records_same_day_targeted_and_effective_stages_once() {
+        assert_death_day_diagnostic_cascade_counts(true, true, [1, 1, 0, 1, 1]);
+    }
+
+    #[test]
+    fn delayed_effective_stage_is_assigned_to_entry_day_and_setting_once() {
+        let mut simulation = Simulation::new(1, 2, false, Some(73_200), CalibrationMode::Partial);
+        simulation.population.individuals[0].date_of_death = Some(0);
+        simulation
+            .run_from(0, None)
+            .expect("two deterministic summary rows should run");
+        assert_eq!(
+            simulation
+                .summary_log
+                .iter()
+                .map(|summary| summary.time_step)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+
+        let mut rng = SmallRng::seed_from_u64(73_201);
+        let mut individual = Individual::new(1, 40 * 365, "female".to_string(), &mut rng);
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        let drug_idx = 0;
+        individual.diagnostic_cascade_entry_time_step[bacteria_idx] = 0;
+        individual.diagnostic_cascade_entry_hospitalized[bacteria_idx] = true;
+        individual.diagnostic_cascade_bacterial_identification_recorded[bacteria_idx] = true;
+        individual.diagnostic_cascade_targeted_treatment_recorded[bacteria_idx] = true;
+        individual.cur_use_drug[drug_idx] = true;
+        individual.drug_use_context[drug_idx] = AntibioticUseContext::Targeted;
+        individual.resistances[bacteria_idx][drug_idx].activity_r = store_float(1.0);
+
+        let mut current_stage_counts = vec![0; DIAGNOSTIC_CASCADE_STAGE_COUNT];
+        let mut current_stage_counts_by_setting =
+            vec![0; DIAGNOSTIC_CASCADE_STAGE_COUNT * DIAGNOSTIC_CASCADE_SETTING_COUNT];
+        let mut assignments = Vec::new();
+        for _ in 0..2 {
+            if diagnostic_effective_targeted_recordable(&individual, bacteria_idx) {
+                record_diagnostic_cascade_stage(
+                    0,
+                    1,
+                    &individual,
+                    bacteria_idx,
+                    DIAGNOSTIC_CASCADE_EFFECTIVE_TARGETED_TREATMENT_IDX,
+                    &mut current_stage_counts,
+                    &mut current_stage_counts_by_setting,
+                    &mut assignments,
+                );
+                individual.diagnostic_cascade_effective_targeted_treatment_recorded[bacteria_idx] =
+                    true;
+            }
+        }
+
+        assert!(current_stage_counts.iter().all(|&count| count == 0));
+        assert!(current_stage_counts_by_setting
+            .iter()
+            .all(|&count| count == 0));
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].entry_time_step, 0);
+        assert_eq!(
+            assignments[0].stage_idx,
+            DIAGNOSTIC_CASCADE_EFFECTIVE_TARGETED_TREATMENT_IDX
+        );
+        assert_eq!(assignments[0].setting_idx, DIAGNOSTIC_CASCADE_HOSPITAL_IDX);
+
+        simulation.apply_diagnostic_cascade_assignments(&assignments);
+
+        let effective_idx = DIAGNOSTIC_CASCADE_EFFECTIVE_TARGETED_TREATMENT_IDX;
+        let hospital_effective_idx =
+            diagnostic_cascade_stage_setting_index(effective_idx, DIAGNOSTIC_CASCADE_HOSPITAL_IDX);
+        assert_eq!(
+            simulation.summary_log[0].diagnostic_cascade_stage_counts[effective_idx],
+            1
+        );
+        assert_eq!(
+            simulation.summary_log[0].diagnostic_cascade_stage_counts_by_setting
+                [hospital_effective_idx],
+            1
+        );
+        assert_eq!(
+            simulation.summary_log[1].diagnostic_cascade_stage_counts[effective_idx],
+            0
+        );
+        assert_eq!(
+            simulation
+                .summary_log
+                .iter()
+                .map(|summary| summary.diagnostic_cascade_stage_counts[effective_idx])
+                .sum::<usize>(),
+            1
+        );
     }
 
     #[test]

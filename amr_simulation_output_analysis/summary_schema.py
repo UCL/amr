@@ -10,7 +10,7 @@ import pandas as pd
 
 
 SUMMARY_SCHEMA_VERSION_COLUMN = "simulation_summary_schema_version"
-SUPPORTED_SUMMARY_SCHEMA_VERSION = 1
+SUPPORTED_SUMMARY_SCHEMA_VERSION = 2
 
 
 class SimulationSummarySchemaError(ValueError):

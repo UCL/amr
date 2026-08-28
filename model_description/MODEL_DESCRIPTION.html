@@ -55610,7 +55610,7 @@ their names describe the intended column structure, not downloaded observations.
 </code></pre>
 <p>where <code>NNNNNN</code> is a zero-padded run identifier.</p>
 <p>Every current file records its output-format version in
-<code>simulation_summary_schema_version</code>; this document describes version <code>1</code>. The Python
+<code>simulation_summary_schema_version</code>; this document describes version <code>2</code>. The Python
 analysis accepts only the file-structure version for which it was written. An unversioned
 or differently versioned file must be analysed with its matching repository revision or
 regenerated, rather than interpreted by matching column names alone.</p>
@@ -55638,7 +55638,12 @@ selected rows, so row count is not in general equal to the number of simulated t
 <tr>
 <td><code>simulation_summary_schema_version</code></td>
 <td>int</td>
-<td>Output-format version; currently <code>1</code></td>
+<td>Output-format version; currently <code>2</code></td>
+</tr>
+<tr>
+<td><code>diagnostic_cascade_collection_enabled</code></td>
+<td>int</td>
+<td><code>1</code> when diagnostic-cascade counters were collected and <code>0</code> when that output group was omitted. When this value is <code>0</code>, zero-valued cascade columns are unavailable placeholders, not observed zero counts.</td>
 </tr>
 <tr>
 <td><code>time_in_years</code></td>
@@ -55815,6 +55820,71 @@ selected rows, so row count is not in general equal to the number of simulated t
 </tr>
 </tbody>
 </table>
+<h4 id="diagnostic-cascade-columns">Diagnostic-cascade columns</h4>
+<p>The diagnostic cascade is an episode-level reporting graph rather than a strictly linear
+sequence:</p>
+<pre><code class="language-text">Eligible symptomatic infection
+└── Bacterium identified
+    ├── AST result available
+    └── Targeted treatment started
+        └── Effective targeted treatment observed
+</code></pre>
+<p>AST-result availability and targeted treatment are sibling outcomes after identification;
+targeted treatment does not depend on an AST result. The <code>resistance_testing_done</code> column
+name is retained for output compatibility, but this stage means that the AST panel is
+result-ready (<code>test_for_resistance[b] == true</code>), not merely that AST was initiated. The
+corresponding count dependencies are therefore <code>eligible &gt;= identified</code>, <code>identified &gt;=
+AST</code>, <code>identified &gt;= targeted</code>, and <code>targeted &gt;= effective</code>.</p>
+<p>An eligible episode is an active symptomatic infection that has reached the model's
+testing-eligibility time and availability rules. The diagnostic-cascade reporting scope
+uses the general clinical reporting scope: <em>H. pylori</em> is excluded, while <em>T. pallidum</em> is
+included. Each stage is counted at most once for an episode and assigned to the episode's
+entry day and community/hospital setting. Follow-up remains open until the infection
+episode ends or the person dies, even if every available cascade stage has already been
+recorded.</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>diagnostic_cascade_eligible_symptomatic_infections</code></td>
+<td>Eligible infection episodes entering cascade follow-up</td>
+</tr>
+<tr>
+<td><code>diagnostic_cascade_bacterial_identification_done</code></td>
+<td>Episodes for which bacterial identification is available</td>
+</tr>
+<tr>
+<td><code>diagnostic_cascade_resistance_testing_done</code></td>
+<td>Episodes for which the AST result panel is available</td>
+</tr>
+<tr>
+<td><code>diagnostic_cascade_targeted_treatment_started</code></td>
+<td>Identified episodes with a same-day targeted-context course start</td>
+</tr>
+<tr>
+<td><code>diagnostic_cascade_effective_targeted_treatment_started</code></td>
+<td>Episodes with recorded targeted treatment for which an active targeted-context drug reaches the fixed effective-activity threshold for that bacterium</td>
+</tr>
+<tr>
+<td>The same names with <code>_community</code> or <code>_hospital</code> suffixes</td>
+<td>The corresponding counts classified by care setting at cascade entry</td>
+</tr>
+</tbody>
+</table>
+<p>These fields are reporting-only and do not change testing, prescribing, infection state,
+or random draws. Targeted context is stored for each person-drug course rather than as
+durable course-to-bacterium ownership. In a person with concurrent identified infections,
+a targeted-context course start can therefore be observed for more than one bacterium;
+effectiveness is still evaluated separately against each bacterium. In addition, reselection
+of an already-active course can refresh its stored initiation date, so the current same-day
+marker is not guaranteed to denote a pharmacologically new course. The cascade dependency
+guards prevent stages from being recorded out of order but do not remove these attribution
+limitations.</p>
 <h4 id="per-region-columns-6-each">Per-region columns (~6 each)</h4>
 <table>
 <thead>
@@ -55850,6 +55920,7 @@ version and corresponding updates to the Python analysis.</p>
 <li>per-bacteria columns for infection, carriage, acquisition transitions, deaths, and sepsis</li>
 <li>per-drug columns for starts and active treatment</li>
 <li>per-bacteria-per-drug columns for activity, MIC, treatment exposure, susceptible-infection counts, and mechanism-derived resistance summaries</li>
+<li>diagnostic-cascade availability, episode-stage counts, and community/hospital entry-setting splits</li>
 <li>per-region columns for infection, hospitalisation, and death summaries</li>
 </ul>
 <h3 id="c5-observation-time-and-multiplicity-rules">C.5 Observation-Time and Multiplicity Rules</h3>
@@ -56180,7 +56251,7 @@ counts, and previously located parameter references.</p>
 <td>Persistent value for each bacterium</td>
 <td>Reporting indicator for an infection eligible for diagnostic-cascade follow-up.</td>
 <td><code>false</code>.</td>
-<td>Closed when the infection episode ends.</td>
+<td>Closed when the infection episode ends or the person dies.</td>
 <td>Diagnostic reporting</td>
 </tr>
 <tr>
@@ -57159,8 +57230,8 @@ rule used by the model rather than a configurable parameter.</p>
 <td><a id="rule-diagnostic-cascade-open"></a><code>diagnostic_cascade_open[b]</code></td>
 <td>Active symptomatic infection and progression through the diagnostic cascade.</td>
 <td>Diagnostic-cascade reporting definition.</td>
-<td>Opened on qualifying cascade entry and closed when infection resolves or cascade recording is complete.</td>
-<td>State used to count outputs; it does not trigger testing.</td>
+<td>Opened on qualifying cascade entry and closed only when the infection episode ends or the person dies.</td>
+<td>State used to count outputs; completing all cascade stages does not close the episode or trigger testing.</td>
 <td>Diagnostic cascade recording in <code>simulation</code></td>
 </tr>
 <tr>
@@ -57189,26 +57260,26 @@ rule used by the model rather than a configurable parameter.</p>
 </tr>
 <tr>
 <td><a id="rule-diagnostic-cascade-resistance-testing-recorded"></a><code>diagnostic_cascade_resistance_testing_recorded[b]</code></td>
-<td>Completed <code>test_r[b][d]</code> results, cascade state.</td>
+<td>Recorded bacterial identification, <code>test_for_resistance[b]</code>, and cascade state.</td>
 <td>AST readiness and reporting rules.</td>
-<td>Remains true after resistance testing is counted for the episode.</td>
-<td>Initiation alone is not a completed result.</td>
+<td>Remains true after the result-ready AST stage is counted for the episode.</td>
+<td>AST initiation alone is not a completed result; AST and targeted treatment are sibling stages after identification.</td>
 <td>Diagnostic cascade reporting in <code>simulation</code></td>
 </tr>
 <tr>
 <td><a id="rule-diagnostic-cascade-targeted-treatment-recorded"></a><code>diagnostic_cascade_targeted_treatment_recorded[b]</code></td>
-<td>Bacterial identification and subsequent drug context.</td>
+<td>Recorded bacterial identification and a subsequent person-drug targeted-course start.</td>
 <td>Fixed targeted-treatment classification.</td>
 <td>Remains true after a targeted course is counted.</td>
-<td>Reporting only.</td>
+<td>Reporting only; the course context is not durable drug-to-bacterium ownership.</td>
 <td>Diagnostic cascade reporting in <code>simulation</code></td>
 </tr>
 <tr>
 <td><a id="rule-diagnostic-cascade-effective-targeted-treatment-recorded"></a><code>diagnostic_cascade_effective_targeted_treatment_recorded[b]</code></td>
-<td>Targeted treatment and applied activity.</td>
+<td>Recorded targeted treatment and activity of an active targeted-context drug against the bacterium.</td>
 <td>Fixed effective-therapy reporting definition.</td>
 <td>Remains true after effective targeted therapy is counted.</td>
-<td>Reporting only.</td>
+<td>Reporting only; this stage cannot be recorded before targeted treatment.</td>
 <td>Diagnostic cascade reporting in <code>simulation</code></td>
 </tr>
 <tr>
@@ -58530,9 +58601,6 @@ rule used by the model rather than a configurable parameter.</p>
 </li>
 <li>
 <p>World Health Organization. <em>Global antibiotic resistance surveillance report 2025.</em> Geneva: WHO; 2025. ISBN 9789240116337. https://www.who.int/publications/i/item/9789240116337</p>
-</li>
-<li>
-<p>World Health Organization. <em>Global Antimicrobial Resistance and Use Surveillance System (GLASS).</em> Accessed June 22, 2026. https://www.who.int/initiatives/glass</p>
 </li>
 <li>
 <p>World Health Organization. <em>Global Antimicrobial Resistance and Use Surveillance System (GLASS) report: antibiotic use data for 2022.</em> Geneva: WHO; 2025. ISBN 9789240108127. https://www.who.int/publications/i/item/9789240108127</p>

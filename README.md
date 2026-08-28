@@ -197,11 +197,13 @@ Simulation outputs are written under
 - `run_metadata_<timestamp>_seed_<seed>.txt`
 - `config_validation_<timestamp>.txt`
 
-The summary CSV uses output schema version 1. Its fields depend on the selected
-run mode and can number in the tens of thousands. The metadata records the
-source hash, seed and seed source, run ID, population, time steps, mode,
-policies, thread count, duration, output path, CSV SHA-256 hash, validation
-status, and completion or failure state.
+The summary CSV uses output schema version 2. Its fields depend on the selected
+run mode and can number in the tens of thousands. Optional diagnostic-cascade
+columns are accompanied by `diagnostic_cascade_collection_enabled`, so an
+uncollected metric is not mistaken for a genuine zero count. The metadata
+records the source hash, seed and seed source, run ID, population, time steps,
+mode, policies, thread count, duration, output path, CSV SHA-256 hash,
+validation status, and completion or failure state.
 
 The source hash can be supplied by `AMR_SOURCE_HASH` or `source_hash.txt`.
 Otherwise the launcher uses the current Git commit and marks a dirty worktree.
