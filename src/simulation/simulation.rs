@@ -6120,6 +6120,14 @@ impl Simulation {
                         }
                     }
 
+                    // Reset per-timestep output state only after this individual's counters have
+                    // been consumed. Keeping this inside the existing population pass avoids a
+                    // second full traversal while preserving the state seen by later loggers.
+                    for resolution_counts in &mut individual.infection_resolution_this_timestep {
+                        resolution_counts.fill(0);
+                    }
+                    individual.infection_prevented_by_drug.fill(false);
+
                     }
 
                     lt
@@ -6612,21 +6620,6 @@ impl Simulation {
                 }
             }
 
-            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
-            self.population
-                .individuals
-                .par_iter_mut()
-                .for_each(|individual| {
-                    for b_idx in 0..BACTERIA_LIST.len() {
-                        for res_idx in
-                            0..crate::simulation::population::InfectionResolutionType::all().len()
-                        {
-                            individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
-                        }
-                        // Reset infection prevention flags for next timestep
-                        individual.infection_prevented_by_drug[b_idx] = false;
-                    }
-                });
             if let Some(logger) = self.individual_logger.as_mut() {
                 if !self.branch_active {
                     logger.log_snapshot(t, &self.population);
@@ -8945,6 +8938,8 @@ mod tests {
             individual.infectious_syndrome[bacteria_idx] = 5;
             individual.date_last_infected[bacteria_idx] = entry_step as i32 - 2;
             individual.date_last_infected_keep[bacteria_idx] = entry_step as i32 - 2;
+            individual.infection_resolution_this_timestep[bacteria_idx][0] = 1;
+            individual.infection_prevented_by_drug[bacteria_idx] = true;
 
             individual.sepsis[bacteria_idx] = true;
             individual.sepsis_onset_day[bacteria_idx] = entry_step as i32;
@@ -9018,6 +9013,53 @@ mod tests {
             bincode::serialize(&actual).unwrap(),
             "the first retained Full row must match the ungated reference"
         );
+    }
+
+    #[test]
+    fn timestep_output_state_is_counted_before_in_pass_reset() {
+        let mut simulation =
+            Simulation::new(1, 1, false, Some(7_315_338), CalibrationMode::Partial);
+        let bacteria_idx = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .expect("E. coli must be modelled");
+        {
+            let individual = &mut simulation.population.individuals[0];
+            // The active-day preparation advances this person to age zero and returns before
+            // ordinary rules, leaving the seeded output events available to the summary pass.
+            individual.age = -1;
+            individual.infection_resolution_this_timestep[bacteria_idx][0] = 2;
+            individual.infection_resolution_this_timestep[bacteria_idx][1] = 3;
+            individual.infection_prevented_by_drug[bacteria_idx] = true;
+        }
+
+        simulation
+            .run_from(0, None)
+            .expect("single-day reset-ordering run should succeed");
+
+        let summary = &simulation.summary_log[0];
+        assert_eq!(
+            summary.infection_resolution_count_by_bacteria[bacteria_idx],
+            5
+        );
+        assert_eq!(
+            summary.infection_resolution_immune_clearance_by_bacteria[bacteria_idx],
+            2
+        );
+        assert_eq!(
+            summary.infection_resolution_drug_assisted_clearance_by_bacteria[bacteria_idx],
+            3
+        );
+        assert_eq!(
+            summary.infections_prevented_by_drug_by_bacteria[bacteria_idx],
+            1
+        );
+
+        let individual = &simulation.population.individuals[0];
+        assert!(individual.infection_resolution_this_timestep[bacteria_idx]
+            .iter()
+            .all(|&count| count == 0));
+        assert!(!individual.infection_prevented_by_drug[bacteria_idx]);
     }
 
     #[test]
