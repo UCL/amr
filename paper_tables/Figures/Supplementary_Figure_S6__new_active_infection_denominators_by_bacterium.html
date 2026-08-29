@@ -40,9 +40,12 @@ a { color: #2980b9; }
 <thead><tr>
 <th>Bacterium</th>
 <th>Serious-R marker drug(s)</th>
-<th>Total acquisition events, raw simulated n</th>
-<th>Hospital-acquired events, raw simulated n</th>
-<th>Community-acquired events, raw simulated n</th>
+<th>Total n, median</th>
+<th>Total n, 5th-95th</th>
+<th>Hospital n, median</th>
+<th>Hospital n, 5th-95th</th>
+<th>Community n, median</th>
+<th>Community n, 5th-95th</th>
 <th>Percent hospital</th>
 <th>Denominator adequacy flag, hospital</th>
 <th>Denominator adequacy flag, community</th>
@@ -55,633 +58,759 @@ a { color: #2980b9; }
 <tr>
 <td>Shigella spp.</td>
 <td>ciprofloxacin</td>
-<td>1,210,055</td>
-<td>24,964</td>
-<td>1,185,091</td>
-<td>2.1</td>
+<td>1,206,850</td>
+<td>1,203,966-1,209,734</td>
+<td>24,728</td>
+<td>24,517-24,940</td>
+<td>1,182,122</td>
+<td>1,179,449-1,184,794</td>
+<td>2.0</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>57.0</td>
-<td>75.4</td>
-<td>52.4</td>
-<td>1</td>
-<td>—</td>
-</tr>
-<tr>
-<td>Campylobacter jejuni</td>
-<td>ciprofloxacin</td>
-<td>789,888</td>
-<td>0</td>
-<td>789,888</td>
-<td>0.0</td>
-<td>no denominator</td>
-<td>larger denominator</td>
-<td>62.0</td>
-<td>66.8</td>
-<td>60.7</td>
-<td>1</td>
+<td>55.9</td>
+<td>75.9</td>
+<td>51.4</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Escherichia coli</td>
 <td>meropenem</td>
-<td>789,217</td>
-<td>120,243</td>
-<td>668,974</td>
-<td>15.2</td>
+<td>790,757</td>
+<td>789,371-792,143</td>
+<td>123,274</td>
+<td>120,546-126,002</td>
+<td>667,483</td>
+<td>666,141-668,825</td>
+<td>15.6</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>15.3</td>
-<td>57.3</td>
-<td>2.5</td>
-<td>1</td>
+<td>17.4</td>
+<td>62.0</td>
+<td>3.0</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Campylobacter jejuni</td>
+<td>ciprofloxacin</td>
+<td>787,332</td>
+<td>785,033-789,632</td>
+<td>0</td>
+<td>0-1</td>
+<td>787,332</td>
+<td>785,032-789,632</td>
+<td>0.0</td>
+<td>very sparse</td>
+<td>larger denominator</td>
+<td>61.4</td>
+<td>66.2</td>
+<td>60.1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Streptococcus pneumoniae</td>
 <td>penicillin_g</td>
-<td>507,576</td>
-<td>41,052</td>
-<td>466,524</td>
+<td>505,610</td>
+<td>503,840-507,379</td>
+<td>41,168</td>
+<td>41,064-41,273</td>
+<td>464,441</td>
+<td>462,566-466,316</td>
 <td>8.1</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Chlamydia trachomatis</td>
 <td>azithromycin</td>
-<td>411,724</td>
+<td>410,723</td>
+<td>409,822-411,624</td>
 <td>0</td>
-<td>411,724</td>
+<td>0-1</td>
+<td>410,722</td>
+<td>409,821-411,624</td>
 <td>0.0</td>
-<td>no denominator</td>
+<td>very sparse</td>
 <td>larger denominator</td>
-<td>12.1</td>
-<td>17.0</td>
-<td>11.9</td>
-<td>1</td>
+<td>13.8</td>
+<td>19.1</td>
+<td>13.5</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Helicobacter pylori</td>
 <td>clarithromycin</td>
-<td>377,125</td>
-<td>618</td>
-<td>376,507</td>
+<td>376,226</td>
+<td>375,417-377,035</td>
+<td>646</td>
+<td>621-670</td>
+<td>375,580</td>
+<td>374,747-376,414</td>
 <td>0.2</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>4.6</td>
-<td>19.1</td>
-<td>4.6</td>
-<td>1</td>
+<td>6.9</td>
+<td>20.4</td>
+<td>6.9</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Staphylococcus aureus</td>
 <td>flucloxacillin</td>
-<td>262,375</td>
-<td>80,073</td>
-<td>182,302</td>
-<td>30.5</td>
+<td>263,858</td>
+<td>262,523-265,194</td>
+<td>81,618</td>
+<td>80,227-83,008</td>
+<td>182,241</td>
+<td>182,186-182,296</td>
+<td>30.9</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>56.4</td>
-<td>89.2</td>
-<td>15.8</td>
-<td>1</td>
+<td>55.8</td>
+<td>90.0</td>
+<td>9.7</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Neisseria gonorrhoeae</td>
 <td>ceftriaxone</td>
-<td>250,078</td>
+<td>249,749</td>
+<td>249,453-250,045</td>
 <td>0</td>
-<td>250,078</td>
+<td>0-0</td>
+<td>249,749</td>
+<td>249,453-250,045</td>
 <td>0.0</td>
 <td>no denominator</td>
 <td>larger denominator</td>
-<td>36.3</td>
-<td>53.5</td>
-<td>34.4</td>
-<td>1</td>
+<td>18.9</td>
+<td>28.5</td>
+<td>17.8</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Mycoplasma pneumoniae</td>
 <td>azithromycin</td>
-<td>123,004</td>
-<td>9,220</td>
-<td>113,784</td>
-<td>7.5</td>
+<td>122,552</td>
+<td>122,144-122,959</td>
+<td>9,270</td>
+<td>9,225-9,316</td>
+<td>113,281</td>
+<td>112,828-113,734</td>
+<td>7.6</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>40.7</td>
-<td>50.4</td>
-<td>36.6</td>
-<td>1</td>
+<td>36.5</td>
+<td>46.7</td>
+<td>32.3</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Klebsiella pneumoniae</td>
 <td>meropenem</td>
-<td>108,120</td>
-<td>53,620</td>
-<td>54,500</td>
-<td>49.6</td>
+<td>110,721</td>
+<td>108,380-113,062</td>
+<td>56,086</td>
+<td>53,867-58,304</td>
+<td>54,636</td>
+<td>54,514-54,757</td>
+<td>50.7</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>55.3</td>
-<td>89.2</td>
-<td>1.3</td>
-<td>1</td>
+<td>58.7</td>
+<td>91.4</td>
+<td>1.4</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Mycoplasma genitalium</td>
 <td>azithromycin</td>
-<td>100,508</td>
+<td>100,280</td>
+<td>100,076-100,485</td>
 <td>0</td>
-<td>100,508</td>
+<td>0-0</td>
+<td>100,280</td>
+<td>100,076-100,485</td>
 <td>0.0</td>
 <td>no denominator</td>
 <td>larger denominator</td>
-<td>44.8</td>
-<td>62.2</td>
-<td>42.1</td>
-<td>1</td>
+<td>47.6</td>
+<td>63.3</td>
+<td>45.1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Streptococcus pyogenes</td>
 <td>erythromycin</td>
-<td>52,641</td>
-<td>5,380</td>
-<td>47,261</td>
+<td>52,594</td>
+<td>52,552-52,636</td>
+<td>5,368</td>
+<td>5,356-5,379</td>
+<td>47,226</td>
+<td>47,195-47,258</td>
 <td>10.2</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>7.0</td>
-<td>25.4</td>
-<td>3.3</td>
-<td>1</td>
+<td>7.6</td>
+<td>27.5</td>
+<td>3.7</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Salmonella enterica serovar Typhi</td>
 <td>ciprofloxacin</td>
-<td>50,563</td>
-<td>2,075</td>
-<td>48,488</td>
-<td>4.1</td>
+<td>50,622</td>
+<td>50,569-50,676</td>
+<td>2,170</td>
+<td>2,084-2,255</td>
+<td>48,453</td>
+<td>48,422-48,484</td>
+<td>4.3</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>30.7</td>
-<td>48.1</td>
-<td>27.5</td>
-<td>1</td>
+<td>29.1</td>
+<td>49.6</td>
+<td>25.1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Bordetella pertussis</td>
 <td>azithromycin</td>
-<td>41,080</td>
-<td>2,204</td>
-<td>38,876</td>
-<td>5.4</td>
+<td>41,028</td>
+<td>40,980-41,075</td>
+<td>2,170</td>
+<td>2,138-2,201</td>
+<td>38,858</td>
+<td>38,842-38,874</td>
+<td>5.3</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>7.8</td>
-<td>11.2</td>
-<td>6.2</td>
-<td>1</td>
+<td>9.1</td>
+<td>12.6</td>
+<td>7.4</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Treponema pallidum</td>
 <td>penicillin_g</td>
-<td>24,927</td>
+<td>24,808</td>
+<td>24,702-24,915</td>
 <td>0</td>
-<td>24,927</td>
+<td>0-0</td>
+<td>24,808</td>
+<td>24,702-24,915</td>
 <td>0.0</td>
 <td>no denominator</td>
 <td>larger denominator</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>apparent hospital 0% serious-R with sparse denominator</td>
 </tr>
 <tr>
 <td>Moraxella catarrhalis</td>
 <td>azithromycin</td>
-<td>21,377</td>
-<td>2,537</td>
-<td>18,840</td>
-<td>11.9</td>
+<td>21,505</td>
+<td>21,390-21,620</td>
+<td>2,624</td>
+<td>2,546-2,701</td>
+<td>18,882</td>
+<td>18,844-18,919</td>
+<td>12.2</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>2.7</td>
-<td>10.1</td>
-<td>1.5</td>
-<td>1</td>
+<td>2.4</td>
+<td>8.5</td>
+<td>1.4</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Haemophilus influenzae</td>
 <td>amoxicillin_clavulanate</td>
-<td>18,514</td>
-<td>3,477</td>
-<td>15,037</td>
+<td>18,400</td>
+<td>18,297-18,503</td>
+<td>3,454</td>
+<td>3,433-3,475</td>
+<td>14,946</td>
+<td>14,864-15,028</td>
 <td>18.8</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>30.8</td>
-<td>65.7</td>
-<td>1.8</td>
-<td>1</td>
+<td>30.4</td>
+<td>65.5</td>
+<td>1.7</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Salmonella enterica serovar Paratyphi A</td>
 <td>ciprofloxacin</td>
-<td>15,262</td>
-<td>704</td>
-<td>14,558</td>
-<td>4.6</td>
+<td>15,217</td>
+<td>15,176-15,258</td>
+<td>760</td>
+<td>710-811</td>
+<td>14,456</td>
+<td>14,365-14,548</td>
+<td>5.0</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>35.0</td>
-<td>62.3</td>
-<td>26.1</td>
-<td>1</td>
+<td>37.8</td>
+<td>64.4</td>
+<td>29.0</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Bacteroides fragilis</td>
 <td>meropenem</td>
-<td>14,739</td>
-<td>6,858</td>
+<td>14,593</td>
+<td>14,462-14,724</td>
+<td>6,712</td>
+<td>6,581-6,843</td>
 <td>7,881</td>
-<td>46.5</td>
+<td>7,881-7,881</td>
+<td>46.0</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>43.2</td>
-<td>72.9</td>
-<td>2.4</td>
-<td>1</td>
+<td>39.9</td>
+<td>68.2</td>
+<td>2.1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Pseudomonas aeruginosa</td>
 <td>meropenem</td>
-<td>12,652</td>
-<td>5,108</td>
-<td>7,544</td>
-<td>40.4</td>
+<td>12,642</td>
+<td>12,632-12,651</td>
+<td>5,142</td>
+<td>5,111-5,173</td>
+<td>7,500</td>
+<td>7,459-7,540</td>
+<td>40.7</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>21.1</td>
-<td>30.0</td>
+<td>18.4</td>
+<td>26.2</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Invasive non-typhoidal Salmonella spp.</td>
 <td>ceftriaxone</td>
-<td>11,998</td>
-<td>2,748</td>
-<td>9,250</td>
-<td>22.9</td>
+<td>11,945</td>
+<td>11,897-11,993</td>
+<td>2,791</td>
+<td>2,752-2,830</td>
+<td>9,154</td>
+<td>9,068-9,240</td>
+<td>23.4</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>42.8</td>
+<td>43.3</td>
 <td>80.9</td>
-<td>13.9</td>
-<td>1</td>
+<td>13.8</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Vibrio cholerae</td>
 <td>azithromycin</td>
-<td>10,615</td>
-<td>283</td>
-<td>10,332</td>
+<td>10,582</td>
+<td>10,551-10,612</td>
+<td>289</td>
+<td>284-294</td>
+<td>10,292</td>
+<td>10,257-10,328</td>
 <td>2.7</td>
 <td>moderate</td>
 <td>larger denominator</td>
 <td>6.3</td>
-<td>28.7</td>
+<td>28.6</td>
 <td>1.5</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Streptococcus agalactiae</td>
 <td>penicillin_g</td>
-<td>10,508</td>
-<td>2,278</td>
-<td>8,230</td>
-<td>21.7</td>
+<td>10,560</td>
+<td>10,513-10,607</td>
+<td>2,376</td>
+<td>2,288-2,463</td>
+<td>8,184</td>
+<td>8,144-8,225</td>
+<td>22.5</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>0.2</td>
-<td>0.4</td>
-<td>0.0</td>
-<td>1</td>
-<td>—</td>
-</tr>
-<tr>
-<td>Staphylococcus epidermidis</td>
-<td>flucloxacillin</td>
-<td>6,958</td>
-<td>5,363</td>
-<td>1,595</td>
-<td>77.1</td>
-<td>larger denominator</td>
-<td>larger denominator</td>
-<td>71.6</td>
-<td>89.9</td>
-<td>0.9</td>
-<td>1</td>
-<td>—</td>
-</tr>
-<tr>
-<td>Clostridioides difficile</td>
-<td>vancomycin</td>
-<td>6,854</td>
-<td>2,405</td>
-<td>4,449</td>
-<td>35.1</td>
-<td>larger denominator</td>
-<td>larger denominator</td>
-<td>0.0</td>
-<td>0.0</td>
-<td>0.0</td>
-<td>1</td>
-<td>—</td>
-</tr>
-<tr>
-<td>Enterococcus faecalis</td>
-<td>vancomycin</td>
-<td>6,638</td>
-<td>2,807</td>
-<td>3,831</td>
-<td>42.3</td>
-<td>larger denominator</td>
-<td>larger denominator</td>
-<td>0.3</td>
-<td>0.4</td>
-<td>0.0</td>
-<td>1</td>
+<td>4.4</td>
+<td>8.2</td>
+<td>0.1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Proteus spp.</td>
 <td>meropenem</td>
-<td>6,462</td>
-<td>2,285</td>
-<td>4,177</td>
-<td>35.4</td>
+<td>6,918</td>
+<td>6,508-7,329</td>
+<td>2,702</td>
+<td>2,327-3,077</td>
+<td>4,216</td>
+<td>4,181-4,252</td>
+<td>39.1</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>0.8</td>
-<td>1.9</td>
+<td>23.6</td>
+<td>43.4</td>
+<td>0.2</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Clostridioides difficile</td>
+<td>vancomycin</td>
+<td>6,892</td>
+<td>6,858-6,927</td>
+<td>2,432</td>
+<td>2,408-2,455</td>
+<td>4,461</td>
+<td>4,450-4,472</td>
+<td>35.3</td>
+<td>larger denominator</td>
+<td>larger denominator</td>
 <td>0.0</td>
-<td>1</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Staphylococcus epidermidis</td>
+<td>flucloxacillin</td>
+<td>6,849</td>
+<td>6,751-6,947</td>
+<td>5,267</td>
+<td>5,181-5,353</td>
+<td>1,582</td>
+<td>1,570-1,594</td>
+<td>76.9</td>
+<td>larger denominator</td>
+<td>larger denominator</td>
+<td>71.5</td>
+<td>90.0</td>
+<td>0.8</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Enterococcus faecalis</td>
+<td>vancomycin</td>
+<td>6,650</td>
+<td>6,639-6,660</td>
+<td>2,822</td>
+<td>2,808-2,835</td>
+<td>3,828</td>
+<td>3,825-3,831</td>
+<td>42.4</td>
+<td>larger denominator</td>
+<td>larger denominator</td>
+<td>5.3</td>
+<td>8.5</td>
+<td>0.2</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Acinetobacter baumannii</td>
 <td>meropenem</td>
-<td>5,821</td>
-<td>3,348</td>
-<td>2,473</td>
-<td>57.5</td>
+<td>6,208</td>
+<td>5,860-6,557</td>
+<td>3,753</td>
+<td>3,388-4,118</td>
+<td>2,456</td>
+<td>2,440-2,471</td>
+<td>60.4</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>45.0</td>
-<td>59.8</td>
-<td>0.1</td>
-<td>1</td>
+<td>56.5</td>
+<td>71.9</td>
+<td>0.2</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Legionella pneumophila</td>
 <td>azithromycin</td>
-<td>4,120</td>
-<td>809</td>
-<td>3,311</td>
+<td>4,159</td>
+<td>4,124-4,194</td>
+<td>814</td>
+<td>810-818</td>
+<td>3,345</td>
+<td>3,314-3,376</td>
 <td>19.6</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Enterococcus faecium</td>
 <td>vancomycin</td>
-<td>4,093</td>
-<td>2,646</td>
-<td>1,447</td>
-<td>64.6</td>
+<td>4,130</td>
+<td>4,097-4,163</td>
+<td>2,655</td>
+<td>2,647-2,663</td>
+<td>1,475</td>
+<td>1,450-1,500</td>
+<td>64.3</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>62.8</td>
-<td>74.0</td>
-<td>2.7</td>
-<td>1</td>
-<td>—</td>
-</tr>
-<tr>
-<td>Enterobacter cloacae</td>
-<td>meropenem</td>
-<td>3,534</td>
-<td>2,892</td>
-<td>642</td>
-<td>81.8</td>
-<td>larger denominator</td>
-<td>larger denominator</td>
-<td>49.6</td>
-<td>55.5</td>
-<td>0.0</td>
-<td>1</td>
+<td>63.0</td>
+<td>74.6</td>
+<td>3.6</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Enterobacter spp.</td>
 <td>meropenem</td>
-<td>3,318</td>
-<td>1,549</td>
-<td>1,769</td>
-<td>46.7</td>
+<td>3,222</td>
+<td>3,137-3,308</td>
+<td>1,522</td>
+<td>1,497-1,546</td>
+<td>1,701</td>
+<td>1,640-1,762</td>
+<td>47.2</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Enterobacter cloacae</td>
+<td>meropenem</td>
+<td>3,148</td>
+<td>2,801-3,495</td>
+<td>2,542</td>
+<td>2,227-2,857</td>
+<td>606</td>
+<td>574-638</td>
+<td>80.7</td>
+<td>larger denominator</td>
+<td>larger denominator</td>
+<td>33.4</td>
+<td>37.8</td>
+<td>0.0</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Citrobacter spp.</td>
 <td>meropenem</td>
-<td>2,227</td>
-<td>843</td>
-<td>1,384</td>
-<td>37.9</td>
+<td>2,124</td>
+<td>2,030-2,217</td>
+<td>782</td>
+<td>726-837</td>
+<td>1,342</td>
+<td>1,304-1,380</td>
+<td>36.8</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
-<td>37.6</td>
-<td>68.1</td>
+<td>39.3</td>
+<td>72.5</td>
 <td>0.2</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Serratia spp.</td>
 <td>meropenem</td>
-<td>1,591</td>
-<td>550</td>
-<td>1,041</td>
-<td>34.6</td>
+<td>1,588</td>
+<td>1,586-1,591</td>
+<td>576</td>
+<td>553-598</td>
+<td>1,013</td>
+<td>988-1,038</td>
+<td>36.2</td>
 <td>larger denominator</td>
 <td>larger denominator</td>
+<td>2.9</td>
+<td>5.2</td>
 <td>0.0</td>
-<td>0.1</td>
-<td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>P. stuartii</td>
 <td>—</td>
-<td>1,573</td>
-<td>1,115</td>
-<td>458</td>
-<td>70.9</td>
+<td>1,558</td>
+<td>1,545-1,572</td>
+<td>1,092</td>
+<td>1,072-1,113</td>
+<td>466</td>
+<td>459-473</td>
+<td>70.1</td>
 <td>larger denominator</td>
 <td>moderate</td>
 <td>—</td>
 <td>—</td>
 <td>—</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>MDR Mycobacterium tuberculosis</td>
 <td>—</td>
-<td>1,253</td>
-<td>43</td>
-<td>1,210</td>
-<td>3.4</td>
+<td>1,298</td>
+<td>1,258-1,338</td>
+<td>46</td>
+<td>43-48</td>
+<td>1,252</td>
+<td>1,214-1,291</td>
+<td>3.5</td>
 <td>sparse</td>
 <td>larger denominator</td>
 <td>—</td>
 <td>—</td>
 <td>—</td>
-<td>1</td>
+<td>2</td>
 <td>special organism; MDR-TB is excluded from serious-R summaries because rifampicin resistance is definitional in the MDR-TB model</td>
-</tr>
-<tr>
-<td>Yersinia enterocolitica</td>
-<td>ciprofloxacin</td>
-<td>1,218</td>
-<td>31</td>
-<td>1,187</td>
-<td>2.5</td>
-<td>sparse</td>
-<td>larger denominator</td>
-<td>4.0</td>
-<td>17.1</td>
-<td>1.1</td>
-<td>1</td>
-<td>—</td>
 </tr>
 <tr>
 <td>Stenotrophomonas maltophilia</td>
 <td>trim_sulf</td>
-<td>1,211</td>
-<td>953</td>
-<td>258</td>
-<td>78.7</td>
+<td>1,233</td>
+<td>1,213-1,253</td>
+<td>970</td>
+<td>955-984</td>
+<td>264</td>
+<td>259-268</td>
+<td>78.6</td>
 <td>larger denominator</td>
 <td>moderate</td>
-<td>21.1</td>
-<td>24.9</td>
-<td>0.0</td>
-<td>1</td>
+<td>44.5</td>
+<td>51.6</td>
+<td>0.2</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Yersinia enterocolitica</td>
+<td>ciprofloxacin</td>
+<td>1,183</td>
+<td>1,152-1,214</td>
+<td>28</td>
+<td>25-31</td>
+<td>1,155</td>
+<td>1,126-1,184</td>
+<td>2.4</td>
+<td>sparse</td>
+<td>larger denominator</td>
+<td>6.4</td>
+<td>19.2</td>
+<td>3.6</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Neisseria meningitidis</td>
 <td>ceftriaxone</td>
-<td>1,113</td>
-<td>141</td>
-<td>972</td>
-<td>12.7</td>
+<td>1,087</td>
+<td>1,064-1,110</td>
+<td>132</td>
+<td>123-140</td>
+<td>956</td>
+<td>941-970</td>
+<td>12.1</td>
 <td>moderate</td>
 <td>larger denominator</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
-<td>—</td>
-</tr>
-<tr>
-<td>Morganella spp.</td>
-<td>meropenem</td>
-<td>829</td>
-<td>400</td>
-<td>429</td>
-<td>48.3</td>
-<td>moderate</td>
-<td>moderate</td>
-<td>54.6</td>
-<td>90.3</td>
-<td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Burkholderia cepacia complex</td>
 <td>meropenem</td>
-<td>791</td>
-<td>402</td>
-<td>389</td>
-<td>50.8</td>
+<td>794</td>
+<td>791-796</td>
+<td>437</td>
+<td>406-468</td>
+<td>356</td>
+<td>327-386</td>
+<td>55.1</td>
 <td>moderate</td>
 <td>moderate</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Morganella spp.</td>
+<td>meropenem</td>
+<td>762</td>
+<td>703-822</td>
+<td>328</td>
+<td>262-393</td>
+<td>435</td>
+<td>430-440</td>
+<td>43.0</td>
+<td>moderate</td>
+<td>moderate</td>
+<td>27.3</td>
+<td>45.2</td>
+<td>0.0</td>
+<td>2</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Listeria monocytogenes</td>
 <td>ampicillin</td>
-<td>153</td>
-<td>2</td>
-<td>151</td>
-<td>1.3</td>
+<td>160</td>
+<td>154-166</td>
+<td>3</td>
+<td>2-4</td>
+<td>157</td>
+<td>152-162</td>
+<td>1.9</td>
 <td>very sparse</td>
 <td>moderate</td>
 <td>0.0</td>
 <td>0.0</td>
 <td>0.0</td>
-<td>1</td>
+<td>2</td>
 <td>apparent hospital 0% serious-R with sparse denominator</td>
 </tr>
 </tbody></table><ol class='footnotes'>
-<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 5,893,570; population scale factor: 1,391.3470; runs: 1 accepted calibration run.</li><li>Total and hospital/community raw simulated new active infection denominators by bacterium.</li><li>Counts are summarised over baseline-policy infection-acquisition events in the 2022-2025 calibration window.</li><li>Data source: aggregate model outputs parsed into paper_tables. calibration_summary_*.txt is not required to interpret this page.</li><li>Counts are raw simulated bacterium-specific new active infection events and are provided to interpret bacterium-specific serious-R percentages.</li><li>Hospital and community strata use the acquisition event's care-setting snapshot: hospital-acquired events are hospital, and all other acquisition events are community. Figure 7 serious-R stock percentages use current hospital/community infected-stock denominators; this page shows acquisition-event denominators and labels that distinction directly.</li><li>Counts are raw simulated n values, not population-scaled incidence estimates.</li><li>Small denominators can make serious-R percentages unstable; apparent 0% or 100% serious-R values should be interpreted cautiously when denominators are sparse.</li><li>Serious-R is a model-defined marker-drug resistance endpoint and is not a directly observed surveillance category.</li><li>If multiple bacteria can be involved in one infection episode, bacterium-specific infection events may count separately by bacterium.</li><li>Counts are from the supplied run.</li><li>Denominator adequacy categories are interpretation aids only: no denominator = n = 0; very sparse = 1-19; sparse = 20-99; moderate = 100-499; larger denominator = >=500.</li>
+<li><strong>Run/window:</strong> Target year: 2025; window: 4.00 simulated years (totals annualized to yearly equivalents); simulated population (mean): 5,893,570; population scale factor: 1,391.3470; runs: 2 accepted calibration runs.</li><li>Total and hospital/community raw simulated new active infection denominators by bacterium.</li><li>Counts are summarised over baseline-policy infection-acquisition events in the 2022-2025 calibration window.</li><li>Data source: aggregate model outputs parsed into paper_tables. calibration_summary_*.txt is not required to interpret this page.</li><li>Counts are raw simulated bacterium-specific new active infection events and are provided to interpret bacterium-specific serious-R percentages.</li><li>Hospital and community strata use the acquisition event's care-setting snapshot: hospital-acquired events are hospital, and all other acquisition events are community. Figure 7 serious-R stock percentages use current hospital/community infected-stock denominators; this page shows acquisition-event denominators and labels that distinction directly.</li><li>Counts are raw simulated n values, not population-scaled incidence estimates.</li><li>Small denominators can make serious-R percentages unstable; apparent 0% or 100% serious-R values should be interpreted cautiously when denominators are sparse.</li><li>Serious-R is a model-defined marker-drug resistance endpoint and is not a directly observed surveillance category.</li><li>If multiple bacteria can be involved in one infection episode, bacterium-specific infection events may count separately by bacterium.</li><li>Counts are summarised across 2 accepted runs; displayed values are run-level medians and intervals are 5th-95th percentiles.</li><li>Denominator adequacy categories are interpretation aids only: no denominator = n = 0; very sparse = 1-19; sparse = 20-99; moderate = 100-499; larger denominator = >=500.</li>
 </ol></body></html>
