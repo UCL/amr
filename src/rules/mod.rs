@@ -6400,13 +6400,12 @@ pub(crate) fn apply_rules(
     // Within-person HGT considers bacteria that share an active-infection or carriage
     // compartment. Donor mechanism states are snapshotted before any transfers.
     {
-        let mut potential_donors = [0usize; BACTERIA_COUNT];
-        let mut potential_donor_count = 0usize;
-        let mut potential_recipients = [0usize; BACTERIA_COUNT];
-        let mut potential_recipient_count = 0usize;
-        let mut compartment_masks = [0u32; BACTERIA_COUNT];
-        let mut infection_presence = [false; BACTERIA_COUNT];
-        let mut donor_mechanism_snapshots = [HgtDonorMechanismSnapshot::default(); BACTERIA_COUNT];
+        let mut potential_donors: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
+        let mut potential_recipients: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
+        let mut compartment_masks = vec![0u32; BACTERIA_LIST.len()];
+        let mut infection_presence = vec![false; BACTERIA_LIST.len()];
+        let mut donor_mechanism_snapshots =
+            [HgtDonorMechanismSnapshot::default(); BACTERIA_LIST.len()];
 
         for b_idx in 0..BACTERIA_LIST.len() {
             // MDR-TB is outside the modelled HGT network.
@@ -6430,20 +6429,18 @@ pub(crate) fn apply_rules(
                 let donor_snapshot = hgt_donor_mechanism_snapshot(individual, b_idx);
                 donor_mechanism_snapshots[b_idx] = donor_snapshot;
                 if donor_snapshot.mechanism_mask != 0 {
-                    potential_donors[potential_donor_count] = b_idx;
-                    potential_donor_count += 1;
+                    potential_donors.push(b_idx);
                 }
 
-                potential_recipients[potential_recipient_count] = b_idx;
-                potential_recipient_count += 1;
+                potential_recipients.push(b_idx);
             }
         }
 
         // Donors and recipients are bacteria present in this individual.
-        if potential_donor_count != 0 && potential_recipient_count > 1 {
+        if !potential_donors.is_empty() && potential_recipients.len() > 1 {
             let is_hospitalized = individual.hospital_status.is_hospitalized();
 
-            for &donor_idx in &potential_donors[..potential_donor_count] {
+            for &donor_idx in &potential_donors {
                 let donor_mask = compartment_masks[donor_idx];
                 if donor_mask == 0 {
                     continue;
@@ -6451,7 +6448,7 @@ pub(crate) fn apply_rules(
                 let donor_has_infection = infection_presence[donor_idx];
                 let donor_mechanism_snapshot = donor_mechanism_snapshots[donor_idx];
 
-                for &recipient_idx in &potential_recipients[..potential_recipient_count] {
+                for &recipient_idx in &potential_recipients {
                     if recipient_idx == donor_idx {
                         continue;
                     }
