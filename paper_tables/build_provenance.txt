@@ -4,18 +4,21 @@ Supplementary Figure S5: omitted by compatibility mode
 
 Calibration-summary inputs:
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu396736.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu581248.txt
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu641112.txt
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu787113.txt
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu854150.txt
 
 Calibration-summary reported provenance:
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu396736.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_396736.csv; schema=3
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu581248.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_581248.csv; schema=3
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu641112.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_641112.csv; schema=3
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu787113.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_787113.csv; schema=3
 - C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_uuu854150.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_854150.csv; schema=3
 
 Discovered simulation-summary CSVs (authoritative preflight):
 - C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_396736.csv: schema 3 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_581248.csv: schema 3 (current)
 - C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_641112.csv: schema 3 (current)
 - C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_787113.csv: schema 3 (current)
 - C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_854150.csv: schema 3 (current)

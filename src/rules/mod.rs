@@ -1601,7 +1601,6 @@ pub struct ParameterKeyCache {
     drug_count: usize,
     bacteria_count: usize,
     drug_bacteria_potency: Vec<f64>,
-    drug_daily_decay_factors: Vec<f64>,
     bacteria_age_sepsis_log_odds: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
     mechanism_applicability: Vec<bool>,
     mechanism_applicability_masks: Vec<u64>,
@@ -1669,16 +1668,6 @@ impl ParameterKeyCache {
                     .hgt_recipient_mask(bacteria_idx)
             })
             .collect::<Vec<_>>();
-        // Preserve the former per-person decay expression exactly, but calculate its
-        // drug-specific result once because configured half-lives do not vary over time.
-        let drug_daily_decay_factors = (0..drug_count)
-            .map(|drug_idx| {
-                let half_life_days = store.drug.half_life_days(drug_idx);
-                let decay_constant = (2.0_f64).fast_ln() / half_life_days;
-                (-decay_constant).fast_exp()
-            })
-            .collect();
-
         // Pre-compute all drug/bacteria combinations
         for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
             for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
@@ -1760,7 +1749,6 @@ impl ParameterKeyCache {
             drug_count,
             bacteria_count,
             drug_bacteria_potency,
-            drug_daily_decay_factors,
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
             mechanism_applicability_masks,
@@ -1900,11 +1888,6 @@ impl ParameterKeyCache {
     pub fn potency(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
         let offset = bacteria_idx * self.drug_count + drug_idx;
         self.drug_bacteria_potency[offset]
-    }
-
-    #[inline]
-    fn drug_daily_decay_factor(&self, drug_idx: usize) -> f64 {
-        self.drug_daily_decay_factors[drug_idx]
     }
 
     #[inline]
@@ -2995,24 +2978,20 @@ pub(crate) fn apply_rules(
 
     // Active courses stay at their configured level; stopped drugs decay by half-life.
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+        let drug_initial_level = store.drug.initial_level(drug_idx);
         if individual.cur_use_drug[drug_idx] {
-            individual.cur_level_drug[drug_idx] = store.drug.initial_level(drug_idx);
+            individual.cur_level_drug[drug_idx] = drug_initial_level;
         } else {
-            let current_drug_level = individual.cur_level_drug[drug_idx];
-            if current_drug_level <= 0.0 {
-                // Zero is overwhelmingly the common case. Negative values are invalid state,
-                // but the former multiply-and-threshold path also normalized them to zero.
-                individual.cur_level_drug[drug_idx] = 0.0;
+            let half_life_days = store.drug.half_life_days(drug_idx);
+            let decay_constant = (2.0_f64).fast_ln() / half_life_days;
+            let decay_factor = (-decay_constant).fast_exp();
+            let new_drug_level = individual.cur_level_drug[drug_idx] * decay_factor;
+            // Remove negligible residual exposure.
+            individual.cur_level_drug[drug_idx] = if new_drug_level < INFECTION_EPS {
+                0.0
             } else {
-                let new_drug_level =
-                    current_drug_level * param_cache.drug_daily_decay_factor(drug_idx);
-                // Remove negligible residual exposure.
-                individual.cur_level_drug[drug_idx] = if new_drug_level < INFECTION_EPS {
-                    0.0
-                } else {
-                    new_drug_level
-                };
-            }
+                new_drug_level
+            };
         }
     }
 
@@ -6997,7 +6976,7 @@ mod tests {
         revert_unselected_microbiome_mechanisms, sample_unselected_mechanism_reversions,
         standardized_site_drug_level, start_drug_course, targeted_course_start_event,
         targeted_initiation_multiplier, vaccination_acquisition_log_odds, DrugAvailabilityCache,
-        FastMath, ParameterKeyCache, RuleEvents, TargetedCourseStartEvent, TreatmentFailureOutcome,
+        ParameterKeyCache, RuleEvents, TargetedCourseStartEvent, TreatmentFailureOutcome,
         DRUG_AVAILABILITY_REGIONS,
     };
     use crate::config::{
@@ -7047,51 +7026,6 @@ mod tests {
             drug_initiation_rate_multiplier: None,
             drug_cessation_rate_multiplier: None,
             equalize_regional_access: false,
-        }
-    }
-
-    #[test]
-    fn cached_drug_decay_factors_match_the_former_calculation_bitwise() {
-        let store = parameter_store();
-        let cache = ParameterKeyCache::new();
-
-        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-            let half_life_days = store.drug.half_life_days(drug_idx);
-            let decay_constant = (2.0_f64).fast_ln() / half_life_days;
-            let expected = (-decay_constant).fast_exp();
-            let cached = cache.drug_daily_decay_factor(drug_idx);
-
-            assert_eq!(
-                cached.to_bits(),
-                expected.to_bits(),
-                "cached decay changed for {}",
-                DRUG_SHORT_NAMES[drug_idx]
-            );
-            assert!(cached.is_finite() && cached > 0.0);
-        }
-    }
-
-    #[test]
-    fn nonpositive_drug_level_fast_path_matches_the_former_thresholding() {
-        let cache = ParameterKeyCache::new();
-
-        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-            let decay_factor = cache.drug_daily_decay_factor(drug_idx);
-            for current_level in [f64::NEG_INFINITY, -1.0, -0.0, 0.0] {
-                let formerly_decayed = current_level * decay_factor;
-                let former_result = if formerly_decayed < INFECTION_EPS {
-                    0.0
-                } else {
-                    formerly_decayed
-                };
-                let fast_path_result = if current_level <= 0.0 {
-                    0.0_f64
-                } else {
-                    unreachable!()
-                };
-
-                assert_eq!(fast_path_result.to_bits(), former_result.to_bits());
-            }
         }
     }
 
