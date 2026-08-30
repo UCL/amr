@@ -11473,16 +11473,16 @@ lazy_static! {
         // Bacterium-specific sepsis baseline log-odds. These are calibrated
         // best-guess placeholders rather than direct empirical probabilities.
     let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-    ("acinetobacter_baumannii", -3.5),
-    ("citrobacter_spp.", -5.5),
+    ("acinetobacter_baumannii", -3.0),
+    ("citrobacter_spp.", -4.8),
     ("enterobacter_spp.", -1.0),
     ("enterococcus_faecalis", -0.8),
     ("enterococcus_faecium", -0.8),
     ("escherichia_coli", -10.2 ),
     ("klebsiella_pneumoniae", -8.2),
     ("morganella_spp.", -5.9),
-    ("proteus_spp.", -5.6),
-    ("serratia_spp.", -2.1),
+    ("proteus_spp.", -5.0),
+    ("serratia_spp.", -1.5),
     ("pseudomonas_aeruginosa", -1.0),
     ("stenotrophomonas_maltophilia", -6.1),
     ("staphylococcus_aureus", -8.8),
@@ -11497,9 +11497,9 @@ lazy_static! {
     ("streptococcus_agalactiae", -1.2),
     ("haemophilus_influenzae", -10.0),
     ("chlamydia_trachomatis", -17.1),
-    ("vibrio_cholerae", -5.8),
+    ("vibrio_cholerae", -5.0),
     ("neisseria_meningitidis", -3.2),
-    ("listeria_monocytogenes", -6.1),
+    ("listeria_monocytogenes", -5.4),
     ("clostridioides_difficile", -8.6),
     ("campylobacter_jejuni", -19.0),
     ("enterobacter_cloacae", -2.2),
@@ -11509,7 +11509,7 @@ lazy_static! {
     ("bordetella_pertussis", -6.5 ),
     ("helicobacter_pylori", -500.0),
     ("mdr_mycobacterium_tuberculosis", -37.0),
-    ("mycoplasma_pneumoniae", -16.8),
+    ("mycoplasma_pneumoniae", -16.0),
     ("legionella_pneumophila", -7.0),
 ];
 
@@ -11527,15 +11527,15 @@ lazy_static! {
         //
         // Neisseria meningitidis: purpura fulminans / DIC drives CFR ~20-30% for septicaemic form
         //   even with treatment.
-        map.insert("neisseria_meningitidis_sepsis_death_log_odds_override".to_string(), 0.7 ); // ~2x CFR given sepsis vs average
+        map.insert("neisseria_meningitidis_sepsis_death_log_odds_override".to_string(), 1.0 ); // ~2x CFR given sepsis vs average
          // Acinetobacter baumannii: XDR VAP/bacteraemia CFR 40-60% in ICU; worst gram-negative prognosis
         map.insert("acinetobacter_baumannii_sepsis_death_log_odds_override".to_string(), 0.7 ); // ~2x CFR given sepsis vs average
 
         map.insert("enterobacter_spp._sepsis_death_log_odds_override".to_string(), 0.7);
-        map.insert("enterococcus_faecalis_sepsis_death_log_odds_override".to_string(), 0.2 );
-        map.insert("enterococcus_faecium_sepsis_death_log_odds_override".to_string(), 0.2 );
-        map.insert("streptococcus_agalactiae_sepsis_death_log_odds_override".to_string(), 0.2 );
-        map.insert("pseudomonas_aeruginosa_sepsis_death_log_odds_override".to_string(), 0.2 );
+        map.insert("enterococcus_faecalis_sepsis_death_log_odds_override".to_string(), 0.7 );
+        map.insert("enterococcus_faecium_sepsis_death_log_odds_override".to_string(), 0.7 );
+        map.insert("streptococcus_agalactiae_sepsis_death_log_odds_override".to_string(), 0.7 );
+        map.insert("pseudomonas_aeruginosa_sepsis_death_log_odds_override".to_string(), 0.7 );
 
         map.insert("log_odds_sepsis_infection_level".to_string(), 0.93); // Log odds increase per unit bacterial level
         // === [I] Clinical outcome scalars (mortality, sepsis, toxicity) ===
