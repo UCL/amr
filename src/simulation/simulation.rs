@@ -4831,12 +4831,6 @@ impl Simulation {
             let track_diagnostic_cascade = self.summary_content_flags.testing;
             let collect_testing_stats = collect_summary_stats && track_diagnostic_cascade;
             let collect_day7_stats = collect_none_only_stats && self.summary_content_flags.day7;
-            // Drug-selection scores are debug/output state, not model state. Avoid clearing all
-            // drug slots for calibration runs that neither collect those diagnostics nor log
-            // individuals or journeys.
-            let collect_drug_selection_diagnostics = collect_none_only_stats
-                || (!self.branch_active
-                    && (self.individual_logger.is_some() || self.journey_logger.enabled));
             let drug_availability_cache = DrugAvailabilityCache::new(t, param_cache);
             let chunk_totals: Vec<Box<LocalTotals>> = self
                 .population
@@ -5066,11 +5060,10 @@ impl Simulation {
                         }
                     }
 
-                    // Preserve the scalar's day-local meaning. Clearing the full score vector is
-                    // the expensive optional work and is needed only when a consumer is active.
+                    // Reset drug scores for this time step (-1 indicates no drug selection).
                     individual.bacteria_on_selection_day = -1;
-                    if collect_drug_selection_diagnostics {
-                        individual.drug_score_on_selection_day.fill(-1.0);
+                    for d_idx in 0..num_drugs {
+                        individual.drug_score_on_selection_day[d_idx] = -1.0;
                     }
 
                     // Apply rules
@@ -9067,42 +9060,6 @@ mod tests {
             .iter()
             .all(|&count| count == 0));
         assert!(!individual.infection_prevented_by_drug[bacteria_idx]);
-    }
-
-    #[test]
-    fn drug_selection_diagnostics_are_cleared_only_when_the_run_consumes_them() {
-        fn seed_stale_selection_diagnostics(simulation: &mut Simulation) {
-            let individual = &mut simulation.population.individuals[0];
-            // Advancing from -1 to zero returns before ordinary rules, so only the simulation's
-            // diagnostic reset policy can change these seeded values.
-            individual.age = -1;
-            individual.bacteria_on_selection_day = 0;
-            individual.drug_score_on_selection_day.fill(0.75);
-        }
-
-        let mut full = Simulation::new(1, 1, false, Some(7_315_339), CalibrationMode::Full);
-        seed_stale_selection_diagnostics(&mut full);
-        full.run_from(0, None)
-            .expect("single-day Full diagnostic-reset run should succeed");
-        assert_eq!(full.population.individuals[0].bacteria_on_selection_day, -1);
-        assert!(full.population.individuals[0]
-            .drug_score_on_selection_day
-            .iter()
-            .all(|&score| score == 0.75));
-
-        let mut none = Simulation::new(1, 1, false, Some(7_315_339), CalibrationMode::None);
-        seed_stale_selection_diagnostics(&mut none);
-        none.run_from(0, None)
-            .expect("single-day None diagnostic-reset run should succeed");
-        assert_eq!(none.population.individuals[0].bacteria_on_selection_day, -1);
-        assert!(none.population.individuals[0]
-            .drug_score_on_selection_day
-            .iter()
-            .all(|&score| score == -1.0));
-        assert!(none.summary_log[0]
-            .drug_selection_count_by_bacteria
-            .iter()
-            .all(|&count| count == 0));
     }
 
     #[test]
