@@ -4789,23 +4789,24 @@ impl Simulation {
             let mic_lt2_thresholds = &self.mic_lt2_majority_r_thresholds;
             let potency_matrix = &self.potency_matrix;
             let param_cache = &self.param_cache;
+            let globals = &config::parameter_store().globals;
             let _relevant_drugs_by_bacteria = &self.relevant_drugs_by_bacteria;
             let threads = rayon::current_num_threads().max(1);
             let _ = threads; // suppress unused warning
             let seed_option = self.rng_seed;
             let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
-            let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
-                .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+            let microbiome_majority_threshold =
+                get_global_param("microbiome_majority_threshold").unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let policy = self.current_policy_adjustments;
             let calibration_mode = self.calibration_mode;
             let evaluation_days: i32 =
                 get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
-            let potential_activity_potency_threshold = config::parameter_store()
-                .globals
-                .minimal_potency_threshold_for_drug_selection;
-            let infection_non_sepsis_minimum_bacteria_level = config::parameter_store()
-                .globals
-                .infection_non_sepsis_minimum_bacteria_level;
+            let potential_activity_potency_threshold =
+                globals.minimal_potency_threshold_for_drug_selection;
+            let infection_non_sepsis_minimum_bacteria_level =
+                globals.infection_non_sepsis_minimum_bacteria_level;
+            let community_profile_cache_retention = globals.community_profile_cache_retention;
+            let hospital_profile_cache_retention = globals.hospital_profile_cache_retention;
             let max_resistance_level = self.param_cache.max_resistance_level;
             // Calibration-window modes collect output summaries only for rows that will be
             // retained. Model-driving profiles and cross-day episode state still run every day.
@@ -6330,12 +6331,8 @@ impl Simulation {
 
             // Update mechanism profile cache with freshly-collected profiles
             {
-                let community_retention = config::parameter_store()
-                    .globals
-                    .community_profile_cache_retention;
-                let hospital_retention = config::parameter_store()
-                    .globals
-                    .hospital_profile_cache_retention;
+                let community_retention = community_profile_cache_retention;
+                let hospital_retention = hospital_profile_cache_retention;
                 let mut profile_retention_rng = seed_option
                     .map(|base| {
                         model_rng(base, RngStream::ProfileRetention, timestep_stream_id(t, 0))
