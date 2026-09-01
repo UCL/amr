@@ -12529,6 +12529,8 @@ References marked with \* are retained for completeness but are not explicitly c
 
 - Morosini MI, Ayala JA, Baquero F, Martínez JL, Blázquez J. Biological cost of AmpC production for *Salmonella enterica* serotype Typhimurium. *Antimicrob Agents Chemother.* 2000;44(11):3137–3143. doi:10.1128/AAC.44.11.3137-3143.2000
 
+- Mouton JW, Ambrose PG, Canton R, Drusano GL, Harbarth S, MacGowan A, Theuretzbacher U, Turnidge J. Conserving antibiotics for the future: new ways to use old and new drugs from a pharmacokinetic and pharmacodynamic perspective. Drug Resist Updat. 2011 Apr;14(2):107-17. doi: 10.1016/j.drup.2011.02.005. Epub 2011 Mar 26. PMID: 21440486.
+
 - Murray CJL, Ikuta KS, Sharara F, et al. Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. *Lancet.* 2022;399(10325):629–655. doi:10.1016/S0140-6736(21)02724-0
 
 - \* Nicolas-Chanoine M-H, Mayer N, Guyot K, et al. Interplay between membrane permeability and enzymatic barrier leads to antibiotic-dependent resistance in *Klebsiella pneumoniae*. *Front Microbiol.* 2018;9:1422. doi:10.3389/fmicb.2018.01422

@@ -4874,6 +4874,23 @@ impl Simulation {
                     ));
 
                     for individual in chunk {
+                    let effective_region = get_effective_region(individual);
+                    let effective_region_idx = region_to_index(effective_region);
+                    let home_region_idx = region_to_index(individual.region_living);
+                    let is_hospitalized = individual.hospital_status.is_hospitalized();
+                    let has_infected_any_r_positive_hospital_counts =
+                        !lt.infected_with_any_r_positive_hospital_by_bacteria_drug.is_empty();
+                    let has_infected_any_r_positive_community_counts =
+                        !lt.infected_with_any_r_positive_community_by_bacteria_drug.is_empty();
+                    let has_infection_days_family_counts =
+                        !lt.infection_days_with_resistance_mechanism_family_by_bacteria.is_empty();
+                    let has_resistant_infected_hospital_counts =
+                        !lt.resistant_infected_hospital_count_by_bacteria.is_empty();
+                    let has_resistant_infected_community_counts =
+                        !lt.resistant_infected_community_count_by_bacteria.is_empty();
+                    let has_currently_infected_hospital_counts =
+                        !lt.currently_infected_hospital_count_by_bacteria.is_empty();
+
                     // Snapshot resistance, carriage, treatment, and infection stock before
                     // this day's state transitions.
                     if individual.date_of_death.is_none() && individual.age >= 0 {
@@ -4891,9 +4908,7 @@ impl Simulation {
                             && individual.cur_use_drug.iter().any(|&x| x);
 
                         if has_any_infection || has_any_microbiome {
-                            let effective_region_idx_for_profiles = has_any_infection.then(|| {
-                                region_to_index(get_effective_region(individual))
-                            });
+                            let effective_region_idx_for_profiles = has_any_infection.then_some(effective_region_idx);
 
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
@@ -4923,7 +4938,9 @@ impl Simulation {
                                             lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
                                             if any_r > 0.0 {
                                                 lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
-                                                if !lt.infected_with_any_r_positive_hospital_by_bacteria_drug.is_empty() {
+                                                if has_infected_any_r_positive_hospital_counts
+                                                    || has_infected_any_r_positive_community_counts
+                                                {
                                                     if record_as_hosp {
                                                         lt.infected_with_any_r_positive_hospital_by_bacteria_drug[base + d_idx] += 1;
                                                     } else {
@@ -4963,10 +4980,7 @@ impl Simulation {
                                             lt.infection_days_with_any_resistance_mechanism_by_bacteria
                                                 [b_idx] += 1;
                                         }
-                                        if !lt
-                                            .infection_days_with_resistance_mechanism_family_by_bacteria
-                                            .is_empty()
-                                        {
+                                        if has_infection_days_family_counts {
                                             let family_base =
                                                 b_idx * RESISTANCE_MECHANISM_FAMILY_COUNT;
                                             for (family_idx, present) in
@@ -5457,8 +5471,7 @@ impl Simulation {
                             lt.total_deaths += 1;
 
                             // Get region for this death
-                            let effective_region = get_effective_region(individual);
-                            let region_idx = region_to_index(effective_region);
+                            let region_idx = effective_region_idx;
 
                             // Get age group for this death (ages in days, convert to years)
                             let age_years = individual.age as f64 / 365.0;
@@ -5614,7 +5627,6 @@ impl Simulation {
                             }
 
                             // Count deaths by bacteria and home region for currently infected individuals
-                            let home_region_idx = region_to_index(individual.region_living);
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
@@ -5630,8 +5642,7 @@ impl Simulation {
                         lt.living_population += 1;
 
                         // Count living population by region
-                        let effective_region = get_effective_region(individual);
-                        let region_idx = region_to_index(effective_region);
+                        let region_idx = effective_region_idx;
                         if collect_regional_stats {
                             lt.living_population_by_region[region_idx] += 1;
                         }
@@ -5860,8 +5871,7 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
-                                    let record_as_hosp =
-                                        individual.hospital_status.is_hospitalized();
+                                    let record_as_hosp = is_hospitalized;
                                     let mut infection_any_r_positive = false;
                                     // Count syndrome for this infected individual (take first one if multiple infections)
                                     if !individual_has_any_infection_counted_for_syndrome {
@@ -5931,14 +5941,16 @@ impl Simulation {
                                             lt.resistant_infected_non_carrier_count_by_bacteria[b_idx] += 1;
                                         }
                                     }
-                                    if !lt.currently_infected_hospital_count_by_bacteria.is_empty() {
+                                    if has_currently_infected_hospital_counts {
                                         if record_as_hosp {
                                             lt.currently_infected_hospital_count_by_bacteria[b_idx] += 1;
                                         } else {
                                             lt.currently_infected_community_count_by_bacteria[b_idx] += 1;
                                         }
                                     }
-                                    if !lt.resistant_infected_hospital_count_by_bacteria.is_empty() {
+                                    if has_resistant_infected_hospital_counts
+                                        || has_resistant_infected_community_counts
+                                    {
                                         if record_as_hosp {
                                             if infection_any_r_positive {
                                                 lt.resistant_infected_hospital_count_by_bacteria[b_idx] += 1;
@@ -5979,7 +5991,7 @@ impl Simulation {
                         if active_drug_count >= 2 {
                             lt.taking_two_drugs_count += 1;
                         }
-                        if individual.hospital_status.is_hospitalized() {
+                        if is_hospitalized {
                             lt.number_in_hospital += 1;
                             if collect_regional_stats {
                                 lt.hospital_population_by_region[region_idx] += 1;
@@ -6115,8 +6127,7 @@ impl Simulation {
                         }
 
                         // syndrome population by region (sepsis only)
-                        let eff_region = get_effective_region(individual);
-                        let region_idx_s = region_to_index(eff_region);
+                        let region_idx_s = effective_region_idx;
                         for b_idx in 0..num_bacteria {
                             if individual.sepsis[b_idx] {
                                 let syndrome_id = individual.infectious_syndrome[b_idx];
