@@ -4,8 +4,8 @@
 
 use crate::config::{
     get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
-    get_drug_introduction_time_step, get_global_param, parameter_store, ParameterStore,
-    RUN_PATHWAY_HGT_MULTIPLIER_KEY, RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+    get_global_param, parameter_store, ParameterStore, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY, RUN_PATHWAY_RATCHET_ENABLED_KEY,
     RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
@@ -3937,8 +3937,8 @@ pub(crate) fn apply_rules(
                     let mut is_first_or_second_line = false;
                     for &b_idx in identified_bacteria {
                         let bacteria_name = BACTERIA_LIST[b_idx];
-                        let first_second_line_drugs = match bacteria_name {
-                            "pseudomonas_aeruginosa" => vec![
+                        let first_second_line_drugs: &[&str] = match bacteria_name {
+                            "pseudomonas_aeruginosa" => &[
                                 "piperacillin_tazobactam",
                                 "meropenem",
                                 "imipenem_c",
@@ -3947,7 +3947,7 @@ pub(crate) fn apply_rules(
                                 "ciprofloxacin",
                                 "tobramycin",
                             ],
-                            "staphylococcus_aureus" => vec![
+                            "staphylococcus_aureus" => &[
                                 "penicillin_g",
                                 "amoxicillin_clavulanate",
                                 "ampicillin_sulbactam",
@@ -3957,21 +3957,21 @@ pub(crate) fn apply_rules(
                                 "clindamycin",
                                 "rifampicin",
                             ],
-                            "staphylococcus_epidermidis" => vec![
+                            "staphylococcus_epidermidis" => &[
                                 "vancomycin",
                                 "linezolid",
                                 "tedizolid",
                                 "quinu_dalfo",
                                 "trim_sulf",
                             ],
-                            "stenotrophomonas_maltophilia" => vec![
+                            "stenotrophomonas_maltophilia" => &[
                                 "trim_sulf",
                                 "minocycline",
                                 "doxycycline",
                                 "levofloxacin",
                                 "ciprofloxacin",
                             ],
-                            "streptococcus_pneumoniae" => vec![
+                            "streptococcus_pneumoniae" => &[
                                 "penicillin_g",
                                 "ampicillin",
                                 "amoxicillin",
@@ -3981,7 +3981,7 @@ pub(crate) fn apply_rules(
                                 "azithromycin",
                                 "clarithromycin",
                             ],
-                            "streptococcus_pyogenes" => vec![
+                            "streptococcus_pyogenes" => &[
                                 "penicillin_g",
                                 "ampicillin",
                                 "amoxicillin",
@@ -3989,7 +3989,7 @@ pub(crate) fn apply_rules(
                                 "clindamycin",
                                 "azithromycin",
                             ],
-                            "haemophilus_influenzae" => vec![
+                            "haemophilus_influenzae" => &[
                                 "amoxicillin",
                                 "ampicillin",
                                 "amoxicillin_clavulanate",
@@ -3998,9 +3998,9 @@ pub(crate) fn apply_rules(
                                 "ceftriaxone",
                             ],
                             "neisseria_meningitidis" => {
-                                vec!["penicillin_g", "ampicillin", "ceftriaxone", "cefepime"]
+                                &["penicillin_g", "ampicillin", "ceftriaxone", "cefepime"]
                             }
-                            "escherichia_coli" => vec![
+                            "escherichia_coli" => &[
                                 "ciprofloxacin",
                                 "nitrofurantoin",
                                 "fosfomycin",
@@ -4013,7 +4013,7 @@ pub(crate) fn apply_rules(
                                 "gentamicin",
                                 "amikacin",
                             ],
-                            "klebsiella_pneumoniae" => vec![
+                            "klebsiella_pneumoniae" => &[
                                 "ceftriaxone",
                                 "ceftazidime",
                                 "cefepime",
@@ -4027,12 +4027,12 @@ pub(crate) fn apply_rules(
                                 "ertapenem",
                             ],
                             "enterococcus_faecalis" => {
-                                vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
+                                &["ampicillin", "vancomycin", "linezolid", "tedizolid"]
                             }
                             "enterococcus_faecium" => {
-                                vec!["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"]
+                                &["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"]
                             }
-                            "acinetobacter_baumannii" => vec![
+                            "acinetobacter_baumannii" => &[
                                 "meropenem",
                                 "imipenem_c",
                                 "colistin",
@@ -4044,7 +4044,7 @@ pub(crate) fn apply_rules(
                             | "enterobacter_cloacae"
                             | "citrobacter_spp."
                             | "serratia_spp."
-                            | "morganella_spp." => vec![
+                            | "morganella_spp." => &[
                                 "cefepime",
                                 "ceftriaxone",
                                 "meropenem",
@@ -4052,14 +4052,14 @@ pub(crate) fn apply_rules(
                                 "ciprofloxacin",
                                 "levofloxacin",
                             ],
-                            "proteus_spp." => vec![
+                            "proteus_spp." => &[
                                 "ampicillin",
                                 "amoxicillin",
                                 "ceftriaxone",
                                 "ciprofloxacin",
                                 "trim_sulf",
                             ],
-                            "mdr_mycobacterium_tuberculosis" => vec![
+                            "mdr_mycobacterium_tuberculosis" => &[
                                 "levofloxacin",
                                 "moxifloxacin",
                                 "linezolid",
@@ -4068,7 +4068,7 @@ pub(crate) fn apply_rules(
                                 "amikacin",
                             ],
                             // All-era gonorrhoea candidates; calendar weights are applied separately.
-                            "neisseria_gonorrhoeae" => vec![
+                            "neisseria_gonorrhoeae" => &[
                                 "ceftriaxone",
                                 "cefixime",
                                 "azithromycin",
@@ -4084,7 +4084,7 @@ pub(crate) fn apply_rules(
                                 "sulfanilamide",
                             ],
                             // All-era Shigella candidates; calendar weights are applied separately.
-                            "shigella_spp." => vec![
+                            "shigella_spp." => &[
                                 "ciprofloxacin",
                                 "ofloxacin",
                                 "levofloxacin",
@@ -4100,7 +4100,7 @@ pub(crate) fn apply_rules(
                                 "gentamicin",
                                 "pivmecillinam",
                             ],
-                            _ => vec![],
+                            _ => &[],
                         };
 
                         if first_second_line_drugs.contains(&drug_name) {
@@ -4509,12 +4509,8 @@ pub(crate) fn apply_rules(
                     drug_availability_cache.availability(effective_region, drug_idx);
 
                 score *= drug_availability;
-                // Retain a defensive introduction gate after scoring.
-                if let Some(intro_time) = get_drug_introduction_time_step(drug_name) {
-                    if time_step < intro_time {
-                        score = 0.0;
-                    }
-                }
+                // The cached formulary already excludes drugs before their introduction day.
+                debug_assert!(time_step >= param_cache.drug_introduction_day[drug_idx]);
 
                 if primary_bacteria_idx >= 0 {
                     individual.drug_score_on_selection_day[drug_idx] = score;
@@ -6594,15 +6590,15 @@ fn calculate_testing_probability(
     individual: &Individual,
     time_step: usize,
     testing_available_from_day: usize,
-    _param_cache: &ParameterKeyCache,
+    param_cache: &ParameterKeyCache,
     policy: &PolicyAdjustments,
     is_bacterial_testing: bool,
 ) -> f64 {
     let store = parameter_store();
     let base_rate_raw = if is_bacterial_testing {
-        get_global_param("bacterial_testing_base_rate_per_day").unwrap_or(0.15)
+        param_cache.bacterial_testing_base_rate_per_day
     } else {
-        get_global_param("resistance_testing_base_rate_per_day").unwrap_or(0.95)
+        param_cache.resistance_testing_base_rate_per_day
     };
 
     let policy_multiplier = if is_bacterial_testing {
@@ -6616,13 +6612,13 @@ fn calculate_testing_probability(
     let years_since_availability = (time_step - testing_available_from_day) as f64 / 365.0;
     let (initial_rate, max_multiplier) = if is_bacterial_testing {
         (
-            get_global_param("bacterial_testing_initial_adoption_rate").unwrap_or(0.1),
-            get_global_param("bacterial_testing_max_temporal_multiplier").unwrap_or(1.0),
+            param_cache.bacterial_testing_initial_adoption_rate,
+            param_cache.bacterial_testing_max_temporal_multiplier,
         )
     } else {
         (
-            get_global_param("resistance_testing_initial_adoption_rate").unwrap_or(0.05),
-            get_global_param("resistance_testing_max_temporal_multiplier").unwrap_or(1.0),
+            param_cache.resistance_testing_initial_adoption_rate,
+            param_cache.resistance_testing_max_temporal_multiplier,
         )
     };
 
@@ -6636,9 +6632,9 @@ fn calculate_testing_probability(
 
     let hospital_multiplier = if individual.hospital_status.is_hospitalized() {
         if is_bacterial_testing {
-            get_global_param("bacterial_testing_hospital_multiplier").unwrap_or(8.0)
+            param_cache.bacterial_testing_hospital_multiplier
         } else {
-            get_global_param("resistance_testing_hospital_multiplier").unwrap_or(5.0)
+            param_cache.resistance_testing_hospital_multiplier
         }
     } else {
         1.0
@@ -6652,13 +6648,13 @@ fn calculate_testing_probability(
     };
 
     let immunosuppression_multiplier = if individual.immunodeficiency_type.is_some() {
-        get_global_param("testing_immunosuppressed_multiplier").unwrap_or(2.5)
+        param_cache.testing_immunosuppressed_multiplier
     } else {
         1.0
     };
 
     let sepsis_multiplier = if individual.sepsis.iter().any(|&s| s) {
-        get_global_param("testing_sepsis_multiplier").unwrap_or(4.0)
+        param_cache.testing_sepsis_multiplier
     } else {
         1.0
     };
@@ -7004,7 +7000,8 @@ mod tests {
         DRUG_AVAILABILITY_REGIONS,
     };
     use crate::config::{
-        get_drug_availability_time_aware, parameter_store, BacteriumMechanismStatus,
+        get_drug_availability_time_aware, get_global_param, parameter_store,
+        BacteriumMechanismStatus,
     };
     use crate::simulation::population::{
         bacterium_mechanism_host_is_eligible, days_since_recorded_event, infection_episode_present,
@@ -7050,6 +7047,72 @@ mod tests {
             drug_initiation_rate_multiplier: None,
             drug_cessation_rate_multiplier: None,
             equalize_regional_access: false,
+        }
+    }
+
+    #[test]
+    fn cached_testing_parameters_match_the_former_lookups_bitwise() {
+        let cache = ParameterKeyCache::new();
+        let cases = [
+            (
+                "bacterial_testing_base_rate_per_day",
+                cache.bacterial_testing_base_rate_per_day,
+                0.15,
+            ),
+            (
+                "bacterial_testing_initial_adoption_rate",
+                cache.bacterial_testing_initial_adoption_rate,
+                0.1,
+            ),
+            (
+                "bacterial_testing_max_temporal_multiplier",
+                cache.bacterial_testing_max_temporal_multiplier,
+                1.0,
+            ),
+            (
+                "bacterial_testing_hospital_multiplier",
+                cache.bacterial_testing_hospital_multiplier,
+                8.0,
+            ),
+            (
+                "resistance_testing_base_rate_per_day",
+                cache.resistance_testing_base_rate_per_day,
+                0.95,
+            ),
+            (
+                "resistance_testing_initial_adoption_rate",
+                cache.resistance_testing_initial_adoption_rate,
+                0.05,
+            ),
+            (
+                "resistance_testing_max_temporal_multiplier",
+                cache.resistance_testing_max_temporal_multiplier,
+                1.0,
+            ),
+            (
+                "resistance_testing_hospital_multiplier",
+                cache.resistance_testing_hospital_multiplier,
+                5.0,
+            ),
+            (
+                "testing_immunosuppressed_multiplier",
+                cache.testing_immunosuppressed_multiplier,
+                2.5,
+            ),
+            (
+                "testing_sepsis_multiplier",
+                cache.testing_sepsis_multiplier,
+                4.0,
+            ),
+        ];
+
+        for (key, cached, fallback) in cases {
+            let formerly_looked_up = get_global_param(key).unwrap_or(fallback);
+            assert_eq!(
+                cached.to_bits(),
+                formerly_looked_up.to_bits(),
+                "cached testing parameter changed for {key}"
+            );
         }
     }
 
