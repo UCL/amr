@@ -3,18 +3,12 @@ Validation mode: legacy compatibility (--legacy-without-sf5)
 Supplementary Figure S5: omitted by compatibility mode
 
 Calibration-summary inputs:
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_www201321.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_www241434.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_www402651.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_xxx278613.txt
 
 Calibration-summary reported provenance:
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_www201321.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_201321.csv; schema=3
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_www241434.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_241434.csv; schema=3
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_www402651.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_402651.csv; schema=3
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_xxx278613.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_278613.csv; schema=3
 
 Discovered simulation-summary CSVs (authoritative preflight):
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_201321.csv: schema 3 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_241434.csv: schema 3 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_402651.csv: schema 3 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_278613.csv: schema 3 (current)
 
 Compatibility statement: schemas 1-3 are accepted only for paper outputs unaffected by the diagnostic-cascade changes. Supplementary Figure S5 is not generated or represented by a placeholder in this build.

@@ -929,8 +929,8 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "ertapenem"
         ),
 
-        // Nalidixic acid selects the first-step gyrA route used by the historical
-        // prescribing parameters. Later fluoroquinolones remain on the secondary route.
+        // Nalidixic acid maps only to the primary gyrA route. Ciprofloxacin and ofloxacin map
+        // to both routes; levofloxacin and moxifloxacin map only to the secondary route.
         MutationGyrAPrimary => {
             matches!(drug, "nalidixic_acid" | "ciprofloxacin" | "ofloxacin")
         }
@@ -1514,8 +1514,9 @@ fn clear_infection_episode_state(individual: &mut Individual, bacteria_idx: usiz
     individual.restart_window_assessed[bacteria_idx] = false;
 }
 
-/// Assess restart window for patients who stopped drugs while still infected
-/// Returns true if restart treatment was initiated
+/// Assess the restart window for patients who stopped drugs while still infected.
+///
+/// Returns a request for downstream drug selection; this function does not initiate treatment.
 fn assess_restart_window(
     individual: &mut Individual,
     time_step: usize,
@@ -1584,7 +1585,6 @@ fn assess_restart_window(
     None
 }
 
-/// Parameter data precomputed for the daily simulation loop.
 const SEPSIS_AGE_BUCKET_COUNT: usize = 4;
 const NEONATAL_MAX_DAYS: u32 = 28;
 const PEDIATRIC_MAX_DAYS: u32 = 365 * 18;
@@ -1596,6 +1596,7 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
     365 * 80, // elderly representative
 ];
 
+/// Parameter data precomputed for the daily simulation loop.
 #[allow(dead_code)]
 pub struct ParameterKeyCache {
     drug_count: usize,
@@ -1608,8 +1609,8 @@ pub struct ParameterKeyCache {
     mechanism_host_eligible_masks: Vec<u64>,
     mechanism_de_novo_masks: Vec<u64>,
     mechanism_hgt_recipient_masks: Vec<u64>,
-    /// Clinical preference multipliers indexed by bacterium then drug.
-    /// A value of 1.0 leaves the score unchanged.
+    /// Stored clinical-preference multipliers indexed by bacterium then drug.
+    /// These values are precomputed but are not currently applied by treatment selection.
     clinical_preference_multipliers: Vec<f64>,
     pub microbiome_majority_threshold: f64,
     pub majority_r_evolution_rate: f64,
@@ -1742,7 +1743,8 @@ impl ParameterKeyCache {
             }
         }
 
-        // Pre-compute clinical preference multipliers for all bacteria-drug pairs
+        // Retain configured clinical-preference multipliers for all bacterium-drug pairs.
+        // The current treatment-selection path does not apply them.
         let mut clinical_preference_multipliers = Vec::with_capacity(bacteria_count * drug_count);
         for &bacteria_name in BACTERIA_LIST.iter() {
             let bacteria_slug = bacteria_name.replace(" ", "_");
@@ -1949,8 +1951,10 @@ impl ParameterKeyCache {
         profile & self.host_eligible_mechanism_mask(bacteria_idx)
     }
 
-    /// Get the precomputed clinical preference multiplier for a bacterium-drug pair.
-    /// Returns 1.0 if no preference is configured.
+    /// Return the stored clinical-preference multiplier for a bacterium-drug pair.
+    ///
+    /// Returns 1.0 if none is configured. Treatment selection does not currently call this
+    /// accessor or otherwise apply the stored multiplier.
     #[inline]
     pub fn clinical_preference_multiplier(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
         let offset = bacteria_idx * self.drug_count + drug_idx;
@@ -2587,7 +2591,8 @@ pub(crate) fn apply_rules(
     if !individual.hospital_status.is_hospitalized() {
         // Daily admission follows a logistic model:
         // P(hospitalization) = 1 / (1 + exp(-log_odds))
-        // log_odds = base + age_effect + sepsis_effect + symptomatic_infection_effect + region_effect
+        // log_odds = base + age_effect + sepsis_effect + symptomatic_infection_effect
+        //            + active-infection-with-serious-positive-AST effect + region_effect
 
         let age_years = individual.age as f64 / 365.0;
         let mut log_odds = hosp_base_log_odds + (age_years * hosp_log_odds_per_age_year);
@@ -2620,8 +2625,9 @@ pub(crate) fn apply_rules(
     } else {
         individual.days_hospitalized += 1;
 
-        // Determine if discharge is allowed
-        // Only Tier 1 (always-inpatient) and reserve drugs block discharge; Tier 2 (OPAT) does not.
+        // Determine if discharge is allowed.
+        // Tier 1 drugs and the explicitly hospital-restricted reserve drugs (linezolid and
+        // tedizolid) block discharge; Tier 2 (OPAT) drugs do not.
         let is_on_discharge_blocking_drug =
             individual
                 .cur_use_drug
@@ -2874,7 +2880,8 @@ pub(crate) fn apply_rules(
     let active_modelled_bacterial_infection_present =
         individual.level.iter().any(|&level| level > INFECTION_EPS);
     let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
-    // The identification boost is limited to active infections with a latched symptom state.
+    // The identification boost checks identification and symptom-latch state. Normal cleanup
+    // keeps those flags limited to active infections, but this expression has no level check.
     let has_any_identified_infection = individual
         .test_identified_infection
         .iter()
@@ -3816,7 +3823,8 @@ pub(crate) fn apply_rules(
                                 score *= 0.05
                             }
                             ("mdr_mycobacterium_tuberculosis", "rifampicin") => score *= 0.01,
-                            // Exclude the model's zero-potency TB candidates.
+                            // Exclude drugs outside the compressed MDR-TB candidate set, including
+                            // both zero-potency and low nonzero placeholder pairs.
                             (
                                 "mdr_mycobacterium_tuberculosis",
                                 "erythromycin"
@@ -4134,7 +4142,8 @@ pub(crate) fn apply_rules(
                 }
 
                 // A candidate with a positive ready result was excluded above. If every identified
-                // infection has a ready panel, the remaining zero results confirm susceptibility.
+                // infection has a ready panel, selection treats the remaining zero results as
+                // reported susceptibility, including any false-negative results.
                 if !identified_ast_results_ready {
                     let mut regional_resistance_penalty = 1.0_f64;
 
@@ -4252,7 +4261,7 @@ pub(crate) fn apply_rules(
                     // Oxazolidinones
                         | "linezolid"
                         | "tedizolid"
-                    // Lipoglycopeptides
+                    // Glycopeptides and lipoglycopeptides
                         | "dalbavancin"
                         | "teicoplanin"
                     // Streptogramins
@@ -4271,7 +4280,8 @@ pub(crate) fn apply_rules(
                 );
                 if has_any_identified_infection {
                     // Targeted reserve candidates are strongly penalized unless a recent
-                    // treatment failure or severe hospital context supports escalation.
+                    // treatment failure or severe hospital Gram-negative context supports
+                    // escalation.
                     if reserve_candidate {
                         let mut failure_documented = false;
                         let failure_memory_days = store.globals.drug_failure_memory_days;
@@ -4350,7 +4360,7 @@ pub(crate) fn apply_rules(
 
                         if reserve_candidate {
                             // Empiric reserve use requires recent failure and high surveillance
-                            // resistance, except in the severe hospital context.
+                            // resistance, except in the severe hospital Gram-negative context.
                             let mut failure_documented = false;
                             let failure_memory_days = store.globals.drug_failure_memory_days;
                             for b_idx in 0..BACTERIA_LIST.len() {
@@ -4549,8 +4559,9 @@ pub(crate) fn apply_rules(
 
                     let drug_name = DRUG_SHORT_NAMES[chosen_drug_idx];
 
-                    // Tier 1 and reserve drugs force admission. OPAT-eligible drugs use
-                    // a configured admission probability; other drugs do not force admission.
+                    // Tier 1 drugs and the explicitly hospital-restricted reserve drugs
+                    // (linezolid and tedizolid) force admission. OPAT-eligible drugs use a
+                    // configured admission probability; other drugs do not force admission.
                     if !individual.hospital_status.is_hospitalized() {
                         let should_admit = if requires_hospital_management(drug_name) {
                             true
@@ -4683,8 +4694,9 @@ pub(crate) fn apply_rules(
                     }
                     individual.cur_level_drug[chosen_drug_idx] = chosen_initial_level;
 
-                    // Drug-to-infection attribution is not stored, so a new course resets
-                    // failure tracking for every active infection.
+                    // Drug-to-infection attribution is not stored, so every successful selection,
+                    // including reselection of an already active drug, resets failure tracking for
+                    // every positive infection episode.
                     for bacteria_idx in 0..BACTERIA_LIST.len() {
                         if individual.level[bacteria_idx] > 0.0 {
                             mark_new_treatment_course(
@@ -5351,10 +5363,10 @@ pub(crate) fn apply_rules(
                             r => r as usize,
                         };
                         // Gate carriage profile sampling with the run-level acquisition multiplier.
-                        // Hospital acquisitions draw from the hospital profile stratum without an
-                        // additional source-choice probability. Community acquisitions also apply
-                        // the same per-bacterium human-reservoir probability used for infection
-                        // acquisition.
+                        // Hospital acquisitions prefer the hospital profile stratum without an
+                        // additional source-choice probability, with same-region community
+                        // fallback if it is empty. Community acquisitions also apply the same
+                        // per-bacterium human-reservoir probability used for infection acquisition.
                         let is_hospitalized = individual.hospital_status.is_hospitalized();
                         let profile_sampling_probability = carriage_profile_sampling_probability(
                             microbiome_acquisition_sampling_multiplier,
@@ -5364,9 +5376,10 @@ pub(crate) fn apply_rules(
                         );
 
                         if rng.gen::<f64>() < profile_sampling_probability {
-                            // Sample a complete profile from the hospital or community pool.
-                            // Hospital carriage uses its hospital profile stratum but not the
-                            // active-infection-only susceptible-profile pruning step.
+                            // Sample a complete profile from the preferred hospital or community
+                            // pool, with same-region fallback to the other setting when empty.
+                            // Hospital carriage does not use active-infection susceptible-profile
+                            // pruning.
                             let carriage_hospital = is_hospitalized;
                             let carriage_profile = mechanism_cache.sample_profile(
                                 region_idx,
@@ -5506,7 +5519,10 @@ pub(crate) fn apply_rules(
                 }
             }
 
-            // A successful within-bacterium transfer unions the infection and carriage masks.
+            // This within-bacterium infection/carriage transfer block is currently unreachable:
+            // the enclosing scope requires no infection episode, whereas this guard requires a
+            // positive infection level. Consequently, the configured transfer probability does
+            // not act through this block in the current implementation.
             if individual.presence_microbiome[b_idx] && individual.level[b_idx] > 0.0 {
                 let host_eligible_mask = param_cache.host_eligible_mechanism_mask(b_idx);
                 let infection_mask = individual.any_mechanism_mask(b_idx) & host_eligible_mask;
@@ -6351,7 +6367,9 @@ pub(crate) fn apply_rules(
             }
         }
 
-        // Clinical and diagnostic state is meaningful only while the episode is active.
+        // Identification and symptom flags are cleared at the active-infection threshold. A
+        // fading positive episode can retain other episode-local diagnostic state until the
+        // episode retires or the next day's diagnostic cleanup resets it.
         if !is_active_infection {
             individual.test_identified_infection[b_idx] = false;
             individual.infection_has_caused_symptoms[b_idx] = false;
@@ -6363,7 +6381,9 @@ pub(crate) fn apply_rules(
                 individual.clearance_ready_day[b_idx] = individual.date_last_infected[b_idx];
             }
 
-            // Symptom status latches after onset and remains true until infection clearance.
+            // Symptom status latches while the infection remains above INFECTION_EPS; it is
+            // cleared when the level reaches that threshold, even if a fading positive episode
+            // has not yet retired.
             if is_active_infection && !individual.infection_has_caused_symptoms[b_idx] {
                 let base_log_odds = store.bacteria.symptom_onset_base_log_odds(b_idx);
                 let threshold_level = store.bacteria.symptom_onset_threshold_level(b_idx);
@@ -6579,7 +6599,8 @@ pub(crate) fn apply_rules(
         }
     }
 
-    // Retain results for summary collection; acquisition or clearance resets them.
+    // Results persist across clearance and reacquisition. A later episode overwrites the stored
+    // value only when it reaches its configured evaluation day.
 
     update_drug_counter(individual);
     events
@@ -6608,7 +6629,8 @@ fn calculate_testing_probability(
     };
     let base_rate = (base_rate_raw * policy_multiplier).clamp(0.0, 1.0);
 
-    // Testing adoption follows a fixed sigmoid after the relevant availability date.
+    // Testing adoption follows a fixed sigmoid measured from the general availability date for
+    // the testing modality; bacterium-specific dates gate eligibility but do not restart it.
     let years_since_availability = (time_step - testing_available_from_day) as f64 / 365.0;
     let (initial_rate, max_multiplier) = if is_bacterial_testing {
         (

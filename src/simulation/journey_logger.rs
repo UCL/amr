@@ -1,9 +1,11 @@
 // Infection journey logger.
 //
 // This is a targeted debugging/analysis tool: instead of logging every individual every day,
-// it captures dense snapshots for sampled active infections and follows the selected primary
-// infection until death or seven logged days after clearance. The output is intended for
-// reconstructing individual treatment, resistance, and resolution trajectories.
+// it captures dense snapshots for sampled infected people, selecting the highest-level active
+// bacterium as the primary infection. Qualifying resistance acquisition can bypass ordinary
+// sampling. A journey runs through seven post-clearance updates and then writes one final
+// resolution snapshot, or ends at death. The output supports reconstruction of individual
+// treatment, resistance, and resolution trajectories.
 
 use crate::simulation::population::{
     load_float, Individual, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
@@ -162,7 +164,7 @@ pub struct InfectionJourneySnapshot {
     pub all_bacteria_levels: Vec<(String, f64)>, // (bacteria_name, level)
 
     // Treatment details
-    pub current_drugs: Vec<(String, f64)>, // (drug_name, site-adjusted level or recent-use marker)
+    pub current_drugs: Vec<(String, f64)>, // site-adjusted level, raw start fallback, or marker
     pub days_on_current_treatment: i32,
     pub treatment_failures_count: u32,
 
@@ -180,7 +182,9 @@ pub struct InfectionJourneySnapshot {
     // Most recently retained drug-selection state on the individual.
     pub drug_selection_bacteria: Option<String>, // bacteria that triggered drug selection
     pub drug_selection_scores: Vec<(String, f64)>, // all drug scores at selection time
-    pub selected_drug: Option<String>, // most recently initiated drug among logged entries
+    // Inferred from transient current-course dates among displayed drugs; stopped residual
+    // exposures can therefore make this value unreliable.
+    pub selected_drug: Option<String>,
 
     // Clinical status
     pub hospital_status: String,
@@ -197,7 +201,8 @@ pub struct InfectionJourneySnapshot {
     pub resolution_type: Option<String>,
 
     // Compatibility name: true for a qualifying microbiome-derived, infection-emergent,
-    // or HGT resistance acquisition while the primary infection is on treatment.
+    // or HGT resistance acquisition while the person is taking the corresponding drug.
+    // The model does not attribute that person-level course to the primary infection.
     pub has_de_novo_resistance: bool,
 
     // Per-drug source labels are present only when provenance tracking is enabled.
@@ -210,7 +215,7 @@ pub struct ActiveJourney {
     pub primary_bacteria_idx: usize,
     pub day_count: u32,
     pub snapshots: Vec<InfectionJourneySnapshot>,
-    pub primary_bacteria_cleared_day: Option<u32>, // Day when primary bacteria cleared
+    pub primary_bacteria_cleared_day: Option<u32>, // journey day when the primary bacterium cleared
     pub has_de_novo_resistance: bool, // Compatibility flag with the broader semantics above.
     pub initial_failure_day: Option<i32>,
     pub last_recorded_failure_day: Option<i32>,
@@ -628,8 +633,9 @@ impl JourneyLogger {
             }
         }
 
-        // Add a recent-use marker for a drug initiated exactly two days earlier
-        // when no detectable level remains.
+        // Compatibility marker for a current course whose transient initiation date remains
+        // populated, is exactly two days old, and has no detectable level. Stopped courses have
+        // already reset this date and cannot be recovered through this branch.
         for (idx, &initiation_day) in individual.date_drug_initiated.iter().enumerate() {
             if initiation_day >= 0 && initiation_day < time_step as i32 - 1 {
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
@@ -824,7 +830,8 @@ impl JourneyLogger {
                 })
                 .collect();
 
-            // Infer the selected drug as the most recently initiated logged entry.
+            // Infer from transient current-course initiation dates among displayed entries.
+            // A stopped residual exposure has a reset date and may not rank meaningfully.
             let selected = current_drugs
                 .iter()
                 .max_by_key(|(drug_name, _)| {
@@ -1150,7 +1157,8 @@ impl JourneyLogger {
 
     // Detect qualifying newly acquired resistance under the legacy de-novo flag name.
     fn detect_de_novo_resistance_emergence(&self, individual: &Individual) -> bool {
-        // Only acquisitions in an infection currently under treatment qualify.
+        // A source-matched acquisition qualifies only while the person is taking that drug;
+        // this does not establish course-to-bacterium treatment ownership.
         if !individual.cur_use_drug.iter().any(|&taking| taking) {
             return false;
         }

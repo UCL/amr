@@ -225,20 +225,21 @@ fn current_antibiotic_context_priority(individual: &Individual) -> AntibioticUse
     }
 }
 
-/// Controls the simulation horizon, policy branching, and summary-output density.
+/// Controls the simulation horizon, alternate-policy continuations, and summary-output density.
 ///
-/// * `None`: retain every row, enable 2027 policy branches, and collect policy-run diagnostics.
-/// * `Partial`: retain every baseline row while skipping policy branches and policy-only diagnostics.
-/// * `Partial25Counterfactual`: retain the 1930-2021 shared history and both 2022-2025
-///   baseline and no-resistance branches.
-/// * `FullMinimal`: retain only calibration-window rows and the lean calibration fields.
-/// * `Full`: retain only calibration-window rows and the complete calibration-summary fields.
-/// * `Full25Counterfactual`: retain complete calibration fields for both 2022-2025
-///   baseline and no-resistance branches.
+/// * `None`: retain every baseline row, run configured alternate policies from 2027, and
+///   collect the additional diagnostics gated to this mode.
+/// * `Partial`: retain every baseline row while skipping alternate-policy continuations.
+/// * `Partial25Counterfactual`: retain every baseline row and run the no-resistance
+///   continuation from 2022; alternate-policy output begins at the branch point.
+/// * `FullMinimal`: retain only 2022-2025 rows and use the lean calibration field profile.
+/// * `Full`: retain only 2022-2025 rows and use the standard calibration field profile.
+/// * `Full25Counterfactual`: use the standard calibration field profile for the 2022-2025
+///   baseline and no-resistance continuation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CalibrationMode {
     None,
-    /// Skip policy branches while retaining the full baseline time series.
+    /// Skip alternate-policy continuations while retaining the full baseline time series.
     #[allow(dead_code)]
     Partial,
     Partial25Counterfactual,
@@ -262,16 +263,19 @@ impl fmt::Display for CalibrationMode {
     }
 }
 
-/// Controls which groups of fields are stored in each [`TimeStepSummary`] row.
-/// Fields in a disabled group are replaced with empty vecs, reducing `summary_log` memory.
+/// Controls which optional groups are retained in each [`TimeStepSummary`] row. Collection is
+/// also skipped for disabled groups where the hot path supports it. Disabled vector groups are
+/// empty; scalar and bacterium-by-drug fields not governed by a flag remain present.
 ///
 /// The selected [`CalibrationMode`] supplies the normal profile. Callers may override it
 /// before [`Simulation::run`] when producing a specialised export.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SummaryContentFlags {
-    /// Per-bacteria infection, death, sepsis, activity_r, and carrier/community split arrays.
+    /// Core per-bacterium infection stock, death association, sepsis, treatment activity,
+    /// acquisition, outcome, and carrier-stratum arrays.
     pub per_bacteria: bool,
-    /// Additional per-bacteria treatment-prevention and treatment-failure diagnostics.
+    /// Additional per-bacterium treatment-prevention, fifth-day course, and resistance-
+    /// mechanism diagnostics.
     /// These are useful for richer analysis but are not required by lean calibration runs.
     pub per_bacteria_detail: bool,
     /// Additional per-bacteria split summaries for age and hospital/community subgroups.
@@ -290,16 +294,19 @@ pub struct SummaryContentFlags {
     /// Additional microbiome detail outputs beyond carriage presence/resistance prevalence.
     /// These support detail plots and diagnostics rather than the core calibration summary.
     pub microbiome_detail: bool,
-    /// Regional population, hospital, age-distribution, and drug-usage breakdowns.
+    /// Regional population, hospital, age, drug-use, death, and hospital-acquisition breakdowns.
     pub regional: bool,
-    /// Syndrome-level infection counts (by syndrome and bacteria×syndrome).
-    /// Required by syndrome-specific panels.
+    /// Syndrome-level active-infection, acquisition, sepsis-stock, and death-association counts.
+    /// Some fields count people once; bacterium-specific and sepsis-by-region fields may record
+    /// more than one syndrome entry for the same person.
     pub syndrome: bool,
     /// Infection resolution pathway counts by bacterium.
     pub resolution: bool,
-    /// Diagnostic coverage (bacterial identification and result-ready AST) by bacterium.
+    /// Diagnostic coverage stocks by bacterium, plus aggregate entry-cohort cascade stages split
+    /// only by community/hospital entry setting.
     pub testing: bool,
-    /// Day-N drug initiation tracking by bacterium.
+    /// Drug-use tracking at the configured post-infection evaluation day in unabridged runs
+    /// (legacy field names still contain `day_7`).
     pub day7: bool,
 }
 
@@ -340,8 +347,9 @@ impl SummaryContentFlags {
 
     /// Lean default for `CalibrationMode::FullMinimal`.
     ///
-    /// Keeps only the drug-share and bacteria×drug resistance families plus the core
-    /// infection denominators they depend on.
+    /// Retains the unconditional scalar/drug/bacterium-by-drug fields and enables the core
+    /// per-bacterium group. Detail, split-burden, microbiome, regional, syndrome, resolution,
+    /// testing, and evaluation-day groups remain disabled.
     pub const fn calibration_full_minimal() -> Self {
         SummaryContentFlags {
             per_bacteria: true,
@@ -358,7 +366,11 @@ impl SummaryContentFlags {
         }
     }
 
-    /// Complete calibration-summary profile for `CalibrationMode::Full`.
+    /// Standard calibration-summary profile for `CalibrationMode::Full`.
+    ///
+    /// Enables core per-bacterium, split-burden, serious-R care-setting, microbiome,
+    /// regional, syndrome, and testing groups. Per-bacterium detail, microbiome detail,
+    /// resolution-pathway, and evaluation-day groups remain disabled.
     pub const fn calibration_full() -> Self {
         SummaryContentFlags {
             per_bacteria: true,
@@ -447,7 +459,10 @@ impl CalibrationMode {
         }
     }
 
-    /// Policy branches selected by default for this run mode.
+    /// Policy IDs configured by default for this run mode.
+    ///
+    /// Policy 0 denotes the separately executed baseline and is discarded when the actual
+    /// alternate-policy continuation list is built.
     pub const fn active_policy_ids(self) -> &'static [u8] {
         match self {
             CalibrationMode::None => FULL_POLICY_BRANCHES,
@@ -518,8 +533,8 @@ pub(crate) struct PolicyAdjustments {
     pub(crate) reserve_drug_penalty_multiplier: Option<f64>, // Exponent on the reserve-drug score factor
     pub(crate) drug_initiation_rate_multiplier: Option<f64>, // Multiplier on antibiotic-initiation odds
     pub(crate) drug_cessation_rate_multiplier: Option<f64>, // Multiplier on daily cessation probability
-    /// When true, the configured regional testing, cessation, and initiation adjustments
-    /// use the North America reference values.
+    /// When true, use hard-coded North America default adjustments for regional testing
+    /// (`1.1`), cessation (`0.85`), and initiation (`0.0` log-odds).
     pub(crate) equalize_regional_access: bool,
 }
 
@@ -559,8 +574,8 @@ impl PolicyAdjustments {
             policy_option: 1,
             drug_selection_temperature: Some(adjusted_temperature),
             minimal_potency_threshold_for_drug_selection: None,
-            bacterial_testing_rate_multiplier: Some(1.5), // 50% more bacterial cultures
-            resistance_testing_rate_multiplier: Some(1.5), // 50% more AST (matched to cultures)
+            bacterial_testing_rate_multiplier: Some(1.5), // 1.5× bacterial-ID testing rate
+            resistance_testing_rate_multiplier: Some(1.5), // 1.5× AST testing rate
             counterfactual_resistance_multiplier: None,
             clear_all_resistance_on_branch_start: false,
             reserve_drug_penalty_multiplier: Some(2.0), // Square the reserve-drug score factor
@@ -597,8 +612,8 @@ impl PolicyAdjustments {
             policy_option: 3,
             drug_selection_temperature: Some(adjusted_temperature),
             minimal_potency_threshold_for_drug_selection: None,
-            bacterial_testing_rate_multiplier: Some(20.0), // Implausibly complete bacterial ID
-            resistance_testing_rate_multiplier: Some(20.0), // Matched AST coverage
+            bacterial_testing_rate_multiplier: Some(20.0), // Very high bacterial-ID testing rate
+            resistance_testing_rate_multiplier: Some(20.0), // Matched very high AST testing rate
             counterfactual_resistance_multiplier: None,
             clear_all_resistance_on_branch_start: false,
             reserve_drug_penalty_multiplier: None,
@@ -608,11 +623,11 @@ impl PolicyAdjustments {
         }
     }
 
-    /// Policy 4: equalised configured regional healthcare-access adjustments
+    /// Policy 4: hard-coded equal-access regional adjustments
     ///
-    /// Uses the North America reference values for regional testing, cessation, and
-    /// initiation adjustments. Drug availability, introduction dates, and other regional
-    /// model inputs are unchanged.
+    /// Uses North America default constants for regional testing, cessation, and initiation;
+    /// it does not read the configured North America entries. Drug availability, introduction
+    /// dates, and other regional model inputs are unchanged.
     fn equal_global_access() -> Self {
         Self {
             policy_option: 4,
@@ -1373,15 +1388,16 @@ fn append_uniform_profile_sample<R: Rng + ?Sized>(
     }
 }
 
-/// Complete mechanism profiles sampled from active infections.
+/// Capped samples of complete mechanism profiles from active infections.
 ///
 /// Profiles are stored as bitmasks by region, care setting, and bacterium. Retaining
-/// complete profiles preserves observed mechanism co-occurrence within each reservoir.
+/// complete sampled profiles preserves mechanism co-occurrence within each reservoir.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MechanismProfileCache {
     /// `[region][care setting: 0=community, 1=hospital][bacterium] -> profile bitmasks`.
     profiles: Vec<Vec<Vec<Vec<u64>>>>,
-    /// Number of profiles observed per slot before reservoir truncation.
+    /// Number of profiles represented while collecting or merging; after daily blending this
+    /// is reset to the retained slot length.
     total_seen: Vec<Vec<Vec<u64>>>,
     num_regions: usize,
     num_bacteria: usize,
@@ -1548,7 +1564,7 @@ impl MechanismProfileCache {
                     let fresh_count = (MAX_MECHANISM_PROFILES - old_slot.len()).min(new_slot.len());
                     append_uniform_profile_sample(old_slot, new_slot, fresh_count, rng);
 
-                    // Reset total_seen to match actual slot length (reservoir invariant)
+                    // Normalize total_seen to the blended slot length for the next reservoir.
                     self.total_seen[r][h][b] = old_slot.len() as u64;
                 }
             }
@@ -1559,7 +1575,7 @@ impl MechanismProfileCache {
     ///
     /// The number selected from each local reservoir is an exact hypergeometric draw based
     /// on the corresponding `total_seen` counts. Sampling uniformly within each reservoir
-    /// then yields a uniform reservoir of the complete combined population, even when thread
+    /// then yields a uniform reservoir of the complete combined input stream, even when thread
     /// chunks contributed very different numbers of profiles.
     pub fn merge<R: Rng + ?Sized>(&mut self, mut other: Self, rng: &mut R) {
         for r in 0..self.num_regions {
@@ -1618,27 +1634,27 @@ pub struct MechanismProfileSample {
 ///
 /// - `profiles`: complete mechanism bitmasks per region, care setting, and bacterium,
 ///   maintained by capped reservoir sampling and separately configurable retention.
-/// - `peak_mechanism_prevalence`: regional peak marginal prevalence ever achieved for each
-///   (bacteria, mechanism) pair in the local community cache. Used by the ratchet-floor
-///   mechanism to support local exogenous community reseeding of selected persistent
-///   resistance mechanisms.
+/// - `peak_mechanism_prevalence`: the highest marginal prevalence measured in each eligible
+///   regional community reservoir at an annual update. Used by the ratchet-floor mechanism
+///   to support local exogenous community reseeding of selected persistent mechanisms.
 ///
-/// - `drug_resistance_prevalence`: exact prevalence derived from the current profile
-///   reservoir after each daily refresh, for constant-time prescribing lookups.
+/// - `drug_resistance_prevalence`: prevalence within the current sampled profile reservoir,
+///   rebuilt after each daily refresh for constant-time prescribing lookups.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MechanismCache {
     /// Profile reservoir for profile-based acquisition sampling.
     pub profiles: MechanismProfileCache,
-    /// Regional peak marginal mechanism prevalence ever achieved in the community cache.
+    /// Highest marginal mechanism prevalence measured in an eligible community reservoir at
+    /// an annual update; this is not the all-time peak in the underlying population.
     /// Indexed as `peak_mechanism_prevalence[region_idx][bacteria_idx][mechanism_idx]`.
     /// Updated annually via `update_peak_community_marginal_prevalences()`.
     /// Used by the ratchet floor to derive stepped exogenous assignment probabilities for
     /// selected persistent mechanisms.
     pub peak_mechanism_prevalence: Vec<Vec<Vec<f64>>>,
-    /// Exact resistance prevalence for each `[region x hospital/community x bacteria x drug]`
-    /// slot, rebuilt whenever the profile reservoir changes.
+    /// Resistance prevalence within each sampled
+    /// `[region x hospital/community x bacteria x drug]` reservoir, rebuilt after refreshes.
     drug_resistance_prevalence: Vec<f64>,
-    /// First complete observed genotype carrying each locally established mechanism.
+    /// First sampled-and-archived genotype carrying each locally established mechanism.
     /// Zero is the sentinel for "not yet established" because a carrying profile is non-zero.
     /// Indexed `[region][hospital/community][bacterium][mechanism]`.
     established_profile_by_mechanism: Vec<Vec<Vec<Vec<u64>>>>,
@@ -1814,9 +1830,8 @@ impl MechanismCache {
         })
     }
 
-    /// Debug helper: guarantee that every hospital reservoir has at least one resistant
-    /// genotype from day 0 by inserting a single-mechanism profile that is actually usable
-    /// for that bacterium in the current applicability matrix.
+    /// Debug helper: seed every hospital reservoir whose bacterium has an applicable resistance
+    /// mechanism with one such single-mechanism profile before day 0.
     pub fn seed_debug_hospital_resistant_profiles(
         &mut self,
         param_cache: &crate::rules::ParameterKeyCache,
@@ -1919,7 +1934,7 @@ impl MechanismCache {
     /// Hospital profiles are excluded because the ratchet seeds only exogenous community
     /// acquisitions. A regional bacterium slot must have at least
     /// `MIN_COMMUNITY_PROFILES_FOR_RATCHET_PEAK` retained community profiles before its
-    /// permanent peak can increase.
+    /// stored annual maximum can increase.
     ///
     /// Called after the profile refresh on annual peak-update steps.
     pub fn update_peak_community_marginal_prevalences(&mut self) {
@@ -1945,9 +1960,11 @@ impl MechanismCache {
         }
     }
 
-    /// Sample a complete mechanism profile bitmask from the hospital or community profile reservoir.
-    /// `hospital` selects the preferred care-setting reservoir. If it is empty, sampling
-    /// falls back to the other care setting in the same region-bacterium slot.
+    /// Sample a complete mechanism profile bitmask for a care-setting context.
+    ///
+    /// The local-persistence archive receives its configured first opportunity. Otherwise,
+    /// `hospital` selects the preferred current reservoir, with fallback to the other care
+    /// setting in the same region-bacterium slot when the preferred reservoir is empty.
     pub fn sample_profile<R: Rng + ?Sized>(
         &self,
         region_idx: usize,
@@ -2026,10 +2043,13 @@ impl MechanismCache {
 
     /// Sample a hospital acquisition profile after downweighting all-zero profiles.
     ///
-    /// Before the hospital slot has ever accumulated a resistant genotype for this
-    /// region×bacterium, hospital acquisition temporarily bootstraps from the pooled
-    /// hospital+community regional reservoir. Once the hospital slot contains at least one
-    /// resistant profile of its own, sampling reverts to the hospital slot alone.
+    /// The hospital local-persistence archive receives its configured opportunity before the
+    /// current-reservoir behavior described below.
+    ///
+    /// While the current hospital reservoir has no resistant genotype for this
+    /// region×bacterium, hospital acquisition bootstraps from the current hospital and
+    /// community reservoirs (or whichever is nonempty). When the current hospital reservoir
+    /// contains a resistant profile, acquisition samples that reservoir alone.
     ///
     /// Rejection sampling always accepts mechanism-bearing profiles and accepts
     /// mechanism-free profiles with probability `1 - prune_percentage`. This gives the
@@ -2107,7 +2127,7 @@ impl MechanismCache {
         }
     }
 
-    /// Return the exact prevalence derived from the current profile reservoir.
+    /// Return the prevalence calculated within the current sampled profile reservoir.
     #[inline]
     pub fn prevalence(
         &self,
@@ -2376,7 +2396,7 @@ impl IndividualLogger {
 #[allow(dead_code)]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TimeStepSummary {
-    // per-bacteria count of people on any drug (infected with each bacteria and on at least one drug)
+    // Pre-rule count by bacterium of active infections in people using any drug.
     pub infected_and_on_any_drug_by_bacteria: Vec<usize>,
     pub time_step: usize,
     pub policy_option: u8,
@@ -2393,11 +2413,14 @@ pub struct TimeStepSummary {
     pub deaths_infection_non_sepsis_model_scope: usize,
     pub deaths_drug_toxicity: usize, // Deaths from drug toxicity
     pub drug_stops_due_to_toxicity: usize, // Drug-course stop events, including a later same-day death
-    pub deaths_past_year: usize,           // Rolling 365-day all-cause deaths
-    pub deaths_background_past_year: usize, // Rolling 1-year (365 days) death counts
-    pub deaths_sepsis_past_year: usize,    // Rolling 1-year (365 days) death counts
-    pub deaths_infection_non_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
-    pub deaths_drug_toxicity_past_year: usize, // Rolling 1-year (365 days) death counts
+    // Current row plus up to 364 preceding retained rows. These fields cover fewer than
+    // 365 simulated days at simulation start, an alternate-continuation start, or the start of
+    // a sparsely retained output window.
+    pub deaths_past_year: usize,
+    pub deaths_background_past_year: usize,
+    pub deaths_sepsis_past_year: usize,
+    pub deaths_infection_non_sepsis_past_year: usize,
+    pub deaths_drug_toxicity_past_year: usize,
     pub total_with_resistance: usize,
     pub total_currently_infected: usize, // living people with a general-clinical-scope infection
     pub currently_taking_drug_count: usize,
@@ -2433,7 +2456,9 @@ pub struct TimeStepSummary {
     pub infections_by_bacteria: Vec<usize>,                   // indexed by bacteria
     pub infections_by_bacteria_under_5: Vec<usize>,
     pub infections_by_bacteria_over_65: Vec<usize>,
-    pub deaths_by_bacteria: Vec<usize>, // indexed by bacteria
+    // Non-background deaths associated with every bacterium active at death. These are
+    // co-occurrence counts, not causal attribution, and include drug-toxicity deaths.
+    pub deaths_by_bacteria: Vec<usize>, // indexed by bacterium
     pub deaths_by_bacteria_under_5: Vec<usize>,
     pub deaths_by_bacteria_over_65: Vec<usize>,
     pub deaths_by_bacteria_hospital_acquired: Vec<usize>,
@@ -2447,12 +2472,14 @@ pub struct TimeStepSummary {
     pub activity_r_pure_sum_by_bacteria: Vec<f64>,
     /// Potency denominator for the retained-potency metric.
     pub max_possible_activity_r_pure_sum_by_bacteria: Vec<f64>,
-    /// Potential treatment-option landscape across drugs that existed at this timestep.
-    /// Numerator: sum over active infections and eligible drugs of potency * retained activity.
+    /// Potential treatment-option landscape across introduced drugs meeting the global potency
+    /// threshold, irrespective of regional availability or prescribing.
+    /// Numerator: potency multiplied by retained activity across those infection-drug pairs.
     pub potential_activity_existing_drugs_sum_by_bacteria: Vec<f64>,
-    /// Denominator for potential treatment-option landscape: same eligible-drug potency sum without resistance.
+    /// Denominator for that landscape: the same introduced, potency-qualified drug sum without
+    /// resistance.
     pub max_possible_potential_activity_existing_drugs_sum_by_bacteria: Vec<f64>,
-    /// Infection-course outcome and treatment aggregates, indexed by bacterium.
+    /// Infection-course and treatment aggregates, indexed by bacterium.
     #[serde(default)]
     pub new_active_infections_by_bacteria: Vec<usize>, // successful acquisition events
     #[serde(default)]
@@ -2464,8 +2491,12 @@ pub struct TimeStepSummary {
     #[serde(default)]
     pub infection_resolution_count_by_bacteria: Vec<usize>,
     #[serde(default)]
+    /// Same non-background death/active-bacterium association used by `deaths_by_bacteria`;
+    /// despite the legacy name, this can include drug-toxicity deaths and is not causal.
     pub infection_death_count_by_bacteria: Vec<usize>,
     #[serde(default)]
+    /// Legacy fifth-day course/positive-bacterium-level association count. It does not establish
+    /// that the course targeted the bacterium and is not a failure event emitted by the rules.
     pub drug_failure_count_by_bacteria: Vec<usize>,
     /// Carrier and non-carrier acquisition aggregates, indexed by bacterium.
     #[serde(default)]
@@ -2497,8 +2528,8 @@ pub struct TimeStepSummary {
     pub newly_infected_non_carrier_by_bacteria: Vec<usize>, // carriage absent at acquisition transition
     pub newly_infected_by_bacteria_under_5: Vec<usize>,
     pub newly_infected_by_bacteria_over_65: Vec<usize>,
-    pub deaths_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = deaths this timestep of people currently infected with bacteria by home region
-    pub newly_infected_past_year: usize,                // rolling 365-day acquisition-person count
+    pub deaths_infected_by_bacteria_region: Vec<usize>, // all-cause death/active-bacterium associations by home region
+    pub newly_infected_past_year: usize, // current plus up to 364 preceding retained rows
     pub currently_infected_and_on_drug_count: usize, // general-clinical-scope infection and any current drug
     pub num_age_0_5: usize,
     pub num_age_6_14: usize,
@@ -2521,7 +2552,8 @@ pub struct TimeStepSummary {
     pub infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of infected individuals without carriage
     pub resistant_infected_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among carriers
     pub resistant_infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among non-carriers
-    // Active-infection stock split by current care location, not infection acquisition route.
+    // Post-rule active-infection stock split by the care location captured before today's rules,
+    // not by infection acquisition route.
     pub currently_infected_hospital_count_by_bacteria: Vec<usize>,
     pub currently_infected_community_count_by_bacteria: Vec<usize>,
     pub resistant_infected_hospital_count_by_bacteria: Vec<usize>,
@@ -2529,9 +2561,9 @@ pub struct TimeStepSummary {
     pub infected_with_test_identified_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_identified_infection = true
     pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // infected people with a result-ready AST panel
 
-    // Drug failure tracking: day 5 post-drug-initiation events by bacteria and region
-    pub drug_failure_events_by_bacteria_region: Vec<usize>, // [bacteria * region] - numerator: day 5, on drug, still infected
-    pub drug_treatment_day5_events_by_bacteria_region: Vec<usize>, // [bacteria * region] - denominator: day 5 post-drug-initiation
+    // Legacy fifth-day course diagnostics; courses are not attributed to target bacteria.
+    pub drug_failure_events_by_bacteria_region: Vec<usize>, // each day-5 active course replicated over bacteria with level > 0, by home region
+    pub drug_treatment_day5_events_by_bacteria_region: Vec<usize>, // each course reaching day 5 replicated over every bacterium, by home region
 
     // Legacy reciprocal-activity proxy below 2, flattened as bacterium x drug.
     pub infected_and_standardized_mic_lt2_by_bacteria_drug: Vec<usize>,
@@ -2539,19 +2571,19 @@ pub struct TimeStepSummary {
     // per-bacteria, per-drug currently on drug counts (flat, len = bacteria * drugs)
     pub currently_on_drug_by_bacteria_drug: Vec<usize>,
 
-    // per-bacteria, per-drug microbiome_r > 0 counts (flat, len = bacteria * drugs)
+    // Pre-rule microbiome_r > 0 counts (flat, len = bacteria * drugs).
     pub microbiome_r_positive_by_bacteria_drug: Vec<usize>,
 
-    // per-bacteria, per-drug any_r sum values for infected individuals (flat, len = bacteria * drugs)
+    // Pre-rule any_r sums for active infections (flat, len = bacteria * drugs).
     pub any_r_sum_by_bacteria_drug: Vec<f64>,
 
-    // per-bacteria, per-drug any_r sum values for currently hospitalized infected individuals (flat, len = bacteria * drugs)
+    // Pre-rule any_r sums for active infections hospitalized before today's rules.
     pub any_r_sum_by_bacteria_drug_hospital: Vec<f64>,
 
-    // per-bacteria, per-drug counts of infected individuals with any_r > 0 (flat, len = bacteria * drugs)
+    // Pre-rule active-infection counts with any_r > 0 (flat, len = bacteria * drugs).
     pub infected_with_any_r_positive_by_bacteria_drug: Vec<usize>,
 
-    // per-bacteria, per-drug counts of infected individuals with any_r > 0 split by current location
+    // Pre-rule active-infection counts with any_r > 0 split by pre-rule care setting.
     pub infected_with_any_r_positive_hospital_by_bacteria_drug: Vec<usize>,
     pub infected_with_any_r_positive_community_by_bacteria_drug: Vec<usize>,
 
@@ -2577,9 +2609,10 @@ pub struct TimeStepSummary {
     pub infection_resolution_death_from_background_by_bacteria: Vec<usize>,
     pub infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
 
-    // day-7 drug initiation tracking: counts by bacteria
-    pub day_7_evaluations_by_bacteria: Vec<usize>, // [bacteria_idx] = number of post-infection evaluations (configurable timing)
-    pub day_7_drug_used_by_bacteria: Vec<usize>, // [bacteria_idx] = number where drug was used by day 7
+    // Drug initiation tracking at the configured post-infection evaluation day. The field
+    // names retain `day_7` for output compatibility even when another day is configured.
+    pub day_7_evaluations_by_bacteria: Vec<usize>, // evaluations by bacterium
+    pub day_7_drug_used_by_bacteria: Vec<usize>, // evaluations with a drug started since infection onset
 
     // Person-level active-infection stock assigned to the first valid syndrome.
     pub infected_by_syndrome: Vec<usize>,
@@ -2590,46 +2623,52 @@ pub struct TimeStepSummary {
     // Acquisition people assigned to the first valid event syndrome.
     pub newly_infected_by_syndrome: Vec<usize>,
 
-    // regional population tracking: counts by region (6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania)
-    pub living_population_by_region: Vec<usize>, // [region_idx] = number of living individuals currently in this region
+    // Living post-rule stock classified by the effective region captured before today's rules.
+    pub living_population_by_region: Vec<usize>, // six regions; excludes not-yet-born records
 
-    // regional hospital population tracking: counts by region (6 regions)
-    pub hospital_population_by_region: Vec<usize>, // [region_idx] = number of individuals currently in hospital in this region
+    // Living post-rule stock whose pre-rule care status was hospitalized, classified by the
+    // pre-rule effective region.
+    pub hospital_population_by_region: Vec<usize>,
 
     // hospital-acquired new infection tracking: counts by bacteria and region (bacteria * 6 regions)
     pub newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize>, // (bacteria_idx, region_idx) = count of new hospital infections
     pub newly_infected_any_r_hospital_by_bacteria: Vec<usize>,
     pub newly_infected_any_r_community_by_bacteria: Vec<usize>,
 
-    // regional age distribution tracking: counts by region and age group (6 regions * 5 age groups = 30 values)
+    // Living post-rule stock by pre-rule effective region and current age group
+    // (6 regions * 5 age groups = 30 values).
     // [region_idx * 5 + age_group_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
-    pub age_distribution_by_region: Vec<usize>, // [region][age_group] = number of living individuals in this region and age group
+    pub age_distribution_by_region: Vec<usize>,
 
-    // regional death tracking: counts by region and death type (6 regions * 4 death types)
+    // Today's deaths by pre-rule effective region and death type (6 regions * 4 death types).
     // [region_idx * NUM_DEATH_CAUSES + death_type_idx]
     pub deaths_by_region: Vec<usize>, // [region][death_type] = number of deaths in this region by cause
 
-    // age-specific death tracking by region: counts by region, age group, and death type (6 regions * 5 age groups * 4 death types)
+    // Today's deaths by pre-rule effective region, current age group, and death type
+    // (6 regions * 5 age groups * 4 death types).
     // [region_idx * (5 * NUM_DEATH_CAUSES) + age_group_idx * NUM_DEATH_CAUSES + death_type_idx]
     pub deaths_by_region_age: Vec<usize>, // [region][age_group][death_type] = number of deaths
 
-    // syndrome population by region: counts by syndrome and region (10 syndromes * 6 regions = 60 values)
+    // Post-rule septic bacterium records by syndrome and pre-rule effective region. One person
+    // can contribute multiple records (10 syndromes * 6 regions = 60 values).
     // [syndrome_idx * 6 + region_idx] where syndrome_idx: 0-9 (syndromes 1-10), region_idx: 0-5
-    pub syndrome_population_by_region: Vec<usize>, // [syndrome][region] = number of individuals with this syndrome in this region
+    pub syndrome_population_by_region: Vec<usize>,
 
-    // syndrome deaths from sepsis by region: counts by syndrome and region (10 syndromes * 6 regions = 60 values)
+    // Death/bacterium associations by syndrome and pre-rule effective region. A death can
+    // contribute to multiple syndrome slots (10 syndromes * 6 regions = 60 values).
     // [syndrome_idx * 6 + region_idx] where syndrome_idx: 0-9 (syndromes 1-10), region_idx: 0-5
-    pub syndrome_deaths_sepsis_by_region: Vec<usize>, // [syndrome][region] = number of sepsis deaths with this syndrome in this region
-    pub syndrome_deaths_infection_non_sepsis_by_region: Vec<usize>, // [syndrome][region] = number of infection (non-sepsis) deaths with this syndrome
+    pub syndrome_deaths_sepsis_by_region: Vec<usize>,
+    pub syndrome_deaths_infection_non_sepsis_by_region: Vec<usize>,
 
-    // regional drug usage tracking: counts by region and drug (6 regions * num_drugs values)
-    // [region_idx * num_drugs + drug_idx] = number of people currently taking this drug in this region
-    pub currently_on_drug_by_region_drug: Vec<usize>, // [region][drug] = number of people currently on drug in region
+    // Post-rule drug use classified by the effective region captured before today's rules
+    // (6 regions * num_drugs values).
+    pub currently_on_drug_by_region_drug: Vec<usize>,
 
-    // polypharmacy tracking: counts of people taking 1, 2, or ≥3 drugs simultaneously
-    pub people_on_1_drug: usize, // number of people taking exactly 1 drug
-    pub people_on_2_drugs: usize, // number of people taking exactly 2 drugs
-    pub people_on_3plus_drugs: usize, // number of people taking 3 or more drugs
+    // Polypharmacy among records without a death date. Unlike `total_population`, this pass
+    // does not exclude not-yet-born records.
+    pub people_on_1_drug: usize,
+    pub people_on_2_drugs: usize,
+    pub people_on_3plus_drugs: usize,
 
     // treatment failure tracking: people currently on drug + infected + previously failed treatment
     pub infected_on_drug_with_previous_failure: usize, // active reportable infection, on drug, with previous failure
@@ -2638,8 +2677,9 @@ pub struct TimeStepSummary {
     pub drug_selection_count_by_bacteria: Vec<usize>, // [bacteria_idx] = number of drug selections for this bacteria this timestep
     pub drug_score_sums_by_bacteria_drug: Vec<f64>, // [bacteria_idx * num_drugs + drug_idx] = sum of drug scores for this bacteria-drug combo this timestep
 
-    // current number of drugs tracking: histogram of people by number of drugs they're taking
-    pub people_by_drug_count: Vec<usize>, // [0] = people on 0 drugs, [1] = people on 1 drug, etc.
+    // Current-drug-count histogram over all records without a death date, including not-yet-born
+    // records (normally in bin 0): [0], [1], [2], [3] = 0, 1, 2, or 3+ drugs.
+    pub people_by_drug_count: Vec<usize>,
 }
 
 impl TimeStepSummary {
@@ -2780,24 +2820,25 @@ pub struct Simulation {
     pub drug_indices: HashMap<&'static str, usize>,
     /// Resistance-profile cache used by acquisition and prescribing.
     pub mechanism_cache: MechanismCache,
-    /// Efficient storage for summary data at each time step.
+    /// Baseline summary rows retained under the selected calibration mode.
     pub summary_log: Vec<TimeStepSummary>,
-    /// Storage for per-policy alternate branch summaries keyed by policy_option.
+    /// One set of retained continuation summaries per completed alternate policy option.
     pub policy_branch_summary_log: Vec<PolicyBranchSummary>,
-    /// Pre-computed parameter keys to avoid string allocation during simulation.
+    /// Precomputed parameter values and lookup tables used by the rules hot path.
     pub param_cache: crate::rules::ParameterKeyCache,
-    /// Precomputed potency values indexed by [bacteria * num_drugs + drug]
+    /// Precomputed potency values indexed by `[bacterium * num_drugs + drug]`.
     pub potency_matrix: Vec<f64>,
     /// Precomputed `any_r` cutpoint for the legacy `_mic_lt2` reciprocal-activity proxy.
     /// The proxy is dimensionless and is not an organism-drug MIC.
     pub mic_lt2_majority_r_thresholds: Vec<f64>,
-    /// Journey logger for tracking infection episodes
+    /// Journey logger for sampled infection episodes.
     pub journey_logger: JourneyLogger,
-    /// Optional fixed RNG seed for deterministic runs
+    /// Optional fixed RNG seed for deterministic runs.
     pub rng_seed: Option<u64>,
-    /// Identifier assigned at the start of each run for downstream joins
+    /// Pseudo-random identifier regenerated by each `run()` call and written to summary rows
+    /// and checkpoint metadata; uniqueness across independent runs is not guaranteed.
     pub run_id: u32,
-    /// Flag to suppress side-effects (logging, etc.) when running alternate policy branch.
+    /// Suppresses baseline-only logging while an alternate-policy continuation is running.
     branch_active: bool,
     /// Policy adjustments for baseline (policy_option = 0).
     baseline_policy_adjustments: PolicyAdjustments,
@@ -2805,24 +2846,26 @@ pub struct Simulation {
     branch_policy_adjustments: Vec<PolicyAdjustments>,
     /// Policy adjustments currently in effect during the run loop.
     current_policy_adjustments: PolicyAdjustments,
-    /// Flag indicating whether branch checkpoints should be persisted to disk.
+    /// Whether the temporary branch snapshot should be stored on disk rather than in memory.
     use_disk_branch_checkpoint: bool,
-    /// Directory used to store branch checkpoints when disk persistence is enabled.
+    /// Directory used for temporary branch-checkpoint files; files are deleted when their
+    /// checkpoint handles are dropped.
     branch_checkpoint_dir: PathBuf,
-    /// Sparse mapping: for each bacteria, list of drug indices with potency > 0.01 (clinically relevant)
+    /// Precomputed legacy mapping from each bacterium to drugs with potency above `0.01`.
+    /// The current run loop retains this public data but does not consume it.
     pub relevant_drugs_by_bacteria: Vec<Vec<usize>>,
-    /// Controls output density and which summary statistics are computed each timestep.
+    /// Controls simulation horizon, continuation policies, retained years, and diagnostic detail.
     pub calibration_mode: CalibrationMode,
-    /// Controls which summary field groups are stored per row. Defaults to [`SummaryContentFlags::all()`].
-    /// Set to [`SummaryContentFlags::for_figures`] or [`SummaryContentFlags::none()`] before calling `run()`
-    /// to reduce `summary_log` memory for targeted output.
+    /// Controls which summary field groups are stored per row. Initialized from the selected
+    /// calibration mode; callers may set [`SummaryContentFlags::for_figures`] or
+    /// [`SummaryContentFlags::none`] before `run()` for a specialized output.
     pub summary_content_flags: SummaryContentFlags,
 }
 
 impl Simulation {
-    /// Create a new Simulation instance with initialized population and lookup tables.
+    /// Create a simulation with an initialized population, caches, and lookup tables.
     ///
-    /// Initializes population and bacteria/drug lookup tables.
+    /// The run identifier remains zero until [`Simulation::run`] is called.
     pub fn new(
         population_size: usize,
         time_steps: usize,
@@ -2871,8 +2914,8 @@ impl Simulation {
             }
         }
 
-        // Build the sparse bacterium-drug map used by hot loops, excluding pairs at the
-        // model's negligible-activity placeholder.
+        // Build the retained legacy bacterium-drug map, excluding pairs at the model's
+        // negligible-activity placeholder. The current run loop does not consume this map.
         let mut relevant_drugs_by_bacteria: Vec<Vec<usize>> = Vec::with_capacity(num_bacteria);
         for b_idx in 0..num_bacteria {
             let mut relevant_drugs = Vec::new();
@@ -2931,18 +2974,19 @@ impl Simulation {
         }
     }
 
-    /// Replace the set of policy branches that will be run from this mode's branch point.
+    /// Replace the requested policy IDs for this mode's branch point.
     ///
-    /// Pass a slice of policy IDs (0-4). Invalid IDs emit a warning and are ignored.
-    /// Call this after `Simulation::new()` and before `run()`.
+    /// The baseline (policy 0) always runs independently; including ID 0 here is accepted but
+    /// does not create another continuation. IDs 1-4 select alternate continuations. Invalid
+    /// IDs emit a warning and are ignored. Call this after `Simulation::new()` and before `run()`.
     ///
     /// # Examples
     /// ```ignore
-    /// // Run the baseline continuation (0) and stewardship (1) branches:
-    /// simulation.set_active_policy_branches(&[0, 1]);
+    /// // Run the baseline plus the stewardship continuation:
+    /// simulation.set_active_policy_branches(&[1]);
     ///
-    /// // Run the baseline plus all four alternate branches:
-    /// simulation.set_active_policy_branches(&[0, 1, 2, 3, 4]);
+    /// // Run the baseline plus all four alternate continuations:
+    /// simulation.set_active_policy_branches(&[1, 2, 3, 4]);
     /// ```
     pub fn set_active_policy_branches(&mut self, policy_ids: &[u8]) {
         let globals = &config::parameter_store().globals;
@@ -2999,8 +3043,9 @@ impl Simulation {
         }
     }
 
-    /// Enable disk-backed storage for the policy branch checkpoint captured at the branch year.
-    /// When `directory` is `None`, a default folder (`amr_branch_checkpoints`) under the workspace root is used.
+    /// Store the branch-point snapshot in a temporary disk file instead of keeping it in memory.
+    /// The file is removed when the checkpoint handle is dropped. When `directory` is `None`,
+    /// the existing configured directory is retained (initially `amr_branch_checkpoints`).
     pub fn enable_disk_branch_checkpointing(&mut self, directory: Option<PathBuf>) {
         self.use_disk_branch_checkpoint = true;
         if let Some(dir) = directory {
@@ -3008,7 +3053,7 @@ impl Simulation {
         }
     }
 
-    /// Disable disk-backed checkpointing so branch snapshots stay in memory.
+    /// Keep the branch-point snapshot in memory instead of writing a temporary disk file.
     pub fn disable_disk_branch_checkpointing(&mut self) {
         self.use_disk_branch_checkpoint = false;
     }
@@ -3345,23 +3390,25 @@ impl Simulation {
                 potential_activity_existing_drugs_sum_by_bacteria: Vec<f64>,
                 /// Denominator for potential activity across the same existing drugs.
                 max_possible_potential_activity_existing_drugs_sum_by_bacteria: Vec<f64>,
-                /// Infection-course outcome and treatment aggregates by bacterium.
+                /// Infection-course and treatment aggregates by bacterium. The death field is
+                /// a non-background death/active-bacterium association, not causal attribution.
                 new_active_infections_by_bacteria: Vec<usize>,
                 active_infection_days_by_bacteria: Vec<usize>,
                 treated_infection_days_by_bacteria: Vec<usize>,
                 effective_treated_infection_days_by_bacteria: Vec<usize>,
                 infection_resolution_count_by_bacteria: Vec<usize>,
                 infection_death_count_by_bacteria: Vec<usize>,
+                // Legacy fifth-day course/positive-level association replicated by bacterium.
                 drug_failure_count_by_bacteria: Vec<usize>,
-                /// per-bacteria, per-drug sum of any_r values for infected individuals (float, indexed by bacteria * drugs)
+                /// Pre-rule any_r sums for active infections, indexed by bacterium and drug.
                 any_r_sum_by_bacteria_drug: Vec<f64>,
-                /// per-bacteria, per-drug sum of any_r values for currently hospitalized infected individuals (float, indexed by bacteria * drugs)
+                /// Pre-rule any_r sums for active infections hospitalized before today's rules.
                 any_r_sum_by_bacteria_drug_hospital: Vec<f64>,
-                /// per-bacteria, per-drug counts of infected individuals with any_r > 0 (flat, len = bacteria * drugs)
+                /// Pre-rule active-infection counts with any_r > 0, by bacterium and drug.
                 infected_with_any_r_positive_by_bacteria_drug: Vec<usize>,
-                /// per-bacteria, per-drug counts of infected individuals with any_r > 0 currently in hospital
+                /// Pre-rule active-infection counts with any_r > 0 in hospital pre-rule.
                 infected_with_any_r_positive_hospital_by_bacteria_drug: Vec<usize>,
-                /// per-bacteria, per-drug counts of infected individuals with any_r > 0 currently in community
+                /// Pre-rule active-infection counts with any_r > 0 in community pre-rule.
                 infected_with_any_r_positive_community_by_bacteria_drug: Vec<usize>,
                 /// Legacy reciprocal-activity proxy sum, flattened as bacterium x drug.
                 mic_sum_by_bacteria_drug: Vec<f64>,
@@ -3378,31 +3425,32 @@ impl Simulation {
                 infection_resolution_death_from_infection_non_sepsis_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_background_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
-                /// counts of infected individuals by syndrome (1-10)
+                /// active people assigned once to their first valid infection syndrome (1-10)
                 infected_by_syndrome: Vec<usize>,
-                /// counts of infected individuals by bacteria and syndrome (bacteria * 10 syndromes)
+                /// active person-bacterium records by bacterium and syndrome
                 infected_by_syndrome_by_bacteria: Vec<usize>,
-                /// newly infected tracking by syndrome (1-10)
+                /// acquisition people assigned once to the first valid acquisition-event syndrome
                 newly_infected_by_syndrome: Vec<usize>,
-                /// living population count by region (6 regions)
+                /// post-rule living stock by pre-rule effective region
                 living_population_by_region: Vec<usize>,
-                /// age distribution by region (6 regions * 5 age groups = 30 values)
+                /// post-rule living stock by pre-rule effective region and current age group
                 age_distribution_by_region: Vec<usize>,
-                /// death tracking by region (6 regions * NUM_DEATH_CAUSES)
+                /// deaths by pre-rule effective region and cause
                 deaths_by_region: Vec<usize>,
-                /// age-specific death tracking by region (6 regions * 5 age groups * NUM_DEATH_CAUSES)
+                /// deaths by pre-rule effective region, current age, and cause
                 deaths_by_region_age: Vec<usize>,
-                /// drug usage by region (6 regions * num_drugs)
+                /// post-rule drug use by pre-rule effective region
                 currently_on_drug_by_region_drug: Vec<usize>,
-                /// syndrome deaths from sepsis by region (10 syndromes * 6 regions = 60 values)
+                /// sepsis-death/septic-bacterium records by syndrome and pre-rule region
                 syndrome_deaths_sepsis_by_region: Vec<usize>,
-                /// syndrome deaths from infection (non-sepsis) by region (10 syndromes * 6 regions = 60 values)
+                /// non-sepsis-death/active-nonseptic-bacterium records by syndrome and pre-rule region
                 syndrome_deaths_infection_non_sepsis_by_region: Vec<usize>,
-                /// hospitalized population count by region (6 regions)
+                /// post-rule living stock with pre-rule hospitalization, by pre-rule region
                 hospital_population_by_region: Vec<usize>,
-                /// Evaluation-day tracking by bacterium (`CalibrationMode::None` only).
+                /// Configured post-infection evaluation-day counts (`CalibrationMode::None` only).
                 day_7_evaluations_by_bacteria: Vec<usize>,
-                /// Drug use by evaluation day (`CalibrationMode::None` only).
+                /// Drug initiation since infection onset by that evaluation day
+                /// (`CalibrationMode::None` only).
                 day_7_drug_used_by_bacteria: Vec<usize>,
                 /// count of infected+on-drug individuals with previous treatment failure (CalibrationMode::None only)
                 infected_on_drug_with_previous_failure: usize,
@@ -3410,7 +3458,8 @@ impl Simulation {
                 drug_selection_count_by_bacteria: Vec<usize>,
                 /// drug score sums by bacteria×drug (CalibrationMode::None only)
                 drug_score_sums_by_bacteria_drug: Vec<f64>,
-                /// Sepsis stock by syndrome and region (`CalibrationMode::None` only).
+                /// Septic bacterium records by syndrome and pre-rule region
+                /// (`CalibrationMode::None` only).
                 syndrome_population_by_region: Vec<usize>,
             }
             impl LocalTotals {
@@ -4891,8 +4940,9 @@ impl Simulation {
                     let has_currently_infected_hospital_counts =
                         !lt.currently_infected_hospital_count_by_bacteria.is_empty();
 
-                    // Snapshot resistance, carriage, treatment, and infection stock before
-                    // this day's state transitions.
+                    // Snapshot resistance, carriage, treatment, infection, effective region,
+                    // and care setting before this day's state transitions. Some later stock
+                    // fields combine post-rule clinical state with these pre-rule locations.
                     if individual.date_of_death.is_none() && individual.age >= 0 {
                         let has_any_infection =
                             individual.level.iter().any(|&level| level > INFECTION_EPS);
@@ -5470,7 +5520,7 @@ impl Simulation {
                             if death_time == t {
                             lt.total_deaths += 1;
 
-                            // Get region for this death
+                            // Attribute the death to the effective region captured before today's rules.
                             let region_idx = effective_region_idx;
 
                             // Get age group for this death (ages in days, convert to years)
@@ -5520,7 +5570,8 @@ impl Simulation {
                                                 + DEATH_CAUSE_SEPSIS_IDX] += 1;
                                         }
 
-                                        // Track sepsis deaths by syndrome and region
+                                        // Associate the death with every septic bacterium's syndrome;
+                                        // one death can increment multiple syndrome-region slots.
                                         if collect_syndrome_stats {
                                             for b_idx in 0..BACTERIA_LIST.len() {
                                                 if individual.sepsis[b_idx] {
@@ -5551,7 +5602,8 @@ impl Simulation {
                                                 + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
                                         }
 
-                                        // Track non-sepsis infection deaths by syndrome and region
+                                        // Associate the death with every active non-septic bacterium's
+                                        // syndrome; one death can increment multiple slots.
                                         if collect_syndrome_stats {
                                             for b_idx in 0..BACTERIA_LIST.len() {
                                                 if individual.level[b_idx] > INFECTION_EPS
@@ -5602,7 +5654,9 @@ impl Simulation {
                                 }
                                 count_in_deaths_by_bacteria = false;
                             }
-                            // Count deaths by bacteria
+                            // Associate each non-background death, including a drug-toxicity
+                            // death, with every bacterium active at death. This is co-occurrence,
+                            // not causal attribution.
                             if count_in_deaths_by_bacteria {
                                 for b_idx in 0..num_bacteria {
                                     if individual.level[b_idx] > INFECTION_EPS {
@@ -5626,7 +5680,8 @@ impl Simulation {
                                 }
                             }
 
-                            // Count deaths by bacteria and home region for currently infected individuals
+                            // Associate every death, including background mortality, with every
+                            // active bacterium and the person's home region.
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
@@ -5641,7 +5696,7 @@ impl Simulation {
                         // Population denominators exclude future cohort members not yet born.
                         lt.living_population += 1;
 
-                        // Count living population by region
+                        // Classify post-rule survivors by the effective region captured pre-rule.
                         let region_idx = effective_region_idx;
                         if collect_regional_stats {
                             lt.living_population_by_region[region_idx] += 1;
@@ -5678,7 +5733,8 @@ impl Simulation {
                         let has_any_microbiome = individual.presence_microbiome.iter().any(|&x| x);
                         let has_active_drug_course = individual.date_drug_initiated.iter().any(|&day| day != i32::MIN);
 
-                        // Drug usage post-rules
+                        // Count post-rule drug use, using the pre-rule effective region for
+                        // regional splits.
                         if on_any_drug_current {
                             lt.currently_taking_drug_count += 1;
                             match current_antibiotic_context_priority(individual) {
@@ -5817,7 +5873,9 @@ impl Simulation {
                             }
                         }
 
-                        // Track drug failure events: check for day 5 post-drug-initiation
+                        // Legacy fifth-day course diagnostic without course-to-bacterium
+                        // attribution: replicate each course reaching day 5 into every bacterial
+                        // denominator, then count every level > 0 while that drug remains active.
                         if has_active_drug_course {
                             let home_region_idx = region_to_index(individual.region_living);
                             for (d_idx, &drug_init_day) in individual.date_drug_initiated.iter().enumerate() {
@@ -5873,7 +5931,7 @@ impl Simulation {
                                     let is_carrier = individual.presence_microbiome[b_idx];
                                     let record_as_hosp = is_hospitalized;
                                     let mut infection_any_r_positive = false;
-                                    // Count syndrome for this infected individual (take first one if multiple infections)
+                                    // Count this person once under the first valid active-infection syndrome.
                                     if !individual_has_any_infection_counted_for_syndrome {
                                         let syndrome_id = individual.infectious_syndrome[b_idx];
                                         if (1..=10).contains(&syndrome_id) {
@@ -5884,7 +5942,7 @@ impl Simulation {
                                         }
                                     }
 
-                                    // Count syndrome for this bacteria specifically (all infections, not just first)
+                                    // Count every active person-bacterium record under its syndrome.
                                     let syndrome_id = individual.infectious_syndrome[b_idx];
                                     if collect_syndrome_stats && (1..=10).contains(&syndrome_id) {
                                         let flat_idx = b_idx * 10 + (syndrome_id - 1) as usize;
@@ -5892,8 +5950,8 @@ impl Simulation {
                                     }
 
                                     let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
-                                    // Cross-bacterium duration summaries use the same explicit
-                                    // clinical scope as the infection-stock summaries.
+                                    // Cross-bacterium duration summaries use the general clinical
+                                    // reporting scope used by `total_currently_infected`.
                                     if bacterium_is_in_general_clinical_reporting_scope(b_idx)
                                         && days_since_infection > individual_max_infection_duration
                                     {
@@ -5991,6 +6049,7 @@ impl Simulation {
                         if active_drug_count >= 2 {
                             lt.taking_two_drugs_count += 1;
                         }
+                        // Hospital stock uses the care setting captured before today's rules.
                         if is_hospitalized {
                             lt.number_in_hospital += 1;
                             if collect_regional_stats {
@@ -6004,7 +6063,7 @@ impl Simulation {
                             lt.number_with_sepsis += 1;
                         }
 
-                        // Track sepsis by bacteria and new sepsis cases
+                        // Count post-rule sepsis stock by bacterium.
                         for b_idx in 0..num_bacteria {
                             if individual.sepsis[b_idx] {
                                 // Current sepsis with this bacteria
@@ -6013,9 +6072,8 @@ impl Simulation {
                         }
                     }
 
-                    // These counters are transient model-event buffers. Always clear them,
-                    // including on days whose summary rows are discarded, so old events cannot
-                    // leak into the first retained calibration row.
+                    // For living-stock records, consume and clear these transient event buffers,
+                    // including on discarded-output days, so events cannot leak into a later row.
                     if vital_status.counts_as_living_stock {
                         for (b_idx, category_counts) in individual
                             .cleared_any_r_microbiome_categories
@@ -6072,12 +6130,13 @@ impl Simulation {
                         }
                     }
 
-                    // Full policy runs retain these additional diagnostics.
+                    // The unabridged (`None`) mode retains these additional diagnostics.
                     if calibration_mode == CalibrationMode::None
                         && individual.date_of_death.is_none()
                         && individual.age >= 0
                     {
-                        // day-7 post-infection evaluation tracking
+                        // Track drug use at the configured post-infection evaluation day; the
+                        // output field names retain the legacy `day_7` label.
                         for b_idx in 0..num_bacteria {
                             let infection_start_day = individual.date_last_infected_keep[b_idx];
                             if days_since_recorded_event(infection_start_day, t as i32)
@@ -6126,7 +6185,8 @@ impl Simulation {
                             }
                         }
 
-                        // syndrome population by region (sepsis only)
+                        // Count each septic person-bacterium record by syndrome and the effective
+                        // region captured before today's rules.
                         let region_idx_s = effective_region_idx;
                         for b_idx in 0..num_bacteria {
                             if individual.sepsis[b_idx] {
@@ -6139,9 +6199,9 @@ impl Simulation {
                         }
                     }
 
-                    // Reset per-timestep output state only after this individual's counters have
-                    // been consumed. Keeping this inside the existing population pass avoids a
-                    // second full traversal while preserving the state seen by later loggers.
+                    // Reset per-timestep output buffers after aggregation. Because individual and
+                    // journey logging runs after this population pass, those loggers observe the
+                    // cleared resolution and infection-prevention buffers.
                     for resolution_counts in &mut individual.infection_resolution_this_timestep {
                         resolution_counts.fill(0);
                     }
@@ -6356,16 +6416,16 @@ impl Simulation {
                     &self.param_cache,
                     &mut profile_retention_rng,
                 );
-                // Update the ratchet's permanent community peak annually after refreshing
-                // the active profile reservoir.
+                // Annually update the ratchet's stored maximum from the refreshed sampled
+                // community reservoir; intervening population peaks are not observed here.
                 if t % 365 == 0 {
                     self.mechanism_cache
                         .update_peak_community_marginal_prevalences();
                 }
             }
 
-            // Construct and retain output rows only inside the calibration window. Model-state
-            // updates above and transient-buffer resets below still run on every timestep.
+            // Construct a row only when the selected mode retains this year. In windowed modes
+            // that means 2022-2025; model updates and in-pass buffer resets still run daily.
             if collect_summary_stats {
                 let infected_10_count = infected_10_days_count;
                 let infected_21_count = infected_21_days_count;
@@ -6387,7 +6447,9 @@ impl Simulation {
                         HashMap::new()
                     };
 
-                // Compute all rolling-year totals in one history pass.
+                // Sum the current row and at most 364 earlier retained rows. At the start of a
+                // sparse output window or alternate continuation, this is shorter than 365
+                // simulated days because earlier rows are unavailable in `summary_log`.
                 let rolling_sum_past_year_deaths: [usize; 6] = {
                     let window = PAST_YEAR_WINDOW_DAYS.saturating_sub(1);
                     let start = self
@@ -6520,7 +6582,7 @@ impl Simulation {
                     deaths_infection_non_sepsis_model_scope,
                     deaths_drug_toxicity,
                     drug_stops_due_to_toxicity,
-                    // Rolling 365-day death and infection counts.
+                    // Current row plus up to 364 earlier retained summary rows.
                     deaths_past_year: rolling_sum_past_year_deaths[0],
                     deaths_background_past_year: rolling_sum_past_year_deaths[1],
                     deaths_sepsis_past_year: rolling_sum_past_year_deaths[2],
@@ -6572,12 +6634,12 @@ impl Simulation {
                     },
                     currently_on_drug_by_region_drug,
 
-                    // Full policy runs populate these fields below.
+                    // The unabridged (`None`) mode populates these fields below.
                     people_on_1_drug: 0,
                     people_on_2_drugs: 0,
                     people_on_3plus_drugs: 0,
 
-                    // These high-volume diagnostics are retained only for full policy runs.
+                    // These high-volume diagnostics are retained only in the unabridged mode.
                     infected_on_drug_with_previous_failure,
                     drug_selection_count_by_bacteria: if collect_summary_stats
                         && self.calibration_mode == CalibrationMode::None
@@ -6597,7 +6659,8 @@ impl Simulation {
                     people_by_drug_count: vec![0; 4],
                 };
 
-                // Polypharmacy summaries are needed only for full policy runs.
+                // In unabridged mode this pass includes every record without a death date,
+                // including not-yet-born records (normally in the zero-drug bin).
                 if self.calibration_mode == CalibrationMode::None {
                     let mut on_1 = 0usize;
                     let mut on_2 = 0usize;
@@ -6623,10 +6686,9 @@ impl Simulation {
                     summary.people_by_drug_count = drug_count_histogram;
                 }
 
-                // In the calibration-window modes, only emit rows inside the window actually
-                // consumed by calibration_summary.py for the 2025 summary: 2022-2025 inclusive.
-                // All other rows are dropped to cut CSV size substantially.
-                // In Partial or None every row is kept so time-series plots remain functional.
+                // Windowed Full* modes emit only the rows consumed by calibration_summary.py for
+                // the 2025 summary: 2022-2025 inclusive. Their other rows are dropped.
+                // Partial, Partial25Counterfactual, and None keep every baseline row.
                 let simulation_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
                 let keep_row = self.calibration_mode.retains_summary_year(simulation_year);
                 if keep_row {
@@ -6663,7 +6725,7 @@ impl Simulation {
             self.current_policy_adjustments.policy_option,
         );
 
-        // Flush records not written by a periodic journey checkpoint.
+        // Flush records not written by a periodic journey-log flush.
         if self.journey_logger.enabled && !self.branch_active {
             let _ = self.journey_logger.finalize();
             let _ = self.journey_logger.close();
@@ -6771,7 +6833,8 @@ impl Simulation {
     }
 
     pub fn run(&mut self) {
-        // Assign a fresh identifier for this run so downstream CSV joins can distinguish outputs.
+        // Assign this invocation a pseudo-random identifier. It is written to summary CSV rows
+        // and temporary checkpoint metadata but is not guaranteed unique across independent runs.
         observability::clear_run_context();
         let previous_run_id = self.run_id;
         let mut run_id_rng = self
@@ -6814,7 +6877,8 @@ impl Simulation {
 
         if let (Some(stored_snapshot), Some(step)) = (baseline_snapshot, branch_step) {
             // The initial run is the complete policy-0 trajectory. Keep it as the canonical
-            // baseline and run only true alternatives from the checkpoint.
+            // baseline; policy 0 in the requested ID list is redundant, so continue only the
+            // true alternatives from the checkpoint.
             let baseline_summary_log = std::mem::take(&mut self.summary_log);
             let branch_policies: Vec<PolicyAdjustments> = self
                 .branch_policy_adjustments
@@ -7169,7 +7233,7 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_infections_prevented_by_drug");
         }
-        // Add per-bacteria deaths columns
+        // Add non-background death/active-bacterium association columns (not causal attribution).
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
             header.push_str(&bacteria.replace(" ", "_"));
@@ -7365,7 +7429,7 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_resistant_infected_community_count");
         }
-        // Add per-bacteria per-region drug failure events columns
+        // Add legacy fifth-day active-course/positive-level association columns by home region.
         for bacteria in BACTERIA_LIST.iter() {
             for region in &[
                 "north_america",
@@ -7381,7 +7445,7 @@ impl Simulation {
                 header.push_str(region);
             }
         }
-        // Add per-bacteria per-region drug treatment day5 events columns
+        // Add fifth-day course denominators replicated across every bacterium by home region.
         for bacteria in BACTERIA_LIST.iter() {
             for region in &[
                 "north_america",
@@ -7451,7 +7515,7 @@ impl Simulation {
             header.push_str("_infection_acquisition_events_over_65");
         }
 
-        // Add per-bacteria, per-region deaths (currently infected) columns
+        // Add all-cause death/active-bacterium association columns by home region.
         for bacteria in BACTERIA_LIST.iter() {
             for region in &regions {
                 header.push(',');
@@ -7511,7 +7575,7 @@ impl Simulation {
                 header.push_str(drug);
             }
         }
-        // Add per-bacteria, per-drug infected with any_r > 0 count columns split by current location
+        // Add pre-rule care-setting splits for the pre-rule active-infection resistance snapshot.
         for bacteria in BACTERIA_LIST.iter() {
             for drug in DRUG_SHORT_NAMES.iter() {
                 header.push(',');
@@ -7537,7 +7601,7 @@ impl Simulation {
                 header.push_str(drug);
             }
         }
-        // Add per-bacteria, per-drug any_r sum columns for infections currently in hospital
+        // Add pre-rule any_r sums for infections hospitalized before today's rules.
         for bacteria in BACTERIA_LIST.iter() {
             for drug in DRUG_SHORT_NAMES.iter() {
                 header.push(',');
@@ -7554,7 +7618,7 @@ impl Simulation {
             "europe",
             "oceania",
         ];
-        // Add per-region, per-drug currently on drug columns
+        // Add post-rule drug-use columns by pre-rule effective region.
         for region in region_names.iter() {
             for drug in DRUG_SHORT_NAMES.iter() {
                 header.push(',');
@@ -7617,7 +7681,7 @@ impl Simulation {
             header.push_str("_infection_resolution_death_from_toxicity");
         }
 
-        // Add per-bacteria day-7 drug initiation columns to header
+        // Add configured evaluation-day drug-initiation columns (legacy names say day 7).
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
             header.push_str(&bacteria.replace(" ", "_"));
@@ -7653,7 +7717,7 @@ impl Simulation {
             }
         }
 
-        // Add region population columns to header
+        // Add post-rule living-stock columns by pre-rule effective region.
         let region_names = [
             "north_america",
             "south_america",
@@ -7667,7 +7731,7 @@ impl Simulation {
             header.push_str(&format!("{}_population", region_name));
         }
 
-        // Add regional hospital population columns to header
+        // Add post-rule living-stock columns with pre-rule hospitalization and region.
         for region_name in &region_names {
             header.push(',');
             header.push_str(&format!("{}_hospital_population", region_name));
@@ -7695,7 +7759,7 @@ impl Simulation {
             header.push_str("_infection_acquisition_events_with_any_r_community");
         }
 
-        // Add regional age distribution columns to header
+        // Add post-rule living age-distribution columns by pre-rule effective region.
         let age_group_names = [
             "prop_age_0_5",
             "prop_age_6_14",
@@ -7710,7 +7774,7 @@ impl Simulation {
             }
         }
 
-        // Add regional death columns to header
+        // Add death columns by pre-rule effective region.
         let death_type_names = [
             "deaths_background",
             "deaths_sepsis",
@@ -7724,7 +7788,7 @@ impl Simulation {
             }
         }
 
-        // Add age-specific death columns to header (region x age_group x death_type)
+        // Add age-specific death columns by pre-rule effective region.
         for region_name in &region_names {
             for age_group_name in &age_group_names {
                 for death_type_name in &death_type_names {
@@ -7737,7 +7801,7 @@ impl Simulation {
             }
         }
 
-        // Add syndrome population by region columns to header
+        // Add septic person-bacterium record columns by syndrome and pre-rule region.
         for syndrome_id in 1..=10 {
             // syndromes 1-10
             for region_name in &region_names {
@@ -7749,7 +7813,7 @@ impl Simulation {
             }
         }
 
-        // Add syndrome deaths from sepsis by region columns to header
+        // Add sepsis-death/septic-bacterium association columns by syndrome and pre-rule region.
         for syndrome_id in 1..=10 {
             // syndromes 1-10
             for region_name in &region_names {
@@ -7761,7 +7825,7 @@ impl Simulation {
             }
         }
 
-        // Add syndrome deaths from infection (non-sepsis) by region columns to header
+        // Add non-sepsis-death/active-bacterium association columns by syndrome and pre-rule region.
         for syndrome_id in 1..=10 {
             // syndromes 1-10
             for region_name in &region_names {
@@ -7788,7 +7852,7 @@ impl Simulation {
             }
         }
 
-        // Add histogram labels for number of concurrent drugs (matches people_by_drug_count export)
+        // Add concurrent-drug histogram labels. The exported population includes unborn records.
         let drug_histogram_headers = [
             "people_on_0_drugs_hist",
             "people_on_1_drug_hist",
@@ -7804,7 +7868,7 @@ impl Simulation {
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
-        // Write data with pre-built strings (baseline followed by any policy branches)
+        // Write data with pre-built strings (baseline followed by alternate continuations).
         let mut combined_summaries: Vec<&TimeStepSummary> = Vec::new();
         combined_summaries.extend(self.summary_log.iter());
         for branch in &self.policy_branch_summary_log {
@@ -8449,13 +8513,13 @@ impl Simulation {
                 &summary.resistant_infected_community_count_by_bacteria,
                 BACTERIA_LIST.len(),
             );
-            // Add regional drug failure events data
+            // Add legacy fifth-day active-course/positive-level association data.
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.drug_failure_events_by_bacteria_region,
                 BACTERIA_LIST.len() * REGION_COUNT,
             );
-            // Add regional drug treatment day5 events data
+            // Add fifth-day course denominators replicated across bacterial slots.
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.drug_treatment_day5_events_by_bacteria_region,
@@ -8626,7 +8690,7 @@ impl Simulation {
                 BACTERIA_LIST.len(),
             );
 
-            // Add day-7 drug initiation data
+            // Add configured evaluation-day drug-initiation data (legacy field names say day 7).
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.day_7_evaluations_by_bacteria,
@@ -8651,10 +8715,10 @@ impl Simulation {
                 BACTERIA_LIST.len() * 10,
             );
 
-            // Add region population data
+            // Add post-rule living stock by pre-rule effective region.
             append_usize_slice_or_zeros(&mut row, &summary.living_population_by_region, 6);
 
-            // Add regional hospital population data
+            // Add post-rule living stock with pre-rule hospitalization and region.
             append_usize_slice_or_zeros(&mut row, &summary.hospital_population_by_region, 6);
 
             // Add per-bacteria, per-region hospital newly infected data
@@ -8682,7 +8746,7 @@ impl Simulation {
                 BACTERIA_LIST.len(),
             );
 
-            // Add regional age distribution data (as proportions)
+            // Add post-rule age distribution by pre-rule effective region (as proportions).
             if summary.living_population_by_region.is_empty()
                 || summary.age_distribution_by_region.is_empty()
             {
@@ -8706,27 +8770,27 @@ impl Simulation {
                 }
             }
 
-            // Add regional death data (as counts)
+            // Add deaths by pre-rule effective region (as counts).
             append_usize_slice_or_zeros(&mut row, &summary.deaths_by_region, 6 * NUM_DEATH_CAUSES);
 
-            // Add age-specific death data by region (as counts)
+            // Add age-specific deaths by pre-rule effective region (as counts).
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.deaths_by_region_age,
                 6 * 5 * NUM_DEATH_CAUSES,
             );
 
-            // Add syndrome population by region data
+            // Add septic person-bacterium records by syndrome and pre-rule region.
             append_usize_slice_or_zeros(&mut row, &summary.syndrome_population_by_region, 10 * 6);
 
-            // Add syndrome deaths from sepsis by region data
+            // Add sepsis-death/septic-bacterium associations by syndrome and pre-rule region.
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.syndrome_deaths_sepsis_by_region,
                 10 * 6,
             );
 
-            // Add syndrome deaths from infection (non-sepsis) by region data
+            // Add non-sepsis-death/active-bacterium associations by syndrome and pre-rule region.
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.syndrome_deaths_infection_non_sepsis_by_region,
@@ -8745,7 +8809,7 @@ impl Simulation {
                 BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len(),
             );
 
-            // Add drug count histogram data
+            // Add the non-dead-record drug-count histogram, including not-yet-born records.
             for count in &summary.people_by_drug_count {
                 row.push(',');
                 row.push_str(&count.to_string());

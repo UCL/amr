@@ -351,16 +351,21 @@ impl ResistanceAcquisitionType {
 // metadata and does not drive resistance dynamics.
 pub const TRACK_RESISTANCE_ACQUISITION_PROVENANCE: bool = false;
 
-/// Tracks how an infection was resolved (why it ended)
+/// Operational resolution category recorded for an infection episode.
+///
+/// Immune and drug-assisted clearance are episode-specific. When a person dies, the person's
+/// terminal category is copied to every infection active at death and is not causal attribution
+/// to a particular bacterium.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InfectionResolutionType {
-    /// Infection cleared by immune system without drug assistance
+    /// Immune-clearance draw fired, taking precedence over any concurrent drug activity
     ImmuneClearance,
     /// Infection cleared with help from antimicrobial drugs  
     DrugAssistedClearance,
-    /// Individual died from sepsis related to this infection
+    /// Individual died through the person-level sepsis pathway while this infection was active
     DeathFromSepsis,
-    /// Individual died from infection (non-sepsis pathway)
+    /// Individual died through the person-level non-sepsis infection pathway while this
+    /// infection was active
     DeathFromInfectionNonSepsis,
     /// Individual died from background causes while infected
     DeathFromBackground,
@@ -705,7 +710,8 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // mecA/PBP2a model route.
         TargetSitePbp2aMecA => mask_for_groups(&[BacteriaGroup::Staphylococci]),
 
-        // VanA/VanB model route for enterococci and staphylococci.
+        // VanA/VanB route for the model's Staphylococci and Streptococci groups. The latter
+        // currently includes enterococci, streptococci, and Listeria.
         TargetSiteVanA | TargetSiteVanB => {
             mask_for_groups(&[BacteriaGroup::Staphylococci, BacteriaGroup::Streptococci])
         }
@@ -788,7 +794,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::EntericPathogen,
         ]),
 
-        // OXA-23/40/58-type Acinetobacter carbapenemase route.
+        // OXA-23/40/58-style route currently available to every modeled non-fermenter.
         EnzymeOxaAcinetobacter => mask_for_groups(&[BacteriaGroup::NonFermenter]),
 
         // Broad host gate for chromosomal 23S rRNA macrolide target alteration.
@@ -1006,11 +1012,13 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
 /// Each drug in DRUG_SHORT_NAMES maps to exactly one class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DrugClass {
+    // This class also includes flucloxacillin.
     Penicillins,     // PEN: penicillin_g, ampicillin, amoxicillin, piperacillin, ticarcillin
     BliCombinations, // BLI: amox-clav, tic-clav
     BliAntiPseudomonal, // pip-tazo
     BliSulbactam,    // amp-sulb
     Cephalosporins1_2, // C1-2G: cephalexin, cefazolin, cefuroxime
+    // This class also includes cefixime.
     Cephalosporins3, // C3G: ceftriaxone, ceftazidime
     Cephalosporins3Bli, // ceftolozane-tazobactam
     Cephalosporins4, // C4G: cefepime
@@ -1022,6 +1030,7 @@ pub enum DrugClass {
     CarbapenemsGroup1,     // ertapenem (lacks non-fermenter activity)
     CarbapenemsGroup2,     // meropenem, imipenem_c
     Monobactams,           // MONO: aztreonam
+    // This class also includes the historical nalidixic-acid proxy.
     Fluoroquinolones,      // FQ: ciprofloxacin, levofloxacin, moxifloxacin, ofloxacin
     AminoglycosidesGroup1, // gentamicin, tobramycin
     AminoglycosidesGroup2, // amikacin (resists common AMEs)
@@ -1366,7 +1375,7 @@ impl Default for AntibioticUseContext {
 /// - `sepsis[b]`: Severe/life-threatening infection
 /// - `infectious_syndrome[b]`: Type of infection (UTI, pneumonia, etc.)
 ///
-/// ## Resistance (2D arrays: [bacteria][drug])
+/// ## Resistance (2D arrays indexed as `bacteria × drug`)
 /// - `resistances[b][d]`: Resistance struct for each combination
 /// - `mechanism_any[b]`, `mechanism_majority[b]`: Packed infection mechanism masks
 ///
@@ -1393,11 +1402,11 @@ pub struct Individual {
     pub id: usize,
 
     /// Age in days. Negative values identify future cohort members not yet active.
-    /// Updated: +1 each time step. Used for age-specific parameters.
+    /// Advanced daily for unborn and living people; it stops advancing after death.
     pub age: i32,
 
     /// Biological sex at birth: "male" or "female"
-    /// Currently affects some age-specific mortality rates.
+    /// Contributes to the daily background-mortality calculation.
     pub sex_at_birth: String,
 
     /// True if individual believes they have penicillin allergy.
@@ -1423,8 +1432,9 @@ pub struct Individual {
     /// Hospitalization increases risk of resistant strain acquisition.
     pub hospital_status: HospitalStatus,
 
-    /// Days spent in hospital during current admission (0 if not hospitalized).
-    /// Longer stays increase nosocomial acquisition risk.
+    /// Days spent in hospital during the current admission (0 if not hospitalized).
+    /// Used by recovery and maximum-stay discharge logic; acquisition depends on hospital
+    /// status rather than this duration directly.
     pub days_hospitalized: u32,
 
     // -------------------------------------------------------------------------
@@ -1524,15 +1534,16 @@ pub struct Individual {
     #[serde(default)]
     pub diagnostic_cascade_effective_targeted_treatment_recorded: Vec<bool>,
 
-    /// True if infection was prevented by existing therapy for each bacteria this timestep.
-    /// Reset to false at start of each timestep, set to true if prevention occurs.
+    /// True if infection was prevented by existing therapy for each bacterium this timestep.
+    /// Consumed and reset during summary aggregation before the next timestep.
     pub infection_prevented_by_drug: Vec<bool>,
 
     // -------------------------------------------------------------------------
     // MICROBIOME STATE (per-bacteria arrays)
-    // Microbiome = bacterial colonization/carriage (present but not causing infection)
+    // Microbiome = the bacterial colonization/carriage compartment; it can coexist with infection.
     // -------------------------------------------------------------------------
-    /// True if bacteria is colonizing this individual (carriage without infection).
+    /// True if the bacterium is present in this individual's carriage compartment.
+    /// The same bacterium can also have an active infection concurrently.
     /// Carriage can persist for months and can seed future infections.
     pub presence_microbiome: Vec<bool>,
 
@@ -1555,7 +1566,7 @@ pub struct Individual {
     pub microbiome_cleared_today: Vec<bool>,
 
     /// Counts of resistant infection clearances by microbiome resistance context.
-    /// Indexed: [bacteria][microbiome_resistance_level] -> count.
+    /// Indexed as `bacteria × microbiome_resistance_level`.
     /// Reset after aggregation.
     pub cleared_any_r_microbiome_categories: Vec<[u32; MICROBIOME_RESISTANCE_LEVEL_COUNT]>,
 
@@ -1566,9 +1577,10 @@ pub struct Individual {
     /// Supported targets are pneumococcal, meningococcal, Hib, and pertussis.
     pub vaccination_status: Vec<bool>,
 
-    /// True if active infection has caused clinical symptoms.
-    /// Once true, remains true until infection clears completely.
-    /// Gates both testing and treatment initiation decisions.
+    /// True if a clinically active infection has caused symptoms.
+    /// Once true, it remains latched while level is above `INFECTION_EPS` and is then cleared,
+    /// even though a fading positive episode remains owned until exact zero. Symptoms are
+    /// required for testing and increase, but are not required for, treatment initiation.
     pub infection_has_caused_symptoms: Vec<bool>,
 
     // -------------------------------------------------------------------------
@@ -1581,7 +1593,8 @@ pub struct Individual {
     /// A non-negative initiation day with this still false means the test is pending.
     pub test_for_resistance: Vec<bool>,
 
-    /// Day when resistance testing was initiated. -1 = never initiated.
+    /// Resistance-test initiation day for the currently retained diagnostic state.
+    /// `-1` means no initiation is currently retained, including after test state is reset.
     pub resistance_test_initiated_day: Vec<i32>,
 
     // -------------------------------------------------------------------------
@@ -1600,11 +1613,11 @@ pub struct Individual {
     /// factor rather than storing a separate infection-site level.
     pub cur_level_drug: Vec<f64>,
 
-    /// Day (time_step) when each drug was last initiated.
-    /// i32::MIN if never initiated.
+    /// Start day of the current course for each drug.
+    /// Reset to `i32::MIN` when the course stops.
     pub date_drug_initiated: Vec<i32>,
 
-    /// Persistent record of drug initiation dates (NOT reset when drugs are stopped).
+    /// Persistent most-recent initiation day for each drug; not reset when a course stops.
     pub date_drug_initiated_keep: Vec<i32>,
 
     /// True if this individual has ever taken this drug.
@@ -1613,10 +1626,12 @@ pub struct Individual {
     // -------------------------------------------------------------------------
     // MORTALITY AND RISK
     // -------------------------------------------------------------------------
-    /// Current cumulative infection-related death risk (hazard).
+    /// Current daily non-sepsis infection-death probability combined across eligible infections.
+    /// Sepsis mortality is calculated separately.
     pub current_infection_related_death_risk: f64,
 
-    /// Background all-cause mortality rate (age-dependent).
+    /// Daily background-mortality probability after calendar-time, age, home-region, sex,
+    /// immunodeficiency, and hospitalization effects.
     pub background_all_cause_mortality_rate: f64,
 
     /// Per-bacterium flag indicating whether the current infection was acquired in hospital.
@@ -1632,9 +1647,9 @@ pub struct Individual {
     pub mortality_risk_current_toxicity: f64,
 
     // -------------------------------------------------------------------------
-    // RESISTANCE STATE (2D: [bacteria][drug] or [bacteria][mechanism])
+    // RESISTANCE STATE (2D: bacteria × drug or bacteria × mechanism)
     // -------------------------------------------------------------------------
-    /// Main resistance matrix: resistances[bacteria_index][drug_index] -> Resistance struct.
+    /// Main resistance matrix, indexed as `resistances[bacteria_index][drug_index]`.
     /// any_r and microbiome_r are derived from mechanism_any and mechanism_microbiome respectively.
     pub resistances: Vec<Vec<Resistance>>,
 
@@ -1651,7 +1666,8 @@ pub struct Individual {
 
     /// Microbiome/carriage mechanisms packed as one bitmask per bacterium.
     /// Tracks resistance mechanisms in asymptomatic carriage.
-    /// Drives microbiome_r derivation; copied to mechanism_any on carrier→infection.
+    /// Drives microbiome_r derivation. At infection acquisition it can seed `mechanism_any`
+    /// through a person-level inheritance draw and independent per-mechanism dampening draws.
     pub mechanism_microbiome: Vec<u64>,
 
     /// Optional acquisition provenance for each bacterium-drug combination.
@@ -1661,13 +1677,14 @@ pub struct Individual {
     // -------------------------------------------------------------------------
     // INFECTION RESOLUTION TRACKING
     // -------------------------------------------------------------------------
-    /// Counts infection resolution outcomes for current timestep only.
-    /// Indexed: [bacteria_index][resolution_type_index] -> count.
-    /// Reset to zero at start of each timestep.
+    /// Counts infection-resolution outcomes generated during the current timestep.
+    /// Indexed as `bacteria_index × resolution_type_index`.
+    /// Consumed and reset during summary aggregation before the next timestep.
     pub infection_resolution_this_timestep: Vec<Vec<u32>>,
 
-    /// Tracks if any drug was started within 7 days of infection start.
-    /// Set on day 7 post-infection: Some(true/false), None = not yet evaluated.
+    /// At the configured post-infection evaluation day, records whether any drug was initiated
+    /// since the recorded infection start. The field name retains its historical day-7 label.
+    /// The value persists until a later episode reaches its own evaluation day and overwrites it.
     pub day_7_since_last_infection_drug_used: Vec<Option<bool>>,
 
     // -------------------------------------------------------------------------
@@ -1676,7 +1693,8 @@ pub struct Individual {
     /// Day (time_step) when individual died. None = still alive.
     pub date_of_death: Option<usize>,
 
-    /// String description of cause of death (e.g., "sepsis", "toxicity", "background").
+    /// Cause label: `sepsis_related`, `drug_toxicity_related`,
+    /// `infection_non_sepsis_related`, or `background_mortality`.
     pub cause_of_death: Option<String>,
 
     // -------------------------------------------------------------------------
@@ -1688,22 +1706,25 @@ pub struct Individual {
     // -------------------------------------------------------------------------
     // TREATMENT TRACKING
     // -------------------------------------------------------------------------
-    /// Bacteria level when current drug was started. None = no current treatment.
-    /// Used for assessing treatment response.
+    // These per-bacterium response fields are armed after every successful person-level drug
+    // selection, including reselection of an active drug; they do not encode which course
+    // targets which bacterium.
+    /// Bacterium level captured when the response tracker was most recently armed.
+    /// `None` means no response assessment is currently active.
     pub bacteria_level_at_drug_start: Vec<Option<f64>>,
 
-    /// Days since current drug treatment started. -1 = no current treatment.
+    /// Days since the per-bacterium response tracker was armed. `-1` means inactive.
     pub days_on_current_treatment: Vec<i32>,
 
-    /// True if treatment failure assessment has been done for current treatment.
+    /// True if failure has been assessed for the current per-bacterium response interval.
     pub treatment_failure_assessed: Vec<bool>,
 
-    /// Per-bacteria antibiotic effect scaling factor, sampled when treatment starts.
+    /// Per-bacterium antibiotic-effect scaling factor, sampled when the response tracker is armed.
     /// Represents individual variation in drug response.
     pub drug_activity_response_multiplier: Vec<f64>,
 
-    /// Day when drug was stopped while infection was still present.
-    /// None = not applicable (drug completed or never started).
+    /// Outstanding early-cessation day for restart assessment while infection persisted.
+    /// `None` means there is no current restart candidate.
     pub drug_stopped_with_infection_day: Vec<Option<i32>>,
 
     /// Bacterium level when a drug was stopped while infection persisted.
@@ -1712,8 +1733,10 @@ pub struct Individual {
     /// Bacteria index that triggered drug selection on this day. -1 = no selection.
     pub bacteria_on_selection_day: i32,
 
-    /// Drug scores calculated during selection for the triggering bacteria.
-    /// -1.0 = no selection occurred.
+    /// Drug scores from selection for the triggering bacterium.
+    /// Consume these only when drug-selection diagnostics are enabled and the day-local
+    /// `bacteria_on_selection_day` marker is non-negative; otherwise entries may be stale,
+    /// including during a later selection attempt.
     pub drug_score_on_selection_day: Vec<f64>,
 
     /// Which specific drug was stopped while infection was present.
@@ -1899,7 +1922,7 @@ impl Individual {
         let day_7_since_last_infection_drug_used = vec![None; num_bacteria];
 
         let bacteria_level_at_drug_start = vec![None; num_bacteria];
-        let days_on_current_treatment = vec![-1; num_bacteria]; // -1 means no current treatment
+        let days_on_current_treatment = vec![-1; num_bacteria]; // -1 means response tracker inactive
         let treatment_failure_assessed = vec![false; num_bacteria];
         let drug_activity_response_multiplier = vec![base_drug_activity_multiplier; num_bacteria];
 
@@ -2073,8 +2096,8 @@ impl Population {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
             // Seed a small baseline immunosuppressed subgroup at startup.
-            // The overall seeded fraction is fixed here, but chronic vs temporary typing
-            // follows the same age-stratified mapping used during runtime transitions.
+            // The configured startup fraction is split into chronic versus temporary states
+            // using the same age-stratified mapping used during runtime transitions.
             if rng.gen_bool(immunodeficiency_params.startup_seed_fraction()) {
                 let chronic_probability =
                     immunodeficiency_params.chronic_probability(individual.age);

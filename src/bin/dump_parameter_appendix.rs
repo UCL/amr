@@ -1,7 +1,7 @@
-/// Generates the Appendix B markdown for MODEL_DESCRIPTION.md.
-///
-/// Prints structured, thematically organised parameter tables derived from the
-/// live Rust configuration as resolved Markdown tables.
+//! Generates the Appendix B markdown for MODEL_DESCRIPTION.md.
+//!
+//! Prints structured, thematically organised parameter tables derived from the
+//! live Rust configuration as resolved Markdown tables.
 use amr_project::config::{
     get_drug_class, get_drug_introduction_time_step, BacteriumMechanismStatus, PARAMETERS,
     PARAMETER_STORE,
@@ -111,7 +111,7 @@ fn md_table(headers: &[&str], rows: &[Vec<String>]) {
         print!(" {} |", h);
     }
     println!();
-    // Separator — right-align numeric columns (all except the first)
+    // Separator — right-align every column after the first, including textual columns.
     print!("|");
     for (i, _) in headers.iter().enumerate() {
         if i == 0 {

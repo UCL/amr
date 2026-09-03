@@ -1,9 +1,9 @@
 // src/main.rs
 // Simulation entry point.
 //
-// This file is intentionally small: it chooses one run configuration, builds a `Simulation`,
-// executes it, and writes the main CSV output. Most model behaviour lives in `rules/`,
-// `simulation/`, and `config.rs`; edit this file when you want to change how a run is launched.
+// This launcher chooses the run configuration, validates it, configures run-level observability,
+// builds and executes a `Simulation`, and writes its outputs. Model behaviour remains in `rules/`,
+// `simulation/`, and `config.rs`; edit this file to change how a run is launched.
 //
 // Useful local workflow note:
 //   PowerShell: `$env:RAYON_NUM_THREADS = "4"` before running to cap parallelism.
@@ -219,7 +219,7 @@ fn main() {
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
     let population_size =  10_000_000;
-    // CalibrationMode::FullMinimal — sparse 2022-2025 CSV with drug-share plus bacteria×drug resistance.
+    // CalibrationMode::FullMinimal — sparse 2022-2025 CSV with the lean core per-bacteria profile.
     // CalibrationMode::Full        — sparse 2022-2025 CSV with all fields needed for calibration_summary.txt.
     // CalibrationMode::Partial     — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::Partial25Counterfactual — full 1930-2025 baseline plus no-resistance 2022-2025.
@@ -232,12 +232,12 @@ fn main() {
         CalibrationMode::Partial25Counterfactual | CalibrationMode::Full25Counterfactual => 35_040,
     };
     debug_assert_eq!(time_steps, calibration_mode.time_steps());
-    let log_individuals = false; // Full individual logging is expensive and mainly useful for narrow debugging.
-    let log_infection_journeys = false; // Journey logging captures dense snapshots only for sampled infections.
-    let infection_journey_sample_rate = 1.00; // Fraction of eligible infections to log when journey logging is enabled.
-    let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
-    let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
-    let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
+    let log_individuals = false; // Log rich daily state for the first ten population records.
+    let log_infection_journeys = false; // Log dense trajectories for sampled infected people.
+    let infection_journey_sample_rate = 1.00; // Daily sampling probability for an untracked infected person; qualifying resistance bypasses it.
+    let use_fixed_seed = false; // Use fixed_seed_value only when AMR_RNG_SEED is unset.
+    let fixed_seed_value: u64 = 1_234_567_890; // Deterministic fallback selected by use_fixed_seed.
+    let infection_journey_bacteria_filter: Option<&str> = None; // Optional filter on the selected primary bacterium.
 
     // The filter must exactly match a value in BACTERIA_LIST. Examples:
     // Some("escherichia_coli")
@@ -245,7 +245,7 @@ fn main() {
     // Some("pseudomonas_aeruginosa")
     // Some("acinetobacter_baumannii")
     // Some("enterococcus_faecium")
-    // None logs all bacteria types.
+    // None disables the primary-bacterium filter.
 
     let resolved_run_seed = resolve_run_seed(use_fixed_seed, fixed_seed_value);
     std::env::set_var("AMR_RNG_SEED", resolved_run_seed.value.to_string());
@@ -254,8 +254,9 @@ fn main() {
     eprintln!("[startup] source_hash={}", source_hash);
 
     // ── Policy branch selection ────────────────────────────────────────────────
-    // Mode-specific policy branches. The 2025 counterfactual modes select policies 0 and 2;
-    // the full policy mode selects all five; non-branching calibration modes select none.
+    // Mode-specific policy runs. Every branch-enabled mode runs the complete baseline first.
+    // The 2025 counterfactual modes then run alternate policy 2; the full policy mode runs
+    // alternates 1 through 4. ID 0 in the configured lists is redundant and filtered out.
     //
     //   0 = Baseline continuation      (status quo carried forward after the checkpoint)
     //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
@@ -346,7 +347,7 @@ fn main() {
         std::process::exit(2);
     }
 
-    // Fail fast on obviously inconsistent bacteria setups before paying the cost of a full run.
+    // Reject an empty bacterium roster and print the configured roster before the full run.
     validate_bacteria_configuration();
 
     if let Err(err) = write_run_metadata(
@@ -416,11 +417,11 @@ fn main() {
 
     let duration = start.elapsed();
 
-    // Print summary statistics from logged data
+    // Print journey-logging statistics and alternate-branch coverage.
     simulation.print_summary_statistics();
 
-    // Use the simulation's run_id in the filename so Python post-processing can join one
-    // summary CSV to one set of sampled parameters and one run-log entry without collisions.
+    // Include the pseudo-random run ID in the filename and metadata to associate the summary
+    // with its run. The one-million-value ID space does not provide global uniqueness.
     let run_id = simulation.run_id;
     let csv_basename = format!("simulation_summary_{:06}.csv", run_id);
     let csv_path = output_dir.join(&csv_basename);
