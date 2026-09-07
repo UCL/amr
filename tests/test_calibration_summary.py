@@ -80,11 +80,17 @@ class CalibrationSchemaProvenanceTests(unittest.TestCase):
     def test_current_schema_is_recorded_without_legacy_warning(self) -> None:
         text = _calibration_schema_provenance_text(
             Path("simulation_summary_123456.csv"),
-            3,
+            4,
         )
 
-        self.assertIn("Simulation summary schema: 3 (current)", text)
+        self.assertIn("Simulation summary schema: 4 (current)", text)
         self.assertNotIn("Legacy compatibility", text)
+
+    def test_schema_three_remains_compatible_with_diagnostic_outputs(self) -> None:
+        text = _calibration_schema_provenance_text(Path("old.csv"), 3)
+        self.assertIn("Simulation summary schema: 3 (compatible)", text)
+        self.assertIn("remains supported", text)
+        self.assertNotIn("--legacy-without-sf5", text)
 
 
 class DrugClassCalibrationWindowTests(unittest.TestCase):

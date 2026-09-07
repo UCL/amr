@@ -85,6 +85,7 @@ _SECTION_PATTERNS: list[tuple[str, str]] = [
     ("Serious Resistance Locus",                 "serious_resistance_locus"),
     ("Resistance Incidence Locus",                "resistance_incidence_locus"),
     ("Overall Resistance Fit",                    "overall_resistance_fit"),
+    ("Regional Resistance Summary",               "regional_resistance"),
     ("Per-Bacteria Mean",                         "resistance_per_bacteria"),
     ("Per-Drug Mean",                             "resistance_per_drug"),
     ("Resistance Benchmark Provenance",            "resistance_provenance"),
@@ -284,7 +285,7 @@ def parse_file(path: Union[str, Path]) -> dict:
         meta, headline_metrics, testing_summary,
         bacteria_infections, bacteria_mortality, resistance_incidence_locus,
         syndrome_incidence, fit_stats, calibration_score, block_scores,
-        largest_contributors, drug_class_share, overall_resistance_fit,
+        largest_contributors, drug_class_share, overall_resistance_fit, regional_resistance,
         resistance_per_bacteria, resistance_per_drug,
         microbiome_resistance (float), resistance_benchmarks
     """
@@ -323,6 +324,7 @@ def parse_file(path: Union[str, Path]) -> dict:
         "drug_class_share":           ["Class"],
         "drug_class_share_history":   ["Class"],
         "overall_resistance_fit":     ["Component"],
+        "regional_resistance":        ["Region"],
         "resistance_per_bacteria":    ["Bacteria"],
         "resistance_per_drug":        ["Drug"],
         "resistance_provenance":      ["Component", "Provenance class"],

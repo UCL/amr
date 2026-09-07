@@ -147,6 +147,15 @@ class SupplementaryFigureS5ContractTests(unittest.TestCase):
                 self.assertIn("unsupported simulation-summary schema", message)
                 self.assertIn("requires version 3", message)
 
+    def test_compatible_schema_three_and_current_four_keep_sf5_available(self) -> None:
+        for version in (3, 4):
+            with self.subTest(version=version):
+                rows, problems = _parse_frame(
+                    _sf5_frame([100, 80, 20, 60, 50], schema_version=version)
+                )
+                self.assertTrue(rows)
+                self.assertEqual(problems, [])
+
     def test_stage_metadata_and_definitions_match_the_model_contract(self) -> None:
         parents = {str(stage["key"]): stage["parent"] for stage in _SF5_STAGES}
         self.assertEqual(

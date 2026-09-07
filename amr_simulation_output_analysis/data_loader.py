@@ -149,8 +149,8 @@ class DataCache:
             use_column_subset: Only load columns needed for grouped plots + calibration
             include_detail_plots: DEPRECATED - use enabled_detail_plots instead
             enabled_detail_plots: List of specific detail plot names to load columns for
-            allow_legacy_calibration_schemas: Permit schemas 1-3 only for the
-                calibration-summary compatibility workflow
+            allow_legacy_calibration_schemas: Additionally permit schemas 1-2 for
+                the calibration-summary compatibility workflow (3-4 are supported normally)
             
         Returns:
             DataFrame with simulation data or None if loading failed
@@ -506,8 +506,8 @@ def load_simulation_data(
         use_column_subset: If True, only load columns needed for grouped plots + calibration
         include_detail_plots: DEPRECATED - use enabled_detail_plots instead
         enabled_detail_plots: List of specific detail plot names to include columns for
-        allow_legacy_calibration_schemas: Permit schemas 1-3 only for the
-            calibration-summary compatibility workflow
+        allow_legacy_calibration_schemas: Additionally permit schemas 1-2 for the
+            calibration-summary compatibility workflow (3-4 are supported normally)
         
     Returns:
         DataFrame with simulation data or None if loading failed

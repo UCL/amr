@@ -78,7 +78,10 @@ const RESISTANCE_MECHANISM_FAMILY_SLUGS: [&str; RESISTANCE_MECHANISM_FAMILY_COUN
     "other_unknown",
 ];
 const REGION_COUNT: usize = 6;
-pub const SIMULATION_SUMMARY_SCHEMA_VERSION: u32 = 3;
+pub const SIMULATION_SUMMARY_SCHEMA_VERSION: u32 = 4;
+const REGIONAL_RESISTANCE_REGION_NAMES: [&str; REGION_COUNT] = [
+    "north_america", "south_america", "africa", "asia", "europe", "oceania",
+];
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const CALIBRATION_COUNTERFACTUAL_BRANCH_YEAR: f64 = 2022.0;
@@ -787,6 +790,51 @@ fn region_to_index(region: Region) -> usize {
         Region::Oceania => 5,
         Region::Home => {
             panic!("Home should be resolved to actual region before calling this function")
+        }
+    }
+}
+
+/// Output-only observation of a surviving, post-rule active infection by home region.
+/// Empty buffers mean collection is disabled. No model state or random stream is changed.
+fn record_regional_resistance_infection(
+    individual: &Individual,
+    bacteria_idx: usize,
+    infected_counts: &mut [usize],
+    positive_counts: &mut [usize],
+    any_r_sums: &mut [f64],
+) {
+    if infected_counts.is_empty()
+        || individual.date_of_death.is_some()
+        || individual.age < 0
+        || individual.level[bacteria_idx] <= INFECTION_EPS
+    {
+        return;
+    }
+    let region_idx = region_to_index(individual.region_living);
+    infected_counts[bacteria_idx * REGION_COUNT + region_idx] += 1;
+    for (drug_idx, resistance) in individual.resistances[bacteria_idx].iter().enumerate() {
+        let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * REGION_COUNT + region_idx;
+        let any_r = load_float(resistance.any_r);
+        if any_r > 0.0 {
+            positive_counts[index] += 1;
+        }
+        any_r_sums[index] += any_r;
+    }
+}
+
+fn append_regional_resistance_csv_header(header: &mut String) {
+    header.push_str(",regional_resistance_collected");
+    for region in REGIONAL_RESISTANCE_REGION_NAMES {
+        for bacteria in BACTERIA_LIST {
+            let bacteria = bacteria.replace(' ', "_");
+            header.push_str(&format!(
+                ",regional_resistance_{region}_{bacteria}_infected_count"
+            ));
+            for drug in DRUG_SHORT_NAMES {
+                header.push_str(&format!(
+                    ",regional_resistance_{region}_{bacteria}_{drug}_positive_count,regional_resistance_{region}_{bacteria}_{drug}_any_r_sum"
+                ));
+            }
         }
     }
 }
@@ -2680,9 +2728,68 @@ pub struct TimeStepSummary {
     // Current-drug-count histogram over all records without a death date, including not-yet-born
     // records (normally in bin 0): [0], [1], [2], [3] = 0, 1, 2, or 3+ drugs.
     pub people_by_drug_count: Vec<usize>,
+
+    /// True only when the regional post-rule resistance observations were collected.
+    #[serde(default)]
+    pub regional_resistance_collected: bool,
+    /// Surviving active infection counts, flattened as [bacterium * 6 + home region].
+    #[serde(default)]
+    pub regional_resistance_infected_by_bacteria_region: Vec<usize>,
+    /// Post-rule any_r > 0 counts, flattened as [(bacterium * drugs + drug) * 6 + home region].
+    #[serde(default)]
+    pub regional_resistance_positive_by_bacteria_drug_region: Vec<usize>,
+    /// Post-rule any_r sums over the same surviving active infections and home regions.
+    #[serde(default)]
+    pub regional_resistance_any_r_sum_by_bacteria_drug_region: Vec<f64>,
 }
 
 impl TimeStepSummary {
+    fn validate_regional_resistance_dimensions(&self) -> Result<(), std::io::Error> {
+        if !self.regional_resistance_collected {
+            return Ok(());
+        }
+        let infected_len = BACTERIA_LIST.len() * REGION_COUNT;
+        let resistance_len = infected_len * DRUG_SHORT_NAMES.len();
+        for (name, actual, expected) in [
+            ("infected counts", self.regional_resistance_infected_by_bacteria_region.len(), infected_len),
+            ("positive counts", self.regional_resistance_positive_by_bacteria_drug_region.len(), resistance_len),
+            ("any_r sums", self.regional_resistance_any_r_sum_by_bacteria_drug_region.len(), resistance_len),
+        ] {
+            if actual != expected {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("regional resistance {name} at timestep {}: expected {expected} values, got {actual}", self.time_step),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn append_regional_resistance_csv_values(&self, row: &mut String) {
+        row.push_str(if self.regional_resistance_collected { ",1" } else { ",0" });
+        for region_idx in 0..REGION_COUNT {
+            for bacteria_idx in 0..BACTERIA_LIST.len() {
+                let infected = if self.regional_resistance_collected {
+                    self.regional_resistance_infected_by_bacteria_region
+                        [bacteria_idx * REGION_COUNT + region_idx]
+                } else { 0 };
+                row.push_str(&format!(",{infected}"));
+                for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * REGION_COUNT + region_idx;
+                    let (positive, any_r_sum) = if self.regional_resistance_collected {
+                        (
+                            self.regional_resistance_positive_by_bacteria_drug_region
+                                [index],
+                            self.regional_resistance_any_r_sum_by_bacteria_drug_region
+                                [index],
+                        )
+                    } else { (0, 0.0) };
+                    row.push_str(&format!(",{positive},{any_r_sum}"));
+                }
+            }
+        }
+    }
+
     /// Replace disabled field groups with empty vecs, reducing `summary_log` memory.
     /// Called after the row is fully constructed, just before it is pushed to `summary_log`.
     pub fn apply_content_flags(&mut self, flags: SummaryContentFlags) {
@@ -2766,6 +2873,10 @@ impl TimeStepSummary {
             self.microbiome_clearances_off_drug_by_bacteria = Vec::new();
         }
         if !flags.regional {
+            self.regional_resistance_collected = false;
+            self.regional_resistance_infected_by_bacteria_region = Vec::new();
+            self.regional_resistance_positive_by_bacteria_drug_region = Vec::new();
+            self.regional_resistance_any_r_sum_by_bacteria_drug_region = Vec::new();
             self.living_population_by_region = Vec::new();
             self.hospital_population_by_region = Vec::new();
             self.age_distribution_by_region = Vec::new();
@@ -3461,6 +3572,9 @@ impl Simulation {
                 /// Septic bacterium records by syndrome and pre-rule region
                 /// (`CalibrationMode::None` only).
                 syndrome_population_by_region: Vec<usize>,
+                regional_resistance_infected_by_bacteria_region: Vec<usize>,
+                regional_resistance_positive_by_bacteria_drug_region: Vec<usize>,
+                regional_resistance_any_r_sum_by_bacteria_drug_region: Vec<f64>,
             }
             impl LocalTotals {
                 fn new(
@@ -3987,6 +4101,21 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
+                        regional_resistance_infected_by_bacteria_region: if collect_regional_stats {
+                            vec![0; num_bacteria * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
+                        regional_resistance_positive_by_bacteria_drug_region: if collect_regional_stats {
+                            vec![0; num_bacteria * num_drugs * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
+                        regional_resistance_any_r_sum_by_bacteria_drug_region: if collect_regional_stats {
+                            vec![0.0; num_bacteria * num_drugs * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
                         age_distribution_by_region: if collect_regional_stats {
                             vec![0; 6 * 5]
                         } else {
@@ -4053,6 +4182,18 @@ impl Simulation {
                     }
                 }
                 fn merge(&mut self, other: Self) {
+                    for (total, value) in self.regional_resistance_infected_by_bacteria_region
+                        .iter_mut().zip(other.regional_resistance_infected_by_bacteria_region) {
+                        *total += value;
+                    }
+                    for (total, value) in self.regional_resistance_positive_by_bacteria_drug_region
+                        .iter_mut().zip(other.regional_resistance_positive_by_bacteria_drug_region) {
+                        *total += value;
+                    }
+                    for (total, value) in self.regional_resistance_any_r_sum_by_bacteria_drug_region
+                        .iter_mut().zip(other.regional_resistance_any_r_sum_by_bacteria_drug_region) {
+                        *total += value;
+                    }
                     for (a, b) in self.mic_lt2_counts.iter_mut().zip(other.mic_lt2_counts) {
                         *a += b;
                     }
@@ -5910,6 +6051,15 @@ impl Simulation {
                                     }
                                     lt.infections_by_bacteria[b_idx] += 1;
                                     lt.active_infection_days_by_bacteria[b_idx] += 1;
+                                    if collect_regional_stats {
+                                        record_regional_resistance_infection(
+                                            individual,
+                                            b_idx,
+                                            &mut lt.regional_resistance_infected_by_bacteria_region,
+                                            &mut lt.regional_resistance_positive_by_bacteria_drug_region,
+                                            &mut lt.regional_resistance_any_r_sum_by_bacteria_drug_region,
+                                        );
+                                    }
                                     if !lt.infections_by_bacteria_under_5.is_empty() {
                                         if individual.age < (5.0 * 365.25) as i32 {
                                             lt.infections_by_bacteria_under_5[b_idx] += 1;
@@ -6381,6 +6531,9 @@ impl Simulation {
                 infected_by_syndrome_by_bacteria,
                 newly_infected_by_syndrome,
                 living_population_by_region,
+                regional_resistance_infected_by_bacteria_region,
+                regional_resistance_positive_by_bacteria_drug_region,
+                regional_resistance_any_r_sum_by_bacteria_drug_region,
                 age_distribution_by_region,
                 deaths_by_region,
                 deaths_by_region_age,
@@ -6620,6 +6773,10 @@ impl Simulation {
                     infected_by_syndrome_by_bacteria,
                     newly_infected_by_syndrome,
                     living_population_by_region,
+                    regional_resistance_collected: collect_regional_stats,
+                    regional_resistance_infected_by_bacteria_region,
+                    regional_resistance_positive_by_bacteria_drug_region,
+                    regional_resistance_any_r_sum_by_bacteria_drug_region,
                     hospital_population_by_region,
                     newly_infected_any_r_hospital_by_bacteria,
                     newly_infected_any_r_community_by_bacteria,
@@ -7099,6 +7256,13 @@ impl Simulation {
     {
         use std::fs::{create_dir_all, File};
         use std::io::{BufWriter, Write};
+
+        // Reject incomplete collected observations before creating or truncating the export.
+        for summary in self.summary_log.iter().chain(
+            self.policy_branch_summary_log.iter().flat_map(|branch| branch.summaries.iter()),
+        ) {
+            summary.validate_regional_resistance_dimensions()?;
+        }
 
         fn warn_on_new_infection_split_mismatches(summary: &TimeStepSummary) {
             let num_bacteria = BACTERIA_LIST.len();
@@ -7864,6 +8028,7 @@ impl Simulation {
             header.push_str(label);
         }
         header.push_str(",deaths_sepsis_model_scope,deaths_infection_non_sepsis_model_scope");
+        append_regional_resistance_csv_header(&mut header);
 
         header.push('\n');
         writer.write_all(header.as_bytes())?;
@@ -8818,6 +8983,7 @@ impl Simulation {
             row.push_str(&summary.deaths_sepsis_model_scope.to_string());
             row.push(',');
             row.push_str(&summary.deaths_infection_non_sepsis_model_scope.to_string());
+            summary.append_regional_resistance_csv_values(&mut row);
 
             row.push('\n');
 
@@ -8850,7 +9016,7 @@ mod tests {
     use crate::rules::{ParameterKeyCache, RuleEvents, TargetedCourseStartEvent};
     use crate::simulation::population::{
         bacterium_has_separate_microbiome_compartment, load_float, store_float,
-        AntibioticUseContext, Individual, Population, ResistanceMechanism, BACTERIA_LIST,
+        AntibioticUseContext, Individual, Population, Region, ResistanceMechanism, BACTERIA_LIST,
         DRUG_SHORT_NAMES, INFECTION_EPS, MISSING_EVENT_DATE,
     };
     use rand::rngs::SmallRng;
@@ -8953,6 +9119,195 @@ mod tests {
         cache.profiles[0][h][0] = profiles;
         cache.total_seen[0][h][0] = total_seen;
         cache
+    }
+
+    fn regional_resistance_fixture() -> Simulation {
+        let mut simulation = Simulation::new(8, 1, false, Some(7_315_440), CalibrationMode::Partial);
+        simulation.run_id = 654_440;
+        let regions = [Region::NorthAmerica, Region::SouthAmerica, Region::Africa,
+            Region::Asia, Region::Europe, Region::Oceania];
+        for (index, individual) in simulation.population.individuals.iter_mut().enumerate() {
+            individual.age = 40 * 365;
+            individual.region_living = regions[index % super::REGION_COUNT];
+            individual.region_cur_in = regions[(index + 1) % super::REGION_COUNT];
+            individual.level[0] = 2.0;
+            individual.date_last_infected[0] = 0;
+            individual.date_last_infected_keep[0] = 0;
+            individual.clearance_ready_day[0] = 20;
+            individual.resistances[0][0].any_r = store_float(if index % 2 == 0 { 0.5 } else { 0.0 });
+        }
+        simulation.population.individuals[6].level[0] = 0.0;
+        simulation.population.individuals[7].date_of_death = Some(0);
+        simulation
+    }
+
+    #[test]
+    fn regional_resistance_observes_home_region_and_only_surviving_active_infections() {
+        let mut rng = SmallRng::seed_from_u64(44);
+        let mut resistant = Individual::new(0, 40 * 365, "female".to_string(), &mut rng);
+        resistant.region_living = Region::Africa;
+        resistant.region_cur_in = Region::Europe;
+        resistant.level[0] = 2.0;
+        resistant.resistances[0][0].any_r = store_float(0.25);
+        let expected_resistance = load_float(resistant.resistances[0][0].any_r);
+        let mut susceptible = resistant.clone();
+        susceptible.resistances[0][0].any_r = store_float(0.0);
+        let mut european = resistant.clone();
+        european.region_living = Region::Europe;
+        european.region_cur_in = Region::Africa;
+        let mut cleared = resistant.clone();
+        cleared.level[0] = 0.0;
+        let mut fading = resistant.clone();
+        fading.level[0] = INFECTION_EPS;
+        let mut dead = resistant.clone();
+        dead.date_of_death = Some(0);
+        let mut unborn = resistant.clone();
+        unborn.age = -1;
+
+        let mut infected = vec![0; BACTERIA_LIST.len() * super::REGION_COUNT];
+        let mut positive = vec![0; infected.len() * DRUG_SHORT_NAMES.len()];
+        let mut sums = vec![0.0; positive.len()];
+        for individual in [&resistant, &susceptible, &european, &cleared, &fading, &dead, &unborn] {
+            super::record_regional_resistance_infection(individual, 0, &mut infected, &mut positive, &mut sums);
+        }
+        let africa = super::region_to_index(Region::Africa);
+        let europe = super::region_to_index(Region::Europe);
+        assert_eq!(infected.iter().sum::<usize>(), 3);
+        assert_eq!(infected[africa], 2);
+        assert_eq!(infected[europe], 1);
+        assert_eq!(positive.iter().sum::<usize>(), 2);
+        assert_eq!(positive[africa], 1);
+        assert_eq!(positive[europe], 1);
+        assert_eq!(sums[africa], expected_resistance);
+        assert_eq!(sums[europe], expected_resistance);
+        assert_eq!(sums.iter().sum::<f64>(), 2.0 * expected_resistance);
+
+        // Empty buffers are the runtime representation of disabled collection.
+        super::record_regional_resistance_infection(&resistant, 0, &mut [], &mut [], &mut []);
+    }
+
+    #[test]
+    fn regional_resistance_runtime_export_matches_post_rule_population() {
+        let mut simulation = regional_resistance_fixture();
+        simulation.run_from(0, None).expect("short regional run should succeed");
+        let summary = &simulation.summary_log[0];
+        assert!(summary.regional_resistance_collected);
+        for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+            let mut region_total = 0;
+            for (region_idx, region) in super::REGIONAL_RESISTANCE_REGION_NAMES.iter().enumerate() {
+                let active: Vec<_> = simulation.population.individuals.iter().filter(|individual| {
+                    individual.date_of_death.is_none() && individual.age >= 0
+                        && individual.level[bacteria_idx] > INFECTION_EPS
+                        && individual.region_living.as_str() == *region
+                }).collect();
+                let count = summary.regional_resistance_infected_by_bacteria_region
+                    [bacteria_idx * super::REGION_COUNT + region_idx];
+                assert_eq!(count, active.len(), "{bacteria} in {region}");
+                region_total += count;
+                for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let values: Vec<_> = active.iter().map(|individual|
+                        load_float(individual.resistances[bacteria_idx][drug_idx].any_r)).collect();
+                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * super::REGION_COUNT + region_idx;
+                    assert_eq!(summary.regional_resistance_positive_by_bacteria_drug_region[index],
+                        values.iter().filter(|&&value| value > 0.0).count());
+                    assert_eq!(summary.regional_resistance_any_r_sum_by_bacteria_drug_region[index],
+                        values.iter().sum::<f64>());
+                }
+            }
+            assert_eq!(region_total, summary.infections_by_bacteria[bacteria_idx]);
+        }
+        assert!(summary.regional_resistance_positive_by_bacteria_drug_region.iter().sum::<usize>() > 0);
+
+        // Retained fixture also supports the Python end-to-end export consumer check.
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target/regional_resistance_tests/regional_resistance.csv");
+        simulation.export_summary_to_csv(&path).expect("regional CSV should export");
+        let mut reader = csv::Reader::from_path(&path).expect("export should be readable");
+        let headers = reader.headers().unwrap().clone();
+        let record = reader.records().next().unwrap().unwrap();
+        assert_eq!(headers.len(), record.len());
+        let start = headers.iter().position(|name| name == "regional_resistance_collected").unwrap();
+        assert_eq!(&headers[start - 1], "deaths_infection_non_sepsis_model_scope");
+        assert_eq!(headers.len() - start,
+            1 + super::REGION_COUNT * BACTERIA_LIST.len() * (1 + 2 * DRUG_SHORT_NAMES.len()));
+        assert_eq!(&record[start], "1");
+        assert_eq!(&record[1], "4");
+        assert_eq!(&headers[start + 1], format!("regional_resistance_north_america_{}_infected_count", BACTERIA_LIST[0]));
+        assert_eq!(&headers[start + 2], format!("regional_resistance_north_america_{}_{}_positive_count", BACTERIA_LIST[0], DRUG_SHORT_NAMES[0]));
+        assert_eq!(&headers[headers.len() - 1], format!("regional_resistance_oceania_{}_{}_any_r_sum", BACTERIA_LIST.last().unwrap(), DRUG_SHORT_NAMES.last().unwrap()));
+        for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+            for (region_idx, region) in super::REGIONAL_RESISTANCE_REGION_NAMES.iter().enumerate() {
+                let field = format!("regional_resistance_{region}_{bacteria}_infected_count");
+                let column = headers.iter().position(|name| name == field).unwrap();
+                assert_eq!(record[column].parse::<usize>().unwrap(),
+                    summary.regional_resistance_infected_by_bacteria_region[bacteria_idx * super::REGION_COUNT + region_idx]);
+                for (drug_idx, drug) in DRUG_SHORT_NAMES.iter().enumerate() {
+                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * super::REGION_COUNT + region_idx;
+                    assert_eq!(record[column + 1 + 2 * drug_idx].parse::<usize>().unwrap(),
+                        summary.regional_resistance_positive_by_bacteria_drug_region[index], "{field} {drug}");
+                    assert_eq!(record[column + 2 + 2 * drug_idx].parse::<f64>().unwrap(),
+                        summary.regional_resistance_any_r_sum_by_bacteria_drug_region[index], "{field} {drug}");
+                }
+            }
+        }
+        let restored: super::TimeStepSummary = bincode::deserialize(&bincode::serialize(summary).unwrap()).unwrap();
+        assert!(restored.regional_resistance_collected);
+        assert_eq!(restored.regional_resistance_any_r_sum_by_bacteria_drug_region,
+            summary.regional_resistance_any_r_sum_by_bacteria_drug_region);
+    }
+
+    #[test]
+    fn regional_resistance_collection_flags_preserve_model_state_and_mark_disabled_rows() {
+        let mut collected = regional_resistance_fixture();
+        let mut disabled = regional_resistance_fixture();
+        disabled.summary_content_flags.regional = false;
+        collected.run_from(0, None).unwrap();
+        disabled.run_from(0, None).unwrap();
+        assert_eq!(bincode::serialize(&collected.create_branch_snapshot()).unwrap(),
+            bincode::serialize(&disabled.create_branch_snapshot()).unwrap());
+        let summary = &disabled.summary_log[0];
+        assert!(!summary.regional_resistance_collected);
+        assert!(summary.regional_resistance_infected_by_bacteria_region.is_empty());
+        assert!(summary.regional_resistance_positive_by_bacteria_drug_region.is_empty());
+        assert!(summary.regional_resistance_any_r_sum_by_bacteria_drug_region.is_empty());
+        let mut pruned = collected.summary_log[0].clone();
+        pruned.apply_content_flags(disabled.summary_content_flags);
+        assert_eq!(bincode::serialize(&pruned).unwrap(), bincode::serialize(summary).unwrap());
+
+        let directory = TestDirectory::new("regional_resistance_disabled");
+        let path = directory.path().join("summary.csv");
+        disabled.export_summary_to_csv(&path).unwrap();
+        let mut reader = csv::Reader::from_path(path).unwrap();
+        let start = reader.headers().unwrap().iter().position(|name| name == "regional_resistance_collected").unwrap();
+        let record = reader.records().next().unwrap().unwrap();
+        assert!(record.iter().skip(start).all(|value| value == "0"));
+        for mode in [CalibrationMode::Full, CalibrationMode::Full25Counterfactual,
+            CalibrationMode::Partial, CalibrationMode::Partial25Counterfactual, CalibrationMode::None] {
+            assert!(mode.summary_content_flags().regional);
+        }
+        assert!(!CalibrationMode::FullMinimal.summary_content_flags().regional);
+        assert!(!SummaryContentFlags::none().regional);
+    }
+
+    #[test]
+    fn regional_resistance_export_rejects_incomplete_collected_arrays_before_writing() {
+        let mut simulation = regional_resistance_fixture();
+        simulation.run_from(0, None).unwrap();
+        let complete = simulation.summary_log[0].clone();
+        let directory = TestDirectory::new("regional_resistance_invalid");
+        let path = directory.path().join("must_not_exist.csv");
+        for array in 0..3 {
+            simulation.summary_log[0] = complete.clone();
+            let summary = &mut simulation.summary_log[0];
+            match array {
+                0 => { summary.regional_resistance_infected_by_bacteria_region.pop(); },
+                1 => { summary.regional_resistance_positive_by_bacteria_drug_region.pop(); },
+                _ => { summary.regional_resistance_any_r_sum_by_bacteria_drug_region.pop(); },
+            }
+            let error = simulation.export_summary_to_csv(&path).unwrap_err();
+            assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+            assert!(!path.exists());
+        }
     }
 
     #[test]

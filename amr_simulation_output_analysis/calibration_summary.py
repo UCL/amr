@@ -20,12 +20,18 @@ if __package__ is None or __package__ == "":
     from amr_simulation_output_analysis.data_loader import DataCache
     from amr_simulation_output_analysis.summary_schema import (
         SUPPORTED_SUMMARY_SCHEMA_VERSION,
+        SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
+        summary_schema_status,
     )
     from amr_simulation_output_analysis.utils import extract_simulation_run_id
 else:
     from .config import PlotConfig
     from .data_loader import DataCache
-    from .summary_schema import SUPPORTED_SUMMARY_SCHEMA_VERSION
+    from .summary_schema import (
+        SUPPORTED_SUMMARY_SCHEMA_VERSION,
+        SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
+        summary_schema_status,
+    )
     from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
@@ -116,6 +122,23 @@ CALIBRATION_SCORE_BLOCK_LABELS: Dict[str, str] = {
 RESISTANCE_SIM_COL = "Infection resistance simulation (%)"
 RESISTANCE_TARGET_COL = "Infection resistance target (%)"
 RESISTANCE_DELTA_COL = "Infection resistance delta (pp)"
+
+REGIONAL_RESISTANCE_COLLECTION_COLUMN = "regional_resistance_collected"
+REGIONAL_RESISTANCE_REGIONS = (
+    ("north_america", "North America"),
+    ("south_america", "South America"),
+    ("africa", "Africa"),
+    ("asia", "Asia"),
+    ("europe", "Europe"),
+    ("oceania", "Oceania"),
+)
+REGIONAL_RESISTANCE_COLUMNS = [
+    "Region",
+    "Infection resistance mean (%)",
+    "Prevalence pairs",
+    "Conditional mean any_r among positives (%)",
+    "Conditional pairs",
+]
 
 DRUG_CLASS_TABLE_COLUMNS = [
     "Class",
@@ -504,7 +527,7 @@ def _gather_calibration_context(
     ).astype(int)
     simulation_summary_schema_version = int(schema_values.iloc[0])
     legacy_schema_compatibility = (
-        simulation_summary_schema_version != SUPPORTED_SUMMARY_SCHEMA_VERSION
+        simulation_summary_schema_version not in SUPPORTED_SUMMARY_SCHEMA_VERSIONS
     )
     if legacy_schema_compatibility:
         print(
@@ -582,6 +605,11 @@ def _gather_calibration_context(
         expanded_label=resistance_expanded_label,
     )
 
+    regional_resistance_df, regional_resistance_unavailable = (
+        _calculate_regional_resistance_table(
+            year_df, resistance_targets, resistance_average_targets
+        )
+    )
     overall_resistance = _calculate_overall_resistance(resistance_df)
     bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor, window_years)
     (
@@ -618,6 +646,8 @@ def _gather_calibration_context(
         "resistance_df": resistance_df,
         "resistance_targets": resistance_targets,
         "resistance_average_targets": resistance_average_targets,
+        "regional_resistance_df": regional_resistance_df,
+        "regional_resistance_unavailable": regional_resistance_unavailable,
         "microbiome_resident_targets": microbiome_resident_targets,
         "overall_resistance": overall_resistance,
         "bacteria_burden_df": bacteria_burden_df,
@@ -1660,6 +1690,189 @@ def _extract_bacteria_and_drugs(df: pd.DataFrame) -> Tuple[set[str], set[str]]:
         if col.endswith("_currently_on_drug")
     }
     return bacteria, drugs
+
+
+def _calculate_regional_resistance_table(
+    year_df: pd.DataFrame,
+    resistance_targets: pd.DataFrame,
+    average_targets: pd.DataFrame,
+) -> Tuple[pd.DataFrame, Optional[str]]:
+    """Summarise regional snapshot ratios with equal weight per eligible pair.
+
+    The caller supplies the shared calibration window. Static eligibility comes
+    from the same benchmark registry as the global component means, while
+    denominator availability is evaluated independently in each region.
+    """
+    empty = pd.DataFrame(columns=REGIONAL_RESISTANCE_COLUMNS)
+    if year_df.empty:
+        return empty, "Unavailable: no observations in the calibration window."
+    frame = _select_baseline_policy_rows(year_df)
+    marker = REGIONAL_RESISTANCE_COLLECTION_COLUMN
+    if marker not in frame:
+        schema = pd.to_numeric(
+            frame.get("simulation_summary_schema_version", pd.Series(dtype=float)),
+            errors="coerce",
+        )
+        has_regional_fields = any(
+            str(column).startswith("regional_resistance_") for column in frame.columns
+        )
+        if has_regional_fields or schema.ge(4).any():
+            raise ValueError(f"Regional resistance summary is missing {marker}")
+        return empty, (
+            "Unavailable: this summary has no regional resistance snapshots; "
+            "schema 4 or later with regional collection enabled is required."
+        )
+    if frame.columns.duplicated().any():
+        raise ValueError("Regional resistance summary contains duplicate column names")
+    collected = pd.to_numeric(frame[marker], errors="coerce")
+    if not collected.isin([0, 1]).all():
+        raise ValueError(f"{marker} must be 0 or 1 on every calibration-window row")
+    if collected.eq(0).all():
+        return empty, "Unavailable: regional resistance collection was disabled throughout the calibration window."
+    if collected.eq(0).any():
+        return empty, (
+            "Unavailable: regional resistance collection was disabled for part of "
+            "the calibration window; partial windows are not combined."
+        )
+
+    bacteria, drug_candidates = _extract_bacteria_and_drugs(frame)
+    available = set(frame.columns)
+    # Region- and bacterium-specific usage columns also end in
+    # `_currently_on_drug`. Require the unstratified resistance-pair header
+    # before treating a usage-column prefix as a drug identifier. The values
+    # of those legacy counters do not enter the regional calculation.
+    drugs = {
+        drug for drug in drug_candidates
+        if not drug.startswith(("hospital_", "community_"))
+        and any(
+            f"{bacterium}_infected_with_any_r_positive_{drug}" in available
+            for bacterium in bacteria
+        )
+    }
+    if not bacteria or not drugs:
+        raise ValueError("Regional resistance summary requires the bacterium and drug roster columns")
+    bacteria_order, drug_order = sorted(bacteria), sorted(drugs)
+    required = []
+    for region, _ in REGIONAL_RESISTANCE_REGIONS:
+        for bacterium in bacteria_order:
+            prefix = f"regional_resistance_{region}_{bacterium}"
+            required.append(f"{prefix}_infected_count")
+            for drug in drug_order:
+                required.extend((f"{prefix}_{drug}_positive_count", f"{prefix}_{drug}_any_r_sum"))
+    missing = [column for column in required if column not in available]
+    if missing:
+        detail = ", ".join(missing[:3])
+        if len(missing) > 3:
+            detail += f" (and {len(missing) - 3} more)"
+        raise ValueError(f"Regional resistance collection is enabled but required fields are missing: {detail}")
+
+    def eligible_pairs(targets: pd.DataFrame) -> Set[Tuple[str, str]]:
+        pairs: Set[Tuple[str, str]] = set()
+        for _, row in targets.iterrows():
+            target = _coerce_float(row.get("target"))
+            included = row.get("include_in_score", target is not None)
+            if isinstance(included, str):
+                included = included.strip().lower() == "true"
+            if target is None or pd.isna(included) or not bool(included):
+                continue
+            bacteria_slug = row.get("bacteria_slug")
+            drug_slug = row.get("drug_slug")
+            if not isinstance(bacteria_slug, str) or not isinstance(drug_slug, str):
+                raise ValueError("Regional resistance benchmarks require bacterium and drug slugs")
+            pairs.add((_canonicalize_bacteria_slug(bacteria_slug), _normalize_drug_slug(drug_slug)))
+        return pairs
+
+    prevalence_pairs = eligible_pairs(resistance_targets)
+    conditional_pairs = eligible_pairs(average_targets)
+
+    def numeric_values(columns: List[str], *, counts: bool) -> np.ndarray:
+        values = frame[columns].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+        invalid = ~np.isfinite(values) | (values < 0.0)
+        if counts:
+            invalid |= values != np.floor(values)
+        if invalid.any():
+            row_idx, col_idx = np.argwhere(invalid)[0]
+            kind = "non-negative integer counts" if counts else "non-negative finite sums"
+            raise ValueError(
+                f"Regional resistance field {columns[int(col_idx)]} requires {kind}; "
+                f"invalid value at row {frame.index[int(row_idx)]}"
+            )
+        return values
+
+    records = []
+    for region, label in REGIONAL_RESISTANCE_REGIONS:
+        prevalence_values: List[float] = []
+        conditional_values: List[float] = []
+        for bacterium in bacteria_order:
+            prefix = f"regional_resistance_{region}_{bacterium}"
+            infected = numeric_values([f"{prefix}_infected_count"], counts=True)
+            positives = numeric_values(
+                [f"{prefix}_{drug}_positive_count" for drug in drug_order], counts=True
+            )
+            any_r_sums = numeric_values(
+                [f"{prefix}_{drug}_any_r_sum" for drug in drug_order], counts=False
+            )
+            if (positives > infected).any():
+                raise ValueError(
+                    f"Regional resistance positive counts exceed infected counts for {region}/{bacterium}"
+                )
+            # Allow float32 loading/CSV rounding error at the upper bound only.
+            tolerance = 1e-6 * np.maximum(1.0, positives)
+            if (
+                (any_r_sums > positives + tolerance).any()
+                or ((positives == 0.0) & (any_r_sums != 0.0)).any()
+            ):
+                raise ValueError(
+                    f"Regional resistance any_r sums are inconsistent with positive counts for {region}/{bacterium}"
+                )
+            infected_total = float(infected.sum())
+            positive_totals = positives.sum(axis=0)
+            any_r_totals = any_r_sums.sum(axis=0)
+            for drug_idx, drug in enumerate(drug_order):
+                pair = (_canonicalize_bacteria_slug(bacterium), _normalize_drug_slug(drug))
+                positive_total = float(positive_totals[drug_idx])
+                if pair in prevalence_pairs and infected_total > 0.0:
+                    prevalence_values.append(100.0 * positive_total / infected_total)
+                if pair in conditional_pairs and positive_total > 0.0:
+                    conditional_values.append(
+                        100.0 * min(float(any_r_totals[drug_idx]) / positive_total, 1.0)
+                    )
+        records.append({
+            "Region": label,
+            "Infection resistance mean (%)": float(np.mean(prevalence_values)) if prevalence_values else np.nan,
+            "Prevalence pairs": len(prevalence_values),
+            "Conditional mean any_r among positives (%)": float(np.mean(conditional_values)) if conditional_values else np.nan,
+            "Conditional pairs": len(conditional_values),
+        })
+    return pd.DataFrame(records, columns=REGIONAL_RESISTANCE_COLUMNS), None
+
+
+def _write_regional_resistance_summary(
+    handle,
+    regional_df: pd.DataFrame,
+    unavailable: Optional[str],
+    window_label: str,
+) -> None:
+    handle.write("Regional Resistance Summary\n")
+    handle.write(f"Observation window: {window_label}; baseline policy 0.\n")
+    handle.write(
+        "Regions use residence (home region), including while travelling. Each pair's "
+        "percentage is calculated from counts summed over the window, then eligible "
+        "bacterium-drug pairs receive equal weight using the same benchmark eligibility "
+        "as the global Simulation mean (%). Zero denominators are missing, not zero resistance.\n"
+        "Infection resistance is 100 x positive-any_r infection-days / infected-days. "
+        "Conditional mean any_r is 100 x summed any_r / positive-any_r infection-days.\n"
+        "Regional fields use one end-of-day snapshot of living active infections; "
+        "legacy global fields have different within-day observation timing. These "
+        "regional descriptive means do not change the calibration score.\n"
+    )
+    if unavailable:
+        handle.write(f"{unavailable}\n\n")
+    elif regional_df.empty:
+        handle.write("Unavailable: no regional resistance data.\n\n")
+    else:
+        handle.write(regional_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}", na_rep="---"))
+        handle.write("\n\n")
 
 
 def _compute_resistance_stats(
@@ -4460,16 +4673,21 @@ def _calibration_schema_provenance_text(
     """Render durable source/schema provenance for a calibration snapshot."""
 
     source = str(simulation_csv_path) if simulation_csv_path is not None else "unknown"
-    status = "current" if schema_version == SUPPORTED_SUMMARY_SCHEMA_VERSION else "legacy"
+    status = summary_schema_status(schema_version)
     lines = [
         f"Simulation source CSV: {source}",
         f"Simulation summary schema: {schema_version} ({status})",
     ]
-    if schema_version != SUPPORTED_SUMMARY_SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_SUMMARY_SCHEMA_VERSIONS:
         lines.append(
             "Legacy compatibility: calibration snapshot only. Compatible paper outputs require "
             "--legacy-without-sf5; diagnostic-cascade outputs including Supplementary Figure "
             "S5 are not valid under current definitions."
+        )
+    elif schema_version < SUPPORTED_SUMMARY_SCHEMA_VERSION:
+        lines.append(
+            "Compatibility: schema 3 remains supported for general analysis and "
+            "Supplementary Figure S5; regional resistance reporting requires the new CSV fields."
         )
     return "\n".join(lines) + "\n"
 
@@ -5020,6 +5238,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("(insufficient overlapping bacteria/drug combinations)\n")
 
         handle.write("\n")
+        _write_regional_resistance_summary(
+            handle,
+            context.get("regional_resistance_df", pd.DataFrame()),
+            context.get("regional_resistance_unavailable"),
+            resistance_window_label,
+        )
         _write_resistance_provenance_summary(handle, resistance_provenance_df)
 
         infection_weight = resistance_fit_metrics.get("infection_weight") or 0.0

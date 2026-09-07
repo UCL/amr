@@ -6,6 +6,7 @@ from amr_simulation_output_analysis.summary_schema import (
     CALIBRATION_SUMMARY_SCHEMA_VERSIONS,
     SUMMARY_SCHEMA_VERSION_COLUMN,
     SUPPORTED_SUMMARY_SCHEMA_VERSION,
+    SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
     SimulationSummarySchemaError,
     validate_summary_frame,
     validate_summary_header,
@@ -13,9 +14,14 @@ from amr_simulation_output_analysis.summary_schema import (
 
 
 class SimulationSummarySchemaTests(unittest.TestCase):
-    def test_analysis_supports_schema_version_three(self) -> None:
-        self.assertEqual(SUPPORTED_SUMMARY_SCHEMA_VERSION, 3)
-        self.assertEqual(set(CALIBRATION_SUMMARY_SCHEMA_VERSIONS), {1, 2, 3})
+    def test_regional_schema_preserves_version_three_compatibility(self) -> None:
+        self.assertEqual(SUPPORTED_SUMMARY_SCHEMA_VERSION, 4)
+        self.assertEqual(set(SUPPORTED_SUMMARY_SCHEMA_VERSIONS), {3, 4})
+        self.assertEqual(set(CALIBRATION_SUMMARY_SCHEMA_VERSIONS), {1, 2, 3, 4})
+        for version in (3, 4):
+            with self.subTest(version=version):
+                frame = pd.DataFrame({SUMMARY_SCHEMA_VERSION_COLUMN: [version, version]})
+                self.assertEqual(validate_summary_frame(frame), version)
 
     def test_current_header_and_frame_are_accepted(self) -> None:
         frame = pd.DataFrame(
@@ -28,8 +34,8 @@ class SimulationSummarySchemaTests(unittest.TestCase):
         validate_summary_header(frame.columns, "current.csv")
         validate_summary_frame(frame, "current.csv")
 
-    def test_calibration_compatibility_accepts_uniform_versions_one_to_three(self) -> None:
-        for schema_version in (1, 2, 3):
+    def test_calibration_compatibility_accepts_uniform_versions_one_to_four(self) -> None:
+        for schema_version in (1, 2, 3, 4):
             with self.subTest(schema_version=schema_version):
                 frame = pd.DataFrame(
                     {

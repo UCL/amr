@@ -129,6 +129,9 @@ GROUPED_PLOT_PATTERNS = [
 
 # Additional patterns for calibration summary
 CALIBRATION_PATTERNS = [
+    # End-of-day regional resistance snapshots and their collection marker.
+    r'^regional_resistance_.*',
+
     # Drug class usage
     r'^taking_drug_.*',
     

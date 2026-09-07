@@ -84,16 +84,22 @@ import pandas as pd
 try:
     from .parse_calibration import aggregate, parse_files
     from .summary_schema import (
+        CALIBRATION_SUMMARY_SCHEMA_VERSIONS,
+        SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
         SUMMARY_SCHEMA_VERSION_COLUMN,
         SimulationSummarySchemaError,
+        summary_schema_status,
         validate_summary_frame,
         validate_summary_header,
     )
 except ImportError:  # Allows direct script execution from this folder.
     from parse_calibration import aggregate, parse_files
     from summary_schema import (
+        CALIBRATION_SUMMARY_SCHEMA_VERSIONS,
+        SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
         SUMMARY_SCHEMA_VERSION_COLUMN,
         SimulationSummarySchemaError,
+        summary_schema_status,
         validate_summary_frame,
         validate_summary_header,
     )
@@ -142,10 +148,10 @@ def _paper_schema_contract_note() -> str:
     if _ALLOW_LEGACY_NON_SF5_SCHEMAS.get():
         return (
             "This explicitly requested compatibility build accepts simulation-summary "
-            "schemas 1-3 for outputs unaffected by the diagnostic-cascade schema changes; "
+            "schemas 1-4 for outputs unaffected by the diagnostic-cascade schema changes; "
             "Supplementary Figure S5 is omitted."
         )
-    return "The paper-output build accepts only the current versioned simulation-summary schema."
+    return "The paper-output build accepts the current schema 4 and compatible schema 3."
 
 # Figure 2 toggle. Options:
 #   "median_range" - simulation median with 5th-95th percentile range
@@ -1652,7 +1658,11 @@ def _validate_reported_calibration_schemas(
 ) -> None:
     """Validate schema provenance embedded in newly generated calibration summaries."""
 
-    allowed = {1, 2, 3} if allow_legacy else {3}
+    allowed = (
+        CALIBRATION_SUMMARY_SCHEMA_VERSIONS
+        if allow_legacy
+        else SUPPORTED_SUMMARY_SCHEMA_VERSIONS
+    )
     for run in runs:
         meta = run.get("meta", {})
         if not isinstance(meta, dict):
@@ -1661,9 +1671,9 @@ def _validate_reported_calibration_schemas(
         if version is not None and version not in allowed:
             source = meta.get("source_file", "calibration summary")
             requirement = (
-                "--legacy-without-sf5 accepts only schemas 1, 2, and 3"
+                "--legacy-without-sf5 accepts only schemas 1, 2, 3, and 4"
                 if allow_legacy
-                else "the default paper build requires schema 3"
+                else "the default paper build requires schema 3 or 4"
             )
             raise SimulationSummarySchemaError(
                 f"{source} reports simulation-summary schema {version}; {requirement}."
@@ -1680,7 +1690,7 @@ def _paper_build_provenance_text(
     mode = (
         "legacy compatibility (--legacy-without-sf5)"
         if legacy_without_sf5
-        else "current schema only"
+        else "current and compatible schemas (3, 4)"
     )
     lines = [
         "Paper-output build provenance",
@@ -1713,7 +1723,7 @@ def _paper_build_provenance_text(
     lines.extend(["", "Discovered simulation-summary CSVs (authoritative preflight):"])
     if csv_schema_versions:
         for csv_path, version in csv_schema_versions.items():
-            status = "current" if version == 3 else "legacy"
+            status = summary_schema_status(version)
             lines.append(
                 f"- {csv_path.resolve(strict=False)}: schema {version} ({status})"
             )
@@ -1724,7 +1734,7 @@ def _paper_build_provenance_text(
         lines.extend(
             [
                 "",
-                "Compatibility statement: schemas 1-3 are accepted only for paper outputs "
+                "Compatibility statement: schemas 1-4 are accepted only for paper outputs "
                 "unaffected by the diagnostic-cascade changes. Supplementary Figure S5 is "
                 "not generated or represented by a placeholder in this build.",
             ]
@@ -1741,7 +1751,7 @@ def _paper_build_provenance_html(
     if legacy_without_sf5:
         body += (
             "<div class='meta-box' style='border-left-color:#d97706'>"
-            "<strong>Legacy compatibility build.</strong> Simulation-summary schemas 1-3 "
+            "<strong>Legacy compatibility build.</strong> Simulation-summary schemas 1-4 "
             "are accepted only for outputs unaffected by the diagnostic-cascade changes. "
             "Supplementary Figure S5 was intentionally omitted.</div>\n"
         )
@@ -13566,7 +13576,7 @@ def main(input_args: list[str]) -> None:
         )
         if csv_schema_versions:
             for csv_path, version in csv_schema_versions.items():
-                status = "current" if version == 3 else "legacy"
+                status = summary_schema_status(version)
                 print(f"         {csv_path}: schema {version} ({status})")
         else:
             print("         No matching simulation-summary CSVs were discovered.")

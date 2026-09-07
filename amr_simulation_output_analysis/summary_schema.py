@@ -10,8 +10,20 @@ import pandas as pd
 
 
 SUMMARY_SCHEMA_VERSION_COLUMN = "simulation_summary_schema_version"
-SUPPORTED_SUMMARY_SCHEMA_VERSION = 3
-CALIBRATION_SUMMARY_SCHEMA_VERSIONS = frozenset({1, 2, 3})
+SUPPORTED_SUMMARY_SCHEMA_VERSION = 4
+# Version 4 adds regional reporting without changing version-3 fields or the
+# diagnostic-cascade contract. Existing version-3 files remain usable.
+SUPPORTED_SUMMARY_SCHEMA_VERSIONS = frozenset({3, 4})
+CALIBRATION_SUMMARY_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
+
+
+def summary_schema_status(version: int) -> str:
+    """Distinguish current, backwards-compatible and legacy output revisions."""
+    if version == SUPPORTED_SUMMARY_SCHEMA_VERSION:
+        return "current"
+    if version in SUPPORTED_SUMMARY_SCHEMA_VERSIONS:
+        return "compatible"
+    return "legacy"
 
 
 class SimulationSummarySchemaError(ValueError):
@@ -48,10 +60,9 @@ def validate_summary_frame(
 ) -> int | None:
     """Require one uniform, integral schema version accepted by this workflow.
 
-    The default contract remains the current simulation-summary schema.  The
-    explicit compatibility flag is reserved for calibration-summary generation,
-    whose inputs are unaffected by the diagnostic-cascade changes in schemas 2
-    and 3.
+    The default contract accepts schemas 3 and 4, which share the existing
+    analysis and diagnostic-cascade definitions. The explicit compatibility
+    flag additionally permits schemas 1 and 2 for calibration-only workflows.
     """
 
     validate_summary_header(frame.columns, source)
@@ -79,7 +90,7 @@ def validate_summary_frame(
     allowed_versions = (
         CALIBRATION_SUMMARY_SCHEMA_VERSIONS
         if allow_legacy_calibration_schemas
-        else frozenset({SUPPORTED_SUMMARY_SCHEMA_VERSION})
+        else SUPPORTED_SUMMARY_SCHEMA_VERSIONS
     )
     version = unique_versions[0]
     if version not in allowed_versions:
@@ -89,7 +100,7 @@ def validate_summary_frame(
                 + ", ".join(str(value) for value in sorted(allowed_versions))
             )
         else:
-            requirement = f"this analysis requires version {SUPPORTED_SUMMARY_SCHEMA_VERSION}"
+            requirement = "this analysis requires version 3 or 4"
         raise SimulationSummarySchemaError(
             f"{_source_label(source)} uses unsupported simulation-summary schema value(s) "
             f"{[str(version)]}; {requirement}."
