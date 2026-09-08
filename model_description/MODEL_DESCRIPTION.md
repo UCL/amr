@@ -11981,6 +11981,17 @@ activity threshold, not necessarily the newly selected drug.
 | `{bacteria}_presence_microbiome_{region}` | Post-rule carriage stock classified by home region |
 | `{bacteria}_deaths_infected_{region}` | All-cause deaths associated with each active bacterium, classified by home region |
 
+The calibration table "Deaths among people actively infected, by bacterium and
+home region" sums the last field family over the baseline calibration window,
+divides by the window duration and applies the headline world-population scale
+factor. It shows one row per bacterium, six home-region columns and a per-row
+"All regions" total. It includes background and toxicity deaths and counts a
+person under every bacterium active at death; the rows are overlapping
+associations, not unique causal attribution. There is no grand total across
+bacteria, and these counts do not reconcile with the headline infection-death
+total. These fields belong to the core `per_bacteria` output group and remain
+available in `FullMinimal` even when regional-resistance collection is disabled.
+
 From schema 6, the calibration summary derives infection-death counts and rates
 by age group and region from the existing person-level regional `deaths_sepsis`
 and `deaths_infection_non_sepsis` fields and their age-specific variants. These

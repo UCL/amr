@@ -2,7 +2,7 @@
 make_paper_tables.py
 
 Generate the paper-facing HTML outputs from one or more calibration_summary_*.txt
-files: Table 1, Supplementary Table S2, main Figures 1-13, and
+files: Table 1, Supplementary Table S2, main Figures 1-14, and
 Supplementary Figures S1-S3, S5-S6, and S8.
 
 Usage
@@ -49,6 +49,7 @@ paper_tables/
         Figure_11__activity_retained_by_bacterium.html/.png/.svg
         Figure_12__modelled_resistance_mechanisms_by_bacterium.html/.png/.svg
         Figure_13__active_infection_incidence_by_bacterium.html/.png/.svg
+        Figure_14__infection_deaths_by_region_and_age.html/.png/.svg
         Supplementary_Figure_S1__potential_activity_retained.html/.png/.svg
         Supplementary_Figure_S2__microbiome_resistance_reservoir.html/.png/.svg
         Supplementary_Figure_S3__carrier_vs_non_carrier_infection_incidence.html/.png/.svg
@@ -82,6 +83,7 @@ import numpy as np
 import pandas as pd
 
 try:
+    from .death_counts import AGE_GROUPS, REGIONS
     from .parse_calibration import aggregate, parse_files
     from .resistance_observation import (
         uses_aligned_resistance_observations,
@@ -98,6 +100,7 @@ try:
         validate_summary_header,
     )
 except ImportError:  # Allows direct script execution from this folder.
+    from death_counts import AGE_GROUPS, REGIONS
     from parse_calibration import aggregate, parse_files
     from resistance_observation import (
         uses_aligned_resistance_observations,
@@ -12280,6 +12283,237 @@ def make_figure_13_active_infection_incidence(
     return {"generated": "real data", "bacteria_included": len(work), "n_runs": n_runs}
 
 
+# ---------------------------------------------------------------------------
+# Figure 14. Annual infection deaths by region and age group
+# ---------------------------------------------------------------------------
+
+_F14_TITLE = "Figure 14. Annual infection deaths by region and age group, 2022\u20132025"
+_F14_STEM = "Figure_14__infection_deaths_by_region_and_age"
+_F14_PANELS = (
+    ("Region", "infection_deaths_by_region", tuple(label for _, label in REGIONS)),
+    ("Age Group", "infection_deaths_by_age", tuple(label for _, label in AGE_GROUPS)),
+)
+
+
+def _figure_14_run_counts(runs: list[dict]) -> tuple[pd.DataFrame, list[str]]:
+    """Read paired, headline-scope annual counts without rescaling report values.
+
+    Historical summaries can contain numeric tables with identical headings but
+    a broader mortality scope. Require schema 6 and the paper's shared window,
+    and include a run only when both complete partitions reconcile.
+    """
+    records: list[dict[str, object]] = []
+    problems: list[str] = []
+    raw_column = "Simulated deaths (window)"
+    annual_column = "Annual deaths (scaled)"
+    for run_idx, run in enumerate(runs):
+        meta = run.get("meta", {})
+        source = meta.get("source_file", meta.get("run_id", f"Run {run_idx + 1}"))
+        try:
+            schema = _reported_calibration_schema(meta)
+            if schema is None or schema < 6:
+                raise ValueError(
+                    "exact headline-scope breakdowns require schema 6 or later; "
+                    "rebuild and rerun with regional collection enabled, then regenerate "
+                    "the calibration summary"
+                )
+            year = _first_numeric_value(meta.get("target_year"))
+            duration = _first_numeric_value(meta.get("window_duration"))
+            if year != 2025 or duration != 4.0:
+                raise ValueError("a 2022-2025 calibration summary with a reported four-year duration is required")
+            scale = _first_numeric_value(meta.get("scale_factor"))
+            if scale is None or not np.isfinite(scale) or scale <= 0:
+                raise ValueError("a positive finite population scale factor is required")
+
+            run_records: list[dict[str, object]] = []
+            totals: list[tuple[float, float]] = []
+            for dimension, section, labels in _F14_PANELS:
+                table = run.get(section)
+                required = [dimension, raw_column, annual_column]
+                if table is None or table.empty or not set(required).issubset(table.columns):
+                    raise ValueError(
+                        f"{dimension} death-count table is unavailable; regenerate the "
+                        "calibration summary from a schema-6 run with regional collection enabled"
+                    )
+                observation = str(table.attrs.get("observation_window", ""))
+                if not re.fullmatch(
+                    r"2022\s*[-\u2013]\s*2025(?: calibration window)?;\s*baseline policy 0\.?",
+                    observation.strip(),
+                ):
+                    raise ValueError(f"{dimension} observation window must specify 2022-2025 and baseline policy 0")
+                if table.columns.duplicated().any():
+                    raise ValueError(f"{dimension} death-count table has duplicate columns")
+                work = table[required].copy()
+                work[dimension] = work[dimension].astype(str).str.strip()
+                if work[dimension].duplicated().any() or set(work[dimension]) != {*labels, "Total"}:
+                    raise ValueError(f"{dimension} death-count groups are incomplete or duplicated")
+                work = work.set_index(dimension)
+                for column in (raw_column, annual_column):
+                    work[column] = pd.to_numeric(
+                        work[column].astype(str).str.replace(",", "", regex=False), errors="coerce"
+                    )
+                    if not (np.isfinite(work[column]) & work[column].ge(0)).all():
+                        raise ValueError(f"{dimension} death counts must be finite and non-negative")
+                if not work[raw_column].mod(1).eq(0).all():
+                    raise ValueError(f"{dimension} simulated death counts must be integers")
+                # The report prints duration to two decimals, scale to four,
+                # and annual counts to whole people. Validate within that
+                # rounding envelope without replacing its annual values.
+                min_annual = work[raw_column] * max(0, scale - 0.00005) / (duration + 0.005)
+                max_annual = work[raw_column] * (scale + 0.00005) / (duration - 0.005)
+                if ((work[annual_column] < min_annual - 0.5) |
+                        (work[annual_column] > max_annual + 0.5)).any():
+                    raise ValueError(f"{dimension} annual death counts do not match the reported population scaling")
+                counts = work.loc[list(labels)]
+                raw_total = float(work.at["Total", raw_column])
+                annual_total = float(work.at["Total", annual_column])
+                if counts[raw_column].sum() != raw_total:
+                    raise ValueError(f"{dimension} simulated death counts do not sum to Total")
+                # Each displayed annual count, including Total, is rounded to
+                # the nearest person; permit only the resulting rounding error.
+                if abs(counts[annual_column].sum() - annual_total) > (len(labels) + 1) * 0.5:
+                    raise ValueError(f"{dimension} annual death counts do not sum to Total")
+                totals.append((raw_total, annual_total))
+                run_records.extend(
+                    {"run": run_idx, "panel": dimension, "group": label,
+                     "annual_deaths": float(counts.at[label, annual_column])}
+                    for label in labels
+                )
+            if totals[0][0] != totals[1][0] or abs(totals[0][1] - totals[1][1]) > 1.0:
+                raise ValueError("regional and age-group death totals do not reconcile")
+            headline = run.get("headline_metrics")
+            if headline is not None and {"Metric", "Simulation"}.issubset(headline.columns):
+                values = headline.loc[
+                    headline["Metric"].map(_headline_range_key).eq("infection_deaths_millions"),
+                    "Simulation",
+                ]
+                if len(values) == 1:
+                    millions = _first_numeric_value(values.iloc[0])
+                    if (millions is None or not np.isfinite(millions) or
+                            abs(totals[0][1] - millions * 1e6) > 5000.5):
+                        raise ValueError("death-count Total does not match the rounded headline infection deaths")
+        except ValueError as exc:
+            problems.append(f"{source}: {exc}.")
+            continue
+        records.extend(run_records)
+    return pd.DataFrame(records, columns=["run", "panel", "group", "annual_deaths"]), problems
+
+
+def make_figure_14_infection_deaths_by_region_age(
+    runs: list[dict], out_dir: Path, agg: dict | None = None,
+) -> dict[str, object]:
+    """Plot two partitions of the same annual, world-scaled infection deaths."""
+    counts, problems = _figure_14_run_counts(runs)
+    n_runs = int(counts["run"].nunique())
+    summary_rows = []
+    for (panel, group), values in counts.groupby(["panel", "group"], sort=False):
+        mean, lower, upper = _mean_ci95(values["annual_deaths"].tolist())
+        summary_rows.append({
+            "Panel": panel, "Group": group, "Mean annual deaths": mean,
+            "95% CI (lower)": lower, "95% CI (upper)": upper, "Runs": n_runs,
+        })
+    summary = pd.DataFrame(summary_rows)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.5, 5.2))
+    fig.suptitle(_F14_TITLE, fontsize=12, fontweight="bold", y=0.98)
+    for ax, (dimension, _, labels), panel_title in zip(
+        axes, _F14_PANELS, ("(i) By region", "(ii) By age group"),
+    ):
+        ax.set_title(panel_title, loc="left", fontsize=11, fontweight="bold", pad=14)
+        if counts.empty:
+            ax.text(
+                0.5, 0.5,
+                "Exact infection-death counts unavailable.\n\n"
+                "Requires a schema-6 simulation run\nwith regional collection enabled,\n"
+                "followed by a new calibration summary.\n\n"
+                "Both complete breakdowns are required\nfor the 2022\u20132025 window.",
+                ha="center", va="center", transform=ax.transAxes,
+                fontsize=10, color="#555", linespacing=1.6,
+            )
+            ax.set_axis_off()
+            continue
+        work = summary.loc[summary["Panel"].eq(dimension)].set_index("Group").loc[list(labels)]
+        mean = work["Mean annual deaths"].to_numpy(float) / 1e6
+        lower = work["95% CI (lower)"].to_numpy(float) / 1e6
+        upper = work["95% CI (upper)"].to_numpy(float) / 1e6
+        y = np.arange(len(labels))
+        ax.barh(
+            y, mean, height=0.6, color=_F2_COLOUR_SIM, zorder=3,
+            xerr=[mean - lower, upper - mean] if n_runs > 1 else None,
+            error_kw={"ecolor": _F2_COLOUR_SIM_ERROR, "elinewidth": 1, "capsize": 3},
+        )
+        for position, value, high in zip(y, mean, upper):
+            ax.annotate(f"{value:.3f}", (high, position), xytext=(5, 0),
+                        textcoords="offset points", va="center", fontsize=8)
+        ax.set_yticks(y, labels, fontsize=9)
+        ax.invert_yaxis()
+        # The common linear scale lets the two absolute-count partitions be
+        # compared directly. Preserve an intelligible axis for an all-zero run.
+        max_upper = float(summary["95% CI (upper)"].max()) / 1e6
+        ax.set_xlim(0, max_upper * 1.23 if max_upper > 0 else 1)
+        ax.xaxis.set_major_formatter(mticker.StrMethodFormatter("{x:g}"))
+        ax.set_xlabel("Annual infection deaths (millions)", fontsize=9)
+        ax.grid(axis="x", linewidth=0.4, alpha=0.45, zorder=0)
+        ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout(rect=(0, 0.03, 1, 0.93), w_pad=3)
+
+    if n_runs > 1:
+        note = (
+            f"Bars show arithmetic means across {n_runs} runs; error bars show two-sided "
+            "95% Student-t confidence intervals for the mean, with lower bounds limited "
+            "to zero. These intervals describe simulation variability, not uncertainty "
+            "in model assumptions or parameters."
+        )
+    elif n_runs == 1:
+        note = "Bars show one simulation run; no between-run confidence interval is estimated."
+    else:
+        note = "No supplied run has both complete, exact headline-scope infection-death breakdowns."
+    note += f" Both panels use the same {n_runs} of {len(runs)} supplied runs."
+    footnotes = [
+        "Counts come from the Infection Death Counts by Region and by Age Group tables "
+        "in each calibration summary, for baseline policy 0 during 2022\u20132025. Window "
+        "counts have already been annualised using the reported window duration and multiplied by the headline "
+        "world-population scale factor. The axes express these annual counts in millions.",
+        "Infection deaths combine sepsis and non-sepsis infection deaths, counting each "
+        "person once. Background and drug-toxicity deaths are excluded. The organism "
+        "scope matches the headline: deaths with only H. pylori or MDR-TB contributors "
+        "are excluded; a concurrent eligible contributor keeps a death in scope.",
+        "Panel (i) uses effective region at the start of the death day, including travel. "
+        "Panel (ii) uses age at death: 0\u20135, 6\u201314, 15\u201349, 50\u201379 and 80+ years.",
+        "Each panel partitions the same deaths and sums to the mean headline total "
+        "for the included runs, subject to calibration-summary display rounding. "
+        "The two panels should not be added together. These are infection-death counts, "
+        "not AMR-attributable deaths or the all-cause bacterium-associated death counts.",
+        "Schemas 1\u20135 stored broader age and regional mortality counts under the same "
+        "column names; those counts cannot recover the exact headline-scope breakdowns "
+        "and are excluded. Missing breakdowns are never plotted as zero.",
+    ]
+    extra_html = ""
+    if not summary.empty:
+        display = summary.copy()
+        for column in ("Mean annual deaths", "95% CI (lower)", "95% CI (upper)"):
+            display[column] = display[column].map(lambda value: f"{value:,.0f}")
+        if n_runs == 1:
+            display[["95% CI (lower)", "95% CI (upper)"]] = "\u2014"
+        extra_html = "<h2>Annual death counts</h2>\n" + _html_table(display)
+        sources = [
+            runs[index].get("meta", {}).get("source_file", f"Run {index + 1}")
+            for index in counts["run"].unique()
+        ]
+        footnotes.append("Included summaries: " + "; ".join(html.escape(str(s)) for s in sources) + ".")
+    if problems:
+        extra_html += "<h2>Excluded inputs</h2>\n<ul>" + "".join(
+            f"<li>{html.escape(problem)}</li>" for problem in problems
+        ) + "</ul>\n"
+    _save_figure(
+        fig, out_dir, _F14_STEM, _F14_TITLE, note, footnotes,
+        agg=agg, extra_html=extra_html, meta_footnote_override="",
+    )
+    status = "real data" if n_runs else "placeholder"
+    print(f"  Figure 14: {status}; {n_runs} of {len(runs)} runs included.")
+    return {"generated": status, "n_runs": n_runs, "excluded_runs": len(problems)}
+
+
 _F20_TITLE = (
     "Figure 7. Serious resistance among active-infection person-days while "
     "hospitalised and in the community, 2022\u20132025"
@@ -13451,6 +13685,7 @@ def make_index(
                 "Figures/Figure_13__active_infection_incidence_by_bacterium.html",
                 "Figure 13. Modelled annual infection incidence by bacterium, 2022\u20132025",
             ),
+            (f"Figures/{_F14_STEM}.html", _F14_TITLE),
         ],
         "No main figures were generated.",
     )
@@ -13616,7 +13851,7 @@ def main(input_args: list[str]) -> None:
         print(
             f"  Found {len(csv_paths)} simulation CSV(s) for Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, and 12, "
             f"and Supplementary Figures {supplementary_csv_figures}. "
-            "Supplementary Table S2, Figure 13, and Supplementary Figure S2 use calibration summary tables."
+            "Supplementary Table S2, Figures 13 and 14, and Supplementary Figure S2 use calibration summary tables."
         )
     else:
         supplementary_csv_figures = "S1, S3, S6, and S8"
@@ -13625,7 +13860,7 @@ def main(input_args: list[str]) -> None:
         print(
             "  No matching simulation CSVs found; Figures 2A, 2B, 6A, 6B, 8, 9, 10, 11, and 12, and "
             f"Supplementary Figures {supplementary_csv_figures} may render as placeholders. "
-            "Supplementary Table S2, Figure 13, and Supplementary Figure S2 use calibration summary tables."
+            "Supplementary Table S2, Figures 13 and 14, and Supplementary Figure S2 use calibration summary tables."
         )
 
     st1_csv_paths = _filter_simulation_csvs_with_columns(
@@ -13735,6 +13970,7 @@ def main(input_args: list[str]) -> None:
             agg=agg,
         )
         make_figure_13_active_infection_incidence(agg, out, runs=runs)
+        make_figure_14_infection_deaths_by_region_age(runs, out, agg=agg)
         make_index(
             agg,
             out,

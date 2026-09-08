@@ -62,6 +62,7 @@ _PAPER_OUTPUT_BUILDERS = (
     "make_figure_15_mean_activity_by_bacteria",
     "make_figure_12_resistance_mechanisms_by_bacterium",
     "make_figure_13_active_infection_incidence",
+    "make_figure_14_infection_deaths_by_region_age",
 )
 
 

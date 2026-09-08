@@ -341,6 +341,16 @@ def parse_file(path: Union[str, Path]) -> dict:
         df = _table_from_section(sec.get(section_key, []))
         if not df.empty:
             df = _coerce_numeric(df, skip=id_cols)
+        if section_key in ("infection_deaths_by_age", "infection_deaths_by_region"):
+            # Preserve the actual window and policy: target year plus duration
+            # alone cannot distinguish e.g. 2022-2025 from 2023-2026.
+            observations = [
+                line.strip().split(":", 1)[1].strip()
+                for line in sec.get(section_key, [])
+                if line.strip().startswith("Observation window:")
+            ]
+            if len(observations) == 1:
+                df.attrs["observation_window"] = observations[0]
         parsed[section_key] = df
 
     # Backward compatibility for summaries written before the dedicated

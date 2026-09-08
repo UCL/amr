@@ -312,6 +312,26 @@ day. Missing, disabled or historical broader-scope mortality data is reported
 as unavailable for these restricted calibration tables; rerun the simulation
 to obtain the revised counts.
 
+`make_paper_tables` adds Figure 14 with two panels: annual infection-death counts
+by region and by age group, using those calibration-summary tables. Both panels
+use the same complete set of schema-6 runs and show world-scaled annual counts
+for 2022-2025 in millions. Multiple runs receive equal weight, with 95% confidence
+intervals for the mean; one run is shown without an interval. The figure exports
+HTML, PNG and SVG, and its HTML page includes a table of the counts. Historical,
+missing or incomplete breakdowns are excluded with an explanation; if no run
+qualifies, the figure displays an unavailable-data notice. Region here means
+effective location on the death day, including travel.
+
+The separate table "Deaths among people actively infected, by bacterium and
+home region" uses the existing `{bacterium}_deaths_infected_{region}` fields.
+It reports world-scaled mean annual counts for each bacterium and six home
+regions. These include deaths from all causes, including background and
+toxicity deaths. A person with several active infections can appear in several
+rows, so no grand total across bacteria is shown. This descriptive table is
+available from existing CSVs when the core per-bacterium fields were collected,
+including `FullMinimal`; the regional-resistance collection flag does not
+control these fields.
+
 Run the Python regression tests from the repository root with:
 
 ```bash

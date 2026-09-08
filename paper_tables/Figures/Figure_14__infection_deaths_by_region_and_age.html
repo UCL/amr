@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Figure 14. Annual infection deaths by region and age group, 2022–2025</title><style>
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5; max-width: 1500px; margin: 0 auto;
+  padding: 24px; color: #222; font-size: 13px;
+}
+h1  { font-size: 1.25em; border-bottom: 2px solid #2c3e50;
+      padding-bottom: 8px; color: #2c3e50; margin-bottom: 4px; }
+h2  { font-size: 1.05em; margin-top: 26px; color: #2c3e50;
+      border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.subtitle { color: #555; font-size: 0.9em; margin-bottom: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px 0;
+        font-size: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+th, td { border: 1px solid #ccc; padding: 5px 9px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 160px; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; }
+th { background: #eef1f5; font-weight: 600; color: #2c3e50; }
+tr:nth-child(even) td { background: #fafbfc; }
+tr:hover td { background: #eef4fb; }
+.total-row td { font-weight: 600; background: #e2e8f0 !important; }
+.note  { font-style: italic; color: #666; font-size: 0.87em; margin: 4px 0; }
+.meta-box {
+  background: #f4f7fb; border-left: 4px solid #3498db;
+  padding: 9px 14px; margin-bottom: 14px;
+  border-radius: 0 4px 4px 0; font-size: 0.88em; color: #333;
+}
+ol.footnotes { font-size: 0.87em; color: #444; padding-left: 22px; margin-top: 20px; }
+ol.footnotes li { margin-bottom: 7px; line-height: 1.5; }
+.back-link { font-size: 0.83em; margin-bottom: 12px; }
+a { color: #2980b9; }
+</style></head>
+<body>
+<p class='back-link'><a href='../index.html'>← Back to index</a></p>
+<img src='Figure_14__infection_deaths_by_region_and_age.png' alt='Figure_14__infection_deaths_by_region_and_age' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
+<p class='note'>Download: <a href='Figure_14__infection_deaths_by_region_and_age.png'>PNG</a> | <a href='Figure_14__infection_deaths_by_region_and_age.svg'>SVG</a></p>
+<h2>Excluded inputs</h2>
+<ul><li>output_graphs\calibration_summary_zzz130692.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz136825.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz226163.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz324991.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz368577.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz496331.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li></ul>
+<ol class='footnotes'>
+<li>No supplied run has both complete, exact headline-scope infection-death breakdowns. Both panels use the same 0 of 6 supplied runs.</li><li>Counts come from the Infection Death Counts by Region and by Age Group tables in each calibration summary, for baseline policy 0 during 2022–2025. Window counts have already been annualised using the reported window duration and multiplied by the headline world-population scale factor. The axes express these annual counts in millions.</li><li>Infection deaths combine sepsis and non-sepsis infection deaths, counting each person once. Background and drug-toxicity deaths are excluded. The organism scope matches the headline: deaths with only H. pylori or MDR-TB contributors are excluded; a concurrent eligible contributor keeps a death in scope.</li><li>Panel (i) uses effective region at the start of the death day, including travel. Panel (ii) uses age at death: 0–5, 6–14, 15–49, 50–79 and 80+ years.</li><li>Each panel partitions the same deaths and sums to the mean headline total for the included runs, subject to calibration-summary display rounding. The two panels should not be added together. These are infection-death counts, not AMR-attributable deaths or the all-cause bacterium-associated death counts.</li><li>Schemas 1–5 stored broader age and regional mortality counts under the same column names; those counts cannot recover the exact headline-scope breakdowns and are excluded. Missing breakdowns are never plotted as zero.</li>
+</ol></body></html>
