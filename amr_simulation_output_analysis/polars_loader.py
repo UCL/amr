@@ -477,11 +477,15 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
     return df
 
 
+_PANDAS_CONVERSION_BATCH_COLUMNS = 512
+
+
 def polars_to_pandas(df: "pl.DataFrame"):
     """
     Convert Polars DataFrame to pandas DataFrame for downstream compatibility.
     
-    Uses optimized conversion with memory-efficient data types.
+    Retains Arrow-backed dtypes and null/NaN semantics, converting wide frames
+    in bounded column batches to avoid excessive conversion overhead.
     
     Args:
         df: Polars DataFrame
@@ -492,18 +496,31 @@ def polars_to_pandas(df: "pl.DataFrame"):
     if df is None:
         return None
     
+    batches = []
     try:
         import gc
         
-        # Use use_pyarrow_extension_array=True for memory-efficient conversion
-        # This avoids creating large intermediate numpy arrays
-        result = df.to_pandas(use_pyarrow_extension_array=True)
+        # Keep Arrow's nullable integer precision and distinction between null
+        # and IEEE NaN. A single very wide conversion can be disproportionately
+        # slow even when the underlying numeric buffers are small.
+        if df.width <= _PANDAS_CONVERSION_BATCH_COLUMNS:
+            result = df.to_pandas(use_pyarrow_extension_array=True)
+        else:
+            import pandas as pd
+
+            columns = df.columns
+            for offset in range(0, len(columns), _PANDAS_CONVERSION_BATCH_COLUMNS):
+                batch = df.select(columns[offset:offset + _PANDAS_CONVERSION_BATCH_COLUMNS])
+                batches.append(batch.to_pandas(use_pyarrow_extension_array=True))
+            result = pd.concat(batches, axis=1)
+            batches.clear()
         
         # Force garbage collection after conversion
         gc.collect()
         
         return result
     except Exception as e:
+        batches.clear()
         logger.warning(f"PyArrow extension array conversion failed: {e}, trying standard conversion")
         try:
             # Fallback to standard conversion

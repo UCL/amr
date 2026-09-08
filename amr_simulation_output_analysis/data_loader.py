@@ -150,7 +150,7 @@ class DataCache:
             include_detail_plots: DEPRECATED - use enabled_detail_plots instead
             enabled_detail_plots: List of specific detail plot names to load columns for
             allow_legacy_calibration_schemas: Additionally permit schemas 1-2 for
-                the calibration-summary compatibility workflow (3-4 are supported normally)
+                the calibration-summary compatibility workflow (3-5 are supported normally)
             
         Returns:
             DataFrame with simulation data or None if loading failed
@@ -507,7 +507,7 @@ def load_simulation_data(
         include_detail_plots: DEPRECATED - use enabled_detail_plots instead
         enabled_detail_plots: List of specific detail plot names to include columns for
         allow_legacy_calibration_schemas: Additionally permit schemas 1-2 for the
-            calibration-summary compatibility workflow (3-4 are supported normally)
+            calibration-summary compatibility workflow (3-5 are supported normally)
         
     Returns:
         DataFrame with simulation data or None if loading failed
@@ -673,6 +673,44 @@ def _join_new_columns(df: pd.DataFrame, columns: Dict[str, Any]) -> pd.DataFrame
     gc.collect()
     return result
 
+def _preprocessing_input_columns(
+    columns: List[str],
+    *,
+    enable_microbiome_aggregates: bool,
+) -> List[str]:
+    """Select raw dependencies of the derived plotting columns.
+
+    Wide resistance matrices and other unchanged fields need no Polars roundtrip.
+    Derived names are deliberately absent: recomputation must replace any stale
+    derived columns already present in the input, including ``time_in_years``.
+    """
+    fixed = {
+        'time_step', 'total_population', 'total_currently_infected',
+        'total_deaths', 'total_with_resistance',
+        'currently_infected_and_on_drug_count',
+        'infection_acquisition_people_past_year', 'deaths_past_year',
+        'infected_10_days_count', 'infected_21_days_count', 'number_with_sepsis',
+        'mdr_mycobacterium_tuberculosis_currently_infected',
+    }
+    fixed.update(f'num_age_{band}' for band in ('0_5', '6_14', '15_49', '50_79', '80plus'))
+    for cause in ('background', 'sepsis', 'infection_non_sepsis', 'drug_toxicity'):
+        fixed.update((f'deaths_{cause}', f'deaths_{cause}_past_year'))
+    suffixes = [
+        '_infected_carrier_count', '_infected_non_carrier_count',
+        '_presence_microbiome', '_presence_microbiome_resistant',
+        '_infection_acquisition_events_carrier_at_acquisition',
+        '_infection_acquisition_events_non_carrier_at_acquisition',
+    ]
+    suffixes.extend(f'_carriage_duration_days_{band}'
+                    for band in ('0_29', '30_89', '90_179', '180_359', '360_plus'))
+    if enable_microbiome_aggregates:
+        suffixes.extend(f'_microbiome_{event}_{exposure}_drug'
+                        for event in ('acquisitions', 'clearances')
+                        for exposure in ('on', 'off'))
+    suffixes = tuple(suffixes)
+    return [column for column in columns if column in fixed or column.endswith(suffixes)]
+
+
 def preprocess_data(
     df: pd.DataFrame,
     *,
@@ -699,10 +737,14 @@ def preprocess_data(
     if is_polars_available():
         try:
             import polars as pl
-            print(f"[TIME] Converting pandas->polars...")
+            input_columns = _preprocessing_input_columns(
+                df.columns.tolist(),
+                enable_microbiome_aggregates=enable_microbiome_aggregates,
+            )
+            print(f"[TIME] Converting {len(input_columns):,} preprocessing inputs to Polars "
+                  f"({len(df.columns) - len(input_columns):,} columns pass through unchanged)...")
             _t = _time.time()
-            # Convert pandas to polars
-            polars_df = pl.from_pandas(df)
+            polars_df = pl.from_pandas(df.loc[:, input_columns])
             print(f"[TIME] pandas->polars took {_time.time() - _t:.1f}s")
             # Preprocess with Polars
             print(f"[TIME] Running Polars preprocessing...")
@@ -713,14 +755,31 @@ def preprocess_data(
             del polars_df
             gc.collect()
             # Convert back to pandas
-            print(f"[TIME] Converting polars->pandas...")
+            input_names = set(input_columns)
+            derived_columns = [column for column in polars_result.columns if column not in input_names]
+            print(f"[TIME] Converting {len(derived_columns):,} derived columns to pandas...")
             _t = _time.time()
-            result_df = polars_to_pandas(polars_result)
+            derived_df = polars_to_pandas(polars_result.select(derived_columns))
             print(f"[TIME] polars->pandas took {_time.time() - _t:.1f}s")
             # Free polars_result
             del polars_result
             gc.collect()
-            if result_df is not None:
+            if derived_df is not None:
+                if len(derived_df) != len(df):
+                    raise ValueError("Preprocessing changed the number of observations")
+                # Reuse raw storage and dtypes; only derived columns are replaced
+                # or appended. Polars preserves row order but not the pandas index.
+                derived_df.index = df.index
+                result_df = df.copy(deep=False)
+                new_columns = []
+                for column in derived_columns:
+                    if column in df.columns:
+                        result_df[column] = derived_df[column]
+                    else:
+                        new_columns.append(column)
+                if new_columns:
+                    result_df = pd.concat([result_df, derived_df.loc[:, new_columns]], axis=1)
+                result_df.attrs = df.attrs.copy()
                 logger.info("Preprocessing completed with Polars optimization")
                 print(f"[TIME] Total preprocessing: {_time.time() - _preprocess_start:.1f}s (Polars)")
                 return result_df

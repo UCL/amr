@@ -1,0 +1,12 @@
+{
+  "source_url": "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/EXCEL_FILES/2_Population/WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx",
+  "source_sha256": "78109efb998fee10bd0c501844e04cafd0922836239e00aa90d9f35fc828a94a",
+  "source_bytes": 220318066,
+  "retrieved_date": "2026-09-08",
+  "source_sheet": "Estimates",
+  "year": 2023,
+  "source_units": "thousands of persons",
+  "age_units": "completed years; 100+ open interval",
+  "age_rows": 606,
+  "target_rows": 30
+}

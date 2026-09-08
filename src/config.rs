@@ -7649,222 +7649,222 @@ lazy_static! {
         map.insert("bordetella_pertussis_log_odds_hospital_acquired".to_string(), 3.0);
 
         // Regional acquisition effects relative to North America.
-        map.insert("south_america_shigella_spp_acquisition_log_odds".to_string(), 0.4);
-        map.insert("africa_shigella_spp_acquisition_log_odds".to_string(), 3.0);
-        map.insert("europe_shigella_spp_acquisition_log_odds".to_string(), 0.5);
-        map.insert("asia_shigella_spp_acquisition_log_odds".to_string(), 2.0);
-        map.insert("oceania_shigella_spp_acquisition_log_odds".to_string(), 0.7);
+        map.insert("south_america_shigella_spp_acquisition_log_odds".to_string(), 1.4);
+        map.insert("africa_shigella_spp_acquisition_log_odds".to_string(), 2.0);
+        map.insert("europe_shigella_spp_acquisition_log_odds".to_string(), 1.5);
+        map.insert("asia_shigella_spp_acquisition_log_odds".to_string(), 3.0);
+        map.insert("oceania_shigella_spp_acquisition_log_odds".to_string(), 1.7);
 
-        map.insert("africa_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.3);
-        map.insert("europe_acinetobacter_baumannii_acquisition_log_odds".to_string(), -0.3);
-        map.insert("asia_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.0);
-        map.insert("south_america_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.6);
-        map.insert("oceania_acinetobacter_baumannii_acquisition_log_odds".to_string(), -0.1);
+        map.insert("africa_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.9);
+        map.insert("europe_acinetobacter_baumannii_acquisition_log_odds".to_string(),  0.7);
+        map.insert("asia_acinetobacter_baumannii_acquisition_log_odds".to_string(), 3.0);
+        map.insert("south_america_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.6);
+        map.insert("oceania_acinetobacter_baumannii_acquisition_log_odds".to_string(),  0.8);
 
         // citrobacter_spp. - Predominantly healthcare-associated, modest regional differences
-        map.insert("africa_citrobacter_spp._acquisition_log_odds".to_string(), 0.1);
-        map.insert("europe_citrobacter_spp._acquisition_log_odds".to_string(), -0.5);
-        map.insert("asia_citrobacter_spp._acquisition_log_odds".to_string(), -0.2);
-        map.insert("south_america_citrobacter_spp._acquisition_log_odds".to_string(), -0.3);
-        map.insert("oceania_citrobacter_spp._acquisition_log_odds".to_string(), -0.4);
+        map.insert("africa_citrobacter_spp._acquisition_log_odds".to_string(),  0.6);
+        map.insert("europe_citrobacter_spp._acquisition_log_odds".to_string(),  0.4);
+        map.insert("asia_citrobacter_spp._acquisition_log_odds".to_string(),  0.7);
+        map.insert("south_america_citrobacter_spp._acquisition_log_odds".to_string(),  0.6);
+        map.insert("oceania_citrobacter_spp._acquisition_log_odds".to_string(),  0.5);
 
         // enterobacter_spp. - Predominantly healthcare-associated, modest regional differences
-        map.insert("africa_enterobacter_spp._acquisition_log_odds".to_string(), 0.2);
-        map.insert("europe_enterobacter_spp._acquisition_log_odds".to_string(), -0.5);
-        map.insert("asia_enterobacter_spp._acquisition_log_odds".to_string(), 0.0);
-        map.insert("south_america_enterobacter_spp._acquisition_log_odds".to_string(), -0.2);
-        map.insert("oceania_enterobacter_spp._acquisition_log_odds".to_string(), -0.3);
+        map.insert("africa_enterobacter_spp._acquisition_log_odds".to_string(), -0.2);
+        map.insert("europe_enterobacter_spp._acquisition_log_odds".to_string(),  0.4);
+        map.insert("asia_enterobacter_spp._acquisition_log_odds".to_string(), 0.9);
+        map.insert("south_america_enterobacter_spp._acquisition_log_odds".to_string(),  0.7);
+        map.insert("oceania_enterobacter_spp._acquisition_log_odds".to_string(),  0.6);
 
         // enterococcus_faecalis - Mixed healthcare/community, moderate regional differences
-        map.insert("africa_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.6);
-        map.insert("europe_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.2);
-        map.insert("asia_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.3);
-        map.insert("south_america_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.2);
+        map.insert("africa_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.2);
+        map.insert("europe_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.1);
+        map.insert("asia_enterococcus_faecalis_acquisition_log_odds".to_string(), 2.3);
+        map.insert("south_america_enterococcus_faecalis_acquisition_log_odds".to_string(), 2.0);
+        map.insert("oceania_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.2);
 
         // enterococcus_faecium - Predominantly healthcare-associated, high AMR burden
-        map.insert("africa_enterococcus_faecium_acquisition_log_odds".to_string(), 1.4);
-        map.insert("europe_enterococcus_faecium_acquisition_log_odds".to_string(), 0.2);
-        map.insert("asia_enterococcus_faecium_acquisition_log_odds".to_string(), 1.2);
-        map.insert("south_america_enterococcus_faecium_acquisition_log_odds".to_string(), 0.9);
-        map.insert("oceania_enterococcus_faecium_acquisition_log_odds".to_string(), 0.2);
+        map.insert("africa_enterococcus_faecium_acquisition_log_odds".to_string(), 1.0);
+        map.insert("europe_enterococcus_faecium_acquisition_log_odds".to_string(), 1.2);
+        map.insert("asia_enterococcus_faecium_acquisition_log_odds".to_string(), 2.1);
+        map.insert("south_america_enterococcus_faecium_acquisition_log_odds".to_string(), 1.8);
+        map.insert("oceania_enterococcus_faecium_acquisition_log_odds".to_string(), 1.1);
 
         // escherichia_coli - Major community and healthcare pathogen, high regional variation
-        map.insert("africa_escherichia_coli_acquisition_log_odds".to_string(), 1.2);
-        map.insert("europe_escherichia_coli_acquisition_log_odds".to_string(), -0.3);
-        map.insert("asia_escherichia_coli_acquisition_log_odds".to_string(), 1.0);
-        map.insert("south_america_escherichia_coli_acquisition_log_odds".to_string(), 0.6);
-        map.insert("oceania_escherichia_coli_acquisition_log_odds".to_string(), 0.1);
+        map.insert("africa_escherichia_coli_acquisition_log_odds".to_string(), 0.8);
+        map.insert("europe_escherichia_coli_acquisition_log_odds".to_string(),  0.6);
+        map.insert("asia_escherichia_coli_acquisition_log_odds".to_string(), 2.0);
+        map.insert("south_america_escherichia_coli_acquisition_log_odds".to_string(), 1.6);
+        map.insert("oceania_escherichia_coli_acquisition_log_odds".to_string(), 1.0);
 
         // klebsiella_pneumoniae - Mixed community/healthcare, major AMR threat
-        map.insert("africa_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 1.6);
-        map.insert("europe_klebsiella_pneumoniae_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 1.3);
-        map.insert("south_america_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 0.8);
-        map.insert("oceania_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 1.2);
+        map.insert("europe_klebsiella_pneumoniae_acquisition_log_odds".to_string(),  0.8);
+        map.insert("asia_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 2.2);
+        map.insert("south_america_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 1.7);
+        map.insert("oceania_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 0.9);
 
         // morganella_spp. - Predominantly healthcare-associated, urinary tract infections
-        map.insert("africa_morganella_spp._acquisition_log_odds".to_string(), -0.3);
-        map.insert("europe_morganella_spp._acquisition_log_odds".to_string(), -0.7);
-        map.insert("asia_morganella_spp._acquisition_log_odds".to_string(), -0.4);
-        map.insert("south_america_morganella_spp._acquisition_log_odds".to_string(), -0.5);
-        map.insert("oceania_morganella_spp._acquisition_log_odds".to_string(), -0.6);
+        map.insert("africa_morganella_spp._acquisition_log_odds".to_string(), -0.7);
+        map.insert("europe_morganella_spp._acquisition_log_odds".to_string(),  1.6);
+        map.insert("asia_morganella_spp._acquisition_log_odds".to_string(),  1.3);
+        map.insert("south_america_morganella_spp._acquisition_log_odds".to_string(),  1.4);
+        map.insert("oceania_morganella_spp._acquisition_log_odds".to_string(),  1.5);
 
         // proteus_spp. - Mixed healthcare/community, urinary tract and wound infections
-        map.insert("africa_proteus_spp._acquisition_log_odds".to_string(), 1.1);
-        map.insert("europe_proteus_spp._acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_proteus_spp._acquisition_log_odds".to_string(), 0.8);
-        map.insert("south_america_proteus_spp._acquisition_log_odds".to_string(), 0.5);
-        map.insert("oceania_proteus_spp._acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_proteus_spp._acquisition_log_odds".to_string(), 0.7);
+        map.insert("europe_proteus_spp._acquisition_log_odds".to_string(),  1.0);
+        map.insert("asia_proteus_spp._acquisition_log_odds".to_string(), 1.7);
+        map.insert("south_america_proteus_spp._acquisition_log_odds".to_string(), 1.4);
+        map.insert("oceania_proteus_spp._acquisition_log_odds".to_string(), 0.9);
 
         // serratia_spp. - Predominantly healthcare-associated, opportunistic pathogen
-        map.insert("africa_serratia_spp._acquisition_log_odds".to_string(), 0.8);
-        map.insert("europe_serratia_spp._acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_serratia_spp._acquisition_log_odds".to_string(), 0.6);
-        map.insert("south_america_serratia_spp._acquisition_log_odds".to_string(), 0.4);
-        map.insert("oceania_serratia_spp._acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_serratia_spp._acquisition_log_odds".to_string(), 0.4);
+        map.insert("europe_serratia_spp._acquisition_log_odds".to_string(),  0.8);
+        map.insert("asia_serratia_spp._acquisition_log_odds".to_string(), 1.5);
+        map.insert("south_america_serratia_spp._acquisition_log_odds".to_string(), 1.3);
+        map.insert("oceania_serratia_spp._acquisition_log_odds".to_string(), 0.9);
 
         // pseudomonas_aeruginosa - Predominantly healthcare-associated, major AMR threat
-        map.insert("africa_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.6);
-        map.insert("europe_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.3);
-        map.insert("asia_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.3);
-        map.insert("south_america_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.4);
+        map.insert("africa_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.2);
+        map.insert("europe_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.2);
+        map.insert("asia_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 2.2);
+        map.insert("south_america_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.9);
+        map.insert("oceania_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.3);
 
         // staphylococcus_aureus - Major community and healthcare pathogen, high regional variation
-        map.insert("africa_staphylococcus_aureus_acquisition_log_odds".to_string(), 1.5);
-        map.insert("europe_staphylococcus_aureus_acquisition_log_odds".to_string(), -0.2);
-        map.insert("asia_staphylococcus_aureus_acquisition_log_odds".to_string(), 1.2);
-        map.insert("south_america_staphylococcus_aureus_acquisition_log_odds".to_string(), 0.8);
-        map.insert("oceania_staphylococcus_aureus_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_staphylococcus_aureus_acquisition_log_odds".to_string(), 1.1);
+        map.insert("europe_staphylococcus_aureus_acquisition_log_odds".to_string(),  0.7);
+        map.insert("asia_staphylococcus_aureus_acquisition_log_odds".to_string(), 2.1);
+        map.insert("south_america_staphylococcus_aureus_acquisition_log_odds".to_string(), 1.7);
+        map.insert("oceania_staphylococcus_aureus_acquisition_log_odds".to_string(), 0.9);
 
         // streptococcus_pneumoniae - Predominantly community-acquired, high regional variation
-        map.insert("africa_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 2.2);
-        map.insert("europe_streptococcus_pneumoniae_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 1.8);
-        map.insert("south_america_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 1.2);
-        map.insert("oceania_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 0.3);
+        map.insert("africa_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 1.8);
+        map.insert("europe_streptococcus_pneumoniae_acquisition_log_odds".to_string(),  0.8);
+        map.insert("asia_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 2.8);
+        map.insert("south_america_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 2.2);
+        map.insert("oceania_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 1.3);
 
         // salmonella_enterica_serovar_typhi - Typhoid fever, highly endemic in certain regions
-        map.insert("africa_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 3.3);
-        map.insert("europe_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -1.8);
-        map.insert("asia_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 3.0);
-        map.insert("south_america_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 1.6);
-        map.insert("oceania_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -1.1);
+        map.insert("africa_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 2.5);
+        map.insert("europe_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -0.9);
+        map.insert("asia_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 4.8);
+        map.insert("south_america_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 2.5);
+        map.insert("oceania_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -0.2);
 
         // salmonella_enterica_serovar_paratyphi_a - Paratyphoid fever, similar but less common
-        map.insert("africa_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 3.2);
-        map.insert("europe_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -2.1);
-        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.9);
-        map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 1.5);
-        map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -1.3);
+        map.insert("africa_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.5);
+        map.insert("europe_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -1.2);
+        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 3.8);
+        map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.3);
+        map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -0.4);
 
         // invasive_non-typhoidal_salmonella_spp. - Bloodstream infections, especially in immunocompromised
-        map.insert("africa_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 4.5); // ~3 million cases/year in Africa; HIV/malnutrition
-        map.insert("europe_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -0.8);
-        map.insert("asia_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 2.3);
-        map.insert("south_america_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 1.7);
-        map.insert("oceania_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -0.3);
+        map.insert("africa_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 3.8); // ~3 million cases/year in Africa; HIV/malnutrition
+        map.insert("europe_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(),  0.1);
+        map.insert("asia_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 3.2);
+        map.insert("south_america_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 2.7);
+        map.insert("oceania_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(),  0.6);
 
         // neisseria_gonorrhoeae - Sexually transmitted infection, moderate regional variation
-        map.insert("africa_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.1);
-        map.insert("europe_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.4);
-        map.insert("asia_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.6);
-        map.insert("south_america_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.2);
-        map.insert("oceania_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.5);
+        map.insert("africa_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.7);
+        map.insert("europe_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.3);
+        map.insert("asia_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.5);
+        map.insert("south_america_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.1);
+        map.insert("oceania_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.4);
 
         // streptococcus_pyogenes - Group A Strep, community-acquired, moderate regional variation
-        map.insert("africa_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.8);
-        map.insert("europe_streptococcus_pyogenes_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.4);
-        map.insert("south_america_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_streptococcus_pyogenes_acquisition_log_odds".to_string(), 0.2);
+        map.insert("africa_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.4);
+        map.insert("europe_streptococcus_pyogenes_acquisition_log_odds".to_string(),  0.8);
+        map.insert("asia_streptococcus_pyogenes_acquisition_log_odds".to_string(), 2.3);
+        map.insert("south_america_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.9);
+        map.insert("oceania_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.1);
 
         // streptococcus_agalactiae - Group B Strep, neonatal/maternal infections, moderate variation
-        map.insert("africa_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.4);
-        map.insert("europe_streptococcus_agalactiae_acquisition_log_odds".to_string(), 0.0);
-        map.insert("asia_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.1);
-        map.insert("south_america_streptococcus_agalactiae_acquisition_log_odds".to_string(), 0.7);
-        map.insert("oceania_streptococcus_agalactiae_acquisition_log_odds".to_string(), 0.1);
+        map.insert("africa_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.0);
+        map.insert("europe_streptococcus_agalactiae_acquisition_log_odds".to_string(), 0.9);
+        map.insert("asia_streptococcus_agalactiae_acquisition_log_odds".to_string(), 2.0);
+        map.insert("south_america_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.6);
+        map.insert("oceania_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.0);
 
         // haemophilus_influenzae - fixed regional acquisition proxy; individual Hib
         // vaccination is modeled separately.
-        map.insert("africa_haemophilus_influenzae_acquisition_log_odds".to_string(), 2.0);
-        map.insert("europe_haemophilus_influenzae_acquisition_log_odds".to_string(), -0.3);
-        map.insert("asia_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.6);
-        map.insert("south_america_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_haemophilus_influenzae_acquisition_log_odds".to_string(), -0.2);
+        map.insert("africa_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.6);
+        map.insert("europe_haemophilus_influenzae_acquisition_log_odds".to_string(),  0.6);
+        map.insert("asia_haemophilus_influenzae_acquisition_log_odds".to_string(), 2.5);
+        map.insert("south_america_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.9);
+        map.insert("oceania_haemophilus_influenzae_acquisition_log_odds".to_string(),  0.7);
 
         // chlamydia_trachomatis - STI and trachoma, moderate regional variation
-        map.insert("africa_chlamydia_trachomatis_acquisition_log_odds".to_string(), 2.1);
-        map.insert("europe_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.2);
-        map.insert("asia_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.7);
-        map.insert("south_america_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.1);
-        map.insert("oceania_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.6);
+        map.insert("africa_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.7);
+        map.insert("europe_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.1);
+        map.insert("asia_chlamydia_trachomatis_acquisition_log_odds".to_string(), 2.6);
+        map.insert("south_america_chlamydia_trachomatis_acquisition_log_odds".to_string(), 2.0);
+        map.insert("oceania_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.5);
 
         // helicobacter_pylori - Gastric colonization with strong regional gradients
-        map.insert("africa_helicobacter_pylori_acquisition_log_odds".to_string(), 3.2);
-        map.insert("europe_helicobacter_pylori_acquisition_log_odds".to_string(), -0.2);
-        map.insert("asia_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
-        map.insert("south_america_helicobacter_pylori_acquisition_log_odds".to_string(), 1.9);
-        map.insert("oceania_helicobacter_pylori_acquisition_log_odds".to_string(), 0.4);
+        map.insert("africa_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
+        map.insert("europe_helicobacter_pylori_acquisition_log_odds".to_string(),  0.7);
+        map.insert("asia_helicobacter_pylori_acquisition_log_odds".to_string(), 3.7);
+        map.insert("south_america_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
+        map.insert("oceania_helicobacter_pylori_acquisition_log_odds".to_string(), 1.3);
 
         // vibrio_cholerae - Waterborne disease, extreme regional variation
-        map.insert("africa_vibrio_cholerae_acquisition_log_odds".to_string(), 3.5);
-        map.insert("europe_vibrio_cholerae_acquisition_log_odds".to_string(), -3.0);
-        map.insert("asia_vibrio_cholerae_acquisition_log_odds".to_string(), 2.8);
-        map.insert("south_america_vibrio_cholerae_acquisition_log_odds".to_string(), 1.5);
-        map.insert("oceania_vibrio_cholerae_acquisition_log_odds".to_string(), -2.2);
+        map.insert("africa_vibrio_cholerae_acquisition_log_odds".to_string(), 3.0);
+        map.insert("europe_vibrio_cholerae_acquisition_log_odds".to_string(), -2.1);
+        map.insert("asia_vibrio_cholerae_acquisition_log_odds".to_string(), 3.7);
+        map.insert("south_america_vibrio_cholerae_acquisition_log_odds".to_string(), 2.4);
+        map.insert("oceania_vibrio_cholerae_acquisition_log_odds".to_string(), -1.3);
 
         // neisseria_meningitidis - fixed regional acquisition proxy; individual
         // meningococcal vaccination is modeled separately.
-        map.insert("africa_neisseria_meningitidis_acquisition_log_odds".to_string(), 1.5);
-        map.insert("europe_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.8);
-        map.insert("asia_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.2);
-        map.insert("south_america_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.2);
-        map.insert("oceania_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.6);
+        map.insert("africa_neisseria_meningitidis_acquisition_log_odds".to_string(), 1.1);
+        map.insert("europe_neisseria_meningitidis_acquisition_log_odds".to_string(),  0.1);
+        map.insert("asia_neisseria_meningitidis_acquisition_log_odds".to_string(),  0.7);
+        map.insert("south_america_neisseria_meningitidis_acquisition_log_odds".to_string(),  0.7);
+        map.insert("oceania_neisseria_meningitidis_acquisition_log_odds".to_string(),  0.3);
 
         // listeria_monocytogenes - Foodborne pathogen, moderate regional variation
-        map.insert("africa_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.4);
-        map.insert("europe_listeria_monocytogenes_acquisition_log_odds".to_string(), -0.2);
-        map.insert("asia_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.3);
-        map.insert("south_america_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.1);
-        map.insert("oceania_listeria_monocytogenes_acquisition_log_odds".to_string(), -0.3);
+        map.insert("africa_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.0);
+        map.insert("europe_listeria_monocytogenes_acquisition_log_odds".to_string(),  0.7);
+        map.insert("asia_listeria_monocytogenes_acquisition_log_odds".to_string(), 1.0);
+        map.insert("south_america_listeria_monocytogenes_acquisition_log_odds".to_string(), 1.0);
+        map.insert("oceania_listeria_monocytogenes_acquisition_log_odds".to_string(),  0.6);
 
         // clostridioides_difficile - Healthcare-associated, antibiotic-driven, modest regional variation
-        map.insert("africa_clostridioides_difficile_acquisition_log_odds".to_string(), 0.2);
-        map.insert("europe_clostridioides_difficile_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_clostridioides_difficile_acquisition_log_odds".to_string(), 0.1);
-        map.insert("south_america_clostridioides_difficile_acquisition_log_odds".to_string(), 0.0);
-        map.insert("oceania_clostridioides_difficile_acquisition_log_odds".to_string(), -0.2);
+        map.insert("africa_clostridioides_difficile_acquisition_log_odds".to_string(), -0.2);
+        map.insert("europe_clostridioides_difficile_acquisition_log_odds".to_string(),  0.8);
+        map.insert("asia_clostridioides_difficile_acquisition_log_odds".to_string(), 1.0);
+        map.insert("south_america_clostridioides_difficile_acquisition_log_odds".to_string(), 0.9);
+        map.insert("oceania_clostridioides_difficile_acquisition_log_odds".to_string(),  0.7);
 
         // campylobacter_jejuni - Foodborne pathogen, moderate regional variation
-        map.insert("africa_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.5);
-        map.insert("europe_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.0);
-        map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.9);
-        map.insert("south_america_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.5);
-        map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 0.6);
+        map.insert("africa_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.0);
+        map.insert("europe_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.9);
+        map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.8);
+        map.insert("south_america_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.4);
+        map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.5);
 
         // enterobacter_cloacae - Healthcare-associated Enterobacteriaceae, modest regional variation
-        map.insert("africa_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.2);
-        map.insert("europe_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.5);
-        map.insert("asia_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.0);
-        map.insert("south_america_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.2);
-        map.insert("oceania_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.3);
+        map.insert("africa_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.2);
+        map.insert("europe_enterobacter_cloacae_acquisition_log_odds".to_string(),  0.4);
+        map.insert("asia_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.9);
+        map.insert("south_america_enterobacter_cloacae_acquisition_log_odds".to_string(),  0.7);
+        map.insert("oceania_enterobacter_cloacae_acquisition_log_odds".to_string(),  1.2);
 
         // yersinia_enterocolitica - Foodborne/zoonotic pathogen, moderate regional variation
-        map.insert("africa_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.2);
-        map.insert("europe_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.0);
-        map.insert("asia_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.0);
-        map.insert("south_america_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.0);
-        map.insert("oceania_yersinia_enterocolitica_acquisition_log_odds".to_string(), -0.1);
+        map.insert("africa_yersinia_enterocolitica_acquisition_log_odds".to_string(), -0.2);
+        map.insert("europe_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.9);
+        map.insert("asia_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.9);
+        map.insert("south_america_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.9);
+        map.insert("oceania_yersinia_enterocolitica_acquisition_log_odds".to_string(),  0.8);
 
         // moraxella_catarrhalis - Respiratory pathogen, moderate regional variation
-        map.insert("africa_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.9);
-        map.insert("europe_moraxella_catarrhalis_acquisition_log_odds".to_string(), -0.3);
-        map.insert("asia_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.5);
-        map.insert("south_america_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.2);
-        map.insert("oceania_moraxella_catarrhalis_acquisition_log_odds".to_string(), -0.2);
+        map.insert("africa_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.5);
+        map.insert("europe_moraxella_catarrhalis_acquisition_log_odds".to_string(),  0.6);
+        map.insert("asia_moraxella_catarrhalis_acquisition_log_odds".to_string(), 1.4);
+        map.insert("south_america_moraxella_catarrhalis_acquisition_log_odds".to_string(), 1.1);
+        map.insert("oceania_moraxella_catarrhalis_acquisition_log_odds".to_string(),  0.7);
 
         // treponema_pallidum - Syphilis, moderate-high regional variation
         map.insert("treponema_pallidum_base_bacteria_level_change".to_string(), 0.18); // Very slow spirochete replication (30+ hour doubling)
@@ -11596,7 +11596,7 @@ lazy_static! {
         // --- REGIONAL SEPSIS RISK FACTORS ---
         // Account for healthcare infrastructure, population density, socioeconomic factors
 
-        // Per-region additive sepsis-onset log-odds.
+        // Per-region additive sepsis-onset log-odds.  rrrr
         // Negative values = lower risk of developing sepsis from infection (better early recognition/treatment)
         map.insert("log_odds_sepsis_onset_region_north_america".to_string(), -0.5); // Excellent early sepsis recognition
         map.insert("log_odds_sepsis_onset_region_europe".to_string(), -0.6); // Best early warning systems

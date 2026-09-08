@@ -80,11 +80,31 @@ class CalibrationSchemaProvenanceTests(unittest.TestCase):
     def test_current_schema_is_recorded_without_legacy_warning(self) -> None:
         text = _calibration_schema_provenance_text(
             Path("simulation_summary_123456.csv"),
-            4,
+            6,
         )
 
-        self.assertIn("Simulation summary schema: 4 (current)", text)
+        self.assertIn("Simulation summary schema: 6 (current)", text)
         self.assertNotIn("Legacy compatibility", text)
+        self.assertNotIn("Historical resistance warning", text)
+        self.assertNotIn("Historical mortality scope", text)
+
+    def test_schema_five_has_aligned_resistance_but_historical_mortality_scope(self) -> None:
+        text = _calibration_schema_provenance_text(Path("old.csv"), 5)
+        self.assertIn("Simulation summary schema: 5 (compatible)", text)
+        self.assertNotIn("Historical resistance warning", text)
+        self.assertIn("Historical mortality scope", text)
+        self.assertIn("new simulation run with schema 6", text)
+
+    def test_historical_counts_have_durable_timing_warning(self) -> None:
+        for version in (1, 2, 3, 4):
+            with self.subTest(version=version):
+                text = _calibration_schema_provenance_text(Path("old.csv"), version)
+                self.assertIn("Historical resistance warning", text)
+                self.assertIn("cannot repair", text)
+        self.assertIn(
+            "including its regional resistance snapshots",
+            _calibration_schema_provenance_text(Path("regional.csv"), 4),
+        )
 
     def test_schema_three_remains_compatible_with_diagnostic_outputs(self) -> None:
         text = _calibration_schema_provenance_text(Path("old.csv"), 3)

@@ -178,6 +178,7 @@ CALIBRATION_PATTERNS = [
     r'.*_presence_microbiome_resistant$',
 
     # Age-specific infection deaths by region and cause
+    r'^(north_america|south_america|africa|asia|europe|oceania)_deaths_(sepsis|infection_non_sepsis)$',
     r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)_deaths_sepsis$',
     r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)_deaths_infection_non_sepsis$',
     # Age-proportion denominators for computing per-age-group rates

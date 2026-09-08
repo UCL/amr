@@ -83,7 +83,12 @@ import pandas as pd
 
 try:
     from .parse_calibration import aggregate, parse_files
+    from .resistance_observation import (
+        uses_aligned_resistance_observations,
+        validate_resistance_observation,
+    )
     from .summary_schema import (
+        HISTORICAL_RESISTANCE_TIMING_WARNING,
         CALIBRATION_SUMMARY_SCHEMA_VERSIONS,
         SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
         SUMMARY_SCHEMA_VERSION_COLUMN,
@@ -94,7 +99,12 @@ try:
     )
 except ImportError:  # Allows direct script execution from this folder.
     from parse_calibration import aggregate, parse_files
+    from resistance_observation import (
+        uses_aligned_resistance_observations,
+        validate_resistance_observation,
+    )
     from summary_schema import (
+        HISTORICAL_RESISTANCE_TIMING_WARNING,
         CALIBRATION_SUMMARY_SCHEMA_VERSIONS,
         SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
         SUMMARY_SCHEMA_VERSION_COLUMN,
@@ -148,10 +158,13 @@ def _paper_schema_contract_note() -> str:
     if _ALLOW_LEGACY_NON_SF5_SCHEMAS.get():
         return (
             "This explicitly requested compatibility build accepts simulation-summary "
-            "schemas 1-4 for outputs unaffected by the diagnostic-cascade schema changes; "
+            "schemas 1-6 for supported outputs; historical resistance timing is retained; "
             "Supplementary Figure S5 is omitted."
         )
-    return "The paper-output build accepts the current schema 4 and compatible schema 3."
+    return (
+        "The paper-output build accepts current schema 6 and format-compatible schemas 3, 4 and 5; "
+        "schemas 3 and 4 retain their historical resistance timing."
+    )
 
 # Figure 2 toggle. Options:
 #   "median_range" - simulation median with 5th-95th percentile range
@@ -1671,9 +1684,9 @@ def _validate_reported_calibration_schemas(
         if version is not None and version not in allowed:
             source = meta.get("source_file", "calibration summary")
             requirement = (
-                "--legacy-without-sf5 accepts only schemas 1, 2, 3, and 4"
+                "--legacy-without-sf5 accepts only schemas 1, 2, 3, 4, 5, and 6"
                 if allow_legacy
-                else "the default paper build requires schema 3 or 4"
+                else "the default paper build requires schema 3, 4, 5 or 6"
             )
             raise SimulationSummarySchemaError(
                 f"{source} reports simulation-summary schema {version}; {requirement}."
@@ -1690,7 +1703,7 @@ def _paper_build_provenance_text(
     mode = (
         "legacy compatibility (--legacy-without-sf5)"
         if legacy_without_sf5
-        else "current and compatible schemas (3, 4)"
+        else "current and compatible schemas (3, 4, 5, 6)"
     )
     lines = [
         "Paper-output build provenance",
@@ -1734,11 +1747,18 @@ def _paper_build_provenance_text(
         lines.extend(
             [
                 "",
-                "Compatibility statement: schemas 1-4 are accepted only for paper outputs "
+                "Compatibility statement: schemas 1-6 are accepted only for paper outputs "
                 "unaffected by the diagnostic-cascade changes. Supplementary Figure S5 is "
                 "not generated or represented by a placeholder in this build.",
             ]
         )
+    reported_versions = {
+        version for run in runs
+        if isinstance(run.get("meta"), dict)
+        if (version := _reported_calibration_schema(run["meta"])) is not None
+    }
+    if any(version < 5 for version in {*csv_schema_versions.values(), *reported_versions}):
+        lines.extend(["", HISTORICAL_RESISTANCE_TIMING_WARNING])
     return "\n".join(lines) + "\n"
 
 
@@ -1751,7 +1771,7 @@ def _paper_build_provenance_html(
     if legacy_without_sf5:
         body += (
             "<div class='meta-box' style='border-left-color:#d97706'>"
-            "<strong>Legacy compatibility build.</strong> Simulation-summary schemas 1-4 "
+            "<strong>Legacy compatibility build.</strong> Simulation-summary schemas 1-6 "
             "are accepted only for outputs unaffected by the diagnostic-cascade changes. "
             "Supplementary Figure S5 was intentionally omitted.</div>\n"
         )
@@ -3749,6 +3769,12 @@ def _f2_setting_benchmark_table_from_frame(
     working = working.loc[(years >= 2022.0) & (years < 2026.0)].copy()
     if working.empty:
         return pd.DataFrame()
+
+    if uses_aligned_resistance_observations(working):
+        for _, denominator, numerator in specs:
+            validate_resistance_observation(
+                working, numerator, infected_col=denominator
+            )
 
     output = benchmark_rows.copy()
     output["Inf sim (%)"] = np.nan
@@ -5877,7 +5903,9 @@ def make_figure_7_infection_death_rate_by_region(csv_paths: list[Path], out_dir:
         title,
         f"Bars show mean infection deaths per 100,000 regional person-years during 2022-2025 "
         f"across {n_runs} run{'s' if n_runs != 1 else ''}; error bars are two-sided 95% t confidence "
-        "intervals. Sepsis and non-sepsis infection deaths are included.",
+        "intervals. Sepsis and non-sepsis infection deaths are included. "
+        "Their scope follows the source schema: schema 6 and later exclude deaths with only "
+        "H. pylori/MDR-TB contributors; schemas 1-5 retain the broader counts.",
         [],
         agg=agg,
         meta_footnote_override="",

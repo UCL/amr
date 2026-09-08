@@ -10,15 +10,23 @@ import pandas as pd
 
 
 SUMMARY_SCHEMA_VERSION_COLUMN = "simulation_summary_schema_version"
-SUPPORTED_SUMMARY_SCHEMA_VERSION = 4
-# Version 4 adds regional reporting without changing version-3 fields or the
-# diagnostic-cascade contract. Existing version-3 files remain usable.
-SUPPORTED_SUMMARY_SCHEMA_VERSIONS = frozenset({3, 4})
-CALIBRATION_SUMMARY_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
+SUPPORTED_SUMMARY_SCHEMA_VERSION = 6
+# Schema 6 applies headline scope to the existing regional/age infection-death
+# counters, with no layout change. Older formats stay readable, but acceptance
+# cannot change their broad mortality scope or repair historical resistance timing.
+SUPPORTED_SUMMARY_SCHEMA_VERSIONS = frozenset({3, 4, 5, 6})
+CALIBRATION_SUMMARY_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6})
+HISTORICAL_RESISTANCE_TIMING_WARNING = (
+    "Historical resistance warning: schemas 1-4 record active-infection resistance "
+    "numerators before daily rules and infection denominators after them. Their "
+    "resistance percentages can be biased even when below 100%; compatibility "
+    "loading or clipping cannot repair the recorded counts. Regenerate with schema 5 or later "
+    "for aligned observations. Schema-4 regional resistance snapshots are already aligned."
+)
 
 
 def summary_schema_status(version: int) -> str:
-    """Distinguish current, backwards-compatible and legacy output revisions."""
+    """Label format compatibility, independently of historical metric caveats."""
     if version == SUPPORTED_SUMMARY_SCHEMA_VERSION:
         return "current"
     if version in SUPPORTED_SUMMARY_SCHEMA_VERSIONS:
@@ -60,9 +68,10 @@ def validate_summary_frame(
 ) -> int | None:
     """Require one uniform, integral schema version accepted by this workflow.
 
-    The default contract accepts schemas 3 and 4, which share the existing
-    analysis and diagnostic-cascade definitions. The explicit compatibility
-    flag additionally permits schemas 1 and 2 for calibration-only workflows.
+    The default contract accepts schemas 3-6; schemas 3-4 retain the historical
+    active-infection resistance timing. The explicit compatibility flag also
+    permits schemas 1 and 2 for calibration-only workflows. Schemas 1-5 lack
+    headline-scope infection-death breakdowns by region and age.
     """
 
     validate_summary_header(frame.columns, source)
@@ -100,7 +109,7 @@ def validate_summary_frame(
                 + ", ".join(str(value) for value in sorted(allowed_versions))
             )
         else:
-            requirement = "this analysis requires version 3 or 4"
+            requirement = "this analysis requires version 3, 4, 5 or 6"
         raise SimulationSummarySchemaError(
             f"{_source_label(source)} uses unsupported simulation-summary schema value(s) "
             f"{[str(version)]}; {requirement}."

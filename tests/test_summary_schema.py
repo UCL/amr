@@ -14,11 +14,11 @@ from amr_simulation_output_analysis.summary_schema import (
 
 
 class SimulationSummarySchemaTests(unittest.TestCase):
-    def test_regional_schema_preserves_version_three_compatibility(self) -> None:
-        self.assertEqual(SUPPORTED_SUMMARY_SCHEMA_VERSION, 4)
-        self.assertEqual(set(SUPPORTED_SUMMARY_SCHEMA_VERSIONS), {3, 4})
-        self.assertEqual(set(CALIBRATION_SUMMARY_SCHEMA_VERSIONS), {1, 2, 3, 4})
-        for version in (3, 4):
+    def test_death_scope_schema_preserves_historical_format_compatibility(self) -> None:
+        self.assertEqual(SUPPORTED_SUMMARY_SCHEMA_VERSION, 6)
+        self.assertEqual(set(SUPPORTED_SUMMARY_SCHEMA_VERSIONS), {3, 4, 5, 6})
+        self.assertEqual(set(CALIBRATION_SUMMARY_SCHEMA_VERSIONS), {1, 2, 3, 4, 5, 6})
+        for version in (3, 4, 5, 6):
             with self.subTest(version=version):
                 frame = pd.DataFrame({SUMMARY_SCHEMA_VERSION_COLUMN: [version, version]})
                 self.assertEqual(validate_summary_frame(frame), version)
@@ -34,8 +34,8 @@ class SimulationSummarySchemaTests(unittest.TestCase):
         validate_summary_header(frame.columns, "current.csv")
         validate_summary_frame(frame, "current.csv")
 
-    def test_calibration_compatibility_accepts_uniform_versions_one_to_four(self) -> None:
-        for schema_version in (1, 2, 3, 4):
+    def test_calibration_compatibility_accepts_uniform_versions_one_to_six(self) -> None:
+        for schema_version in (1, 2, 3, 4, 5, 6):
             with self.subTest(schema_version=schema_version):
                 frame = pd.DataFrame(
                     {

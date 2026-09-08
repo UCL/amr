@@ -1,0 +1,108 @@
+{
+  "status": "first_pass_frozen_response_fit_not_simulation_validated",
+  "baseline_input": "target\\regional_calibration_baseline_config.rs",
+  "baseline_input_sha256": "74ee4208660199bc086be3b6b5aca7f16564f703c4a3427cfe556cf6fb249efc",
+  "summary_input": "amr_simulation_output_analysis_outputs\\simulation_summary_226163.preprocessed.parquet",
+  "targets_input": "archive\\calibration_snapshots\\regional_first_pass_2026-09-08\\demographic_targets_un_wpp2024.csv",
+  "targets_sha256": "e8d2a9c4951da92ddff57d5d373732edd5ffe58cf32c80a174bb401a0550ea09",
+  "selected_summary_sha256": "f482bf8d128221de5a9ac49d2363819cd00689851c1a99d557ed4ce426c3c5a6",
+  "baseline_sampler": "legacy-negzero",
+  "candidate_sampler": "corrected",
+  "calibration_day_min": 33580,
+  "calibration_day_max": 35039,
+  "calibration_rows": 1460,
+  "age_offset_days": 1,
+  "model_days_per_year": 365,
+  "smoothness": 0.25,
+  "mean_baseline_population": 5863089.742465753,
+  "software_versions": {
+    "python": "3.11.9",
+    "numpy": "2.4.2",
+    "pandas": "3.0.1",
+    "scipy": "1.16.3"
+  },
+  "baseline_configured_weight_sum": 1.3809999999999998,
+  "baseline_effective_weight_sum": 1.3289999999999997,
+  "fitted_weight_sum": 1.3289999999999997,
+  "global_living_population_ratio_frozen_response": 0.9406156125557564,
+  "common_normalization_multiplier": 0.9406156125557563,
+  "unobserved_initial_age_bands": [
+    [
+      -40000,
+      -36000
+    ]
+  ],
+  "max_absolute_joint_share_residual": 5.551115123125783e-17,
+  "region_targets": {
+    "asia": 0.589659,
+    "africa": 0.184351,
+    "europe": 0.10388999079540767,
+    "north_america": 0.05764108087892221,
+    "south_america": 0.0428699084279471,
+    "oceania": 0.021589019897723064
+  },
+  "region_fits": [
+    {
+      "region": "asia",
+      "success": true,
+      "iterations": 9,
+      "objective": 0.237546991040908,
+      "max_relative_cell_residual": 1.1102230246251565e-16,
+      "minimum_prior_multiplier": 0.7178291411289233,
+      "maximum_prior_multiplier": 1.1398237288535364
+    },
+    {
+      "region": "africa",
+      "success": true,
+      "iterations": 10,
+      "objective": 2.0362010460973803,
+      "max_relative_cell_residual": 1.1102230246251565e-16,
+      "minimum_prior_multiplier": 0.3965420388117975,
+      "maximum_prior_multiplier": 1.3911158983047216
+    },
+    {
+      "region": "europe",
+      "success": true,
+      "iterations": 11,
+      "objective": 6.054380907674365,
+      "max_relative_cell_residual": 2.220446049250313e-16,
+      "minimum_prior_multiplier": 0.5319619164507667,
+      "maximum_prior_multiplier": 2.1016801331208295
+    },
+    {
+      "region": "north_america",
+      "success": true,
+      "iterations": 11,
+      "objective": 11.339092893294847,
+      "max_relative_cell_residual": 1.1102230246251565e-16,
+      "minimum_prior_multiplier": 0.5524260478611013,
+      "maximum_prior_multiplier": 2.4119462441242563
+    },
+    {
+      "region": "south_america",
+      "success": true,
+      "iterations": 10,
+      "objective": 1.3037492560812927,
+      "max_relative_cell_residual": 1.1102230246251565e-16,
+      "minimum_prior_multiplier": 0.6348814753187594,
+      "maximum_prior_multiplier": 1.4476956534568155
+    },
+    {
+      "region": "oceania",
+      "success": true,
+      "iterations": 10,
+      "objective": 0.5921924061217396,
+      "max_relative_cell_residual": 1.1102230246251565e-16,
+      "minimum_prior_multiplier": 0.771478726357162,
+      "maximum_prior_multiplier": 1.31883603388921
+    }
+  ],
+  "limitations": [
+    "Response is inferred per broad region-age cell, not from individual survival histories.",
+    "Oldest-age response and the restored [-4000, 0) cohort are weakly identified.",
+    "Equal time weighting uses mean daily joint shares; kernel-response factorization is approximate.",
+    "Unborn cohorts preserve region-scaled prior before the unavoidable common normalization.",
+    "Age targets describe their source year, while the fit averages the stated calibration window.",
+    "Changed mortality, migration, and other model dynamics require a new full-model validation run."
+  ]
+}

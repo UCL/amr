@@ -18,21 +18,36 @@ if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     from amr_simulation_output_analysis.config import PlotConfig
     from amr_simulation_output_analysis.data_loader import DataCache
+    from amr_simulation_output_analysis.death_counts import (
+        InfectionDeathCountTables,
+        calculate_infection_death_counts,
+    )
     from amr_simulation_output_analysis.summary_schema import (
+        HISTORICAL_RESISTANCE_TIMING_WARNING,
         SUPPORTED_SUMMARY_SCHEMA_VERSION,
         SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
         summary_schema_status,
     )
     from amr_simulation_output_analysis.utils import extract_simulation_run_id
+    from amr_simulation_output_analysis.resistance_observation import (
+        uses_aligned_resistance_observations,
+        validate_resistance_observation,
+    )
 else:
     from .config import PlotConfig
     from .data_loader import DataCache
+    from .death_counts import InfectionDeathCountTables, calculate_infection_death_counts
     from .summary_schema import (
+        HISTORICAL_RESISTANCE_TIMING_WARNING,
         SUPPORTED_SUMMARY_SCHEMA_VERSION,
         SUPPORTED_SUMMARY_SCHEMA_VERSIONS,
         summary_schema_status,
     )
     from .utils import extract_simulation_run_id
+    from .resistance_observation import (
+        uses_aligned_resistance_observations,
+        validate_resistance_observation,
+    )
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -619,12 +634,18 @@ def _gather_calibration_context(
     ) = _calculate_calibration_window_acquisition_totals(year_df)
     resistance_incidence_locus_df = _calculate_resistance_incidence_locus_table(year_df)
     serious_resistance_locus_df = _calculate_serious_resistance_locus_table(year_df)
-    age_region_death_rate_df = _calculate_age_region_death_rate_table(year_df, window_years)
+    death_count_tables = calculate_infection_death_counts(
+        year_df, window_years=window_years, scale_factor=scale_factor
+    )
+    age_region_death_rate_df = _calculate_age_region_death_rate_table(
+        year_df, window_years, death_count_tables
+    )
 
     return {
         "resistance_incidence_locus_df": resistance_incidence_locus_df,
         "serious_resistance_locus_df": serious_resistance_locus_df,
         "age_region_death_rate_df": age_region_death_rate_df,
+        "death_count_tables": death_count_tables,
         "config": config,
         "targets": targets,
         "df": df,
@@ -1863,7 +1884,8 @@ def _write_regional_resistance_summary(
         "Infection resistance is 100 x positive-any_r infection-days / infected-days. "
         "Conditional mean any_r is 100 x summed any_r / positive-any_r infection-days.\n"
         "Regional fields use one end-of-day snapshot of living active infections; "
-        "legacy global fields have different within-day observation timing. These "
+        "schema-5 global fields use the same snapshot, while schema-1-4 global fields "
+        "have different within-day observation timing. These "
         "regional descriptive means do not change the calibration score.\n"
     )
     if unavailable:
@@ -1880,12 +1902,20 @@ def _compute_resistance_stats(
     infected_col: str,
     positive_count_col: str,
 ) -> Optional[Tuple[float, float]]:
-    required = {infected_col, positive_count_col}
-    if frame.empty or any(col not in frame for col in required):
+    if frame.empty:
         return None
-
-    infected_series = frame[infected_col].astype(float)
-    positive_series = frame[positive_count_col].astype(float)
+    aligned = uses_aligned_resistance_observations(frame)
+    if aligned:
+        numeric = validate_resistance_observation(
+            frame, positive_count_col, infected_col=infected_col
+        )
+        infected_series = numeric[infected_col]
+        positive_series = numeric[positive_count_col]
+    else:
+        if any(col not in frame for col in (infected_col, positive_count_col)):
+            return None
+        infected_series = frame[infected_col].astype(float)
+        positive_series = frame[positive_count_col].astype(float)
 
     mask = infected_series > 0
     if not mask.any():
@@ -1897,7 +1927,7 @@ def _compute_resistance_stats(
 
     total_positive = float(positive_series[mask].sum())
     prevalence = total_positive / total_infected
-    percent = float(np.clip(prevalence, 0.0, 1.0) * 100.0)
+    percent = float(prevalence * 100.0) if aligned else float(np.clip(prevalence, 0.0, 1.0) * 100.0)
     return (percent, total_infected)
 
 
@@ -1905,8 +1935,32 @@ def _compute_average_resistant_stats(
     frame: pd.DataFrame,
     sum_any_col: str,
     positive_count_col: str,
+    *,
+    infected_col: Optional[str] = None,
 ) -> Optional[Tuple[float, float, bool]]:
-    if frame.empty or sum_any_col not in frame:
+    if frame.empty:
+        return None
+
+    if uses_aligned_resistance_observations(frame):
+        if infected_col is None:
+            bacterium, separator, suffix = positive_count_col.partition("_infected_with_any_r_positive_")
+            if separator:
+                setting = next((name for name in ("hospital", "community") if suffix.startswith(f"{name}_")), None)
+                infected_col = (
+                    f"{bacterium}_currently_infected_{setting}_count"
+                    if setting else f"{bacterium}_currently_infected"
+                )
+        numeric = validate_resistance_observation(
+            frame, positive_count_col, infected_col=infected_col, sum_any_col=sum_any_col
+        )
+        total_positive = float(numeric[positive_count_col].sum())
+        if total_positive == 0.0:
+            return (np.nan, 0.0, False)
+        # Only the small validated floating-point tolerance may exceed 1.0.
+        mean_any_r = min(float(numeric[sum_any_col].sum()) / total_positive, 1.0)
+        return (100.0 * mean_any_r, total_positive, False)
+
+    if sum_any_col not in frame:
         return None
 
     sum_any_series = frame[sum_any_col].astype(float)
@@ -2269,7 +2323,9 @@ def _calculate_resistance_table(
                 average_used_expanded,
                 average_fallback_applied,
             ) = compute_with_fallback(
-                lambda frame: _compute_average_resistant_stats(frame, sum_any_r_col, positive_col)
+                lambda frame: _compute_average_resistant_stats(
+                    frame, sum_any_r_col, positive_col, infected_col=infected_col
+                )
             )
         elif not pd.isna(average_target):  # target provided but data missing
             note_parts.append("average-resistant metric not modelled")
@@ -4616,11 +4672,67 @@ def _calculate_syndrome_incidence_table(
         
     return pd.DataFrame(records, columns=columns)
 
+def _write_infection_death_count_tables(
+    handle,
+    tables: InfectionDeathCountTables,
+    *,
+    window_label: str,
+    window_years: float,
+    scale_factor: float,
+) -> None:
+    """Render unique-person infection deaths with explicit time and scope units."""
+    for dimension, table, unavailable in (
+        ("Age Group", tables.age_table, tables.age_unavailable),
+        ("Region", tables.region_table, tables.region_unavailable),
+    ):
+        handle.write(f"Infection Death Counts by {dimension}\n")
+        handle.write(f"Observation window: {window_label}; baseline policy 0.\n")
+        handle.write(
+            "Infection deaths are sepsis plus non-sepsis infection deaths, counting each "
+            "person once. Background and drug-toxicity deaths are excluded.\n"
+            "Scope: matches the headline infection-death total, excluding deaths whose "
+            "eligible contributors are limited to H. pylori and MDR-TB. A concurrent "
+            "eligible contributor from another organism keeps the death in scope, counted once.\n"
+        )
+        handle.write(
+            f"Simulated counts cover the entire {window_years:.2f}-year window. "
+            f"Annual counts = simulated counts / {window_years:.2f} x {scale_factor:,.4f} "
+            "(the same world-population scale factor as the headline metrics).\n"
+        )
+        if dimension == "Age Group":
+            handle.write("Groups use age at death: 0-5, 6-14, 15-49, 50-79 and 80+ years.\n")
+        else:
+            handle.write(
+                "Region is the effective location at the start of the death day, including "
+                "travel; it is not necessarily home residence.\n"
+            )
+        if unavailable:
+            handle.write(f"Unavailable: {unavailable}\n\n")
+            continue
+        if table.empty:
+            handle.write("Unavailable: no death-count observations.\n\n")
+            continue
+        display = table.copy()
+        for column in display.columns:
+            if column != dimension:
+                display[column] = display[column].map(
+                    lambda value: "---" if pd.isna(value) else f"{value:,.0f}"
+                )
+        handle.write(_render_table_with_alignment(display, left_columns={dimension}))
+        handle.write(
+            "\nNote: both breakdowns use the headline's time window, population scaling and "
+            "organism scope. Their annual totals equal the headline infection-death "
+            "total before display rounding (the headline is expressed in millions).\n"
+            "Note: annual counts are rounded for display; totals use unrounded values.\n\n"
+        )
+
+
 def _calculate_age_region_death_rate_table(
     year_df: pd.DataFrame,
     window_years: float,
+    death_count_tables: Optional[InfectionDeathCountTables] = None,
 ) -> pd.DataFrame:
-    """Infection death rates (sepsis + infection_non_sepsis) per 100,000 per year by age group and region."""
+    """Headline-scope infection deaths per 100,000 per year by age and region."""
 
     region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
     region_labels = ['N. America', 'S. America', 'Africa', 'Asia', 'Europe', 'Oceania']
@@ -4630,23 +4742,27 @@ def _calculate_age_region_death_rate_table(
     if year_df.empty or not (np.isfinite(window_years) and window_years > 0):
         return pd.DataFrame()
 
+    if death_count_tables is None:
+        death_count_tables = calculate_infection_death_counts(
+            year_df, window_years=window_years, scale_factor=1.0
+        )
+    if death_count_tables.age_unavailable or death_count_tables.age_region_counts is None:
+        return pd.DataFrame()
+    cell_totals = death_count_tables.age_region_counts.sum(axis=(0, 3))
+
     records = []
-    for age_group, age_label in zip(age_groups, age_labels):
+    for age_idx, (age_group, age_label) in enumerate(zip(age_groups, age_labels)):
         row: Dict[str, object] = {'Age Group': age_label}
-        for region, region_label in zip(region_names, region_labels):
+        for region_idx, (region, region_label) in enumerate(zip(region_names, region_labels)):
             prop_col = f"{region}_prop_age_{age_group}"
-            sepsis_col = f"{region}_prop_age_{age_group}_deaths_sepsis"
-            non_sepsis_col = f"{region}_prop_age_{age_group}_deaths_infection_non_sepsis"
             pop_col = f"{region}_population"
 
-            missing = [c for c in (prop_col, sepsis_col, non_sepsis_col, pop_col) if c not in year_df.columns]
+            missing = [c for c in (prop_col, pop_col) if c not in year_df.columns]
             if missing:
                 row[region_label] = np.nan
                 continue
 
-            total_deaths = float(
-                year_df[sepsis_col].sum(skipna=True) + year_df[non_sepsis_col].sum(skipna=True)
-            )
+            total_deaths = float(cell_totals[region_idx, age_idx])
             avg_pop = float(year_df[pop_col].mean(skipna=True))
             avg_prop = float(year_df[prop_col].mean(skipna=True))
             avg_age_pop = avg_pop * avg_prop
@@ -4684,10 +4800,23 @@ def _calibration_schema_provenance_text(
             "--legacy-without-sf5; diagnostic-cascade outputs including Supplementary Figure "
             "S5 are not valid under current definitions."
         )
-    elif schema_version < SUPPORTED_SUMMARY_SCHEMA_VERSION:
+    elif schema_version == 3:
         lines.append(
             "Compatibility: schema 3 remains supported for general analysis and "
             "Supplementary Figure S5; regional resistance reporting requires the new CSV fields."
+        )
+    elif schema_version == 4:
+        lines.append(
+            "Compatibility: schema 4 remains supported, including its regional resistance "
+            "snapshots and Supplementary Figure S5."
+        )
+    if schema_version < 5:
+        lines.append(HISTORICAL_RESISTANCE_TIMING_WARNING)
+    if schema_version < 6:
+        lines.append(
+            "Historical mortality scope: schemas 1-5 include H. pylori and MDR-TB in "
+            "regional and age infection-death fields. Exact headline-scope breakdowns "
+            "require a new simulation run with schema 6 or later."
         )
     return "\n".join(lines) + "\n"
 
@@ -5096,12 +5225,29 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write(syndrome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n\n")
 
+        death_count_tables = context.get("death_count_tables")
+        if not isinstance(death_count_tables, InfectionDeathCountTables):
+            death_count_tables = calculate_infection_death_counts(
+                year_df, window_years=window_years, scale_factor=scale_factor
+            )
+        _write_infection_death_count_tables(
+            handle,
+            death_count_tables,
+            window_label=str(context.get("calibration_window_year_range", "calibration window")),
+            window_years=window_years,
+            scale_factor=scale_factor,
+        )
+
         age_region_death_rate_df = context.get("age_region_death_rate_df")
         if isinstance(age_region_death_rate_df, pd.DataFrame) and not age_region_death_rate_df.empty:
             handle.write(
                 "Infection Death Rates by Age Group and Region"
                 " (deaths per 100,000 alive in age group per year;"
-                " sepsis + infection_non_sepsis combined)\n"
+                " sepsis + infection_non_sepsis combined; headline organism scope)\n"
+            )
+            handle.write(
+                "Deaths with only H. pylori or MDR-TB contributors are excluded, "
+                "matching the headline and death-count tables.\n"
             )
             handle.write(
                 age_region_death_rate_df.to_string(
@@ -5111,6 +5257,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 )
             )
             handle.write("\n\n")
+        elif death_count_tables.age_unavailable:
+            handle.write(
+                "Infection Death Rates by Age Group and Region\n"
+                f"Unavailable: {death_count_tables.age_unavailable}\n\n"
+            )
 
         _write_metric_fit_summary(
             handle,

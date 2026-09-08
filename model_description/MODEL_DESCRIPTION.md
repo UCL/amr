@@ -66,13 +66,13 @@ The simulation advances in discrete daily steps. Each simulated day, every livin
 - Resistance emergence via de novo mutation or horizontal gene transfer
 - Mortality from infection, sepsis, or drug toxicity
 
-**Order of events within a simulated day.** In the current model, `apply_rules()` first checks birth and death status and applies birth-cohort vaccination, then clears daily microbiome indicators and increments the living person's age. It evaluates immunodeficiency transitions; hospital admission and discharge; travel; sepsis onset or removal when an infection is no longer active; antibiotic stopping and pharmacokinetic updates; treatment-failure and restart assessments; and new drug selection. Toxicity and microbiome-disruption reservoirs are then updated, toxicity can stop a drug, and mortality is evaluated. A death ends that person's remaining daily rules. Survivors receive sepsis-recovery draws, followed by updates for each bacterium. If no positive infection episode exists when that bacterium's update begins, the model evaluates ordinary carriage dynamics and candidate infection acquisition. Existing episodes instead receive infection-side resistance emergence and promotion. Diagnostics follow, then immune-clearance and infection-side reversion draws, drug activity and infection-level updates, episode retirement and symptom updates. HGT is evaluated after all bacteria have been updated, followed by the post-infection antibiotic-use history check. Thus sepsis onset precedes infections acquired later that day, diagnostics precede that day's infection-level update, and carriage dynamics are skipped for a bacterium that enters its update with a positive infection episode, even if another bacterium remains eligible for acquisition.
+**Order of events within a simulated day.** In the current model, `apply_rules()` first checks birth and death status and applies birth-cohort vaccination, then clears daily microbiome indicators and increments the living person's age. It evaluates immunodeficiency transitions; hospital admission and discharge; travel; sepsis onset or removal when an infection is no longer active; antibiotic stopping and pharmacokinetic updates; treatment-failure and restart assessments; and new drug selection. Toxicity and microbiome-disruption reservoirs are then updated, toxicity can stop a drug, and mortality is evaluated. A death ends that person's remaining daily rules. Survivors receive sepsis-recovery draws, followed by updates for each bacterium. At the start of each bacterium's update, an existing positive infection episode and existing carriage of that organism receive one opportunity for same-organism resistance-profile exchange, including when the infection is fading below the active-infection threshold. If no positive infection episode exists when that bacterium's update begins, the model evaluates ordinary carriage dynamics and candidate infection acquisition. Existing episodes instead receive infection-side resistance emergence and promotion. Diagnostics follow, then immune-clearance and infection-side reversion draws, drug activity and infection-level updates, episode retirement and symptom updates. HGT is evaluated after all bacteria have been updated, followed by the post-infection antibiotic-use history check. Thus sepsis onset precedes infections acquired later that day, diagnostics precede that day's infection-level update, and carriage dynamics are skipped for a bacterium that enters its update with a positive infection episode, even if another bacterium remains eligible for acquisition.
 
 **Stochastic processes.** The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a *probability* for each event and then samples whether that event occurs. Repeated runs therefore produce somewhat different trajectories.
 
 **Calibration.** As laid out below, the framework contains thousands of parameters. In the current configuration we have just a single value for each parameter which provide approximate calibration to review-informed estimates. Resistance calibration uses evidence-informed estimates drawing on named surveillance systems and burden studies (including WHO GLASS, ECDC EARS-Net, CDC AR Threats, and GRAM/GBD). We recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to identify multiple sets of parameter values that produce an acceptable calibration in order to express parameter uncertainty when comparing future policy options.
 
-**Resistance calibration quantities.** The calibration output labelled resistance prevalence uses counts of active infections with `any_r > 0`, but its current numerator and denominator are observed at different points in the day. Rust records the resistance-positive counts before the daily rules and the current-infection counts after those rules among surviving people. Python divides the summed resistance-positive counts by the summed current-infection counts, using rows with a positive denominator, and clips the resulting overall calibration percentage to 0–100%. The underlying ratio is therefore not a proportion from a single simultaneous infection population. Resistance severity is represented separately by the mean `any_r` among positive infections; its sum and positive-count fields share the pre-rule observation point. [Appendix C.5](#c5-observation-time-and-multiplicity-rules) describes the output timing and hospital/community splits. Many evidence sources informing the review-informed resistance estimates are based on cultured clinical isolates and may overrepresent infections that are tested, severe, persistent, invasive, or healthcare-associated relative to simulated active infections. The framework does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because we consider that the additional complexity would be disproportionate to its all-bacteria policy-comparison purpose.
+**Resistance calibration quantities.** The calibration output labelled resistance prevalence uses counts of active infections with `any_r > 0`. From output schema 5, Rust records these positive counts, resistance sums and current-infection denominators together after the daily rules, among living, born people with infection level above `INFECTION_EPS`. Python divides the summed positive counts by the summed current-infection counts across the calibration window. Resistance severity is represented separately by the mean `any_r` among positive infections from that same snapshot. Hospital/community counts use the pre-rule care setting for both numerator and denominator; geographical resistance counts use home region. Schemas 1–4 retain a historical mismatch between pre-rule global drug-specific resistance counts and post-rule infection denominators; calibration summaries warn about those legacy outputs, whose ratios are not proportions from a single simultaneous infection population. Schema-4 regional resistance counts already share a consistent post-rule snapshot. [Appendix C.5](#c5-observation-time-and-multiplicity-rules) describes the output timing and compatibility limitations. Many evidence sources informing the review-informed resistance estimates are based on cultured clinical isolates and may overrepresent infections that are tested, severe, persistent, invasive, or healthcare-associated relative to simulated active infections. The framework does not assign drug-specific concentration units or attempt to reproduce organism-drug MIC values, because we consider that the additional complexity would be disproportionate to its all-bacteria policy-comparison purpose.
 
 
 ### 1.2 Document structure
@@ -380,7 +380,7 @@ This pathway is governed by two parameters:
 | `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the carrier-inheritance pathway is applied; when it is, individual mechanisms are copied from the microbiome to the infection compartment |
 | `infection_from_microbiome_dampening` | 0.70 | Per-mechanism transfer probability: each mechanism in the microbiome has a 70% chance of being copied to the infection site, reflecting that not all colonising lineages successfully transition to the infection site |
 
-If the pathway is applied, only host-eligible mechanisms already present in the person's carriage compartment and absent from the incoming infection profile receive the per-mechanism draw. Successful transfers are added to the prospective infection's record of mechanisms present in any represented strain; this inheritance step does not add them to the predominant-strain record. The shared inheritance probability is scaled by the counterfactual resistance multiplier and bounded to 0–1. This link is evaluated after the initial infection-acquisition draw succeeds but before the candidate infection is tested against existing therapy and established, provided carriage of the same organism is present at that point. Carriage acquisition, clearance and evolution have already been evaluated for that bacterium that day, so newly acquired carriage can also supply the profile. This differs from sampling the regional stored resistance-mechanism profile library (Section 7.3), because it uses the person's own carriage record. The separate daily bidirectional exchange block is inactive in the current implementation (Section 8.2).
+If the pathway is applied, only host-eligible mechanisms already present in the person's carriage compartment and absent from the incoming infection profile receive the per-mechanism draw. Successful transfers are added to the prospective infection's record of mechanisms present in any represented strain; this inheritance step does not add them to the predominant-strain record. The shared inheritance probability is scaled by the counterfactual resistance multiplier and bounded to 0–1. This link is evaluated after the initial infection-acquisition draw succeeds but before the candidate infection is tested against existing therapy and established, provided carriage of the same organism is present at that point. Carriage acquisition, clearance and evolution have already been evaluated for that bacterium that day, so newly acquired carriage can also supply the profile. This differs from sampling the regional stored resistance-mechanism profile library (Section 7.3), because it uses the person's own carriage record. The separate daily bidirectional exchange applies to positive infection episodes already present when their daily update begins (Section 8.2); a newly established infection first becomes eligible on the following day.
 
 
 
@@ -505,7 +505,7 @@ The result is converted to a daily probability using the logistic function. Thes
 
 This part of the model describes clearance in two distinct states: clearance of asymptomatic microbiome carriage and clearance of active infection. These are governed by separate calculations.
 
-**When carriage is updated.** Ordinary carriage acquisition, clearance, mechanism emergence and mechanism reversion are evaluated only if that bacterium has no positive infection episode when its within-host update begins. They are skipped throughout a same-bacterium infection, including a fading positive level at or below `INFECTION_EPS`. Elapsed carriage duration still includes those skipped days when the clearance calculation resumes. On an eligible day, carriage acquisition is evaluated before ordinary carriage clearance, so a new carriage episode can clear on the day it is acquired. HGT can still update carriage mechanisms while an infection is present, and drug-assisted infection resolution has a separate carriage-clearance draw described below.
+**When carriage is updated.** Ordinary carriage acquisition, clearance, mechanism emergence and mechanism reversion are evaluated only if that bacterium has no positive infection episode when its within-host update begins. They are skipped throughout a same-bacterium infection, including a fading positive level at or below `INFECTION_EPS`. Elapsed carriage duration still includes those skipped days when the clearance calculation resumes. On an eligible day, carriage acquisition is evaluated before ordinary carriage clearance, so a new carriage episode can clear on the day it is acquired. Same-organism profile exchange and HGT can still update carriage mechanisms while an infection is present, and drug-assisted infection resolution has a separate carriage-clearance draw described below.
 
 - **Microbiome or carriage clearance**: `default_microbiome_clearance_probability_per_day` = 0.01 is the reference daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific values for organisms that are known to persist much longer or clear more quickly. If applied alone as a constant daily probability, 1% per day would correspond to an average carriage duration of approximately 100 days. It is not the expected duration under the full model, because carriage duration and antibiotic activity also modify the daily clearance probability.
 - **Duration penalty on carriage clearance**: `carriage_duration_log_odds_coefficient` = −0.01 per day, capped by `carriage_duration_max_log_odds_effect` = −2.0, applies to microbiome carriage. The rationale is that long-established colonisation becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005), reflecting that a bacterium that has been carried for 200 days is substantially harder to clear spontaneously than one only acquired 1 day ago.
@@ -1872,8 +1872,10 @@ Key dynamics (ordinary carriage acquisition, clearance, emergence and reversion 
 | Mechanism-level reversion | Mechanism-specific reversion rates | Mechanism specific | Per-mechanism reversion operates in the microbiome compartment using the same rates and potency-filtered eligibility rule as in the infection compartment (Section 7.5). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium–mechanism pair; selection for another mechanism does not block reversion. |
 | De-novo emergence under treatment | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` | Organism-mechanism specific | On an eligible carriage-update day, an absent carriage mechanism receives one emergence attempt if at least one positive-level drug applies to it (Section 7.4), using the organism-mechanism baseline and counterfactual scaling. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; carriage-derived infection inheritance and inter-species HGT are separate processes. |
 | Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | Before candidate establishment, one shared inheritance draw is followed by independent `infection_from_microbiome_dampening` draws for host-eligible carriage mechanisms absent from the incoming infection profile. Successful copies enter `mechanism_any`, without being added to `mechanism_majority` by this step (Section 3.3). |
-| Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | Inactive in the current implementation. The exchange block requires a positive infection level but is nested inside the branch requiring no positive infection episode, so its draw and bidirectional copying never execute. Changing this parameter does not activate that pathway. |
+| Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | At most one daily draw at the start of the organism's within-host update, when a positive infection episode and separate carriage already coexist and their eligible profiles differ. The probability is multiplied by the counterfactual resistance multiplier and bounded to 0–1; zero disables the draw. A successful draw shares the combined eligible mechanisms between the compartments and raises their drug-level resistance measures where needed. This is an explicit exception to the ordinary carriage-update freeze. |
 | HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event occurs, the mechanism is assigned only to recipient compartments where that bacterium is present: `mechanism_microbiome` for carriage and `mechanism_any` for active infection |
+
+Same-organism exchange includes fading positive infection levels at or below `INFECTION_EPS`. It is evaluated before new acquisition, so an infection established later that day uses only the separate inheritance route in Section 3.3 on its first day. Exchange only shares eligible characteristics already present in at least one compartment: it creates neither compartment, changes no acquisition or clearance dates, and does not itself add mechanisms to the predominant-strain record. Ordinary infection-side promotion and reversion still run in their existing later phases. If either compartment is absent, the eligible profiles are equal, or the effective probability is zero, exchange makes no state change and consumes no random draw. Ordinary carriage acquisition, clearance, emergence and reversion remain suspended during a positive same-organism infection episode.
 
 
 
@@ -1946,7 +1948,7 @@ When an HGT event occurs, the mechanism must be classified as transferable and p
 4. The gut can support extensive within-host plasmid transfer, particularly when inflammation or ecological disruption produces blooms of compatible donor and recipient organisms. These findings support the qualitative gut uplift, while also showing why the carriage-only penalty must not be interpreted as a general biological ranking of carriage below infection. Both ×2.0 and ×0.65 are model calibration choices (Stecher B et al., 2012; León-Sampedro R et al., 2021).
 5. Conjugation requires donor-recipient encounter, so the abundance and spatial overlap of the relevant populations affect transfer opportunity. Because the model records mechanism presence and predominant-strain status rather than within-compartment frequencies, ×0.20 is a structural approximation for lower effective donor abundance, not a directly observed effect size (Stecher B et al., 2012).
 
-`microbiome_resistance_transfer_probability_per_day` belongs to the separate within-bacterium infection↔microbiome exchange block (Section 8.2). That block is unreachable in the current implementation, so the parameter has no operative transfer effect. Inter-species HGT uses the probabilities and multipliers described in this section and remains active.
+`microbiome_resistance_transfer_probability_per_day` belongs to the separate within-bacterium infection↔microbiome exchange block (Section 8.2). It operates for coexisting positive infection and carriage episodes as an explicit exception to the ordinary carriage-update freeze. It is distinct from inter-species HGT, which uses the probabilities and multipliers described in this section.
 
 The numerical modifiers in this table are review-informed calibration choices. The cited studies support the biological plausibility or direction of an effect, but none estimates the corresponding model multiplier. After the applicable baseline probability and multipliers are combined, the mechanism-specific daily HGT probability is limited to a maximum of 1. The absolute probabilities are intentionally low and their main purpose is to preserve a plausible relative ordering between lower-opportunity community contexts, antibiotic-affected microbiomes, and higher-opportunity hospital environments.
 
@@ -2185,7 +2187,7 @@ Potential applications include comparing antibiotic stewardship packages (e.g., 
 - [12.14 No systematic asymptomatic diagnostic screening](#1214-no-systematic-asymptomatic-diagnostic-screening)
 - [12.15 Resistance-effect prevalence versus phenotypic resistance](#1215-resistance-effect-prevalence-versus-phenotypic-resistance)
 
-The central design judgement has been to retain the features most likely to matter for stewardship, diagnostics, access, and mortality questions, while omitting layers of nuance that would make a model of this scope difficult to calibrate, computationally too burdensome, or unnecessarily difficult to interpret. Several limitations reflect these deliberate trade-offs. Others arise from the current implementation, including the carriage-update restrictions in Section 8.2, treatment-tracking resets in Section 6.2, and observation-time mismatch in Section 12.15 and Appendix C.5. Describing those behaviours here records what the executable does; it does not establish that each is an intended scientific assumption.
+The central design judgement has been to retain the features most likely to matter for stewardship, diagnostics, access, and mortality questions, while omitting layers of nuance that would make a model of this scope difficult to calibrate, computationally too burdensome, or unnecessarily difficult to interpret. Several limitations reflect these deliberate trade-offs. Others arise from the current implementation, including the carriage-update restrictions in Section 8.2 and treatment-tracking resets in Section 6.2. Section 12.15 and Appendix C.5 also describe an observation-time mismatch in historical outputs, corrected in schema 5. Describing those behaviours here records what the executable does; it does not establish that each is an intended scientific assumption.
 
 Several of the appendices that follow list exact configuration values and definitions of categorical variables (called enums in the code). Those tables are included for transparency and reproducibility, but they should still be read in the context established above: many values are reference settings, calibration targets, or structural model choices rather than direct empirical measurements. Where this document presents an exact value, that should not automatically be interpreted as implying an equivalent degree of empirical certainty.
 
@@ -2308,7 +2310,7 @@ Antibiotic concentrations are modelled as dimensionless units rather than true p
 
 ### 12.4 No explicit strain competition
 
-Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. Clonal replacement and compensatory evolution are therefore outside the model. Antibiotic exposure affects carriage through the persistent microbiome-disruption reservoir, de novo mechanism emergence under applicable positive-level drug pressure, prevention of mechanism reversion under selecting pressure, and amplification of HGT through `hgt_antibiotic_pressure_multiplier`. Ordinary carriage acquisition, clearance, emergence and reversion are skipped while the same bacterium has a positive infection episode at the start of its within-host update. HGT and the separate carriage-clearance draw at drug-assisted infection resolution remain possible in that state. The daily bidirectional infection–microbiome exchange block is unreachable, so `microbiome_resistance_transfer_probability_per_day` does not provide an operative spillover pathway. Carriage can still contribute mechanisms to a prospective new infection through the inheritance process in Section 3.3.
+Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. Clonal replacement and compensatory evolution are therefore outside the model. Antibiotic exposure affects carriage through the persistent microbiome-disruption reservoir, de novo mechanism emergence under applicable positive-level drug pressure, prevention of mechanism reversion under selecting pressure, and amplification of HGT through `hgt_antibiotic_pressure_multiplier`. Ordinary carriage acquisition, clearance, emergence and reversion are skipped while the same bacterium has a positive infection episode at the start of its within-host update. HGT and the separate carriage-clearance draw at drug-assisted infection resolution remain possible in that state. Daily bidirectional infection–microbiome profile exchange is also permitted when the same organism already has a positive infection episode and carriage; it does not remove the ordinary carriage-update restrictions. Carriage can still contribute mechanisms to a prospective new infection through the inheritance process in Section 3.3.
 
 ### 12.5 No within-host spatial structure
 
@@ -2354,7 +2356,7 @@ Bacterial identification currently requires an active infection to have met the 
 
 The acquired-resistance counts identify active infections for which at least one represented acquired resistance mechanism produces a non-zero effect on a drug (`any_r > 0`). Intrinsic or baseline non-susceptibility encoded through potency is not included. This definition is not equivalent to laboratory resistance classified using organism–drug MIC or zone-diameter breakpoints. A shared mechanism can consequently produce the same positive-infection counts for two drugs while having markedly different enhancement values and therefore different effects on treatment activity. The circulating resistance-mechanism profile prevalence used in regional prescribing feedback follows a related mechanism-presence definition.
 
-The current calibration prevalence calculation also has an observation-time limitation: the exported drug-specific positive counts are pre-rule observations, while the infection denominators are post-rule survivor observations. Hospital/community versions use the pre-rule care setting for both fields, but still differ in infection and survival observation time. Ratios formed from these fields are not bounded by a common underlying population and can exceed 100% before clipping. The overall calibration helper clips its displayed percentage to 0–100%; this does not align the underlying observations. Conditional mean `any_r` uses the pre-rule sum and pre-rule positive count and therefore does not have this particular timing mismatch. These output definitions are separate from the sampled circulating-profile prevalence used internally for prescribing; [Appendix C.5](#c5-observation-time-and-multiplicity-rules) gives the relevant field names.
+Output schema 5 corrects a historical observation-time mismatch: drug-specific positive counts and resistance sums now use the same post-rule surviving active-infection population as the infection denominators. Hospital/community versions retain the pre-rule care setting for both fields, so their setting describes the person's classification at the start of the day rather than their final admission/discharge state. Historical schemas 1–4 still pair pre-rule global drug-specific positive counts with post-rule infection denominators. Those ratios can exceed 100%, and clipping cannot repair the observations. Calibration summaries remain compatible with those files and flag the limitation; a new simulation run is needed to obtain corrected global resistance counts. Their conditional mean `any_r` pairs a pre-rule sum and positive count and does not have that numerator/denominator timing mismatch. Schema-4 regional snapshots were already consistent. These reporting definitions are separate from the sampled circulating-profile prevalence used internally for prescribing, whose pre-rule sampling is unchanged by the schema-5 reporting correction; [Appendix C.5](#c5-observation-time-and-multiplicity-rules) gives the relevant field names.
 
 ---
 
@@ -11774,17 +11776,25 @@ amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv
 where `NNNNNN` is a zero-padded pseudo-random run identifier. This identifier is not guaranteed unique across independent runs; the exporter creates or truncates the named file.
 
 Every current file records its output-format version in
-`simulation_summary_schema_version`; this document describes version `4`. Version 4
-adds regional resistance snapshots while retaining the definitions of the existing
-version-3 fields. Python accepts both versions 3 and 4 for general analysis and
-Supplementary Figure S5. Version-3 files lack the new regional resistance fields.
+`simulation_summary_schema_version`; this document describes version `6`. Version 4
+introduced regional resistance snapshots. Version 5 aligns global and care-setting
+resistance counts, sums and associated active-infection reporting with post-rule
+surviving infection denominators; the column layout is unchanged from version 4.
+Version 6 changes the existing regional and age-specific sepsis/non-sepsis death
+counters to the headline model scope without changing the CSV layout. Broad global
+death-cause counters and schema-5 resistance observations are retained.
+Python accepts versions 3, 4, 5 and 6 for general analysis and Supplementary Figure S5.
+Version-3 files lack the regional resistance fields. Historical versions 1–4 retain
+the global drug-specific resistance timing mismatch described in Appendix C.5.
 Unversioned files, unsupported future versions and files mixing schema versions are
 rejected rather than interpreted by matching column names alone.
 
 For the final pre-schema-3 runs, a narrow compatibility exception is available for the
-calibration snapshot because schemas 1-4 retain the existing calibration inputs. Paper outputs
+calibration snapshot because schemas 1-6 retain the existing headline calibration inputs. Paper outputs
 may consume those legacy calibration snapshots only with `--legacy-without-sf5`; that mode
-omits Supplementary Figure S5 entirely. Comprehensive analysis and SF5 require schema 3 or 4.
+omits Supplementary Figure S5 entirely. Comprehensive analysis and SF5 require schema 3, 4, 5 or 6.
+Calibration-summary infection-death breakdowns by region and age require schema 6;
+historical schemas 1-5 lack the necessary headline-scope detail.
 
 The launcher also writes run metadata including the RNG seed, source identifier, requested
 population and horizon, configured policies, last observed timestep, and summary-file hash.
@@ -11835,7 +11845,7 @@ In the type column, `int` means a whole number and `float` means a number that m
 | Column | Type | Description |
 |--------|------|-------------|
 | `time_step` | int | Simulation day, numbered from 0 |
-| `simulation_summary_schema_version` | int | Output-format version; currently `4` |
+| `simulation_summary_schema_version` | int | Output-format version; currently `6` |
 | `diagnostic_cascade_collection_enabled` | int | `1` when diagnostic-cascade counters were collected and `0` when that output group was omitted. When this value is `0`, zero-valued cascade columns are unavailable placeholders, not observed zero counts. |
 | `time_in_years` | float | Years since the 1930 simulation epoch |
 | `total_population` | int | Post-rule survivors with non-negative age |
@@ -11892,19 +11902,19 @@ as described above, rather than a complete stream of course-start events.
 
 | Pattern | Description |
 |---------|-------------|
-| `{bacteria}_sum_any_r_{drug}` | Pre-rule sum of `any_r` over active infections |
-| `{bacteria}_infected_with_any_r_positive_{drug}` | Pre-rule active infections with `any_r > 0` for this drug |
-| `{bacteria}_infected_with_any_r_positive_hospital_{drug}` / `{bacteria}_infected_with_any_r_positive_community_{drug}` | Those pre-rule positive counts split by pre-rule hospital status |
-| `{bacteria}_sum_any_r_hospital_{drug}` | Pre-rule sum of `any_r` among infections in people hospitalised before the daily rules |
-| `{bacteria}_infected_and_mic_lt2_{drug}` | Pre-rule active infections below 2 on the legacy reciprocal-activity proxy, not a laboratory MIC measurement |
-| `{bacteria}_sum_mic_{drug}` | Pre-rule sum of that reciprocal-activity proxy over active infections |
+| `{bacteria}_sum_any_r_{drug}` | Post-rule sum of `any_r` over surviving active infections |
+| `{bacteria}_infected_with_any_r_positive_{drug}` | Post-rule surviving active infections with `any_r > 0` for this drug |
+| `{bacteria}_infected_with_any_r_positive_hospital_{drug}` / `{bacteria}_infected_with_any_r_positive_community_{drug}` | Those post-rule positive counts split by pre-rule hospital status |
+| `{bacteria}_sum_any_r_hospital_{drug}` | Post-rule sum of `any_r` among surviving active infections in people hospitalised before the daily rules |
+| `{bacteria}_infected_and_mic_lt2_{drug}` | Post-rule surviving active infections below 2 on the legacy reciprocal-activity proxy, not a laboratory MIC measurement |
+| `{bacteria}_sum_mic_{drug}` | Post-rule sum of that reciprocal-activity proxy over surviving active infections |
 | `{bacteria}_currently_on_drug_{drug}` | Post-rule surviving active infections in people with this drug's active course indicator set |
 | `{bacteria}_microbiome_r_positive_{drug}` | Pre-rule people with positive `microbiome_r` for this pair, evaluated in people carrying at least one bacterium with a separate carriage compartment |
 
-The internal `TimeStepSummary.resistance_by_bacteria_drug` vector separately counts
+The internal `TimeStepSummary.resistance_by_bacteria_drug` vector also counts
 post-rule surviving active infections with `any_r > 0`; it is not exported as a distinct
-CSV column. It must not be confused with the pre-rule `infected_with_any_r_positive`
-columns. The current CSV also has no per-pair `{bacteria}_{drug}_activity_r` or
+CSV column. From schema 5 it shares the observation time and population of the
+`infected_with_any_r_positive` columns. The current CSV also has no per-pair `{bacteria}_{drug}_activity_r` or
 `{bacteria}_{drug}_any_r` column; applied-activity sums use the per-bacterium fields above.
 
 
@@ -11966,9 +11976,39 @@ activity threshold, not necessarily the newly selected drug.
 | `{region}_hospital_population` | Post-rule survivors classified by pre-rule hospital status and effective region |
 | `{region}_{drug}_currently_on_drug` | Post-rule active drug use among survivors classified by pre-rule effective region |
 | `{region}_prop_age_{band}` | Post-rule survivor age proportions classified by pre-rule effective region; bands are `0_5`, `6_14`, `15_49`, `50_79`, and `80plus` |
-| `{region}_deaths_{cause}` | Daily deaths classified by pre-rule effective region; causes are `background`, `sepsis`, `infection_non_sepsis`, and `drug_toxicity` |
+| `{region}_deaths_{cause}` | Daily deaths classified by pre-rule effective region; causes are `background`, `sepsis`, `infection_non_sepsis`, and `drug_toxicity`. From schema 6, sepsis/non-sepsis infection deaths use the headline model scope; background and toxicity counts are unchanged. |
+| `{region}_prop_age_{band}_deaths_{cause}` | Deaths classified by the same region and age band at death; these are integer counts despite the historical `prop_age` naming. From schema 6, sepsis/non-sepsis infection deaths use the headline model scope. |
 | `{bacteria}_presence_microbiome_{region}` | Post-rule carriage stock classified by home region |
 | `{bacteria}_deaths_infected_{region}` | All-cause deaths associated with each active bacterium, classified by home region |
+
+From schema 6, the calibration summary derives infection-death counts and rates
+by age group and region from the existing person-level regional `deaths_sepsis`
+and `deaths_infection_non_sepsis` fields and their age-specific variants. These
+now use exactly the global `*_model_scope` headline contributor predicate: a sepsis death
+requires at least one active septic contributor other than *H. pylori* or MDR-TB;
+a non-sepsis infection death requires at least one non-septic contributor above
+the mortality level threshold outside those exclusions. A mixed infection with
+an eligible contributor inside the headline scope still counts once. Each death
+belongs to one region and one age band, so collected regional and age totals
+reconcile with the corresponding global headline-scope counters.
+
+The age bands are 0–5, 6–14, 15–49, 50–79 and 80+ years at death. The count tables
+show raw counts over the shared baseline calibration window and mean annual
+counts obtained by dividing by the window duration and multiplying by the same
+world-population scale factor as the headline metrics. The rate tables use these
+same restricted numerators. The column names and layout are unchanged. These
+regional and age-specific fields share the existing
+`regional_resistance_collected` marker: disabled or partly disabled regional
+collection is reported unavailable, and zero placeholders are not observed zero
+deaths. Schemas 1-5 recorded broader infection-death counts under those same
+column names and yield unavailable restricted calibration tables. A new
+simulation run with regional collection enabled is
+required; the missing detail cannot be recovered by subtracting or summing
+bacterium-associated deaths. Broad global death-cause counters remain unchanged
+for all-cause mortality reporting, as do regional background and toxicity counts.
+Because the regional infection causes now exclude deaths outside the headline
+scope, summing all four regional cause categories no longer gives a broad
+all-cause mortality total.
 
 Effective region means the current visited region, or home region when `region_cur_in`
 is the `Home` sentinel. Acquisition columns retain their own home-region or
@@ -11978,7 +12018,7 @@ acquisition-region definitions given above. The exporter has no generic `{region
 separate schema-4 fields below; the internal regional mechanism-profile prevalence used
 for prescribing is a different quantity.
 
-#### Regional resistance snapshots (schema 4)
+#### Regional resistance snapshots (introduced in schema 4)
 
 | Pattern | Description |
 |---------|-------------|
@@ -12006,12 +12046,13 @@ Zero denominators give missing values. Entirely disabled, partly disabled and le
 windows are reported as unavailable; malformed enabled snapshots are rejected.
 The table is descriptive and does not enter the calibration score.
 
-The old global drug-specific resistance fields retain their pre-rule timing and
-post-rule denominator mismatch described in Appendix C.5. Regional infected counts
-reconcile with the corresponding post-rule global infection stocks, but the regional
-resistance sums and positive counts must not be forced to match those older pre-rule
-global fields. A new simulation run is needed to obtain the missing regional data
-for a historical CSV.
+From schema 5, regional infected counts, positive counts and `any_r` sums reconcile
+across all six regions with their corresponding global fields when both output groups
+are collected. In schema 4 only the infected counts share that reconciliation contract:
+global drug-specific resistance fields still used the pre-rule timing described in
+Appendix C.5, so their positive counts and sums must not be forced to match the regional
+post-rule observations. A new simulation run is needed to obtain missing regional data
+or correct historical global resistance counts.
 
 
 
@@ -12044,23 +12085,34 @@ does not by itself establish a common observation time.
 
 | Observation | Fields and population |
 |-------------|-----------------------|
-| Before daily rules | Drug-specific `sum_any_r`, `infected_with_any_r_positive`, their hospital/community variants, the legacy MIC-proxy fields, `infected_and_on_any_drug`, infection-mechanism counts, and `infected_with_test_identified` / `infected_with_test_for_resistance`; active infections in people alive and born at that point |
+| Before daily rules, model feedback | Predominant infection profiles sampled for the circulating resistance-mechanism library; this sampling and its random draws are separate from reported infection-resistance stocks |
 | Before daily rules, carriage state | Drug-specific `microbiome_r_positive` counts, evaluated in people carrying at least one bacterium with a separate carriage compartment |
-| After daily rules | Living population, current infection and sepsis stocks, active-course drug-use counts, per-bacterium carriage stocks, and carrier/non-carrier infection splits; people alive with non-negative age after the rules |
-| After daily rules with pre-rule classification | Hospital/community current-infection stocks and any-drug resistant-infection stocks use pre-rule hospital status; regional population, age, drug-use and hospital stocks use pre-rule effective region, and hospital stocks also use pre-rule hospital status |
+| After daily rules | Living population, current infection and sepsis stocks, active-course drug-use counts, per-bacterium carriage stocks, and carrier/non-carrier infection splits; people alive with non-negative age after the rules. Drug-specific `sum_any_r`, `infected_with_any_r_positive`, legacy MIC-proxy fields, `infected_and_on_any_drug`, infection-mechanism and mechanism-family counts, and `infected_with_test_identified` / `infected_with_test_for_resistance` use surviving active infections above `INFECTION_EPS` |
+| After daily rules with pre-rule classification | Hospital/community current-infection stocks, any-drug and drug-specific resistant-infection stocks, and hospital drug-specific resistance sums use pre-rule hospital status; regional population, age, drug-use and hospital stocks use pre-rule effective region, and hospital stocks also use pre-rule hospital status |
+| After daily rules with home-region classification | Regional resistance infected counts, positive counts and `any_r` sums use surviving active infections above `INFECTION_EPS`, classified by home residence even while travelling |
 | Within the day | Acquisition and sepsis-onset events, toxicity stops, and applied-activity observations; these are retained independently of a later same-day clinical transition |
 
-Consequently, `{bacteria}_infected_with_any_r_positive_{drug}` and
-`{bacteria}_currently_infected` describe different observation populations. The same is
-true of the drug-specific hospital/community positive counts and their current-infection
-denominators, even though both use the same pre-rule care-setting classification. Their
-ratios need not lie in 0–100%. The overall Python calibration helper sums only rows with
-a positive current-infection denominator and clips its percentage to that range. Its
-conditional mean `any_r` instead pairs the pre-rule sum with the pre-rule positive count.
-By contrast, `{bacteria}_resistant_infected_hospital_count` and its community counterpart
-use post-rule resistance and infection state and are aligned with the corresponding
-post-rule infection stocks. These any-drug counts are distinct from the drug-specific
-pre-rule positive counts.
+These definitions apply from schema 5. `{bacteria}_infected_with_any_r_positive_{drug}`
+and `{bacteria}_currently_infected` now describe the same observation population,
+as do their hospital/community versions. Acquisition, clearance, death and resistance
+changes during the day are reflected in both numerator and denominator. The
+`{bacteria}_resistant_infected_hospital_count` and community fields count infections
+resistant to any drug, whereas the `infected_with_any_r_positive` fields are drug-specific.
+For collected data, positive counts cannot exceed infected counts, `any_r` sums cannot
+exceed positive counts, and hospital/community counts sum to their global counterpart.
+Schema-5 and later calibration rejects inconsistent counts or sums instead of silently clipping
+resistance percentages.
+
+Historical schemas 1–4 retain pre-rule observation of the drug-specific resistance,
+legacy MIC-proxy, infection-mechanism, infected-on-drug and identified/AST-ready infection
+fields listed above. Their infection denominators and any-drug hospital/community
+resistant-infection stocks are post-rule observations. Ratios pairing those pre-rule
+positive counts with post-rule denominators can exceed 100%. Historical conditional
+mean `any_r` uses the pre-rule sum and positive count, so those two fields do share an
+observation time. Python still reads these files through the supported compatibility
+paths and flags the global resistance timing limitation in calibration summaries;
+neither clipping nor a schema-label change repairs the historical counts. Schema-4
+regional resistance snapshots already share a consistent post-rule population.
 
 - A successful acquisition contributes one event to the relevant bacterium totals. The
   person-level acquisition measure contributes at most one count per person-day.
@@ -12382,10 +12434,10 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-resistance-test-r"></a>`resistances[b][d].test_r` | Completed AST timing, current `any_r[b][d]`, test-error draw. | `resistance_test_result_delay_days`; `test_r_error_prob`; `test_r_error_value`. | When the result is ready, records current acquired resistance with the configured error process. | Zero is a valid result value; result availability must be established from test state and timing, and zero does not establish positive baseline potency. | AST result and result-availability calculations in `rules` |
 | <a id="rule-resistance-activity-r"></a>`resistances[b][d].activity_r` | Drug exposure, no-acquired-resistance potency, syndrome penetration, `any_r[b][d]`. | `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; `syndrome_{id}_drug_{drug}_penetration`; `max_resistance_level`. | Recalculated for every positive infection episode as potency times exposure times penetration times remaining susceptibility after acquired resistance. | It continues to affect fading-episode progression; reporting observations remain restricted to clinically active infections. | Drug-activity calculation in `rules::apply_rules` |
 | <a id="rule-resistance-any-r"></a>`resistances[b][d].any_r` | `mechanism_any[b]`, drug class. | `resistance_mechanism_{mechanism}_enhancement_{drug_class}` with the mechanism-wide value used when no class-specific value is supplied; `max_resistance_level`. | Recomputed after acquired resistance mechanism acquisition, emergence, transfer, promotion or reversion. | Mechanism effects multiply remaining susceptibility and are bounded by `max_resistance_level`; intrinsic or baseline non-susceptibility is excluded. | Resistance recalculation functions in `rules`; `population::Resistance` |
-| <a id="rule-mechanism-any"></a>`mechanism_any[b]` | Incoming infection resistance-mechanism profile, de novo emergence, HGT, minority promotion and reversion. | Mechanism applicability; de novo, HGT, promotion and reversion parameters. | The set is updated when any represented infection strain carries or loses a mechanism. | Includes minority mechanisms; `mechanism_majority` contains only the predominant strain's resistance-mechanism profile. | Resistance acquisition and evolution blocks in `rules::apply_rules` |
+| <a id="rule-mechanism-any"></a>`mechanism_any[b]` | Incoming infection resistance-mechanism profile, carriage inheritance, same-organism exchange, de novo emergence and HGT. | Mechanism applicability; profile-source, inheritance, `microbiome_resistance_transfer_probability_per_day`, de novo and HGT parameters; counterfactual scaling. | Acquisition establishes the set; inheritance, exchange, emergence and HGT can add eligible mechanisms. Infection-side promotion and reversion change `mechanism_majority` without removing minority persistence from this set; episode retirement clears it. | Includes minority mechanisms; same-organism exchange does not itself promote them to `mechanism_majority`. | Resistance acquisition and evolution blocks in `rules::apply_rules`; `rules::exchange_infection_microbiome_profiles` |
 | <a id="rule-mechanism-majority"></a>`mechanism_majority[b]` | Incoming predominant-strain resistance-mechanism profile, minority promotion and predominant-strain reversion. | `majority_r_evolution_rate_per_day_when_drug_present`; reversion parameters. | Updated when mechanisms enter, establish in, or leave the resistance-mechanism profile of the represented predominant infection strain. | Must remain a subset of `mechanism_any[b]`. | Resistance acquisition and evolution blocks in `rules::apply_rules` |
-| <a id="rule-mechanism-microbiome"></a>`mechanism_microbiome[b]` | Incoming carriage resistance-mechanism profile, emergence, HGT and carriage reversion. | Resistance-mechanism profile source for carriage, emergence, HGT and reversion parameter families. | Acquisition, emergence and reversion run only when the bacterium enters its update without a positive infection episode; HGT can update carriage in either state; clearance resets the mask. | Separate from the active-infection profile; the daily within-bacterium exchange block is inactive. | Carriage and HGT blocks in `rules::apply_rules` |
-| <a id="rule-how-resistance-acquired"></a>`how_resistance_acquired[b][d]` | Resistance-mechanism profile sampling, microbiome inheritance, de novo emergence and HGT events. | Fixed provenance categories; implementation setting `TRACK_RESISTANCE_ACQUISITION_PROVENANCE`, selected when the program is built. | Updated when resistance first enters or materially changes the active infection resistance-mechanism profile. | No values are retained when tracking is disabled; when enabled, the result is a coarse classification of the most recent event rather than full causal provenance. | Resistance acquisition and evolution blocks in `rules`; output aggregation in `simulation` |
+| <a id="rule-mechanism-microbiome"></a>`mechanism_microbiome[b]` | Incoming carriage resistance-mechanism profile, same-organism exchange, emergence, HGT and carriage reversion. | Resistance-mechanism profile source for carriage; `microbiome_resistance_transfer_probability_per_day`; emergence, HGT and reversion parameter families; counterfactual scaling for resistance acquisition and exchange. | Acquisition, emergence and reversion run only when the bacterium enters its update without a positive infection episode; same-organism exchange and HGT can update coexisting carriage during an infection; clearance resets the mask. | Separate from the active-infection profile; same-organism exchange can share existing characteristics without changing compartment ownership or the predominant-strain record. | Carriage and HGT blocks in `rules::apply_rules`; `rules::exchange_infection_microbiome_profiles` |
+| <a id="rule-how-resistance-acquired"></a>`how_resistance_acquired[b][d]` | Resistance-mechanism profile sampling, microbiome inheritance, de novo emergence and HGT events. | Fixed provenance categories; implementation setting `TRACK_RESISTANCE_ACQUISITION_PROVENANCE`, selected when the program is built. | Updated by the existing event-attribution paths; same-organism exchange leaves this field unchanged. | No values are retained when tracking is disabled; when enabled, the result is a coarse event classification rather than full causal provenance. | Resistance acquisition and evolution blocks in `rules`; output aggregation in `simulation` |
 | <a id="rule-infection-resolution-this-timestep"></a>`infection_resolution_this_timestep[b][resolution]` | Clearance, treatment-associated resolution and fatal infection outcomes. | Fixed resolution-type categories. | Reset daily, then increments the category produced by `infection_resolution_type[b]`. | Output counter; mutually exclusive resolution handling avoids double counting. | Resolution and mortality blocks in `rules`; aggregation in `simulation` |
 | <a id="rule-day-7-since-last-infection-drug-used"></a>`day_7_since_last_infection_drug_used[b]` | Infection acquisition date and whether any drug was initiated in the first seven days. | Fixed seven-day observation window. | Set once on day seven to indicate whether any antibiotic began in that early infection window. | One optional yes/no value per bacterium, not one value per drug; reporting state only. | Treatment-use reporting code in `rules` and `simulation` |
 | <a id="rule-date-of-death"></a>`date_of_death` | Sampled toxicity, background, non-sepsis infection or sepsis death event. | Mortality parameter families. | Set once on the day the first mutually exclusive death event occurs. | Death stops subsequent individual updates. | Mortality block in `rules::apply_rules` |

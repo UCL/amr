@@ -590,6 +590,44 @@ fn resistance_pathway_probability(base_probability: f64, counterfactual_multipli
     (base_probability * counterfactual_multiplier).clamp(0.0, 1.0)
 }
 
+/// Exchange existing resistance characteristics between two present compartments.
+/// This is an exception to the ordinary carriage-update freeze during an episode.
+/// It changes neither compartment ownership nor the predominant-strain record.
+fn exchange_infection_microbiome_profiles(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    param_cache: &ParameterKeyCache,
+    daily_probability: f64,
+    counterfactual_multiplier: f64,
+    rng: &mut impl Rng,
+) -> bool {
+    if individual.date_of_death.is_some()
+        || individual.age < 0
+        || !infection_episode_present(individual.level[bacteria_idx])
+        || !bacterium_has_separate_microbiome_compartment(bacteria_idx)
+        || !individual.presence_microbiome[bacteria_idx]
+    {
+        return false;
+    }
+
+    let probability = resistance_pathway_probability(daily_probability, counterfactual_multiplier);
+    if probability <= 0.0 {
+        return false;
+    }
+    let eligible = param_cache.host_eligible_mechanism_mask(bacteria_idx);
+    let infection = individual.any_mechanism_mask(bacteria_idx) & eligible;
+    let carriage = individual.microbiome_mechanism_mask(bacteria_idx) & eligible;
+    if infection == carriage || !rng.gen_bool(probability) {
+        return false;
+    }
+
+    let combined = infection | carriage;
+    individual.mechanism_any[bacteria_idx] = combined;
+    individual.mechanism_microbiome[bacteria_idx] = combined;
+    propagate_mechanism_resistance(individual, bacteria_idx, param_cache, true, true);
+    true
+}
+
 #[inline]
 fn carriage_profile_sampling_probability(
     pathway_multiplier: f64,
@@ -5198,6 +5236,18 @@ pub(crate) fn apply_rules(
         let mut has_infection_episode = infection_episode_present(individual.level[b_idx]);
         let mut is_active_infection = infection_is_active(individual.level[b_idx]);
 
+        // One opportunity for an episode already present at this update's entry,
+        // including fading positive levels. This precedes new acquisition, so a
+        // new infection uses only its separate inheritance route on its first day.
+        exchange_infection_microbiome_profiles(
+            individual,
+            b_idx,
+            param_cache,
+            transfer_prob,
+            counterfactual_resistance_multiplier,
+            rng,
+        );
+
         if !has_infection_episode {
             let simulation_year = 1930.0 + (time_step as f64 / 365.0);
             let sanitation_log_odds = historical_sanitation_log_odds(
@@ -5519,43 +5569,8 @@ pub(crate) fn apply_rules(
                 }
             }
 
-            // This within-bacterium infection/carriage transfer block is currently unreachable:
-            // the enclosing scope requires no infection episode, whereas this guard requires a
-            // positive infection level. Consequently, the configured transfer probability does
-            // not act through this block in the current implementation.
-            if individual.presence_microbiome[b_idx] && individual.level[b_idx] > 0.0 {
-                let host_eligible_mask = param_cache.host_eligible_mechanism_mask(b_idx);
-                let infection_mask = individual.any_mechanism_mask(b_idx) & host_eligible_mask;
-                let microbiome_mask =
-                    individual.microbiome_mechanism_mask(b_idx) & host_eligible_mask;
-                let has_infection_only_mechanisms = infection_mask & !microbiome_mask != 0;
-                let has_microbiome_only_mechanisms = microbiome_mask & !infection_mask != 0;
-
-                if (has_infection_only_mechanisms || has_microbiome_only_mechanisms)
-                    && rng.gen_bool(resistance_pathway_probability(
-                        transfer_prob,
-                        counterfactual_resistance_multiplier,
-                    ))
-                {
-                    let mut any_transferred = false;
-                    if has_infection_only_mechanisms || has_microbiome_only_mechanisms {
-                        let combined_mask = infection_mask | microbiome_mask;
-                        any_transferred =
-                            combined_mask != infection_mask || combined_mask != microbiome_mask;
-                        individual.mechanism_any[b_idx] = combined_mask;
-                        individual.mechanism_microbiome[b_idx] = combined_mask;
-                    }
-                    if any_transferred {
-                        propagate_mechanism_resistance(
-                            individual,
-                            b_idx,
-                            param_cache,
-                            true, // raise_only: don't lower existing resistance
-                            true, // propagate_microbiome_r: update both compartments
-                        );
-                    }
-                }
-            } else if !individual.presence_microbiome[b_idx] {
+            // Retain the existing no-carriage cleanup in the no-episode branch.
+            if !individual.presence_microbiome[b_idx] {
                 for d_idx in 0..DRUG_SHORT_NAMES.len() {
                     individual.resistances[b_idx][d_idx].microbiome_r = store_float(0.0);
                 }
@@ -7026,11 +7041,12 @@ mod tests {
         BacteriumMechanismStatus,
     };
     use crate::simulation::population::{
-        bacterium_mechanism_host_is_eligible, days_since_recorded_event, infection_episode_present,
+        bacterium_has_separate_microbiome_compartment, bacterium_mechanism_host_is_eligible,
+        days_since_recorded_event, infection_episode_present,
         infection_episode_should_retire, infection_is_active, load_float,
         mechanism_is_hgt_transferable, store_float, AntibioticUseContext, DrugClass,
         HospitalStatus, Individual, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
-        INFECTION_EPS, MISSING_EVENT_DATE,
+        StoredBoundedResistanceFloat, INFECTION_EPS, MISSING_EVENT_DATE,
     };
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
@@ -7054,6 +7070,298 @@ mod tests {
             .iter()
             .position(|&candidate| candidate == name)
             .unwrap_or_else(|| panic!("missing drug {name}"))
+    }
+
+    fn infection_microbiome_exchange_fixture() -> (Individual, ParameterKeyCache, u64, u64) {
+        let (mut individual, _) = individual_with_seed(482);
+        let cache = ParameterKeyCache::new();
+        let eligible = cache.host_eligible_mechanism_mask(0);
+        assert!(eligible.count_ones() >= 2);
+        let first = 1_u64 << eligible.trailing_zeros();
+        let second = 1_u64 << (eligible & !first).trailing_zeros();
+        individual.level[0] = 2.0 * INFECTION_EPS;
+        individual.presence_microbiome[0] = true;
+        individual.date_last_infected[0] = 14;
+        individual.date_last_infected_keep[0] = 14;
+        individual.date_microbiome_acquired[0] = 3;
+        individual.clearance_ready_day[0] = 30;
+        individual.mechanism_any[0] = first;
+        individual.mechanism_majority[0] = first;
+        individual.mechanism_microbiome[0] = second;
+        propagate_mechanism_resistance(&mut individual, 0, &cache, false, true);
+        (individual, cache, first, second)
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_updates_both_profiles_without_other_state_changes() {
+        let (mut individual, cache, first, second) = infection_microbiome_exchange_fixture();
+        let before = individual.clone();
+        let mut rng = StepRng::new(0, 1);
+        assert!(super::exchange_infection_microbiome_profiles(
+            &mut individual,
+            0,
+            &cache,
+            0.5,
+            1.0,
+            &mut rng,
+        ));
+        assert_eq!(rand::RngCore::next_u64(&mut rng), 1, "one sampling draw");
+        assert_eq!(individual.mechanism_any[0], first | second);
+        assert_eq!(individual.mechanism_microbiome[0], first | second);
+        assert_eq!(individual.mechanism_majority[0], first);
+        for drug in 0..DRUG_SHORT_NAMES.len() {
+            let expected = load_float(store_float::<StoredBoundedResistanceFloat>(
+                mechanism_resistance_level_for_mask(first | second, 0, drug, &cache),
+            ));
+            assert_eq!(load_float(individual.resistances[0][drug].any_r), expected);
+            assert_eq!(
+                load_float(individual.resistances[0][drug].microbiome_r),
+                expected
+            );
+        }
+        // Restoring only the permitted fields must recover the exact input state.
+        let mut restored = individual;
+        restored.mechanism_any[0] = before.mechanism_any[0];
+        restored.mechanism_microbiome[0] = before.mechanism_microbiome[0];
+        for drug in 0..DRUG_SHORT_NAMES.len() {
+            restored.resistances[0][drug].any_r = before.resistances[0][drug].any_r;
+            restored.resistances[0][drug].microbiome_r = before.resistances[0][drug].microbiome_r;
+        }
+        assert_eq!(
+            bincode::serialize(&restored).unwrap(),
+            bincode::serialize(&before).unwrap()
+        );
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_includes_fading_positive_episodes() {
+        let (mut individual, cache, first, second) = infection_microbiome_exchange_fixture();
+        individual.level[0] = INFECTION_EPS / 2.0;
+        let mut rng = StepRng::new(0, 1);
+        assert!(super::exchange_infection_microbiome_profiles(
+            &mut individual,
+            0,
+            &cache,
+            1.0,
+            1.0,
+            &mut rng,
+        ));
+        assert_eq!(individual.level[0], INFECTION_EPS / 2.0);
+        assert_eq!(individual.mechanism_any[0], first | second);
+        assert_eq!(individual.mechanism_microbiome[0], first | second);
+        assert_eq!(individual.mechanism_majority[0], first);
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_ineligible_and_disabled_cases_are_exact_noops() {
+        let (base, cache, first, _) = infection_microbiome_exchange_fixture();
+        for case in 0..7 {
+            let mut individual = base.clone();
+            let (mut probability, mut counterfactual) = (0.5, 1.0);
+            match case {
+                0 => probability = 0.0,
+                1 => counterfactual = 0.0,
+                2 => individual.level[0] = 0.0,
+                3 => individual.presence_microbiome[0] = false,
+                4 => individual.mechanism_microbiome[0] = first,
+                5 => individual.date_of_death = Some(0),
+                _ => individual.age = -1,
+            }
+            let before = bincode::serialize(&individual).unwrap();
+            let mut rng = StepRng::new(17, 3);
+            assert!(
+                !super::exchange_infection_microbiome_profiles(
+                    &mut individual,
+                    0,
+                    &cache,
+                    probability,
+                    counterfactual,
+                    &mut rng,
+                ),
+                "case {case}"
+            );
+            assert_eq!(
+                rand::RngCore::next_u64(&mut rng),
+                17,
+                "case {case} consumed RNG"
+            );
+            assert_eq!(
+                bincode::serialize(&individual).unwrap(),
+                before,
+                "case {case}"
+            );
+        }
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_rejected_draw_does_not_change_state() {
+        let (mut individual, cache, _, _) = infection_microbiome_exchange_fixture();
+        let before = bincode::serialize(&individual).unwrap();
+        let mut rng = StepRng::new(u64::MAX, 1);
+        assert!(!super::exchange_infection_microbiome_profiles(
+            &mut individual,
+            0,
+            &cache,
+            0.5,
+            1.0,
+            &mut rng,
+        ));
+        assert_eq!(rand::RngCore::next_u64(&mut rng), 0, "one rejected draw");
+        assert_eq!(bincode::serialize(&individual).unwrap(), before);
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_filters_profiles_and_requires_a_separate_compartment() {
+        let (mut individual, cache, first, second) = infection_microbiome_exchange_fixture();
+        let excluded = !cache.host_eligible_mechanism_mask(0);
+        individual.mechanism_any[0] |= excluded;
+        let mut rng = StepRng::new(0, 1);
+        assert!(super::exchange_infection_microbiome_profiles(
+            &mut individual,
+            0,
+            &cache,
+            1.0,
+            1.0,
+            &mut rng,
+        ));
+        assert_eq!(individual.mechanism_any[0], first | second);
+        assert_eq!(individual.mechanism_microbiome[0], first | second);
+        let no_carriage = (0..BACTERIA_LIST.len())
+            .find(|&b| !bacterium_has_separate_microbiome_compartment(b))
+            .unwrap();
+        individual.level[no_carriage] = 1.0;
+        individual.presence_microbiome[no_carriage] = true;
+        let before = bincode::serialize(&individual).unwrap();
+        assert!(!super::exchange_infection_microbiome_profiles(
+            &mut individual,
+            no_carriage,
+            &cache,
+            1.0,
+            1.0,
+            &mut rng,
+        ));
+        assert_eq!(bincode::serialize(&individual).unwrap(), before);
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_is_scheduled_once_before_new_acquisition() {
+        // A test-only helper also appears before apply_rules. Split at this module,
+        // rather than the first cfg(test), to inspect the complete production path.
+        let production = include_str!("mod.rs").split_once("mod tests {").unwrap().0;
+        let phase = production
+            .split_once("// Infection acquisition and within-host updates.")
+            .unwrap()
+            .1;
+        let call = "exchange_infection_microbiome_profiles(";
+        assert_eq!(phase.matches(call).count(), 1);
+        assert!(
+            phase
+                .find("infection_episode_present(individual.level[b_idx])")
+                .unwrap()
+                < phase.find(call).unwrap()
+        );
+        assert!(phase.find(call).unwrap() < phase.find("if !has_infection_episode").unwrap());
+        assert!(
+            phase.find("if !has_infection_episode").unwrap()
+                < phase
+                    .find("if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0))")
+                    .unwrap()
+        );
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_preserves_higher_existing_resistance() {
+        let (mut individual, cache, first, second) = infection_microbiome_exchange_fixture();
+        let upper_bound = parameter_store().globals.max_resistance_level;
+        for resistance in &mut individual.resistances[0] {
+            resistance.any_r = store_float(upper_bound);
+            resistance.microbiome_r = store_float(upper_bound);
+        }
+        let before = individual.resistances[0].clone();
+        let mut rng = StepRng::new(0, 1);
+
+        assert!(super::exchange_infection_microbiome_profiles(
+            &mut individual,
+            0,
+            &cache,
+            1.0,
+            1.0,
+            &mut rng,
+        ));
+
+        assert_eq!(individual.mechanism_any[0], first | second);
+        assert_eq!(individual.mechanism_microbiome[0], first | second);
+        assert_eq!(
+            bincode::serialize(&individual.resistances[0]).unwrap(),
+            bincode::serialize(&before).unwrap(),
+            "sharing a profile must not lower either compartment's existing resistance",
+        );
+    }
+
+    #[test]
+    fn infection_microbiome_exchange_runs_during_daily_updates_with_carriage_frozen() {
+        let (base, cache, first, second) = infection_microbiome_exchange_fixture();
+        let mechanism_cache =
+            MechanismCache::new(6, BACTERIA_LIST.len(), ResistanceMechanism::all().len());
+        let time_step = 15;
+        let availability = DrugAvailabilityCache::new(time_step, &cache);
+        let probability = parameter_store()
+            .globals
+            .microbiome_resistance_transfer_probability_per_day;
+        assert!(probability > 0.0 && probability <= 1.0);
+
+        for level in [2.0 * INFECTION_EPS, INFECTION_EPS, INFECTION_EPS / 2.0] {
+            for enabled in [true, false] {
+                let mut individual = base.clone();
+                individual.level[0] = level;
+                let mut policy = test_policy_adjustments();
+                // Force this rare event through the existing policy scaling in this
+                // fixture only. MAX draws reject other probabilistic daily events.
+                policy.counterfactual_resistance_multiplier =
+                    Some(if enabled { 1.0 / probability } else { 0.0 });
+                let mut rng = StepRng::new(u64::MAX, 0);
+
+                let events = apply_rules(
+                    &mut individual,
+                    time_step,
+                    &mut rng,
+                    &mechanism_cache,
+                    &cache,
+                    &availability,
+                    &policy,
+                );
+
+                assert_eq!(individual.date_of_death, None);
+                assert!(events.infection_acquisitions.is_empty());
+                assert!(individual.level[0] > 0.0);
+                assert_eq!(individual.predicted_infection_risk[0], 0.0);
+                assert_eq!(
+                    individual.mechanism_any[0],
+                    if enabled { first | second } else { first }
+                );
+                assert_eq!(
+                    individual.mechanism_microbiome[0],
+                    if enabled { first | second } else { second }
+                );
+                assert_eq!(individual.mechanism_majority[0], first);
+                assert!(individual.presence_microbiome[0]);
+                assert!(!individual.microbiome_acquired_today[0]);
+                assert!(!individual.microbiome_cleared_today[0]);
+                assert_eq!(individual.date_last_infected[0], base.date_last_infected[0]);
+                assert_eq!(
+                    individual.date_last_infected_keep[0],
+                    base.date_last_infected_keep[0]
+                );
+                assert_eq!(
+                    individual.date_microbiome_acquired[0],
+                    base.date_microbiome_acquired[0]
+                );
+                assert_eq!(
+                    individual.clearance_ready_day[0],
+                    base.clearance_ready_day[0]
+                );
+            }
+        }
     }
 
     fn test_policy_adjustments() -> PolicyAdjustments {

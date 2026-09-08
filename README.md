@@ -197,7 +197,7 @@ Simulation outputs are written under
 - `run_metadata_<timestamp>_seed_<seed>.txt`
 - `config_validation_<timestamp>.txt`
 
-The summary CSV uses output schema version 4. Its fields depend on the selected
+The summary CSV uses output schema version 6. Its fields depend on the selected
 run mode and can number in the tens of thousands. Optional diagnostic-cascade
 columns are accompanied by `diagnostic_cascade_collection_enabled`, so an
 uncollected metric is not mistaken for a genuine zero count. The metadata
@@ -205,14 +205,41 @@ records the source hash, seed and seed source, run ID, population, time steps,
 mode, policies, thread count, duration, output path, CSV SHA-256 hash,
 validation status, and completion or failure state.
 
-Schema 4 adds resistance snapshots by home region. With regional collection enabled
+Schema 4 introduced resistance snapshots by home region. With regional collection enabled
 (including the default `Full` calibration mode), the calibration summary reports
 resistance prevalence and conditional mean `any_r` for all six regions, with the
 number of contributing bacterium-drug pairs. These fields count living active
 infections at the end of the day. `regional_resistance_collected` distinguishes
 observed zeros from disabled collection; `FullMinimal` leaves this group disabled.
-Older CSVs remain usable for their existing analyses but cannot supply this new
-table. Generate a new simulation CSV to obtain regional resistance results.
+Schema-1 to schema-3 CSVs cannot supply this table. Generate a new simulation CSV
+to obtain missing regional resistance results.
+
+Schema 5 aligns global and hospital/community resistance counts and sums with
+the same end-of-day living active infections used for their denominators. It also
+aligns the associated infection-mechanism, testing and legacy MIC-proxy stocks.
+Hospital/community counts retain the pre-rule care-setting classification for
+both numerator and denominator. Regional resistance retains its schema-4 timing
+and home-region definition. This reporting correction leaves model dynamics and
+resistance-profile feedback unchanged.
+
+Calibration summaries still run on historical schemas 1-4 but warn that the
+global drug-specific resistance counts used a different observation time from
+their infection denominators. Existing CSVs cannot be repaired by clipping
+percentages; a new simulation run is required for corrected global resistance
+results. Schema-5 and later calibration validates matching counts and sums and rejects
+inconsistent snapshots rather than silently clipping them.
+
+Schema 6 applies the headline model scope to the existing regional and age-specific
+sepsis/non-sepsis infection-death counters; the CSV layout is unchanged.
+Calibration-summary death counts and rates now exclude deaths whose eligible
+infection contributors are only *H. pylori* or MDR-TB. A death with an eligible
+contributor inside the headline scope is counted once, including mixed infections.
+These fields retain the existing regional collection marker. Global death-cause
+counters remain broad, and regional background/toxicity counters are unchanged.
+Schemas 1-5 recorded broader regional/age infection deaths, so the restricted
+calibration tables are reported unavailable for those files. A new simulation
+run with regional collection enabled is required; the missing split cannot be
+reconstructed by subtracting bacterium-associated deaths.
 
 Schema-1 and schema-2 summaries remain readable only through the audited
 calibration-snapshot compatibility path:
@@ -230,9 +257,9 @@ python -m amr_simulation_output_analysis.make_paper_tables `
   output_graphs/calibration_summary_123456.txt
 ```
 
-Comprehensive analysis and SF5 accept schemas 3 and 4; their existing field
-definitions are unchanged. Schemas 1 and 2 retain the explicit compatibility
-restrictions above.
+Comprehensive analysis and SF5 accept schemas 3, 4, 5 and 6. Schemas 1 and 2 retain
+the explicit compatibility restrictions above. Matching column names across
+versions do not imply matching observation times.
 
 The source hash can be supplied by `AMR_SOURCE_HASH` or `source_hash.txt`.
 Otherwise the launcher uses the current Git commit and marks a dirty worktree.
@@ -261,9 +288,29 @@ python -m amr_simulation_output_analysis.amr_analysis
 ```
 
 The analysis writes calibration summaries and configured plots under
-`output_graphs/`. Plot selection, policies, output format, caching, and memory
-settings are controlled by `PlotConfig` in
-`amr_simulation_output_analysis/config.py`.
+`output_graphs/`. Plot selection, policies, output format and memory settings
+are controlled by `PlotConfig`; the input CSV and Parquet-cache options are
+controlled by `DataConfig` in `amr_simulation_output_analysis/config.py`.
+
+Regional resistance adds 31,501 CSV columns with the current inventories, so
+these runs produce larger files. Preprocessing converts only the columns needed
+to calculate derived plotting fields and passes the unchanged raw matrices
+through without a Pandas–Polars roundtrip. Only derived columns are converted
+back; other wide conversions use bounded column batches. All regional data
+remains available to the calibration summary. These Python optimisations work
+with existing CSVs and do not require another simulation run.
+
+The calibration snapshot also reports infection-death counts by age group and
+region, with raw calibration-window totals and mean annual counts scaled using
+the headline world-population factor. These combine sepsis and non-sepsis
+infection deaths using the same organism scope as the headline: deaths with
+only H. pylori or MDR-TB contributors are excluded. The existing regional and
+age counters use this scope from schema 6, and both totals reconcile with the
+headline before display rounding.
+Regional counts use the person's effective location at the start of the death
+day. Missing, disabled or historical broader-scope mortality data is reported
+as unavailable for these restricted calibration tables; rerun the simulation
+to obtain the revised counts.
 
 Run the Python regression tests from the repository root with:
 

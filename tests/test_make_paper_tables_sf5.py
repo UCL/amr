@@ -147,8 +147,8 @@ class SupplementaryFigureS5ContractTests(unittest.TestCase):
                 self.assertIn("unsupported simulation-summary schema", message)
                 self.assertIn("requires version 3", message)
 
-    def test_compatible_schema_three_and_current_four_keep_sf5_available(self) -> None:
-        for version in (3, 4):
+    def test_supported_schemas_keep_sf5_available(self) -> None:
+        for version in (3, 4, 5, 6):
             with self.subTest(version=version):
                 rows, problems = _parse_frame(
                     _sf5_frame([100, 80, 20, 60, 50], schema_version=version)

@@ -20,6 +20,7 @@ from amr_simulation_output_analysis.make_paper_tables import (
 )
 from amr_simulation_output_analysis.summary_schema import (
     SUMMARY_SCHEMA_VERSION_COLUMN,
+    SUPPORTED_SUMMARY_SCHEMA_VERSION,
     SimulationSummarySchemaError,
 )
 
@@ -151,18 +152,19 @@ class LegacyPaperSchemaPreflightTests(unittest.TestCase):
 
         self.assertEqual(versions, {path: 3})
 
-    def test_v4_uses_normal_preflight_and_reported_provenance(self) -> None:
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "simulation_summary_v4.csv"
-            _write_summary(path, [4, 4])
-            self.assertEqual(
-                _preflight_simulation_csv_schemas([path], allow_legacy=False),
-                {path: 4},
-            )
-            _validate_reported_calibration_schemas(
-                [{"meta": {"simulation_summary_schema": "4 (current)"}}],
-                allow_legacy=False,
-            )
+    def test_v5_and_v6_use_normal_preflight_and_reported_provenance(self) -> None:
+        for version in (5, 6):
+            with self.subTest(version=version), TemporaryDirectory() as tmp:
+                path = Path(tmp) / f"simulation_summary_v{version}.csv"
+                _write_summary(path, [version, version])
+                self.assertEqual(
+                    _preflight_simulation_csv_schemas([path], allow_legacy=False),
+                    {path: version},
+                )
+                _validate_reported_calibration_schemas(
+                    [{"meta": {"simulation_summary_schema": str(version)}}],
+                    allow_legacy=False,
+                )
 
     def test_future_unversioned_and_mixed_inputs_remain_rejected(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -170,7 +172,7 @@ class LegacyPaperSchemaPreflightTests(unittest.TestCase):
             future = root / "future.csv"
             unversioned = root / "unversioned.csv"
             mixed = root / "mixed.csv"
-            _write_summary(future, [5])
+            _write_summary(future, [SUPPORTED_SUMMARY_SCHEMA_VERSION + 1])
             pd.DataFrame({"time_in_years": [92.0]}).to_csv(unversioned, index=False)
             _write_summary(mixed, [1, 3])
 
@@ -287,7 +289,7 @@ class LegacyPaperEntrypointTests(unittest.TestCase):
             provenance = (output_dir / "build_provenance.txt").read_text(
                 encoding="utf-8"
             )
-            self.assertIn("Validation mode: current and compatible schemas (3, 4)", provenance)
+            self.assertIn("Validation mode: current and compatible schemas (3, 4, 5, 6)", provenance)
             self.assertIn("Supplementary Figure S5: enabled", provenance)
 
 
@@ -323,7 +325,7 @@ class ScopedLegacyPaperValidationTests(unittest.TestCase):
                     self.assertIn("Supplementary Figure S5 is omitted", _paper_schema_contract_note())
                     raise RuntimeError("deliberate")
 
-            self.assertIn("compatible schema 3", _paper_schema_contract_note())
+            self.assertIn("format-compatible schemas 3, 4 and 5", _paper_schema_contract_note())
             with self.assertRaisesRegex(SimulationSummarySchemaError, "unsupported"):
                 _read_csv_selected(path, {"example_count"})
 
@@ -391,7 +393,7 @@ class LegacyPaperProvenanceTests(unittest.TestCase):
             legacy_without_sf5=False,
         )
 
-        self.assertIn("Validation mode: current and compatible schemas (3, 4)", provenance)
+        self.assertIn("Validation mode: current and compatible schemas (3, 4, 5, 6)", provenance)
         self.assertIn("Supplementary Figure S5: enabled", provenance)
         self.assertNotIn("Legacy compatibility build", rendered)
 

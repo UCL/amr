@@ -65,6 +65,14 @@ def _build_normalized_filter(values: Optional[List[str]]) -> Optional[Set[str]]:
     return {_normalize_identifier(value) for value in values if value is not None}
 
 
+def _regional_infection_deaths_use_headline_scope(df: pd.DataFrame) -> bool:
+    versions = pd.to_numeric(
+        df.get('simulation_summary_schema_version', pd.Series(dtype=float)),
+        errors='coerce',
+    )
+    return not versions.empty and bool(versions.ge(6).all())
+
+
 @safe_plot_creation
 def create_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create separate infection and death proportion plots."""
@@ -2462,6 +2470,8 @@ def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=N
 def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create a separate death-rate plot for each region."""
     logger.info("=== CREATING DEATH RATE BY REGION PLOTS ===")
+    headline_scope = _regional_infection_deaths_use_headline_scope(df)
+    combined_label = 'Reported causes' if headline_scope else 'All-cause'
     
     # Create output directory
     output_dir = config.output_dir / "death_rate_by_region"
@@ -2502,7 +2512,7 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             # Create the plot
             fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
             
-            # Calculate total deaths for this region
+            # Sum the reported causes; schema 6 restricts the infection causes.
             total_deaths = (
                 df[death_bg_col]
                 + df[death_sepsis_col]
@@ -2521,7 +2531,7 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             # Plot death proportion over time
             # Colors match Grouped Figure 2d (Deaths in Past Year panel)
             ax.plot(df['time_in_years'], smoothed_death_prop, 
-                   label='All-cause', linewidth=2, color='black')
+                   label=combined_label, linewidth=2, color='black')
             
             # Optional: Plot death causes separately
             death_bg_prop = df[death_bg_col] / df[pop_col].replace(0, 1)
@@ -2549,14 +2559,14 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             ax.plot(
                 df['time_in_years'],
                 smooth_sepsis,
-                label='Sepsis',
+                label='Sepsis (headline scope)' if headline_scope else 'Sepsis',
                 linewidth=1,
                 color='red',
             )
             ax.plot(
                 df['time_in_years'],
                 smooth_infection_ns,
-                label='Infection (non-sepsis)',
+                label='Infection (non-sepsis; headline scope)' if headline_scope else 'Infection (non-sepsis)',
                 linewidth=1,
                 color='#ff1493',
             )
@@ -2582,7 +2592,10 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             total_deaths_final = total_deaths.sum()
             max_death_rate = smoothed_death_prop.max()
             
-            textstr = f'Final population: {int(final_pop):,}\nTotal deaths: {int(total_deaths_final):,}\nPeak death rate: {max_death_rate:.4f}'
+            count_label = 'Deaths from reported causes' if headline_scope else 'Total deaths'
+            textstr = f'Final population: {int(final_pop):,}\n{count_label}: {int(total_deaths_final):,}\nPeak death rate: {max_death_rate:.4f}'
+            if headline_scope:
+                textstr += '\nInfection deaths exclude H. pylori/MDR-TB-only contributors.'
             props = dict(boxstyle='round', facecolor='lightcoral', alpha=0.8)
             ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
                    verticalalignment='top', bbox=props)
@@ -3349,6 +3362,8 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
     Files: {region}_age_specific_death_rates.png
     """
     logger.info("Creating age-specific death rate by region plots")
+    headline_scope = _regional_infection_deaths_use_headline_scope(df)
+    combined_label = 'Reported causes' if headline_scope else 'All-cause'
     
     # Create output directory
     output_dir = config.output_dir / "age_specific_death_rate_by_region"
@@ -3366,10 +3381,10 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
     ]
     death_labels = [
         'Background',
-        'Sepsis',
-        'Infection (non-sepsis)',
+        'Sepsis (headline scope)' if headline_scope else 'Sepsis',
+        'Infection (non-sepsis; headline scope)' if headline_scope else 'Infection (non-sepsis)',
         'Drug Toxicity',
-        'All-cause',
+        combined_label,
     ]
 
     # Colors for death types
@@ -3443,13 +3458,13 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
                     ax.plot(df['time_in_years'], smoothed_rate, 
                            label=death_label, linewidth=2, color=color, alpha=0.8)
             
-            # Calculate and plot total deaths (all-cause)
+            # Sum the reported causes; schema 6 restricts the infection causes.
             if death_rates:
                 total_deaths = sum(death_rates)
                 ax.plot(
                     df['time_in_years'],
                     total_deaths,
-                    label='All-cause',
+                    label=combined_label,
                     linewidth=2,
                     color=death_colors[-1],
                     alpha=0.9,
@@ -3468,7 +3483,10 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
         
         # Overall title
         region_title = region.replace('_', ' ').title()
-        fig.suptitle(f'Age-Specific Death Rates Over Time - {region_title}', fontsize=16)
+        title = f'Age-Specific Death Rates Over Time - {region_title}'
+        if headline_scope:
+            title += '\nInfection deaths exclude H. pylori/MDR-TB-only contributors.'
+        fig.suptitle(title, fontsize=16)
         
         plt.tight_layout()
         

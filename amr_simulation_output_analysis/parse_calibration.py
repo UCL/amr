@@ -94,6 +94,8 @@ _SECTION_PATTERNS: list[tuple[str, str]] = [
     ("Testing Summary",                           "testing_summary"),
     ("Syndrome Incidence Breakdown",              "syndrome_incidence"),
     ("Infection Death Rates by Age Group and Region", "age_region_death_rates"),
+    ("Infection Death Counts by Age Group",        "infection_deaths_by_age"),
+    ("Infection Death Counts by Region",           "infection_deaths_by_region"),
     ("Infection Incidence Fit Summary",           "fit_infection_incidence"),
     ("Microbiome Carriage Fit Summary",           "fit_carriage"),
     ("Infection Deaths Fit Summary",              "fit_infection_deaths"),
@@ -314,6 +316,8 @@ def parse_file(path: Union[str, Path]) -> dict:
     _id_cols: dict[str, list[str]] = {
         "headline_metrics":           ["Metric"],
         "testing_summary":            ["Metric"],
+        "infection_deaths_by_age":    ["Age Group"],
+        "infection_deaths_by_region": ["Region"],
         "bacteria_infections":        ["Bacteria"],
         "bacteria_mortality":         ["Bacteria"],
         "resistance_incidence_locus": ["Bacteria"],
@@ -466,6 +470,8 @@ def aggregate(parsed_list: list[dict]) -> dict:
         return {}
 
     _df_key_cols: dict[str, list[str]] = {
+        "infection_deaths_by_age":    ["Age Group"],
+        "infection_deaths_by_region": ["Region"],
         "headline_metrics":           ["Metric"],
         "testing_summary":            ["Metric"],
         "bacteria_infections":        ["Bacteria"],
