@@ -143,6 +143,7 @@ CALIBRATION_PATTERNS = [
     r'.*_majority_r_gt_0_count$',
     
     # Deaths by bacteria
+    r'^.+_deaths_infected_(north_america|south_america|africa|asia|europe|oceania)$',
     r'.*_deaths$',
     r'.*_deaths_past_year$',
     

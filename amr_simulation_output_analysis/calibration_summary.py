@@ -18,6 +18,7 @@ if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     from amr_simulation_output_analysis.config import PlotConfig
     from amr_simulation_output_analysis.data_loader import DataCache
+    from amr_simulation_output_analysis.bacterium_region_deaths import calculate_bacterium_region_death_counts
     from amr_simulation_output_analysis.death_counts import (
         InfectionDeathCountTables,
         calculate_infection_death_counts,
@@ -36,6 +37,7 @@ if __package__ is None or __package__ == "":
 else:
     from .config import PlotConfig
     from .data_loader import DataCache
+    from .bacterium_region_deaths import calculate_bacterium_region_death_counts
     from .death_counts import InfectionDeathCountTables, calculate_infection_death_counts
     from .summary_schema import (
         HISTORICAL_RESISTANCE_TIMING_WARNING,
@@ -640,12 +642,17 @@ def _gather_calibration_context(
     age_region_death_rate_df = _calculate_age_region_death_rate_table(
         year_df, window_years, death_count_tables
     )
+    bacterium_region_deaths_df, bacterium_region_deaths_unavailable = calculate_bacterium_region_death_counts(
+        year_df, window_years=window_years, scale_factor=scale_factor
+    )
 
     return {
         "resistance_incidence_locus_df": resistance_incidence_locus_df,
         "serious_resistance_locus_df": serious_resistance_locus_df,
         "age_region_death_rate_df": age_region_death_rate_df,
         "death_count_tables": death_count_tables,
+        "bacterium_region_deaths_df": bacterium_region_deaths_df,
+        "bacterium_region_deaths_unavailable": bacterium_region_deaths_unavailable,
         "config": config,
         "targets": targets,
         "df": df,
@@ -4672,6 +4679,48 @@ def _calculate_syndrome_incidence_table(
         
     return pd.DataFrame(records, columns=columns)
 
+def _write_bacterium_region_death_counts(
+    handle,
+    table: pd.DataFrame,
+    unavailable: Optional[str],
+    *,
+    window_label: str,
+    window_years: float,
+    scale_factor: float,
+) -> None:
+    handle.write("Deaths among people actively infected, by bacterium and home region\n")
+    handle.write(f"Observation window: {window_label}; baseline policy 0.\n")
+    handle.write(
+        f"Values are mean annual deaths, scaled to the world population: raw window "
+        f"counts / {window_years:.2f} x {scale_factor:,.4f}. Home residence is used, "
+        "including while travelling. Core per-bacterium output must be collected.\n"
+        "These are deaths from any cause while the person has an active infection "
+        "with the named bacterium, including background and drug-toxicity deaths.\n"
+    )
+    if unavailable:
+        handle.write(f"Unavailable: {unavailable}\n\n")
+        return
+    if table.empty:
+        handle.write("Unavailable: no bacterium-by-home-region death observations.\n\n")
+        return
+    display = table.copy()
+    display["Bacterium"] = display["Bacterium"].map(_display_bacteria_slug)
+    display = display.sort_values("Bacterium", key=lambda values: values.str.casefold())
+    for column in display.columns:
+        if column != "Bacterium":
+            display[column] = display[column].map(_format_count)
+    handle.write(_render_table_with_alignment(display, left_columns={"Bacterium"}))
+    handle.write(
+        "\nNote: these are associations with active infection, not deaths attributed "
+        "causally to each bacterium or to resistance. A person with several active "
+        "bacterial infections is counted in each corresponding row. Rows therefore "
+        "must not be added to obtain a unique death total or reconciled with the "
+        "headline infection-death total. No grand total across bacteria is shown.\n"
+        "Note: All regions sums the six home-region cells for that bacterium before "
+        "rounding; displayed cells may differ slightly from the rounded row total.\n\n"
+    )
+
+
 def _write_infection_death_count_tables(
     handle,
     tables: InfectionDeathCountTables,
@@ -5262,6 +5311,21 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 "Infection Death Rates by Age Group and Region\n"
                 f"Unavailable: {death_count_tables.age_unavailable}\n\n"
             )
+
+        bacterium_region_deaths_df = context.get("bacterium_region_deaths_df")
+        bacterium_region_deaths_unavailable = context.get("bacterium_region_deaths_unavailable")
+        if not isinstance(bacterium_region_deaths_df, pd.DataFrame):
+            bacterium_region_deaths_df, bacterium_region_deaths_unavailable = calculate_bacterium_region_death_counts(
+                year_df, window_years=window_years, scale_factor=scale_factor
+            )
+        _write_bacterium_region_death_counts(
+            handle,
+            bacterium_region_deaths_df,
+            bacterium_region_deaths_unavailable,
+            window_label=str(context.get("calibration_window_year_range", "calibration window")),
+            window_years=window_years,
+            scale_factor=scale_factor,
+        )
 
         _write_metric_fit_summary(
             handle,

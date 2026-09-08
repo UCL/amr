@@ -11405,7 +11405,7 @@ lazy_static! {
         map.insert("oceania_antibiotic_initiation_log_odds".to_string(), 0.0); // Similar access
         map.insert("asia_antibiotic_initiation_log_odds".to_string(), -0.6); // Multiplies initiation odds by about 0.61 before other effects.
         map.insert("south_america_antibiotic_initiation_log_odds".to_string(), -0.6); // Multiplies initiation odds by about 0.45 before other effects.
-        map.insert("africa_antibiotic_initiation_log_odds".to_string(), -0.9); .
+        map.insert("africa_antibiotic_initiation_log_odds".to_string(), -0.9);  
 
         // Clinical status multipliers
         map.insert("testing_immunosuppressed_multiplier".to_string(), 2.5); // Immunosuppressed patients get more testing

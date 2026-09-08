@@ -80,6 +80,7 @@ def _read(path: Union[str, Path]) -> list[str]:
 
 # Ordered longest-first to prevent shorter prefixes shadowing longer ones.
 _SECTION_PATTERNS: list[tuple[str, str]] = [
+    ("Deaths among people actively infected, by bacterium and home region", "deaths_among_infected_by_bacterium_region"),
     ("Bacteria Burden Benchmarks — Infections",   "bacteria_infections"),
     ("Bacteria Burden Benchmarks — Mortality",    "bacteria_mortality"),
     ("Serious Resistance Locus",                 "serious_resistance_locus"),
@@ -314,6 +315,7 @@ def parse_file(path: Union[str, Path]) -> dict:
 
     # --- generic table sections ----------------------------------------------
     _id_cols: dict[str, list[str]] = {
+        "deaths_among_infected_by_bacterium_region": ["Bacterium"],
         "headline_metrics":           ["Metric"],
         "testing_summary":            ["Metric"],
         "infection_deaths_by_age":    ["Age Group"],
@@ -470,6 +472,7 @@ def aggregate(parsed_list: list[dict]) -> dict:
         return {}
 
     _df_key_cols: dict[str, list[str]] = {
+        "deaths_among_infected_by_bacterium_region": ["Bacterium"],
         "infection_deaths_by_age":    ["Age Group"],
         "infection_deaths_by_region": ["Region"],
         "headline_metrics":           ["Metric"],
