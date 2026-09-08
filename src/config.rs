@@ -7373,16 +7373,14 @@ lazy_static! {
 
         // REGIONAL CESSATION MULTIPLIERS (applied to base bacteria-specific rates)
         // High-income regions with strong healthcare systems and universal access
-        map.insert("north_america_cessation_multiplier".to_string(), 0.85); // Good healthcare access, medication coverage
-        map.insert("europe_cessation_multiplier".to_string(), 0.80); // Universal healthcare, excellent adherence programs
-        map.insert("oceania_cessation_multiplier".to_string(), 0.85); // Similar to North America (Australia/NZ dominant)
-
+        map.insert("north_america_cessation_multiplier".to_string(), 0.85); 
+        map.insert("europe_cessation_multiplier".to_string(), 0.85); 
+        map.insert("oceania_cessation_multiplier".to_string(), 0.85); 
         // Middle-income regions with variable healthcare access
-        map.insert("asia_cessation_multiplier".to_string(), 1.15); // Mixed development levels, variable infrastructure
-        map.insert("south_america_cessation_multiplier".to_string(), 1.25); // Economic constraints, healthcare gaps
-
+        map.insert("asia_cessation_multiplier".to_string(), 1.10); 
+        map.insert("south_america_cessation_multiplier".to_string(), 1.10); 
         // Lower-income regions with significant healthcare challenges
-        map.insert("africa_cessation_multiplier".to_string(), 1.40); // Economic barriers, limited infrastructure
+        map.insert("africa_cessation_multiplier".to_string(), 1.10); 
 
         // Unused compatibility keys for a proposed TB-specific regional
         // adherence layer. Current cessation logic does not read these values.
@@ -11405,9 +11403,9 @@ lazy_static! {
         map.insert("north_america_antibiotic_initiation_log_odds".to_string(), 0.0); // Reference region
         map.insert("europe_antibiotic_initiation_log_odds".to_string(), 0.0); // Similar access to NA
         map.insert("oceania_antibiotic_initiation_log_odds".to_string(), 0.0); // Similar access
-        map.insert("asia_antibiotic_initiation_log_odds".to_string(), -0.5); // Multiplies initiation odds by about 0.61 before other effects.
-        map.insert("south_america_antibiotic_initiation_log_odds".to_string(), -0.8); // Multiplies initiation odds by about 0.45 before other effects.
-        map.insert("africa_antibiotic_initiation_log_odds".to_string(), -1.4); // Multiplies initiation odds by about 0.25 before other effects.
+        map.insert("asia_antibiotic_initiation_log_odds".to_string(), -0.6); // Multiplies initiation odds by about 0.61 before other effects.
+        map.insert("south_america_antibiotic_initiation_log_odds".to_string(), -0.6); // Multiplies initiation odds by about 0.45 before other effects.
+        map.insert("africa_antibiotic_initiation_log_odds".to_string(), -0.9); .
 
         // Clinical status multipliers
         map.insert("testing_immunosuppressed_multiplier".to_string(), 2.5); // Immunosuppressed patients get more testing
@@ -11695,13 +11693,13 @@ lazy_static! {
         map.insert("sepsis_death_log_odds_not_under_care".to_string(), 1.4); // No modeled care marker: +1.4 log-odds (~4x)
 
         // Regional multipliers converted to additive log-odds terms; they multiply
-        // daily sepsis-death odds, not probability directly.
-        map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.5);
-        map.insert("europe_sepsis_mortality_multiplier".to_string(), 0.4);
-        map.insert("oceania_sepsis_mortality_multiplier".to_string(), 0.5);
-        map.insert("asia_sepsis_mortality_multiplier".to_string(), 0.9);
-        map.insert("south_america_sepsis_mortality_multiplier".to_string(), 1.1);
-        map.insert("africa_sepsis_mortality_multiplier".to_string(), 1.5);
+        // daily sepsis-death odds, not probability directly.  rrrr
+        map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.6);
+        map.insert("europe_sepsis_mortality_multiplier".to_string(), 0.6);
+        map.insert("oceania_sepsis_mortality_multiplier".to_string(), 0.6);
+        map.insert("asia_sepsis_mortality_multiplier".to_string(), 1.1);
+        map.insert("south_america_sepsis_mortality_multiplier".to_string(), 1.0);
+        map.insert("africa_sepsis_mortality_multiplier".to_string(), 1.1);
 
         // Sepsis Recovery Parameters (Logistic Model)
         map.insert("sepsis_recovery_base_log_odds_per_day".to_string(), -0.0); // 50% before other recovery effects
@@ -11793,15 +11791,15 @@ lazy_static! {
 
         // --- Age-Region Interaction Effects ---
         // General age-region interactions (applied when bacteria-specific interactions not available)
-        // Format: {region}_log_odds_{age_category}
+        // Format: {region}_log_odds_{age_category}   rrrr
 
         // Africa: Higher infectious disease burden across all ages, especially in vulnerable populations
-        map.insert("africa_log_odds_infant".to_string(), 2.0);       // Very high infant susceptibility (malnutrition, poor healthcare access)
-        map.insert("africa_log_odds_preschool".to_string(), 1.2);    // High preschooler susceptibility
-        map.insert("africa_log_odds_school".to_string(), 0.6);       // Moderate school age susceptibility
-        map.insert("africa_log_odds_young_adult".to_string(), 0.3);  // Slightly higher young adult susceptibility
-        map.insert("africa_log_odds_middle_age".to_string(), 0.4);   // Higher middle age susceptibility
-        map.insert("africa_log_odds_elderly".to_string(), 1.3);      // High elderly susceptibility
+        map.insert("africa_log_odds_infant".to_string(), 1.6);       // Very high infant susceptibility (malnutrition, poor healthcare access)
+        map.insert("africa_log_odds_preschool".to_string(), 0.8);    // High preschooler susceptibility
+        map.insert("africa_log_odds_school".to_string(), 0.3);       // Moderate school age susceptibility
+        map.insert("africa_log_odds_young_adult".to_string(), 0.2);  // Slightly higher young adult susceptibility
+        map.insert("africa_log_odds_middle_age".to_string(), 0.2);   // Higher middle age susceptibility
+        map.insert("africa_log_odds_elderly".to_string(), 0.9);      // High elderly susceptibility
 
         // Asia: Variable healthcare quality, high population density effects
         map.insert("asia_log_odds_infant".to_string(), 1.0);         // Moderately high infant susceptibility
