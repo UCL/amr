@@ -1,0 +1,88 @@
+{
+  "source_url": "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/EXCEL_FILES/2_Population/WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx",
+  "source_sha256": "78109efb998fee10bd0c501844e04cafd0922836239e00aa90d9f35fc828a94a",
+  "source_bytes": 220318066,
+  "retrieved_date": "2026-09-09",
+  "source_sheet": "Estimates",
+  "source_date": "2023-07-01",
+  "year": 2023,
+  "source_units": "thousands of persons",
+  "output_population_units": "persons",
+  "age_units": "completed years; 100+ open interval",
+  "regional_components": {
+    "north_america": [
+      "Northern America",
+      "Central America",
+      "Caribbean"
+    ],
+    "south_america": [
+      "South America"
+    ],
+    "europe": [
+      "Europe"
+    ],
+    "asia": [
+      "Asia"
+    ],
+    "africa": [
+      "Africa"
+    ],
+    "oceania": [
+      "Oceania"
+    ]
+  },
+  "selected_source_regions": [
+    {
+      "name": "Africa",
+      "code": "903",
+      "source_row": "2537"
+    },
+    {
+      "name": "Asia",
+      "code": "935",
+      "source_row": "7273"
+    },
+    {
+      "name": "Caribbean",
+      "code": "915",
+      "source_row": "15636"
+    },
+    {
+      "name": "Central America",
+      "code": "916",
+      "source_row": "17782"
+    },
+    {
+      "name": "Europe",
+      "code": "908",
+      "source_row": "11491"
+    },
+    {
+      "name": "Northern America",
+      "code": "905",
+      "source_row": "19558"
+    },
+    {
+      "name": "Oceania",
+      "code": "909",
+      "source_row": "20002"
+    },
+    {
+      "name": "South America",
+      "code": "931",
+      "source_row": "18448"
+    },
+    {
+      "name": "World",
+      "code": "900",
+      "source_row": "91"
+    }
+  ],
+  "source_age_rows": 909,
+  "target_rows": 30,
+  "world_population": "8091734930.0000",
+  "six_continent_population": "8091734930.0000",
+  "max_single_age_partition_difference_persons": "0.0000",
+  "total_partition_difference_persons": "0.0000",
+  "single_age_partition_tolerance_persons": "5.000"
+}

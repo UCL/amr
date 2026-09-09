@@ -12208,19 +12208,21 @@ lazy_static! {
         // so they are relative weights and need not sum to 1.0.
         // Age-band bounds are days relative to birth; negative values are future cohorts.
         // Regional weighting pass, 2026-09-09: Asia x1.06, Africa x1.05, Europe x0.74,
-        // North America x1.09, South America x1.07, Oceania x0.22. Within-region
-        // cohort ratios are unchanged; the joint age-profile refit remains pending.
+        // North America x1.09, South America x1.07, Oceania x0.22.
+        // Age-profile pass, 2026-09-09: eight birth cohorts per region fitted to
+        // the under-80 age mix. Regional weight totals, the restored zero-ending
+        // cohort, initially living cohorts and the unobserved future band are retained.
 
         // Asia demographic weights; raw weights emphasize future cohorts.
         map.insert("demo_asia_age_neg40000_neg36000".to_string(), 0.11448); // Heavy weighting on future births
-        map.insert("demo_asia_age_neg36000_neg32000".to_string(), 0.10494);
-        map.insert("demo_asia_age_neg32000_neg28000".to_string(), 0.0954);
-        map.insert("demo_asia_age_neg28000_neg24000".to_string(), 0.08586);
-        map.insert("demo_asia_age_neg24000_neg20000".to_string(), 0.07632);
-        map.insert("demo_asia_age_neg20000_neg16000".to_string(), 0.06678);
-        map.insert("demo_asia_age_neg16000_neg12000".to_string(), 0.05724);
-        map.insert("demo_asia_age_neg12000_neg8000".to_string(), 0.0477);
-        map.insert("demo_asia_age_neg8000_neg4000".to_string(), 0.03816);
+        map.insert("demo_asia_age_neg36000_neg32000".to_string(), 0.074370660332);
+        map.insert("demo_asia_age_neg32000_neg28000".to_string(), 0.085931979163);
+        map.insert("demo_asia_age_neg28000_neg24000".to_string(), 0.089102624883);
+        map.insert("demo_asia_age_neg24000_neg20000".to_string(), 0.080911186756);
+        map.insert("demo_asia_age_neg20000_neg16000".to_string(), 0.07259051055);
+        map.insert("demo_asia_age_neg16000_neg12000".to_string(), 0.068980481563);
+        map.insert("demo_asia_age_neg12000_neg8000".to_string(), 0.056951752861);
+        map.insert("demo_asia_age_neg8000_neg4000".to_string(), 0.043560803892);
         map.insert("demo_asia_age_neg4000_0".to_string(), 0.02862);          // Future births tapering
         // Positive-age bands continue the decline from the final future-cohort band.
         map.insert("demo_asia_age_0_4000".to_string(), 0.02332);             // Smooth continuation from neg4000_0
@@ -12234,14 +12236,14 @@ lazy_static! {
 
         // Africa demographic weights.
         map.insert("demo_africa_age_neg40000_neg36000".to_string(), 0.03465); // Heavy weighting on future births
-        map.insert("demo_africa_age_neg36000_neg32000".to_string(), 0.0315);
-        map.insert("demo_africa_age_neg32000_neg28000".to_string(), 0.0294);
-        map.insert("demo_africa_age_neg28000_neg24000".to_string(), 0.02625);
-        map.insert("demo_africa_age_neg24000_neg20000".to_string(), 0.02415);
-        map.insert("demo_africa_age_neg20000_neg16000".to_string(), 0.021);
-        map.insert("demo_africa_age_neg16000_neg12000".to_string(), 0.0189);
-        map.insert("demo_africa_age_neg12000_neg8000".to_string(), 0.01575);
-        map.insert("demo_africa_age_neg8000_neg4000".to_string(), 0.01365);
+        map.insert("demo_africa_age_neg36000_neg32000".to_string(), 0.045435858454);
+        map.insert("demo_africa_age_neg32000_neg28000".to_string(), 0.039604893297);
+        map.insert("demo_africa_age_neg28000_neg24000".to_string(), 0.027194119065);
+        map.insert("demo_africa_age_neg24000_neg20000".to_string(), 0.02341795761);
+        map.insert("demo_africa_age_neg20000_neg16000".to_string(), 0.018376562187);
+        map.insert("demo_africa_age_neg16000_neg12000".to_string(), 0.009518262017);
+        map.insert("demo_africa_age_neg12000_neg8000".to_string(), 0.00814781789);
+        map.insert("demo_africa_age_neg8000_neg4000".to_string(), 0.00890452948);
         map.insert("demo_africa_age_neg4000_0".to_string(), 0.0105);          // Future births tapering
         // Positive-age bands continue the decline from the final future-cohort band.
         map.insert("demo_africa_age_0_4000".to_string(), 0.00945);             // Smooth continuation from neg4000_0
@@ -12255,14 +12257,14 @@ lazy_static! {
 
         // Europe demographic weights.
         map.insert("demo_europe_age_neg40000_neg36000".to_string(), 0.0148); // Moderate weighting on future births
-        map.insert("demo_europe_age_neg36000_neg32000".to_string(), 0.01332);
-        map.insert("demo_europe_age_neg32000_neg28000".to_string(), 0.01184);
-        map.insert("demo_europe_age_neg28000_neg24000".to_string(), 0.0111);
-        map.insert("demo_europe_age_neg24000_neg20000".to_string(), 0.01036);
-        map.insert("demo_europe_age_neg20000_neg16000".to_string(), 0.00962);
-        map.insert("demo_europe_age_neg16000_neg12000".to_string(), 0.00888);
-        map.insert("demo_europe_age_neg12000_neg8000".to_string(), 0.00814);
-        map.insert("demo_europe_age_neg8000_neg4000".to_string(), 0.0074);
+        map.insert("demo_europe_age_neg36000_neg32000".to_string(), 0.007395893802);
+        map.insert("demo_europe_age_neg32000_neg28000".to_string(), 0.008863380141);
+        map.insert("demo_europe_age_neg28000_neg24000".to_string(), 0.010467835703);
+        map.insert("demo_europe_age_neg24000_neg20000".to_string(), 0.010250036664);
+        map.insert("demo_europe_age_neg20000_neg16000".to_string(), 0.010270755938);
+        map.insert("demo_europe_age_neg16000_neg12000".to_string(), 0.012205293722);
+        map.insert("demo_europe_age_neg12000_neg8000".to_string(), 0.011394565728);
+        map.insert("demo_europe_age_neg8000_neg4000".to_string(), 0.009812238302);
         map.insert("demo_europe_age_neg4000_0".to_string(), 0.00666);          // Future births tapering
         map.insert("demo_europe_age_0_4000".to_string(), 0.00592);             // Larger portion alive in 1930
         map.insert("demo_europe_age_4000_8000".to_string(), 0.00518);
@@ -12275,14 +12277,14 @@ lazy_static! {
 
         // North America demographic weights.
         map.insert("demo_north_america_age_neg40000_neg36000".to_string(), 0.01308);
-        map.insert("demo_north_america_age_neg36000_neg32000".to_string(), 0.01199);
-        map.insert("demo_north_america_age_neg32000_neg28000".to_string(), 0.0109);
-        map.insert("demo_north_america_age_neg28000_neg24000".to_string(), 0.00981);
-        map.insert("demo_north_america_age_neg24000_neg20000".to_string(), 0.00872);
-        map.insert("demo_north_america_age_neg20000_neg16000".to_string(), 0.00763);
-        map.insert("demo_north_america_age_neg16000_neg12000".to_string(), 0.00654);
-        map.insert("demo_north_america_age_neg12000_neg8000".to_string(), 0.00545);
-        map.insert("demo_north_america_age_neg8000_neg4000".to_string(), 0.00436);
+        map.insert("demo_north_america_age_neg36000_neg32000".to_string(), 0.00809004926);
+        map.insert("demo_north_america_age_neg32000_neg28000".to_string(), 0.009088775655);
+        map.insert("demo_north_america_age_neg28000_neg24000".to_string(), 0.009888471225);
+        map.insert("demo_north_america_age_neg24000_neg20000".to_string(), 0.00909077531);
+        map.insert("demo_north_america_age_neg20000_neg16000".to_string(), 0.008351424886);
+        map.insert("demo_north_america_age_neg16000_neg12000".to_string(), 0.008535543324);
+        map.insert("demo_north_america_age_neg12000_neg8000".to_string(), 0.007054545627);
+        map.insert("demo_north_america_age_neg8000_neg4000".to_string(), 0.005300414713);
         map.insert("demo_north_america_age_neg4000_0".to_string(), 0.00327);
         map.insert("demo_north_america_age_0_4000".to_string(), 0.00327);
         map.insert("demo_north_america_age_4000_8000".to_string(), 0.00327);
@@ -12295,14 +12297,14 @@ lazy_static! {
 
         // South America demographic weights.
         map.insert("demo_south_america_age_neg40000_neg36000".to_string(), 0.0107);
-        map.insert("demo_south_america_age_neg36000_neg32000".to_string(), 0.00963);
-        map.insert("demo_south_america_age_neg32000_neg28000".to_string(), 0.00856);
-        map.insert("demo_south_america_age_neg28000_neg24000".to_string(), 0.00749);
-        map.insert("demo_south_america_age_neg24000_neg20000".to_string(), 0.00642);
-        map.insert("demo_south_america_age_neg20000_neg16000".to_string(), 0.00535);
-        map.insert("demo_south_america_age_neg16000_neg12000".to_string(), 0.00428);
-        map.insert("demo_south_america_age_neg12000_neg8000".to_string(), 0.00428);
-        map.insert("demo_south_america_age_neg8000_neg4000".to_string(), 0.00321);
+        map.insert("demo_south_america_age_neg36000_neg32000".to_string(), 0.006165260494);
+        map.insert("demo_south_america_age_neg32000_neg28000".to_string(), 0.006926705035);
+        map.insert("demo_south_america_age_neg28000_neg24000".to_string(), 0.00823363396);
+        map.insert("demo_south_america_age_neg24000_neg20000".to_string(), 0.007283119662);
+        map.insert("demo_south_america_age_neg20000_neg16000".to_string(), 0.006144249206);
+        map.insert("demo_south_america_age_neg16000_neg12000".to_string(), 0.005319657549);
+        map.insert("demo_south_america_age_neg12000_neg8000".to_string(), 0.005356282871);
+        map.insert("demo_south_america_age_neg8000_neg4000".to_string(), 0.003791091223);
         map.insert("demo_south_america_age_neg4000_0".to_string(), 0.00214);
         map.insert("demo_south_america_age_0_4000".to_string(), 0.00214);
         map.insert("demo_south_america_age_4000_8000".to_string(), 0.00214);
@@ -12315,14 +12317,14 @@ lazy_static! {
 
         // Oceania demographic weights.
         map.insert("demo_oceania_age_neg40000_neg36000".to_string(), 0.00088);
-        map.insert("demo_oceania_age_neg36000_neg32000".to_string(), 0.00088);
-        map.insert("demo_oceania_age_neg32000_neg28000".to_string(), 0.00066);
-        map.insert("demo_oceania_age_neg28000_neg24000".to_string(), 0.00066);
-        map.insert("demo_oceania_age_neg24000_neg20000".to_string(), 0.00066);
-        map.insert("demo_oceania_age_neg20000_neg16000".to_string(), 0.00066);
-        map.insert("demo_oceania_age_neg16000_neg12000".to_string(), 0.00044);
-        map.insert("demo_oceania_age_neg12000_neg8000".to_string(), 0.00044);
-        map.insert("demo_oceania_age_neg8000_neg4000".to_string(), 0.00044);
+        map.insert("demo_oceania_age_neg36000_neg32000".to_string(), 0.000691816416);
+        map.insert("demo_oceania_age_neg32000_neg28000".to_string(), 0.000701919921);
+        map.insert("demo_oceania_age_neg28000_neg24000".to_string(), 0.000655247416);
+        map.insert("demo_oceania_age_neg24000_neg20000".to_string(), 0.00065010321);
+        map.insert("demo_oceania_age_neg20000_neg16000".to_string(), 0.00066591048);
+        map.insert("demo_oceania_age_neg16000_neg12000".to_string(), 0.000488928877);
+        map.insert("demo_oceania_age_neg12000_neg8000".to_string(), 0.000496874751);
+        map.insert("demo_oceania_age_neg8000_neg4000".to_string(), 0.000489198929);
         map.insert("demo_oceania_age_neg4000_0".to_string(), 0.00022);
         map.insert("demo_oceania_age_0_4000".to_string(), 0.00044);
         map.insert("demo_oceania_age_4000_8000".to_string(), 0.00044);

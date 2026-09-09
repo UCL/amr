@@ -3,7 +3,7 @@
 Date: 9 September 2026. The initial review was a proposal only and changed no
 Rust/Python code or parameter values. At that point, source included the
 demographic sampling-key correction in commit `2aa772c`. The calibration run
-reviewed here, 261633, predates that correction and the regional adjustment below.
+reviewed here, 261633, predates that correction and both parameter adjustments below.
 
 ## Applied regional adjustment — 9 September 2026
 
@@ -14,16 +14,52 @@ values in its region, changing 108 demographic weights in `src/config.rs`.
 The [parameter audit](demographic_region_multiplier_changes_2026-09-09.csv)
 records each original value, multiplier and updated value.
 
-This preserves the relative initial age-cohort weights within each region.
-It does not apply the archived fitted demographic configuration or any
-age-specific correction proposed in this review. The sampling-key correction
-remains in place. Resulting population shares and age distributions have not
-yet been validated in a new simulation; none of the observed results below
-describe the adjusted weights. Age-profile fitting remains pending, including
-reaggregation of the North American age target to cover the full continent.
+This first adjustment preserved the relative initial age-cohort weights within
+each region and did not apply the earlier archived fitted demographic
+configuration. The sampling-key correction remains in place. The subsequent
+age-profile pass is recorded separately below; the regional audit describes
+the first-stage values, not all final values after the age-profile pass.
 
-The original recommendations and comparisons are retained below as the basis
-for this first-pass adjustment and the remaining age-profile work.
+## Applied conservative age-profile pass — 9 September 2026
+
+The user then approved changes to existing demographic parameters, without
+adding model interactions. This pass changes 48 values: eight initial-age
+cohorts per region spanning `[-36000, -4000)` in 4,000-day bands. Sixty values
+remain fixed, including `[-4000, 0)`, all non-negative initial ages, and the
+`[-40000, -36000)` cohort whose births occur after the calibration window.
+Each region's total sampling weight is exactly preserved. The regional
+whole-cohort and initially-living shares documented in the model description
+therefore remain unchanged.
+
+The [age-profile audit](calibration_snapshots/age_profile_first_pass_2026-09-09/proposed_weights.csv)
+records all 108 before/after values; its `after` column is now applied in
+`src/config.rs`, despite the retained `proposed_weights.csv` filename.
+The [fit diagnostics](calibration_snapshots/age_profile_first_pass_2026-09-09/fit_diagnostics.json)
+record the fitting assumptions and conditional target residuals.
+
+The pass uses run 103646 to approximate demographic response, explicitly using
+that run's original baseline weights and legacy sampling-key behaviour. It
+fits only the age distribution conditional on being younger than 80. The
+earlier fit based on run 226163 was not applied. Holding the other cohorts
+fixed avoids estimating the restored cohort's survival from observations
+that omitted it. The fitted cohort overlapping age 80 can still change the
+80+ population; neither its survival nor the overall 80+ share is independently
+calibrated by this pass.
+
+The North American target has now been recomputed from UN WPP2024 single-age
+counts for Northern America, Central America and the Caribbean on 1 July 2023.
+The [new targets](calibration_snapshots/age_profile_first_pass_2026-09-09/age_targets.csv)
+cover the complete six-continent partition; their source counts sum exactly
+to the UN World total at every single age. This resolves the geographic
+limitation of the earlier North-American age extract.
+
+The fitted weights come from a demographic-response approximation, not measured
+results from a new simulation. Resulting living population shares, achieved
+age profiles, 80+ survival and effects on other outputs remain to be checked
+with a new run. None of the observed results below describe the final weights.
+
+The original recommendations and comparisons are retained below as historical
+context for these first-pass adjustments and the remaining validation work.
 
 ## Original recommendation
 

@@ -1,0 +1,98 @@
+{
+  "status": "provisional_under80_age_fit_not_simulation_validated",
+  "baseline_run": "103646",
+  "baseline_sampler": "legacy-negzero",
+  "baseline_weights": "archive\\calibration_snapshots\\regional_first_pass_2026-09-08\\baseline_weights.csv",
+  "candidate_sampler": "corrected",
+  "current_weights_sha256": "03f3e99ea39bf252da07b56ad68696b696dedeb869a8424ddb1e84f71747918c",
+  "target_file_sha256": "a0afa79b1c94c3dec8fa92713a0294cd9a1afbb261264fa4e7b44c775f5a59fd",
+  "window": {
+    "start_day": 33580,
+    "end_day": 35039,
+    "rows": 1460
+  },
+  "fitted_cohorts_per_region": 8,
+  "fixed_cohorts_per_region": 10,
+  "multiplier_bounds": [
+    0.25,
+    2.0
+  ],
+  "smoothness": 0.25,
+  "region_checks": [
+    {
+      "region": "asia",
+      "success": true,
+      "iterations": 6,
+      "objective": 0.22546855732427007,
+      "minimum_multiplier": 0.708696972859486,
+      "maximum_multiplier": 1.2051097407886249,
+      "current_region_weight": 0.80984,
+      "proposed_region_weight": 0.80984,
+      "max_under80_share_error": 1.1102230246251565e-16
+    },
+    {
+      "region": "africa",
+      "success": true,
+      "iterations": 10,
+      "objective": 1.0031780875136718,
+      "minimum_multiplier": 0.5036117469309723,
+      "maximum_multiplier": 1.4424082048674274,
+      "current_region_weight": 0.25725,
+      "proposed_region_weight": 0.25725,
+      "max_under80_share_error": 5.551115123125783e-17
+    },
+    {
+      "region": "europe",
+      "success": true,
+      "iterations": 14,
+      "objective": 0.7212156157639267,
+      "minimum_multiplier": 0.5552472824392931,
+      "maximum_multiplier": 1.39982379946104,
+      "current_region_weight": 0.12950000000000003,
+      "proposed_region_weight": 0.12950000000000003,
+      "max_under80_share_error": 5.551115123125783e-17
+    },
+    {
+      "region": "north_america",
+      "success": true,
+      "iterations": 14,
+      "objective": 0.39807706015844296,
+      "minimum_multiplier": 0.6747330492012492,
+      "maximum_multiplier": 1.3051289485808657,
+      "current_region_weight": 0.09918999999999999,
+      "proposed_region_weight": 0.09919,
+      "max_under80_share_error": 5.551115123125783e-17
+    },
+    {
+      "region": "south_america",
+      "success": true,
+      "iterations": 6,
+      "objective": 0.4028601290478918,
+      "minimum_multiplier": 0.6402139661146746,
+      "maximum_multiplier": 1.2514679605004677,
+      "current_region_weight": 0.07275999999999999,
+      "proposed_region_weight": 0.07276,
+      "max_under80_share_error": 8.326672684688674e-17
+    },
+    {
+      "region": "oceania",
+      "success": true,
+      "iterations": 7,
+      "objective": 0.11510987046746779,
+      "minimum_multiplier": 0.7861550185487871,
+      "maximum_multiplier": 1.1292607967843833,
+      "current_region_weight": 0.00836,
+      "proposed_region_weight": 0.00836,
+      "max_under80_share_error": 1.3877787807814457e-17
+    }
+  ],
+  "limitations": [
+    "Only the conditional age distribution below age 80 is fitted.",
+    "Regional total sampling weights are preserved; living regional shares may still change with survival.",
+    "Pure-80+ and not-yet-observed cohorts are fixed because their response is not identified by this baseline.",
+    "The 70-85 overlapping cohort can still affect the 80+ population; its size is not independently calibrated here.",
+    "The baseline predates the sampling-key fix and regional pass; its original weights and legacy mask are used explicitly.",
+    "The response approximation holds mortality, migration and other population responses fixed.",
+    "A new simulation is required to measure achieved age profiles and effects on other outputs."
+  ]
+}

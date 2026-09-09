@@ -26,6 +26,18 @@ cohort ratios are preserved. The archived joint age-profile fit remains
 unapplied. See `demographic_region_multiplier_changes_2026-09-09.csv` for all
 108 before/after values. The run-261633 findings below predate both changes.
 
+## Subsequent under-80 age-profile fit: 9 September 2026
+
+A parameter-only age-profile pass has now changed eight birth-cohort weights
+per region while preserving each region's total configured weight. The full
+North American age benchmark has been corrected to include Central America and
+the Caribbean. The restored cohort and all initially living cohorts retain
+their previous weights; an independent 80+ fit remains deferred until its
+response can be measured. See
+`calibration_snapshots/age_profile_first_pass_2026-09-09/README.md` for the
+applied audit, method and validation limits. The original findings below are
+historical observations, not results from these new parameter values.
+
 ## Main finding
 
 Infection incidence has deteriorated substantially, but the intended demographic
