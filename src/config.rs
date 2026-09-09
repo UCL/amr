@@ -11779,6 +11779,8 @@ lazy_static! {
         map.insert("toxicity_death_log_odds_immunosuppressed".to_string(), 0.9); // Immunosuppressed: +0.9 log-odds (~2.5x)
         map.insert("toxicity_death_log_odds_hospitalized".to_string(), 0.25); // Hospitalized: +0.25 log-odds (~1.3x)
 
+
+        // INFECTION ACQUISITION
         // --- Age Category Effects on Infection Acquisition ---
         // Default age category log-odds adjustments (applied to all bacteria unless overridden)
         // Age categories: infant (0-1y), preschool (1-5y), school (5-18y), young_adult (18-50y), middle_age (50-70y), elderly (70+y)
@@ -11972,7 +11974,7 @@ lazy_static! {
         map.insert("listeria_monocytogenes_log_odds_young_adult".to_string(), 0.5);     // Moderate age-only population proxy
         map.insert("listeria_monocytogenes_log_odds_middle_age".to_string(), 0.0);      // Baseline risk
         map.insert("listeria_monocytogenes_log_odds_elderly".to_string(), 1.5);         // VERY HIGH risk
-
+        
         // --- Bacteria-Specific Age-Region Interaction Overrides ---
         // These override the general age-region interactions for specific bacteria where there's strong evidence
         // Format: {bacteria_clean}_{region}_log_odds_{age_category}
