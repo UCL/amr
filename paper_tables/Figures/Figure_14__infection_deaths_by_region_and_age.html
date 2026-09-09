@@ -35,8 +35,104 @@ a { color: #2980b9; }
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
 <img src='Figure_14__infection_deaths_by_region_and_age.png' alt='Figure_14__infection_deaths_by_region_and_age' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
 <p class='note'>Download: <a href='Figure_14__infection_deaths_by_region_and_age.png'>PNG</a> | <a href='Figure_14__infection_deaths_by_region_and_age.svg'>SVG</a></p>
-<h2>Excluded inputs</h2>
-<ul><li>output_graphs\calibration_summary_zzz130692.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz136825.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz226163.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz324991.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz368577.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li><li>output_graphs\calibration_summary_zzz496331.txt: exact headline-scope breakdowns require schema 6 or later; rebuild and rerun with regional collection enabled, then regenerate the calibration summary.</li></ul>
-<ol class='footnotes'>
-<li>No supplied run has both complete, exact headline-scope infection-death breakdowns. Both panels use the same 0 of 6 supplied runs.</li><li>Counts come from the Infection Death Counts by Region and by Age Group tables in each calibration summary, for baseline policy 0 during 2022–2025. Window counts have already been annualised using the reported window duration and multiplied by the headline world-population scale factor. The axes express these annual counts in millions.</li><li>Infection deaths combine sepsis and non-sepsis infection deaths, counting each person once. Background and drug-toxicity deaths are excluded. The organism scope matches the headline: deaths with only H. pylori or MDR-TB contributors are excluded; a concurrent eligible contributor keeps a death in scope.</li><li>Panel (i) uses effective region at the start of the death day, including travel. Panel (ii) uses age at death: 0–5, 6–14, 15–49, 50–79 and 80+ years.</li><li>Each panel partitions the same deaths and sums to the mean headline total for the included runs, subject to calibration-summary display rounding. The two panels should not be added together. These are infection-death counts, not AMR-attributable deaths or the all-cause bacterium-associated death counts.</li><li>Schemas 1–5 stored broader age and regional mortality counts under the same column names; those counts cannot recover the exact headline-scope breakdowns and are excluded. Missing breakdowns are never plotted as zero.</li>
+<h2>Annual death counts</h2>
+<table>
+<thead><tr>
+<th>Panel</th>
+<th>Group</th>
+<th>Mean annual deaths</th>
+<th>95% CI (lower)</th>
+<th>95% CI (upper)</th>
+<th>Runs</th>
+</tr></thead><tbody>
+<tr>
+<td>Region</td>
+<td>North America</td>
+<td>43,221</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>South America</td>
+<td>508,646</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>Africa</td>
+<td>1,552,012</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>Asia</td>
+<td>11,613,122</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>Europe</td>
+<td>142,521</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>Oceania</td>
+<td>43,578</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Age Group</td>
+<td>0-5</td>
+<td>5,094,314</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Age Group</td>
+<td>6-14</td>
+<td>516,861</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Age Group</td>
+<td>15-49</td>
+<td>1,803,120</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Age Group</td>
+<td>50-79</td>
+<td>5,480,085</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Age Group</td>
+<td>80+</td>
+<td>1,008,719</td>
+<td>—</td>
+<td>—</td>
+<td>1</td>
+</tr>
+</tbody></table><ol class='footnotes'>
+<li>Bars show one simulation run; no between-run confidence interval is estimated. Both panels use the same 1 of 1 supplied runs.</li><li>Counts come from the Infection Death Counts by Region and by Age Group tables in each calibration summary, for baseline policy 0 during 2022–2025. Window counts have already been annualised using the reported window duration and multiplied by the headline world-population scale factor. The axes express these annual counts in millions.</li><li>Infection deaths combine sepsis and non-sepsis infection deaths, counting each person once. Background and drug-toxicity deaths are excluded. The organism scope matches the headline: deaths with only H. pylori or MDR-TB contributors are excluded; a concurrent eligible contributor keeps a death in scope.</li><li>Panel (i) uses effective region at the start of the death day, including travel. Panel (ii) uses age at death: 0–5, 6–14, 15–49, 50–79 and 80+ years.</li><li>Each panel partitions the same deaths and sums to the mean headline total for the included runs, subject to calibration-summary display rounding. The two panels should not be added together. These are infection-death counts, not AMR-attributable deaths or the all-cause bacterium-associated death counts.</li><li>Schemas 1–5 stored broader age and regional mortality counts under the same column names; those counts cannot recover the exact headline-scope breakdowns and are excluded. Missing breakdowns are never plotted as zero.</li><li>Included summaries: C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_103646.txt.</li>
 </ol></body></html>

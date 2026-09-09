@@ -11804,12 +11804,12 @@ lazy_static! {
         map.insert("africa_log_odds_elderly".to_string(), 0.9);      // High elderly susceptibility
 
         // Asia: Variable healthcare quality, high population density effects
-        map.insert("asia_log_odds_infant".to_string(), 1.0);         // Moderately high infant susceptibility
-        map.insert("asia_log_odds_preschool".to_string(), 0.5);      // Moderate preschooler susceptibility
-        map.insert("asia_log_odds_school".to_string(), 0.2);         // Slight school age susceptibility increase
+        map.insert("asia_log_odds_infant".to_string(), 0.1);         // Moderately high infant susceptibility
+        map.insert("asia_log_odds_preschool".to_string(), 0.1);      // Moderate preschooler susceptibility
+        map.insert("asia_log_odds_school".to_string(), 0.1);         // Slight school age susceptibility increase
         map.insert("asia_log_odds_young_adult".to_string(), 0.1);    // Slight young adult susceptibility increase
-        map.insert("asia_log_odds_middle_age".to_string(), 0.2);     // Slight middle age susceptibility increase
-        map.insert("asia_log_odds_elderly".to_string(), 0.8);        // High elderly susceptibility
+        map.insert("asia_log_odds_middle_age".to_string(), 0.1);     // Slight middle age susceptibility increase
+        map.insert("asia_log_odds_elderly".to_string(), 0.4);        // High elderly susceptibility
 
         // Europe: Generally good healthcare, lower infectious disease burden
         map.insert("europe_log_odds_infant".to_string(), -0.2);      // Slightly lower infant susceptibility
@@ -11828,12 +11828,12 @@ lazy_static! {
         map.insert("north_america_log_odds_elderly".to_string(), 0.0);      // Reference
 
         // South America: Moderate infectious disease burden, variable healthcare access
-        map.insert("south_america_log_odds_infant".to_string(), 1.2);       // High infant susceptibility
-        map.insert("south_america_log_odds_preschool".to_string(), 0.7);    // Moderate preschooler susceptibility
-        map.insert("south_america_log_odds_school".to_string(), 0.3);       // Slight school age susceptibility increase
+        map.insert("south_america_log_odds_infant".to_string(), 0.6);       // High infant susceptibility
+        map.insert("south_america_log_odds_preschool".to_string(), 0.3);    // Moderate preschooler susceptibility
+        map.insert("south_america_log_odds_school".to_string(), 0.2);       // Slight school age susceptibility increase
         map.insert("south_america_log_odds_young_adult".to_string(), 0.2);  // Slight young adult susceptibility increase
-        map.insert("south_america_log_odds_middle_age".to_string(), 0.3);   // Moderate middle age susceptibility increase
-        map.insert("south_america_log_odds_elderly".to_string(), 0.9);      // High elderly susceptibility
+        map.insert("south_america_log_odds_middle_age".to_string(), 0.2);   // Moderate middle age susceptibility increase
+        map.insert("south_america_log_odds_elderly".to_string(), 0.5);      // High elderly susceptibility
 
         // Oceania: Generally good healthcare, similar to North America but smaller healthcare systems
         map.insert("oceania_log_odds_infant".to_string(), 0.1);       // Slightly higher infant susceptibility
