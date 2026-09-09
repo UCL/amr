@@ -7442,44 +7442,44 @@ lazy_static! {
         // covariates are added by the daily acquisition rule.  ^^^^^
         map.insert("acquisition_log_odds_baseline".to_string(), -17.0);
 
-        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.5);
+        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -17.9);
         map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -16.5 );
         map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.3 );
-        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -17.7);
+        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.1 );
+        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -18.4);
         map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -12.1  );
-        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -12.8);
+        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("mycoplasma_genitalium_acquisition_log_odds_baseline".to_string(), -12.1);
-        map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.0); // Periodic epidemics
+        map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -11.8); // Periodic epidemics
         map.insert("legionella_pneumophila_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -17.7); 
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.3);
-        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2 );
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.9 );
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.3);
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.1);
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.4);
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.7);
-        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.4  );
-        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.8);
-        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.8);
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.2);
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.8  );
+        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.2);
+        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.1);
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.9);
         map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.0); 
         map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -14.6);
         map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -15.1);
         map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -17.2);
         map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -17.5); 
-        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.5);
+        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.8);
         map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -16.1);
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.8);
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -14.8 );
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -14.4 );
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.7);
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); 
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -15.9);
-        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.31); // Jointly parameterized with the vaccine effect below
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.5 ); // Jointly parameterized with the vaccine effect below
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -14.4);
         map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -12.7);
         map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.7 );
