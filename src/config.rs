@@ -12730,10 +12730,8 @@ pub fn get_drug_introduction_time_step(drug_name: &str) -> Option<usize> {
     DRUG_INTRODUCTION_DATES.get(drug_name).copied()
 }
 
-/// Samples a region and age in days from the 108 demographic weights.
-pub fn sample_age_and_region_from_distribution(
-    rng: &mut impl rand::Rng,
-) -> (crate::simulation::population::Region, i32) {
+/// Builds the cumulative distribution from the configured demographic weights.
+fn demographic_sampling_distribution() -> (Vec<(f64, Region, i32, i32)>, f64) {
     use crate::simulation::population::Region;
 
     // Build cumulative probability distribution
@@ -12784,23 +12782,34 @@ pub fn sample_age_and_region_from_distribution(
         };
 
         for (age_min, age_max) in &age_bands {
-            let param_name = if *age_min < 0 && *age_max <= 0 {
+            let param_name = if *age_min < 0 && *age_max < 0 {
                 format!(
                     "demo_{}_age_neg{}_neg{}",
                     region_name,
                     (*age_min as i32).abs(),
                     (*age_max as i32).abs()
                 )
-            } else if *age_min < 0 && *age_max > 0 {
+            } else if *age_min < 0 && *age_max == 0 {
+                // Zero has no "neg" prefix in the configured future-birth keys.
                 format!("demo_{}_age_neg{}_0", region_name, (*age_min as i32).abs())
             } else {
                 format!("demo_{}_age_{}_{}", region_name, age_min, age_max)
             };
-            let prob = get_global_param(&param_name).unwrap_or(0.0);
+            let prob = get_global_param(&param_name)
+                .unwrap_or_else(|| panic!("Missing demographic sampling weight: {}", param_name));
             running_total += prob;
             cumulative_probs.push((running_total, *region, *age_min, *age_max));
         }
     }
+
+    (cumulative_probs, running_total)
+}
+
+/// Samples a region and age in days from the 108 demographic weights.
+pub fn sample_age_and_region_from_distribution(
+    rng: &mut impl rand::Rng,
+) -> (crate::simulation::population::Region, i32) {
+    let (cumulative_probs, running_total) = demographic_sampling_distribution();
 
     // Sample from distribution
     let random_value = rng.gen::<f64>() * running_total;
@@ -12815,6 +12824,71 @@ pub fn sample_age_and_region_from_distribution(
 
     // Fallback (should rarely be reached)
     (Region::Asia, 0)
+}
+
+#[cfg(test)]
+mod demographic_sampling_tests {
+    use super::{demographic_sampling_distribution, get_global_param, PARAMETERS};
+    use super::{sample_age_and_region_from_distribution, Region};
+    use rand::rngs::mock::StepRng;
+
+    #[test]
+    fn demographic_distribution_includes_all_configured_weights() {
+        let (distribution, total) = demographic_sampling_distribution();
+        let configured: Vec<_> = PARAMETERS
+            .iter()
+            .filter(|(key, _)| key.starts_with("demo_"))
+            .collect();
+        assert_eq!(configured.len(), 108);
+        assert_eq!(distribution.len(), configured.len());
+        let configured_total: f64 = configured.iter().map(|(_, weight)| **weight).sum();
+        assert!((total - configured_total).abs() < 1e-12);
+
+        let mut previous = 0.0;
+        let mut restored_cohorts = 0;
+        for (cumulative, region, low, high) in distribution {
+            if (low, high) == (-4000, 0) {
+                let name = match region {
+                    Region::Asia => "asia",
+                    Region::Africa => "africa",
+                    Region::Europe => "europe",
+                    Region::NorthAmerica => "north_america",
+                    Region::SouthAmerica => "south_america",
+                    Region::Oceania => "oceania",
+                    Region::Home => panic!("Home is not a demographic sampling region"),
+                };
+                let expected = get_global_param(&format!("demo_{}_age_neg4000_0", name))
+                    .expect("the zero-ending cohort is configured");
+                assert!(expected > 0.0);
+                assert!((cumulative - previous - expected).abs() < 1e-12);
+                restored_cohorts += 1;
+            }
+            previous = cumulative;
+        }
+        assert_eq!(restored_cohorts, 6);
+    }
+
+    #[test]
+    fn demographic_sampler_can_select_every_configured_cohort() {
+        let (distribution, total) = demographic_sampling_distribution();
+        let mut previous = 0.0;
+        let mut sampled_cohorts = 0;
+        for (cumulative, expected_region, low, high) in distribution {
+            if cumulative > previous {
+                // Force the first draw to the middle of this probability interval.
+                // The next draw is zero, so age sampling terminates deterministically.
+                let midpoint = (previous + cumulative) / (2.0 * total);
+                let bits = ((midpoint * ((1_u64 << 53) as f64)) as u64) << 11;
+                let mut rng = StepRng::new(bits, bits.wrapping_neg());
+                let (region, age) = sample_age_and_region_from_distribution(&mut rng);
+                assert_eq!(region, expected_region);
+                assert!((low..high).contains(&age), "age {} outside [{}, {})", age, low, high);
+                sampled_cohorts += 1;
+            }
+            previous = cumulative;
+        }
+        assert_eq!(sampled_cohorts, 108);
+    }
 }
 
 /// Returns the dormant pairwise drug-level entries for debugging or documentation.
