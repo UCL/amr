@@ -16,6 +16,16 @@ The original review below describes the state before this bug fix. Existing
 simulation outputs are unchanged; a new simulation is needed to observe the
 corrected sampling distribution.
 
+## Subsequent regional-weight adjustment: 9 September 2026
+
+The user subsequently approved the six regional multipliers from
+`DEMOGRAPHIC_PARAMETER_REVIEW_2026-09-09.md`. All 18 demographic weights per
+region have now been multiplied by Asia 1.06, Africa 1.05, Europe 0.74,
+North America 1.09, South America 1.07 and Oceania 0.22. Within-region initial
+cohort ratios are preserved. The archived joint age-profile fit remains
+unapplied. See `demographic_region_multiplier_changes_2026-09-09.csv` for all
+108 before/after values. The run-261633 findings below predate both changes.
+
 ## Main finding
 
 Infection incidence has deteriorated substantially, but the intended demographic

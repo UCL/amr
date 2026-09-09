@@ -128,16 +128,18 @@ Where a table in this document includes a **Citation / source** column, that cit
 
 | Region | Share of whole configured cohort | Share among people initially living |
 |--------|---------------------------------:|------------------------------------:|
-| Asia | 55.3% | 46.1% |
-| Africa | 17.7% | 15.5% |
-| Europe | 12.7% | 19.2% |
-| North America | 6.6% | 8.3% |
-| South America | 4.9% | 5.2% |
-| Oceania | 2.8% | 5.7% |
+| Asia | 58.8% | 51.3% |
+| Africa | 18.7% | 17.1% |
+| Europe | 9.4% | 14.9% |
+| North America | 7.2% | 9.5% |
+| South America | 5.3% | 5.8% |
+| Oceania | 0.6% | 1.3% |
 
 *Broad demographic source: UN DESA Population Division, 2024. The percentages shown are calculated from the configured Rust sampling weights.*
 
-These are model sampling weights, not a literal census reconstruction of any single year. The difference between the two columns arises because the configured negative-age weights also shape future births over the simulation horizon. Their broad regional ordering is informed by the United Nations World Population Prospects 2024; the complete 108 values are listed in Appendix B.9.
+These are model sampling weights, not a literal census reconstruction of any single year. The difference between the two columns arises because the configured negative-age weights also shape future births over the simulation horizon. Their broad regional ordering is informed by the United Nations World Population Prospects 2024. The complete 108 parameter values before and after the latest adjustment are recorded in the [demographic weight audit](../archive/demographic_region_multiplier_changes_2026-09-09.csv).
+
+On 9 September 2026, all 18 weights in each region were multiplied by one factor: Africa 1.05, Asia 1.06, Europe 0.74, North America 1.09, South America 1.07 and Oceania 0.22. These factors are a first-pass adjustment towards the regional population references in the [demographic parameter review](../archive/DEMOGRAPHIC_PARAMETER_REVIEW_2026-09-09.md), using North America to include Northern America, Central America and the Caribbean. Relative initial age-cohort weights within each region are unchanged; the archived age-profile fit has not been applied. The table above describes normalised sampling probabilities, not the resulting regional shares among people alive in 2022–2025. Those shares, and the age distributions after survival and births, require validation in a new simulation.
 
 The regions differ in antibiotic availability, hospital capacity, testing rates, and the prevalence of specific pathogens. A person's region shapes nearly every aspect of their simulated clinical journey.
 
