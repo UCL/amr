@@ -7649,7 +7649,10 @@ lazy_static! {
 
         // INFECTION ACQUISITION
 
-        // Regional acquisition effects relative to North America.
+        // Regional acquisition effects added to bacterium-specific baselines.
+        // North America's default applies to both infection and carriage acquisition.
+        map.insert("north_america_acquisition_log_odds_default".to_string(), 0.3);
+
         map.insert("south_america_shigella_spp._acquisition_log_odds".to_string(), 1.4);
         map.insert("africa_shigella_spp._acquisition_log_odds".to_string(), 2.0);
         map.insert("europe_shigella_spp._acquisition_log_odds".to_string(), 1.5);
