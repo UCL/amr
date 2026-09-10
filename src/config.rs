@@ -3011,32 +3011,32 @@ fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
     match (donor_pool, recipient_pool) {
         (PlasmidPool::GramPositive, PlasmidPool::GramPositive) => {
             if same_group {
-                0.000_01
+                0.000_1
             } else {
-                0.000_001
+                0.000_01
             }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::EntericGramNegative) => {
             if same_group {
-                0.000_01
+                0.000_1
             } else {
-                0.000_001
+                0.000_01
             }
         }
         (PlasmidPool::RespiratoryGramNegative, PlasmidPool::RespiratoryGramNegative) => {
             if same_group {
-                0.000_01
+                0.000_1
             } else {
-                0.000_001
+                0.000_01
             }
         }
         // Cross-pool exceptions exist, but stay below within-pool mismatches.
         (PlasmidPool::EntericGramNegative, PlasmidPool::RespiratoryGramNegative)
-        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 0.000_000_03,
+        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 0.000_000_3,
         (PlasmidPool::Anaerobe, PlasmidPool::EntericGramNegative)
-        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 0.000_000_3,
+        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 0.000_003,
         // Anaerobes already receive additional ecological opportunity via the gut-compartment multiplier.
-        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 0.000_01,
+        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 0.000_1,
         // Remaining cross-pool transfers are treated as biologically negligible.
         _ => 0.0,
     }
