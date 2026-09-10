@@ -6717,7 +6717,6 @@ lazy_static! {
         map.insert("staphylococcus_epidermidis_symptom_onset_threshold_level".to_string(), 1.0);   // Needs higher burden for symptoms
         map.insert("staphylococcus_epidermidis_symptom_onset_delay_days".to_string(), 3.0);        // Slight delay before clinical detection
         map.insert("staphylococcus_epidermidis_max_level".to_string(), 4.0);                        // Lower peak burden due to biofilm focus
-        map.insert("staphylococcus_epidermidis_microbiome_clearance_probability_per_day".to_string(), 0.015); // Chronic colonizer of skin/devices
         map.insert("staphylococcus_epidermidis_log_odds_sepsis_infection_level".to_string(), 0.04); // Slight level effect on sepsis risk
         map.insert("staphylococcus_epidermidis_log_odds_sepsis_infection_duration".to_string(), 0.005); // Chronic devices slowly accumulate risk
         map.insert("staphylococcus_epidermidis_non_sepsis_infection_death_log_odds".to_string(), -6.0); // Very low direct mortality
@@ -6726,7 +6725,6 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_symptom_onset_threshold_level".to_string(), 0.9);      // Moderate burden before symptoms
         map.insert("stenotrophomonas_maltophilia_symptom_onset_delay_days".to_string(), 2.5);          // Early signs once established
         map.insert("stenotrophomonas_maltophilia_max_level".to_string(), 5.0);                          // Can reach high burdens in lungs
-        map.insert("stenotrophomonas_maltophilia_microbiome_clearance_probability_per_day".to_string(), 0.06); // Persistent colonizer in ICU settings
         map.insert("stenotrophomonas_maltophilia_log_odds_sepsis_infection_level".to_string(), 0.08);   // Rising burden increases risk notably
         map.insert("stenotrophomonas_maltophilia_log_odds_sepsis_infection_duration".to_string(), 0.012); // Prolonged infection raises odds
         map.insert("stenotrophomonas_maltophilia_non_sepsis_infection_death_log_odds".to_string(), -4.0); // Some mortality via pneumonia progression
@@ -7963,8 +7961,8 @@ lazy_static! {
     map.insert("helicobacter_pylori_microbiome_clearance_probability_per_day".to_string(), 0.001); // Extremely persistent; decades without treatment
     map.insert("mdr_mycobacterium_tuberculosis_microbiome_clearance_probability_per_day".to_string(), 0.0015); // Slow clearance of the modeled carriage state
     map.insert("bordetella_pertussis_microbiome_clearance_probability_per_day".to_string(), 0.2);
-    map.insert("staphylococcus_epidermidis_clearance_probability_per_day".to_string(), 0.2);
-    map.insert("stenotrophomonas_maltophilia_clearance_probability_per_day".to_string(), 0.2);
+    map.insert("staphylococcus_epidermidis_microbiome_clearance_probability_per_day".to_string(), 0.2);
+    map.insert("stenotrophomonas_maltophilia_microbiome_clearance_probability_per_day".to_string(), 0.2);
 
 
         // Carriage acquisition reuses infection-acquisition covariates and adds
