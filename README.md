@@ -292,6 +292,15 @@ The analysis writes calibration summaries and configured plots under
 are controlled by `PlotConfig`; the input CSV and Parquet-cache options are
 controlled by `DataConfig` in `amr_simulation_output_analysis/config.py`.
 
+The calibration snapshot includes overall infection acquisition rates by region
+for its baseline calibration window and exports the table to
+`output_graphs/infection_incidence_by_region_<run_id>.csv`. Rates sum acquisition
+events across all bacteria and both care settings, divided by summed daily
+population / 365. They count bacterial events, including repeat acquisitions,
+rather than unique people. Regional rates are approximate: the existing CSV
+assigns events to home region but population to effective location, including
+travel. The CSV includes this interpretation and its source and window.
+
 Regional resistance adds 31,501 CSV columns with the current inventories, so
 these runs produce larger files. Preprocessing converts only the columns needed
 to calculate derived plotting fields and passes the unchanged raw matrices

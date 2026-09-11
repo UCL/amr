@@ -7651,17 +7651,17 @@ lazy_static! {
 
         // Regional acquisition effects added to bacterium-specific baselines.
         // North America's default applies to both infection and carriage acquisition.
-        map.insert("north_america_acquisition_log_odds_default".to_string(), 0.8);
+        map.insert("north_america_acquisition_log_odds_default".to_string(), 0.9);
 
         map.insert("south_america_shigella_spp._acquisition_log_odds".to_string(), 1.4);
         map.insert("africa_shigella_spp._acquisition_log_odds".to_string(), 2.0);
         map.insert("europe_shigella_spp._acquisition_log_odds".to_string(), 1.5);
-        map.insert("asia_shigella_spp._acquisition_log_odds".to_string(), 3.0);
+        map.insert("asia_shigella_spp._acquisition_log_odds".to_string(), 2.5);
         map.insert("oceania_shigella_spp._acquisition_log_odds".to_string(), 1.7);
 
         map.insert("africa_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.9);
         map.insert("europe_acinetobacter_baumannii_acquisition_log_odds".to_string(),  0.7);
-        map.insert("asia_acinetobacter_baumannii_acquisition_log_odds".to_string(), 3.0);
+        map.insert("asia_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.6);
         map.insert("south_america_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.6);
         map.insert("oceania_acinetobacter_baumannii_acquisition_log_odds".to_string(),  0.8);
 
@@ -7682,7 +7682,7 @@ lazy_static! {
         // enterococcus_faecalis - Mixed healthcare/community, moderate regional differences
         map.insert("africa_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.2);
         map.insert("europe_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.1);
-        map.insert("asia_enterococcus_faecalis_acquisition_log_odds".to_string(), 2.3);
+        map.insert("asia_enterococcus_faecalis_acquisition_log_odds".to_string(), 2.0);
         map.insert("south_america_enterococcus_faecalis_acquisition_log_odds".to_string(), 2.0);
         map.insert("oceania_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.2);
 
@@ -7745,7 +7745,7 @@ lazy_static! {
         // streptococcus_pneumoniae - Predominantly community-acquired, high regional variation
         map.insert("africa_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 1.8);
         map.insert("europe_streptococcus_pneumoniae_acquisition_log_odds".to_string(),  0.8);
-        map.insert("asia_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 2.3);
+        map.insert("asia_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 2.2);
         map.insert("south_america_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 2.2);
         map.insert("oceania_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 1.3);
 
@@ -7759,7 +7759,7 @@ lazy_static! {
         // salmonella_enterica_serovar_paratyphi_a - Paratyphoid fever, similar but less common
         map.insert("africa_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.5);
         map.insert("europe_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -1.2);
-        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 3.0);
+        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.5);
         map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.3);
         map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -0.4);
 
@@ -7773,21 +7773,21 @@ lazy_static! {
         // neisseria_gonorrhoeae - Sexually transmitted infection, moderate regional variation
         map.insert("africa_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.7);
         map.insert("europe_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.3);
-        map.insert("asia_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.2);
+        map.insert("asia_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.1);
         map.insert("south_america_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.1);
         map.insert("oceania_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.4);
 
         // streptococcus_pyogenes - Group A Strep, community-acquired, moderate regional variation
         map.insert("africa_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.4);
         map.insert("europe_streptococcus_pyogenes_acquisition_log_odds".to_string(),  0.8);
-        map.insert("asia_streptococcus_pyogenes_acquisition_log_odds".to_string(), 2.1);
+        map.insert("asia_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.9);
         map.insert("south_america_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.9);
         map.insert("oceania_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.1);
 
         // streptococcus_agalactiae - Group B Strep, neonatal/maternal infections, moderate variation
         map.insert("africa_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.0);
         map.insert("europe_streptococcus_agalactiae_acquisition_log_odds".to_string(), 0.9);
-        map.insert("asia_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.8);
+        map.insert("asia_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.6);
         map.insert("south_america_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.6);
         map.insert("oceania_streptococcus_agalactiae_acquisition_log_odds".to_string(), 1.0);
 
@@ -7795,7 +7795,7 @@ lazy_static! {
         // vaccination is modeled separately.
         map.insert("africa_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.6);
         map.insert("europe_haemophilus_influenzae_acquisition_log_odds".to_string(),  0.6);
-        map.insert("asia_haemophilus_influenzae_acquisition_log_odds".to_string(), 2.0);
+        map.insert("asia_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.9);
         map.insert("south_america_haemophilus_influenzae_acquisition_log_odds".to_string(), 1.9);
         map.insert("oceania_haemophilus_influenzae_acquisition_log_odds".to_string(),  0.7);
 
@@ -7809,14 +7809,14 @@ lazy_static! {
         // helicobacter_pylori - Gastric colonization with strong regional gradients
         map.insert("africa_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
         map.insert("europe_helicobacter_pylori_acquisition_log_odds".to_string(),  0.7);
-        map.insert("asia_helicobacter_pylori_acquisition_log_odds".to_string(), 2.9);
+        map.insert("asia_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
         map.insert("south_america_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
         map.insert("oceania_helicobacter_pylori_acquisition_log_odds".to_string(), 1.3);
 
         // vibrio_cholerae - Waterborne disease, extreme regional variation
         map.insert("africa_vibrio_cholerae_acquisition_log_odds".to_string(), 3.0);
         map.insert("europe_vibrio_cholerae_acquisition_log_odds".to_string(), -2.1);
-        map.insert("asia_vibrio_cholerae_acquisition_log_odds".to_string(), 3.0);
+        map.insert("asia_vibrio_cholerae_acquisition_log_odds".to_string(), 2.7);
         map.insert("south_america_vibrio_cholerae_acquisition_log_odds".to_string(), 2.4);
         map.insert("oceania_vibrio_cholerae_acquisition_log_odds".to_string(), -1.3);
 
@@ -7845,7 +7845,7 @@ lazy_static! {
         // campylobacter_jejuni - Foodborne pathogen, moderate regional variation
         map.insert("africa_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.0);
         map.insert("europe_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.9);
-        map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.5);
+        map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.4);
         map.insert("south_america_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.4);
         map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.5);
 
@@ -11602,12 +11602,12 @@ lazy_static! {
 
         // Per-region additive sepsis-onset log-odds.  rrrr
         // Negative values = lower risk of developing sepsis from infection (better early recognition/treatment)
-        map.insert("log_odds_sepsis_onset_region_north_america".to_string(), -0.5); // Excellent early sepsis recognition
-        map.insert("log_odds_sepsis_onset_region_europe".to_string(), -0.6); // Best early warning systems
-        map.insert("log_odds_sepsis_onset_region_oceania".to_string(), -0.5); // Good healthcare infrastructure
-        map.insert("log_odds_sepsis_onset_region_asia".to_string(), -0.1); // Mixed - improving rapidly
-        map.insert("log_odds_sepsis_onset_region_south_america".to_string(), 0.0); // Variable access
-        map.insert("log_odds_sepsis_onset_region_africa".to_string(), 0.1); // Limited early detection capacity
+        map.insert("log_odds_sepsis_onset_region_north_america".to_string(), -0.3); 
+        map.insert("log_odds_sepsis_onset_region_europe".to_string(), -0.3); 
+        map.insert("log_odds_sepsis_onset_region_oceania".to_string(), -0.3); 
+        map.insert("log_odds_sepsis_onset_region_asia".to_string(), -0.1); 
+        map.insert("log_odds_sepsis_onset_region_south_america".to_string(), -0.1); 
+        map.insert("log_odds_sepsis_onset_region_africa".to_string(), 0.1); 
 
         // Unused compatibility keys from the former two-region representation.
         map.insert("log_odds_sepsis_region_a".to_string(), -0.5); // Higher resource region - better sepsis recognition/treatment
@@ -11700,10 +11700,10 @@ lazy_static! {
 
         // Regional multipliers converted to additive log-odds terms; they multiply
         // daily sepsis-death odds, not probability directly.  rrrr
-        map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.6);
-        map.insert("europe_sepsis_mortality_multiplier".to_string(), 0.6);
-        map.insert("oceania_sepsis_mortality_multiplier".to_string(), 0.6);
-        map.insert("asia_sepsis_mortality_multiplier".to_string(), 1.1);
+        map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.7);
+        map.insert("europe_sepsis_mortality_multiplier".to_string(), 0.7);
+        map.insert("oceania_sepsis_mortality_multiplier".to_string(), 0.7);
+        map.insert("asia_sepsis_mortality_multiplier".to_string(), 1.0);
         map.insert("south_america_sepsis_mortality_multiplier".to_string(), 1.0);
         map.insert("africa_sepsis_mortality_multiplier".to_string(), 1.1);
 
@@ -11718,13 +11718,13 @@ lazy_static! {
         map.insert("sepsis_recovery_log_odds_immunosuppressed".to_string(), -1.0); // Immunosuppressed have much lower recovery probability
 
         // Region-specific sepsis recovery log odds (reflecting healthcare quality and ICU availability)
-        map.insert("sepsis_recovery_log_odds_region_north_america".to_string(), 0.4); // Better healthcare systems increase recovery
-        map.insert("sepsis_recovery_log_odds_region_europe".to_string(), 0.5); // Excellent healthcare systems, best recovery rates
-        map.insert("sepsis_recovery_log_odds_region_oceania".to_string(), 0.3); // Good healthcare systems
-        map.insert("sepsis_recovery_log_odds_region_asia".to_string(), 0.0); // Mixed healthcare quality, reference category
-        map.insert("sepsis_recovery_log_odds_region_south_america".to_string(), -0.3); // Limited ICU access decreases recovery
-        map.insert("sepsis_recovery_log_odds_region_africa".to_string(), -0.7); // Limited healthcare infrastructure significantly decreases recovery
-        map.insert("sepsis_recovery_log_odds_region_home".to_string(), 0.0); // Default to reference category
+        map.insert("sepsis_recovery_log_odds_region_north_america".to_string(), 0.4); 
+        map.insert("sepsis_recovery_log_odds_region_europe".to_string(), 0.4); 
+        map.insert("sepsis_recovery_log_odds_region_oceania".to_string(), 0.4); 
+        map.insert("sepsis_recovery_log_odds_region_asia".to_string(), 0.0); 
+        map.insert("sepsis_recovery_log_odds_region_south_america".to_string(), -0.1); 
+        map.insert("sepsis_recovery_log_odds_region_africa".to_string(), -0.7); 
+        map.insert("sepsis_recovery_log_odds_region_home".to_string(), 0.0); 
 
         map.insert("sepsis_minimum_duration_days".to_string(), 1.0); // Minimum sepsis duration (1 day)
 
@@ -11810,12 +11810,12 @@ lazy_static! {
         map.insert("africa_log_odds_elderly".to_string(), 0.9);      // High elderly susceptibility
 
         // Asia: Variable healthcare quality, high population density effects
-        map.insert("asia_log_odds_infant".to_string(), 0.1);         // Moderately high infant susceptibility
-        map.insert("asia_log_odds_preschool".to_string(), 0.1);      // Moderate preschooler susceptibility
-        map.insert("asia_log_odds_school".to_string(), 0.1);         // Slight school age susceptibility increase
-        map.insert("asia_log_odds_young_adult".to_string(), 0.1);    // Slight young adult susceptibility increase
-        map.insert("asia_log_odds_middle_age".to_string(), 0.1);     // Slight middle age susceptibility increase
-        map.insert("asia_log_odds_elderly".to_string(), 0.4);        // High elderly susceptibility
+        map.insert("asia_log_odds_infant".to_string(), 0.0);         // Moderately high infant susceptibility
+        map.insert("asia_log_odds_preschool".to_string(), 0.0);      // Moderate preschooler susceptibility
+        map.insert("asia_log_odds_school".to_string(), 0.05);         // Slight school age susceptibility increase
+        map.insert("asia_log_odds_young_adult".to_string(), 0.05);    // Slight young adult susceptibility increase
+        map.insert("asia_log_odds_middle_age".to_string(), 0.05);     // Slight middle age susceptibility increase
+        map.insert("asia_log_odds_elderly".to_string(), 0.3);        // High elderly susceptibility
 
         // Europe: Generally good healthcare, lower infectious disease burden
         map.insert("europe_log_odds_infant".to_string(), -0.2);      // Slightly lower infant susceptibility

@@ -19,6 +19,11 @@ if __package__ is None or __package__ == "":
     from amr_simulation_output_analysis.config import PlotConfig
     from amr_simulation_output_analysis.data_loader import DataCache
     from amr_simulation_output_analysis.bacterium_region_deaths import calculate_bacterium_region_death_counts
+    from amr_simulation_output_analysis.regional_incidence import (
+        REGIONAL_INFECTION_INCIDENCE_DESCRIPTION,
+        calculate_regional_infection_incidence,
+        write_regional_infection_incidence,
+    )
     from amr_simulation_output_analysis.death_counts import (
         InfectionDeathCountTables,
         calculate_infection_death_counts,
@@ -38,6 +43,11 @@ else:
     from .config import PlotConfig
     from .data_loader import DataCache
     from .bacterium_region_deaths import calculate_bacterium_region_death_counts
+    from .regional_incidence import (
+        REGIONAL_INFECTION_INCIDENCE_DESCRIPTION,
+        calculate_regional_infection_incidence,
+        write_regional_infection_incidence,
+    )
     from .death_counts import InfectionDeathCountTables, calculate_infection_death_counts
     from .summary_schema import (
         HISTORICAL_RESISTANCE_TIMING_WARNING,
@@ -4937,7 +4947,9 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     window_years = float(window_years_obj) if isinstance(window_years_obj, (int, float)) else 1.0
 
     syndrome_df = _calculate_syndrome_incidence_table(year_df, window_years)
-
+    regional_incidence_df, regional_incidence_unavailable = (
+        calculate_regional_infection_incidence(year_df)
+    )
 
     window_label_obj = context.get("resistance_window_label")
     resistance_window_label = str(window_label_obj) if window_label_obj not in (None, "") else ""
@@ -4982,6 +4994,40 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"calibration_summary{summary_suffix}.txt"
+    regional_incidence_csv_path = output_dir / f"infection_incidence_by_region{summary_suffix}.csv"
+    regional_incidence_requested_window = str(
+        context.get("calibration_window_year_range") or targets.target_year
+    )
+    regional_incidence_window = regional_incidence_requested_window
+    if not regional_incidence_df.empty:
+        if "time_step" in year_df:
+            observed_years = (
+                config.start_year
+                + pd.to_numeric(year_df["time_step"], errors="raise").astype(float) / 365.0
+            )
+        else:
+            observed_years = pd.to_numeric(year_df["calendar_year"], errors="raise")
+        first_year = int(np.floor(observed_years.min()))
+        last_year = int(np.floor(observed_years.max()))
+        regional_incidence_window = (
+            str(first_year) if first_year == last_year else f"{first_year}-{last_year}"
+        )
+        regional_incidence_export = regional_incidence_df.assign(
+            **{
+                "Observation window": regional_incidence_window,
+                "Requested window": regional_incidence_requested_window,
+                "Observed days": len(year_df),
+                "First calendar year": float(observed_years.min()),
+                "Last calendar year": float(observed_years.max()),
+                "Policy option": 0,
+                "Source CSV": str(simulation_csv_path),
+                "Interpretation": REGIONAL_INFECTION_INCIDENCE_DESCRIPTION,
+            }
+        )
+        regional_incidence_export.to_csv(regional_incidence_csv_path, index=False)
+    else:
+        # A regenerated unavailable table must not leave a previous CSV behind.
+        regional_incidence_csv_path.unlink(missing_ok=True)
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -5047,6 +5093,13 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 "(infection_acquisition_events_by_bacteria unavailable in the loaded "
                 "simulation data)\n\n"
             )
+
+        write_regional_infection_incidence(
+            handle,
+            regional_incidence_df,
+            regional_incidence_unavailable,
+            regional_incidence_window,
+        )
 
         if not headline_df.empty:
             headline_display = headline_df.copy()
