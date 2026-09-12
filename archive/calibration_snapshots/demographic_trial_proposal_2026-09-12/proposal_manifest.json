@@ -1,0 +1,27 @@
+{
+  "status": "proposal_only_not_applied",
+  "method": "manual conservative older-cohort reductions with exact within-region redistribution; no numerical fit",
+  "source_config_sha256": "a20770192df5d13e9c8281afbcecd332e05cdd941c5d5de6c2f23bc9249c7911",
+  "source_weight_total": "1.376900000000",
+  "proposed_weight_total": "1.376900000000",
+  "changed_weights": 54,
+  "fixed_weights": 54,
+  "older_cohort_multipliers": {
+    "asia": "0.80",
+    "africa": "0.75",
+    "europe": "0.90",
+    "north_america": "0.85",
+    "south_america": "0.85",
+    "oceania": "0.85"
+  },
+  "observed_file": "simulation_summary_638391.csv",
+  "observed_embedded_run_id": 479654,
+  "run_to_config_linkage": "not verified; no matching local metadata",
+  "limitations": [
+    "Manual trial magnitudes; not independently estimated cohort effects",
+    "No new simulation or mortality fitting",
+    "Actual age shares, regional living shares and living population size may change",
+    "Conditional under80 cohort proportions are preserved in the fixed-response approximation only",
+    "Far-future birth discontinuity is not resolved by this calibration-only proposal"
+  ]
+}
