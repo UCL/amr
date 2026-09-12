@@ -5770,7 +5770,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         handle.write(
             "\n(6) Per-bacteria carriage targets sourced from: Human Microbiome Project (HMP,\n"
             "    NIH 2012) for core gut commensals (E. coli ~95%, B. fragilis ~85%,\n"
-            "    E. faecalis ~80%, S. epidermidis ~95%); Wertheim et al. (2005, Lancet Infect\n"
+            "    E. faecalis ~80%). S. epidermidis ~95% is a skin-carriage\n"
+            "    benchmark. Other sources include Wertheim et al. (2005, Lancet Infect\n"
             "    Dis 5:751-762) for S. aureus nasal carriage (~20-30%); Bogaert et al. (2004,\n"
             "    Lancet Infect Dis 4:144-154) for S. pneumoniae nasopharyngeal carriage\n"
             "    (~35% population-weighted average); CDC GBS screening guidelines for S.\n"

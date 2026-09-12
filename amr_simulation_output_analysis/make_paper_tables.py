@@ -535,7 +535,8 @@ _CARRIAGE_TARGET_SOURCE_NOTES = [
     "ranges, prevalence proxies, and explicit best-guess placeholders; the range registry "
     "records which interval treatment was used.",
     "Carriage values are percentages of the world population carrying the organism "
-    "asymptomatically in the modelled microbiome/carriage compartment.",
+    "asymptomatically in the modelled microbiome/carriage compartment. "
+    "For <em>S. epidermidis</em>, this represents skin carriage.",
 ]
 
 _SIMULATION_MEAN_CI_FOOTNOTE = (
