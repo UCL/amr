@@ -564,12 +564,12 @@ impl GlobalScalars {
             neisseria_gonorrhoeae_pre_1980_acquisition_multiplier: get_or_default(
                 map,
                 "neisseria_gonorrhoeae_pre_1980_acquisition_multiplier",
-                3.0,
+                1.2
             ),
             neisseria_gonorrhoeae_pre_2000_acquisition_multiplier: get_or_default(
                 map,
                 "neisseria_gonorrhoeae_pre_2000_acquisition_multiplier",
-                1.8,
+                1.1,
             ),
             neisseria_gonorrhoeae_modern_acquisition_multiplier: get_or_default(
                 map,
@@ -4851,7 +4851,7 @@ lazy_static! {
         map.insert("drug_ertapenem_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_aztreonam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_erythromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_clarithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_clindamycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
@@ -4914,7 +4914,7 @@ lazy_static! {
         map.insert("drug_ertapenem_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_aztreonam_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_erythromycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_clarithromycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_clindamycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.85);
