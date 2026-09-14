@@ -416,6 +416,14 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
                 g.antibiotic_disruption_decay_half_life_days,
             ),
             (
+                "cdiff_carrier_progression_log_odds_per_disruption",
+                g.cdiff_carrier_progression_log_odds_per_disruption,
+            ),
+            (
+                "cdiff_carrier_progression_max_log_odds",
+                g.cdiff_carrier_progression_max_log_odds,
+            ),
+            (
                 "infection_from_microbiome_dampening",
                 g.infection_from_microbiome_dampening,
             ),

@@ -4845,15 +4845,18 @@ lazy_static! {
         map.insert("drug_cefixime_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.75);
 
         // --- salmonella_enterica_serovar_typhi ---
-        map.insert("drug_sulfanilamide_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
+
+        // `sulfanilamide`: representative early systemic sulfonamide, used to capture
+        // standalone sulfonamide use and selection pressure before widespread co-trimoxazole use.
+        map.insert("drug_sulfanilamide_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_penicillin_g_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amoxicillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_piperacillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ticarcillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_cephalexin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_cefazolin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_cefuroxime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_cephalexin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefazolin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefuroxime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftazidime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefepime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
@@ -4868,11 +4871,11 @@ lazy_static! {
         map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_clarithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_clindamycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_tobramycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_amikacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
-        map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
+        map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_tobramycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amikacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_moxifloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_tetracycline_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
@@ -4884,7 +4887,7 @@ lazy_static! {
         map.insert("drug_dalbavancin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_linezolid_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_tedizolid_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_daptomycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_daptomycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_quinu_dalfo_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
@@ -4893,8 +4896,8 @@ lazy_static! {
         map.insert("drug_retapamulin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fusidic_a_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_rifampicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
@@ -4902,7 +4905,7 @@ lazy_static! {
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_colistin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_colistin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.40);
         map.insert("drug_flucloxacillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.01);
         map.insert("drug_aztreonam_avibactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.75);
