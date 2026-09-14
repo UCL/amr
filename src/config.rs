@@ -301,6 +301,8 @@ pub struct GlobalScalars {
     // Microbiome and carriage parameters.
     #[allow(dead_code)]
     pub antibiotic_disruption_decay_half_life_days: f64,
+    pub cdiff_carrier_progression_log_odds_per_disruption: f64,
+    pub cdiff_carrier_progression_max_log_odds: f64,
     pub infection_from_microbiome_dampening: f64,
     pub carriage_duration_log_odds_coefficient: f64,
     pub carriage_duration_max_log_odds_effect: f64,
@@ -909,6 +911,18 @@ impl GlobalScalars {
                 "antibiotic_disruption_decay_half_life_days",
                 30.0,
             ),
+            cdiff_carrier_progression_log_odds_per_disruption: get_or_default(
+                map,
+                "cdiff_carrier_progression_log_odds_per_disruption",
+                0.25,
+            )
+            .max(0.0),
+            cdiff_carrier_progression_max_log_odds: get_or_default(
+                map,
+                "cdiff_carrier_progression_max_log_odds",
+                1.0,
+            )
+            .max(0.0),
             infection_from_microbiome_dampening: get_or_default(
                 map,
                 "infection_from_microbiome_dampening",
@@ -7847,7 +7861,7 @@ lazy_static! {
         map.insert("europe_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.9);
         map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.4);
         map.insert("south_america_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.4);
-        map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.5);
+        map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.9);
 
         // enterobacter_cloacae - Healthcare-associated Enterobacteriaceae, modest regional variation
         map.insert("africa_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.2);
@@ -7876,7 +7890,7 @@ lazy_static! {
         map.insert("europe_treponema_pallidum_acquisition_log_odds".to_string(), -0.2);
         map.insert("asia_treponema_pallidum_acquisition_log_odds".to_string(), 0.0);
         map.insert("south_america_treponema_pallidum_acquisition_log_odds".to_string(), 0.1);
-        map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), -0.3);
+        map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), -0.1);
 
     // Bacterium-specific shifts applied to carriage-acquisition log-odds.
     // Despite the historical key name, these do not partition a single event
@@ -11743,6 +11757,19 @@ lazy_static! {
         map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
         map.insert("infection_from_microbiome_dampening".to_string(), 0.70);
         map.insert("antibiotic_disruption_decay_half_life_days".to_string(), 30.0);
+
+        // Among people already carrying C. difficile, accumulated antibiotic-associated
+        // microbiome disruption increases active CDI acquisition log odds. The effect
+        // is capped to prevent extreme accumulated disruption values producing an
+        // unbounded progression effect.
+        map.insert(
+            "cdiff_carrier_progression_log_odds_per_disruption".to_string(),
+            0.25,
+        );
+        map.insert(
+            "cdiff_carrier_progression_max_log_odds".to_string(),
+            1.0,
+        );
 
         // Each day carried adds the coefficient to clearance log odds, bounded by
         // the configured maximum negative duration effect.

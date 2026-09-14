@@ -5277,13 +5277,27 @@ pub(crate) fn apply_rules(
             );
 
             // Microbiome presence effect
-            let microbiome_log_odds = if allows_microbiome && individual.presence_microbiome[b_idx]
-            {
+            let is_current_microbiome_carrier =
+                allows_microbiome && individual.presence_microbiome[b_idx];
+            let microbiome_log_odds = if is_current_microbiome_carrier {
                 store.bacteria.log_odds_microbiome_present[b_idx]
             } else {
                 0.0
             };
             log_odds += microbiome_log_odds;
+
+            // Antibiotic-associated microbiome disruption increases progression from
+            // existing C. difficile carriage to active C. difficile infection.
+            if bacteria == "clostridioides_difficile" && is_current_microbiome_carrier {
+                let disruption_progression_log_odds =
+                    (individual.microbiome_disruption_level.max(0.0)
+                        * store
+                            .globals
+                            .cdiff_carrier_progression_log_odds_per_disruption)
+                        .min(store.globals.cdiff_carrier_progression_max_log_odds);
+
+                log_odds += disruption_progression_log_odds;
+            }
 
             // Hospital-acquired effect
             let hospital_log_odds = if individual.hospital_status.is_hospitalized() {
