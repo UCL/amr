@@ -3802,6 +3802,8 @@ lazy_static! {
         // Potency is an abstract susceptible-state activity scale. Typed values
         // are clamped to [0.0, 1.0] when the parameter store is built.
         // Initiation multipliers separately alter targeted prescribing scores.
+        // Nalidixic acid is represented as an early quinolone with a narrow
+        // gram-negative enteric/urinary spectrum.
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
@@ -3867,6 +3869,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_moxifloxacin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_ofloxacin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_nalidixic_acid_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.15);
         map.insert("drug_minocycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.55);
@@ -3930,6 +3933,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.55);
         map.insert("drug_tetracycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
@@ -3993,6 +3997,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_tetracycline_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.85);
@@ -4056,6 +4061,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_moxifloxacin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.85);
@@ -4119,6 +4125,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_moxifloxacin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.85);
@@ -4182,6 +4189,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_moxifloxacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_nalidixic_acid_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_tetracycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.85);
@@ -4245,6 +4253,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.55);
         map.insert("drug_tetracycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.85);
@@ -4308,6 +4317,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.55);
         map.insert("drug_tetracycline_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_minocycline_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
@@ -4371,6 +4381,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.60);
         map.insert("drug_tetracycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_minocycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.85);
@@ -4434,6 +4445,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_moxifloxacin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_nalidixic_acid_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_tetracycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_minocycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
@@ -4497,6 +4509,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_moxifloxacin_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_ofloxacin_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.55);
+        map.insert("drug_nalidixic_acid_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.45);
         map.insert("drug_tetracycline_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_doxycycline_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.30);
         map.insert("drug_minocycline_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.35);
@@ -4560,6 +4573,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_moxifloxacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_ofloxacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_minocycline_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.10);
@@ -4623,6 +4637,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.6);
         map.insert("drug_moxifloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_nalidixic_acid_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.35);
         map.insert("drug_doxycycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.95);
@@ -4686,6 +4701,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_moxifloxacin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.85);
@@ -4749,6 +4765,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.55);
         map.insert("drug_moxifloxacin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_ofloxacin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_nalidixic_acid_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_doxycycline_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_minocycline_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.80);
@@ -4812,6 +4829,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_moxifloxacin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ofloxacin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_nalidixic_acid_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.85);
@@ -4854,9 +4872,9 @@ lazy_static! {
         map.insert("drug_amoxicillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_piperacillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ticarcillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_cephalexin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefazolin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefuroxime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cephalexin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_cefazolin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_cefuroxime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftazidime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefepime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
@@ -4871,13 +4889,14 @@ lazy_static! {
         map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_clarithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_clindamycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tobramycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_amikacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_gentamicin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_tobramycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_amikacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_moxifloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_tetracycline_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.85);
@@ -4905,13 +4924,13 @@ lazy_static! {
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_colistin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.40);
+        map.insert("drug_colistin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_flucloxacillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.01);
         map.insert("drug_aztreonam_avibactam_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.75);
 
         // --- salmonella_enterica_serovar_paratyphi_a ---
-        map.insert("drug_sulfanilamide_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.70);
+         map.insert("drug_sulfanilamide_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_penicillin_g_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amoxicillin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.80);
@@ -4941,6 +4960,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_tetracycline_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.85);
@@ -4950,7 +4970,7 @@ lazy_static! {
         map.insert("drug_dalbavancin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_linezolid_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_tedizolid_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_daptomycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_daptomycin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_quinu_dalfo_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.85);
@@ -4959,8 +4979,8 @@ lazy_static! {
         map.insert("drug_retapamulin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fusidic_a_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_rifampicin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.95);
@@ -4974,7 +4994,7 @@ lazy_static! {
         map.insert("drug_cefixime_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.75);
 
         // --- invasive_non-typhoidal_salmonella_spp. ---
-        map.insert("drug_sulfanilamide_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_sulfanilamide_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_penicillin_g_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amoxicillin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
@@ -4994,36 +5014,37 @@ lazy_static! {
         map.insert("drug_ertapenem_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_aztreonam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_erythromycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_azithromycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_clarithromycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clindamycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_clindamycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_levofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.60);
         map.insert("drug_tetracycline_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tigecycline_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_vancomycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_vancomycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_nitrofurantoin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fosfomycin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_retapamulin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_retapamulin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_rifampicin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.95);
@@ -5032,12 +5053,12 @@ lazy_static! {
         map.insert("drug_ceftazidime_avibactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_colistin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_flucloxacillin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
-
+ 
         // --- shigella_spp. --- 
-        map.insert("drug_sulfanilamide_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.50);
+         map.insert("drug_sulfanilamide_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amoxicillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
@@ -5049,24 +5070,25 @@ lazy_static! {
         map.insert("drug_ceftriaxone_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ceftazidime_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_cefepime_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_ceftaroline_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ceftaroline_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.65);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_cefiderocol_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_meropenem_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_imipenem_c_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ertapenem_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_aztreonam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_erythromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_erythromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_azithromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_clarithromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_clarithromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_clindamycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_tobramycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_amikacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_levofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_levofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_nalidixic_acid_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_tetracycline_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
@@ -5076,18 +5098,18 @@ lazy_static! {
         map.insert("drug_dalbavancin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_linezolid_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_tedizolid_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_daptomycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_daptomycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_quinu_dalfo_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_nitrofurantoin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_fosfomycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_nitrofurantoin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_fosfomycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_retapamulin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fusidic_a_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_fidaxomicin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_rifampicin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.80);
@@ -5095,7 +5117,7 @@ lazy_static! {
         map.insert("drug_ceftazidime_avibactam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_colistin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_flucloxacillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
 
@@ -5130,6 +5152,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_tetracycline_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_minocycline_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.85);
@@ -5193,6 +5216,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_moxifloxacin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ofloxacin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.85);
@@ -5256,6 +5280,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_moxifloxacin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ofloxacin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.85);
@@ -5319,6 +5344,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.30);
         map.insert("drug_tetracycline_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_doxycycline_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.85);
@@ -5382,6 +5408,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_moxifloxacin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ofloxacin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_doxycycline_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_minocycline_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.90);
@@ -5445,6 +5472,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.35);
         map.insert("drug_moxifloxacin_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ofloxacin_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.45);
+        map.insert("drug_nalidixic_acid_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.40);
         map.insert("drug_doxycycline_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_minocycline_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.70);
@@ -5478,7 +5506,7 @@ lazy_static! {
         map.insert("drug_cefixime_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.01);
 
         // --- vibrio_cholerae ---
-        map.insert("drug_sulfanilamide_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.50);
+             map.insert("drug_sulfanilamide_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.30);
         map.insert("drug_ampicillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amoxicillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.80);
@@ -5500,7 +5528,7 @@ lazy_static! {
         map.insert("drug_erythromycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_azithromycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_clarithromycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_clindamycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_clindamycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85);
@@ -5508,26 +5536,27 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.55);
         map.insert("drug_tetracycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_doxycycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_minocycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_tigecycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_vancomycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_vancomycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_chloramphenicol_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_nitrofurantoin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_fosfomycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_retapamulin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_metronidazole_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fidaxomicin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_retapamulin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_metronidazole_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fidaxomicin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_rifampicin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.90);
@@ -5535,8 +5564,8 @@ lazy_static! {
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_colistin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_colistin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.30);
+        map.insert("drug_flucloxacillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.75);
 
@@ -5571,6 +5600,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.85);
@@ -5634,6 +5664,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.85);
@@ -5697,6 +5728,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_moxifloxacin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ofloxacin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_nalidixic_acid_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_doxycycline_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.20);
         map.insert("drug_minocycline_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.20);
@@ -5761,6 +5793,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.35);
         map.insert("drug_moxifloxacin_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_ofloxacin_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.25);
+        map.insert("drug_nalidixic_acid_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.30);
         map.insert("drug_doxycycline_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_minocycline_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.50);
@@ -5796,65 +5829,66 @@ lazy_static! {
         // --- campylobacter_jejuni ---
         map.insert("drug_sulfanilamide_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_penicillin_g_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ampicillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_amoxicillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ampicillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.55);
+        map.insert("drug_amoxicillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_piperacillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ticarcillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ticarcillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.35);
         map.insert("drug_cephalexin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefazolin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefuroxime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ceftriaxone_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ceftazidime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefepime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ceftriaxone_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.45);
+        map.insert("drug_ceftazidime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_cefepime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ceftaroline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefiderocol_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_meropenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_imipenem_c_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ertapenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_meropenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.95);
+        map.insert("drug_imipenem_c_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.95);
+        map.insert("drug_ertapenem_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_aztreonam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_clarithromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_clindamycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_gentamicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_tobramycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_amikacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
-        map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
-        map.insert("drug_moxifloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_ofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_tetracycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
-        map.insert("drug_doxycycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_minocycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_tigecycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_vancomycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_gentamicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_tobramycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_amikacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_moxifloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_ofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_tetracycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_doxycycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_minocycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_tigecycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_vancomycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_chloramphenicol_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_nitrofurantoin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_fosfomycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_retapamulin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_chloramphenicol_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nitrofurantoin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_fosfomycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.40);
+        map.insert("drug_retapamulin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fidaxomicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_rifampicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ticarcillin_clavulanate_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ceftazidime_avibactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_meropenem_vaborbactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ampicillin_sulbactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.40);
+        map.insert("drug_ticarcillin_clavulanate_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.35);
+        map.insert("drug_ceftazidime_avibactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_meropenem_vaborbactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_colistin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_flucloxacillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.01);
-        map.insert("drug_aztreonam_avibactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_cefixime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_flucloxacillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_aztreonam_avibactam_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefixime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
 
         // --- enterobacter_cloacae ---
         map.insert("drug_sulfanilamide_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
@@ -5887,6 +5921,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_tetracycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
@@ -5950,6 +5985,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_ofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_nalidixic_acid_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_tetracycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_minocycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.85);
@@ -6013,6 +6049,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_moxifloxacin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_nalidixic_acid_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.85);
@@ -6076,6 +6113,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_moxifloxacin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ofloxacin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.85);
@@ -6139,6 +6177,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_moxifloxacin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ofloxacin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_doxycycline_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_minocycline_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.75);
@@ -6202,6 +6241,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_moxifloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ofloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.85);
@@ -6265,6 +6305,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.4);
         map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.5);
         map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.35);
+        map.insert("drug_nalidixic_acid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
         map.insert("drug_doxycycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
         map.insert("drug_minocycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
@@ -6328,6 +6369,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_moxifloxacin_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ofloxacin_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_nalidixic_acid_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_doxycycline_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_minocycline_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.80);
@@ -6391,6 +6433,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_moxifloxacin_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ofloxacin_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_nalidixic_acid_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.90);
@@ -6454,6 +6497,7 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_moxifloxacin_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_ofloxacin_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_nalidixic_acid_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_doxycycline_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.65);
         map.insert("drug_minocycline_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.70);
@@ -6486,50 +6530,6 @@ lazy_static! {
         map.insert("drug_aztreonam_avibactam_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_cefixime_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.10);
 
-        // Nalidixic acid is represented as an early quinolone with a narrow
-        // gram-negative enteric/urinary spectrum.
-        map.insert("drug_nalidixic_acid_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_nalidixic_acid_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_nalidixic_acid_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.65);
-        map.insert("drug_nalidixic_acid_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_nalidixic_acid_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_nalidixic_acid_for_bacteria_p_stuartii_potency_when_no_r".to_string(), 0.45);
-        map.insert("drug_nalidixic_acid_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_nalidixic_acid_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_nalidixic_acid_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.65);
-        map.insert("drug_nalidixic_acid_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 0.65);
-        map.insert("drug_nalidixic_acid_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_nalidixic_acid_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_nalidixic_acid_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_nalidixic_acid_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.30);
-        map.insert("drug_nalidixic_acid_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_mycoplasma_genitalium_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_nalidixic_acid_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_nalidixic_acid_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_nalidixic_acid_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_nalidixic_acid_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_mycoplasma_pneumoniae_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_legionella_pneumophila_potency_when_no_r".to_string(), 0.0);
-        map.insert("drug_nalidixic_acid_for_bacteria_burkholderia_cepacia_complex_potency_when_no_r".to_string(), 0.0);
 
         // Nalidixic acid initiation multipliers. Current-era use is disabled;
         // explicit era overrides represent historical enteric and urinary use.
@@ -9318,13 +9318,13 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.05           ); // classes: chl
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.045          ); // classes: chl
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0             ); // tier 0 by group; S. aureus is GramPositive; 16sRrmt group mask excludes GramPositive
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_05  ) ; // classes: pen, flu, bli, ceph, carb, mono
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_000_3     ); // classes: glyc, lipoglyc
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_3     ); // classes: glyc
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_000_03     ); // classes: glyc, lipoglyc
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_03     ); // classes: glyc
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 30.0      ); // classes: mls, lincosamides, streptogramins (MLSB phenotype)
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 3.0       ); // classes: oxa, lin, chl, pleuro
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 1.0       ); // classes: oxa, lin, chl, pleuro
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 30.0     ); // classes: fq (nalidixic acid, ciprofloxacin, ofloxacin; first-step GyrA route; levofloxacin/moxifloxacin use the secondary GyrA/ParC route)
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 30.0     ); // classes: fq; secondary fluoroquinolone target-mutation route
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_qnr_emergence_rate".to_string(), 0.0   ); // tier 0
@@ -9430,7 +9430,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 5.0           ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0           ); // classes: fq (ciprofloxacin only), tet incl. tigecycline, chl
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0; OmpK35/36 is modelled only for K. pneumoniae
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0; OprD is modelled only for P. aeruginosa
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
@@ -9442,7 +9442,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_liafsr_cls_emergence_rate".to_string(), 0.0); // tier 0 — liaFSR/Cls mechanism is Enterococcus-specific; hard organism gate in code prevents activation for S. pneumoniae
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 30.0     ); // applicable drugs/classes: rifampicin (rifamycins), fidaxomicin (macrocycles)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.2      ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.2       ); // classes: tet (tetracycline, doxycycline, minocycline; not tigecycline)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0 - pneumococcal beta-lactam resistance uses altered PBPs, not blaZ
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_narrow_spectrum_gram_negative_penicillinase_emergence_rate".to_string(), 0.0); // tier 0 - pneumococcal beta-lactam resistance uses altered PBPs
@@ -9451,7 +9451,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 30.0         ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // classes: oxa; 
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_5         ); // classes: pen, flu, bli, ceph, mono; primary pneumococcal beta-lactam route
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1         ); // classes: pen, flu, bli, ceph, mono; primary pneumococcal beta-lactam route
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0; mtrCDE is a Neisseria-specific efflux system, not present in Gram-positives
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_16s_rrna_tetracycline_emergence_rate".to_string(), 0.0); // tier 0 - H. pylori-specific tetracycline target mutation
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_siderophore_uptake_emergence_rate".to_string(), 0.0); // tier 0
