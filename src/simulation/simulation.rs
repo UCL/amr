@@ -80,7 +80,12 @@ const RESISTANCE_MECHANISM_FAMILY_SLUGS: [&str; RESISTANCE_MECHANISM_FAMILY_COUN
 const REGION_COUNT: usize = 6;
 pub const SIMULATION_SUMMARY_SCHEMA_VERSION: u32 = 6;
 const REGIONAL_RESISTANCE_REGION_NAMES: [&str; REGION_COUNT] = [
-    "north_america", "south_america", "africa", "asia", "europe", "oceania",
+    "north_america",
+    "south_america",
+    "africa",
+    "asia",
+    "europe",
+    "oceania",
 ];
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
@@ -2755,9 +2760,23 @@ impl TimeStepSummary {
         let infected_len = BACTERIA_LIST.len() * REGION_COUNT;
         let resistance_len = infected_len * DRUG_SHORT_NAMES.len();
         for (name, actual, expected) in [
-            ("infected counts", self.regional_resistance_infected_by_bacteria_region.len(), infected_len),
-            ("positive counts", self.regional_resistance_positive_by_bacteria_drug_region.len(), resistance_len),
-            ("any_r sums", self.regional_resistance_any_r_sum_by_bacteria_drug_region.len(), resistance_len),
+            (
+                "infected counts",
+                self.regional_resistance_infected_by_bacteria_region.len(),
+                infected_len,
+            ),
+            (
+                "positive counts",
+                self.regional_resistance_positive_by_bacteria_drug_region
+                    .len(),
+                resistance_len,
+            ),
+            (
+                "any_r sums",
+                self.regional_resistance_any_r_sum_by_bacteria_drug_region
+                    .len(),
+                resistance_len,
+            ),
         ] {
             if actual != expected {
                 return Err(std::io::Error::new(
@@ -2770,24 +2789,31 @@ impl TimeStepSummary {
     }
 
     fn append_regional_resistance_csv_values(&self, row: &mut String) {
-        row.push_str(if self.regional_resistance_collected { ",1" } else { ",0" });
+        row.push_str(if self.regional_resistance_collected {
+            ",1"
+        } else {
+            ",0"
+        });
         for region_idx in 0..REGION_COUNT {
             for bacteria_idx in 0..BACTERIA_LIST.len() {
                 let infected = if self.regional_resistance_collected {
                     self.regional_resistance_infected_by_bacteria_region
                         [bacteria_idx * REGION_COUNT + region_idx]
-                } else { 0 };
+                } else {
+                    0
+                };
                 row.push_str(&format!(",{infected}"));
                 for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * REGION_COUNT + region_idx;
+                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * REGION_COUNT
+                        + region_idx;
                     let (positive, any_r_sum) = if self.regional_resistance_collected {
                         (
-                            self.regional_resistance_positive_by_bacteria_drug_region
-                                [index],
-                            self.regional_resistance_any_r_sum_by_bacteria_drug_region
-                                [index],
+                            self.regional_resistance_positive_by_bacteria_drug_region[index],
+                            self.regional_resistance_any_r_sum_by_bacteria_drug_region[index],
                         )
-                    } else { (0, 0.0) };
+                    } else {
+                        (0, 0.0)
+                    };
                     row.push_str(&format!(",{positive},{any_r_sum}"));
                 }
             }
@@ -2799,13 +2825,24 @@ impl TimeStepSummary {
             return Ok(());
         }
         for (name, actual, expected) in [
-            ("region", self.deaths_by_region.len(), REGION_COUNT * NUM_DEATH_CAUSES),
-            ("region and age", self.deaths_by_region_age.len(), REGION_COUNT * 5 * NUM_DEATH_CAUSES),
+            (
+                "region",
+                self.deaths_by_region.len(),
+                REGION_COUNT * NUM_DEATH_CAUSES,
+            ),
+            (
+                "region and age",
+                self.deaths_by_region_age.len(),
+                REGION_COUNT * 5 * NUM_DEATH_CAUSES,
+            ),
         ] {
             if actual != expected {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
-                    format!("deaths by {name} at timestep {}: expected {expected} values, got {actual}", self.time_step),
+                    format!(
+                        "deaths by {name} at timestep {}: expected {expected} values, got {actual}",
+                        self.time_step
+                    ),
                 ));
             }
         }
@@ -4204,16 +4241,25 @@ impl Simulation {
                     }
                 }
                 fn merge(&mut self, other: Self) {
-                    for (total, value) in self.regional_resistance_infected_by_bacteria_region
-                        .iter_mut().zip(other.regional_resistance_infected_by_bacteria_region) {
+                    for (total, value) in self
+                        .regional_resistance_infected_by_bacteria_region
+                        .iter_mut()
+                        .zip(other.regional_resistance_infected_by_bacteria_region)
+                    {
                         *total += value;
                     }
-                    for (total, value) in self.regional_resistance_positive_by_bacteria_drug_region
-                        .iter_mut().zip(other.regional_resistance_positive_by_bacteria_drug_region) {
+                    for (total, value) in self
+                        .regional_resistance_positive_by_bacteria_drug_region
+                        .iter_mut()
+                        .zip(other.regional_resistance_positive_by_bacteria_drug_region)
+                    {
                         *total += value;
                     }
-                    for (total, value) in self.regional_resistance_any_r_sum_by_bacteria_drug_region
-                        .iter_mut().zip(other.regional_resistance_any_r_sum_by_bacteria_drug_region) {
+                    for (total, value) in self
+                        .regional_resistance_any_r_sum_by_bacteria_drug_region
+                        .iter_mut()
+                        .zip(other.regional_resistance_any_r_sum_by_bacteria_drug_region)
+                    {
                         *total += value;
                     }
                     for (a, b) in self.mic_lt2_counts.iter_mut().zip(other.mic_lt2_counts) {
@@ -5007,8 +5053,8 @@ impl Simulation {
             let _ = threads; // suppress unused warning
             let seed_option = self.rng_seed;
             let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
-            let microbiome_majority_threshold =
-                get_global_param("microbiome_majority_threshold").unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+            let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
+                .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let policy = self.current_policy_adjustments;
             let calibration_mode = self.calibration_mode;
             let evaluation_days: i32 =
@@ -7250,7 +7296,9 @@ impl Simulation {
 
         // Reject incomplete collected observations before creating or truncating the export.
         for summary in self.summary_log.iter().chain(
-            self.policy_branch_summary_log.iter().flat_map(|branch| branch.summaries.iter()),
+            self.policy_branch_summary_log
+                .iter()
+                .flat_map(|branch| branch.summaries.iter()),
         ) {
             summary.validate_regional_resistance_dimensions()?;
             summary.validate_regional_death_dimensions()?;
@@ -9117,10 +9165,17 @@ mod tests {
     }
 
     fn regional_resistance_fixture() -> Simulation {
-        let mut simulation = Simulation::new(8, 1, false, Some(7_315_440), CalibrationMode::Partial);
+        let mut simulation =
+            Simulation::new(8, 1, false, Some(7_315_440), CalibrationMode::Partial);
         simulation.run_id = 654_440;
-        let regions = [Region::NorthAmerica, Region::SouthAmerica, Region::Africa,
-            Region::Asia, Region::Europe, Region::Oceania];
+        let regions = [
+            Region::NorthAmerica,
+            Region::SouthAmerica,
+            Region::Africa,
+            Region::Asia,
+            Region::Europe,
+            Region::Oceania,
+        ];
         for (index, individual) in simulation.population.individuals.iter_mut().enumerate() {
             individual.age = 40 * 365;
             individual.region_living = regions[index % super::REGION_COUNT];
@@ -9129,7 +9184,8 @@ mod tests {
             individual.date_last_infected[0] = 0;
             individual.date_last_infected_keep[0] = 0;
             individual.clearance_ready_day[0] = 20;
-            individual.resistances[0][0].any_r = store_float(if index % 2 == 0 { 0.5 } else { 0.0 });
+            individual.resistances[0][0].any_r =
+                store_float(if index % 2 == 0 { 0.5 } else { 0.0 });
         }
         simulation.population.individuals[6].level[0] = 0.0;
         simulation.population.individuals[7].date_of_death = Some(0);
@@ -9142,22 +9198,51 @@ mod tests {
     // the actual summary collector without relying on stochastic mortality or a long run.
     fn model_scope_death_fixture() -> Simulation {
         let day = MODEL_SCOPE_DEATH_FIXTURE_DAY;
-        let mut simulation = Simulation::new(1, day + 1, false, Some(654_321), CalibrationMode::Partial);
+        let mut simulation =
+            Simulation::new(1, day + 1, false, Some(654_321), CalibrationMode::Partial);
         simulation.run_id = 543_210;
         let mut template = simulation.population.individuals[0].clone();
         template.level.fill(0.0);
         template.sepsis.fill(false);
         template.date_of_death = Some(day);
-        let regions = [Region::NorthAmerica, Region::SouthAmerica, Region::Africa,
-            Region::Asia, Region::Europe, Region::Oceania];
-        let ages = [0, 6 * 365 - 1, 6 * 365, 15 * 365 - 1, 15 * 365,
-            50 * 365 - 1, 50 * 365, 80 * 365 - 1, 80 * 365];
-        let included = BACTERIA_LIST.iter().position(|&name| name == "escherichia_coli").unwrap();
-        let included_second = BACTERIA_LIST.iter().position(|&name| name == "staphylococcus_aureus").unwrap();
-        let excluded = ["helicobacter_pylori", "mdr_mycobacterium_tuberculosis"]
-            .map(|name| BACTERIA_LIST.iter().position(|&bacteria| bacteria == name).unwrap());
-        let level = crate::config::parameter_store().globals
-            .infection_non_sepsis_minimum_bacteria_level.max(1.0) + 1.0;
+        let regions = [
+            Region::NorthAmerica,
+            Region::SouthAmerica,
+            Region::Africa,
+            Region::Asia,
+            Region::Europe,
+            Region::Oceania,
+        ];
+        let ages = [
+            0,
+            6 * 365 - 1,
+            6 * 365,
+            15 * 365 - 1,
+            15 * 365,
+            50 * 365 - 1,
+            50 * 365,
+            80 * 365 - 1,
+            80 * 365,
+        ];
+        let included = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .unwrap();
+        let included_second = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "staphylococcus_aureus")
+            .unwrap();
+        let excluded = ["helicobacter_pylori", "mdr_mycobacterium_tuberculosis"].map(|name| {
+            BACTERIA_LIST
+                .iter()
+                .position(|&bacteria| bacteria == name)
+                .unwrap()
+        });
+        let level = crate::config::parameter_store()
+            .globals
+            .infection_non_sepsis_minimum_bacteria_level
+            .max(1.0)
+            + 1.0;
         simulation.population.individuals.clear();
         for (region_idx, region) in regions.iter().enumerate() {
             // Unequal regional totals detect incorrect use of home residence for travellers.
@@ -9173,7 +9258,11 @@ mod tests {
                             } else {
                                 regions[(region_idx + 1) % regions.len()]
                             };
-                            person.region_cur_in = if cohort % 2 == 0 { Region::Home } else { *region };
+                            person.region_cur_in = if cohort % 2 == 0 {
+                                Region::Home
+                            } else {
+                                *region
+                            };
                             person.cause_of_death = Some(cause.to_string());
                             let contributors = match cohort {
                                 0 => vec![excluded[0]],
@@ -9196,37 +9285,60 @@ mod tests {
 
     #[test]
     fn model_scope_deaths_existing_region_and_age_fields_reconcile_with_scoped_headlines() {
-        for flags in [SummaryContentFlags::all(), SummaryContentFlags::calibration_full()] {
+        for flags in [
+            SummaryContentFlags::all(),
+            SummaryContentFlags::calibration_full(),
+        ] {
             let mut simulation = model_scope_death_fixture();
             simulation.summary_content_flags = flags;
-            simulation.run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None).unwrap();
+            simulation
+                .run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None)
+                .unwrap();
             let summary = &simulation.summary_log[0];
             assert!(summary.regional_resistance_collected);
             assert_eq!(summary.deaths_sepsis, 756);
             assert_eq!(summary.deaths_infection_non_sepsis, 756);
             assert_eq!(summary.deaths_sepsis_model_scope, 378);
             assert_eq!(summary.deaths_infection_non_sepsis_model_scope, 378);
-            for cause in [super::DEATH_CAUSE_SEPSIS_IDX, super::DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] {
+            for cause in [
+                super::DEATH_CAUSE_SEPSIS_IDX,
+                super::DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX,
+            ] {
                 for region in 0..super::REGION_COUNT {
-                    let regional_count = summary.deaths_by_region[region * super::NUM_DEATH_CAUSES + cause];
+                    let regional_count =
+                        summary.deaths_by_region[region * super::NUM_DEATH_CAUSES + cause];
                     assert_eq!(regional_count, 18 * (region + 1));
                     let mut age_total = 0;
                     for (age, expected) in [4, 4, 4, 4, 2].into_iter().enumerate() {
-                        let count = summary.deaths_by_region_age[
-                            (region * 5 + age) * super::NUM_DEATH_CAUSES + cause];
-                        assert_eq!(count, expected * (region + 1), "region {region}, age {age}, cause {cause}");
+                        let count = summary.deaths_by_region_age
+                            [(region * 5 + age) * super::NUM_DEATH_CAUSES + cause];
+                        assert_eq!(
+                            count,
+                            expected * (region + 1),
+                            "region {region}, age {age}, cause {cause}"
+                        );
                         age_total += count;
                     }
                     assert_eq!(age_total, regional_count);
                 }
-                assert_eq!(summary.deaths_by_region.chunks_exact(super::NUM_DEATH_CAUSES)
-                    .map(|region| region[cause]).sum::<usize>(), 378);
+                assert_eq!(
+                    summary
+                        .deaths_by_region
+                        .chunks_exact(super::NUM_DEATH_CAUSES)
+                        .map(|region| region[cause])
+                        .sum::<usize>(),
+                    378
+                );
             }
             // Background/toxicity plus scoped infection causes form this subtotal; excluded-only
             // infection deaths still contribute to broad global causes and total_deaths.
-            assert_eq!(summary.deaths_by_region.iter().sum::<usize>(),
-                summary.deaths_background + summary.deaths_drug_toxicity
-                    + summary.deaths_sepsis_model_scope + summary.deaths_infection_non_sepsis_model_scope);
+            assert_eq!(
+                summary.deaths_by_region.iter().sum::<usize>(),
+                summary.deaths_background
+                    + summary.deaths_drug_toxicity
+                    + summary.deaths_sepsis_model_scope
+                    + summary.deaths_infection_non_sepsis_model_scope
+            );
             assert_eq!(summary.total_deaths, 1512);
             assert!(summary.deaths_by_region.iter().sum::<usize>() < summary.total_deaths);
         }
@@ -9237,9 +9349,17 @@ mod tests {
         let mut simulation = model_scope_death_fixture();
         let template = simulation.population.individuals[0].clone();
         simulation.population.individuals.clear();
-        let included = BACTERIA_LIST.iter().position(|&name| name == "escherichia_coli").unwrap();
-        let excluded = BACTERIA_LIST.iter().position(|&name| name == "helicobacter_pylori").unwrap();
-        let threshold = crate::config::parameter_store().globals.infection_non_sepsis_minimum_bacteria_level;
+        let included = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "escherichia_coli")
+            .unwrap();
+        let excluded = BACTERIA_LIST
+            .iter()
+            .position(|&name| name == "helicobacter_pylori")
+            .unwrap();
+        let threshold = crate::config::parameter_store()
+            .globals
+            .infection_non_sepsis_minimum_bacteria_level;
         for cause in ["sepsis_related", "infection_non_sepsis_related"] {
             for case in 0..3 {
                 let mut person = template.clone();
@@ -9247,23 +9367,38 @@ mod tests {
                 person.level[excluded] = threshold.max(1.0) + 1.0;
                 person.sepsis[excluded] = cause == "sepsis_related";
                 person.level[included] = if case == 0 {
-                    if cause == "sepsis_related" { INFECTION_EPS } else { threshold }
-                } else { threshold.max(1.0) + 1.0 };
+                    if cause == "sepsis_related" {
+                        INFECTION_EPS
+                    } else {
+                        threshold
+                    }
+                } else {
+                    threshold.max(1.0) + 1.0
+                };
                 person.sepsis[included] = if case == 1 {
                     cause != "sepsis_related"
-                } else { cause == "sepsis_related" };
+                } else {
+                    cause == "sepsis_related"
+                };
                 if case == 2 {
                     person.date_of_death = Some(MODEL_SCOPE_DEATH_FIXTURE_DAY - 1);
                 }
                 simulation.population.individuals.push(person);
             }
         }
-        for cause in [Some("background_mortality"), Some("drug_toxicity_related"), Some("unknown"), None] {
+        for cause in [
+            Some("background_mortality"),
+            Some("drug_toxicity_related"),
+            Some("unknown"),
+            None,
+        ] {
             let mut person = template.clone();
             person.cause_of_death = cause.map(str::to_string);
             simulation.population.individuals.push(person);
         }
-        simulation.run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None).unwrap();
+        simulation
+            .run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None)
+            .unwrap();
         let summary = &simulation.summary_log[0];
         assert_eq!(summary.deaths_sepsis, 2);
         assert_eq!(summary.deaths_infection_non_sepsis, 2);
@@ -9272,8 +9407,14 @@ mod tests {
         assert_eq!(summary.deaths_background, 3);
         assert_eq!(summary.deaths_drug_toxicity, 1);
         assert_eq!(summary.total_deaths, 8);
-        assert_eq!(summary.deaths_by_region[super::DEATH_CAUSE_BACKGROUND_IDX], 3);
-        assert_eq!(summary.deaths_by_region[super::DEATH_CAUSE_DRUG_TOXICITY_IDX], 1);
+        assert_eq!(
+            summary.deaths_by_region[super::DEATH_CAUSE_BACKGROUND_IDX],
+            3
+        );
+        assert_eq!(
+            summary.deaths_by_region[super::DEATH_CAUSE_DRUG_TOXICITY_IDX],
+            1
+        );
         assert_eq!(summary.deaths_by_region.iter().sum::<usize>(), 4);
         assert_eq!(summary.deaths_by_region_age.iter().sum::<usize>(), 4);
     }
@@ -9284,10 +9425,16 @@ mod tests {
         let mut disabled = model_scope_death_fixture();
         disabled.calibration_mode = CalibrationMode::FullMinimal;
         disabled.summary_content_flags = disabled.calibration_mode.summary_content_flags();
-        collected.run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None).unwrap();
-        disabled.run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None).unwrap();
-        assert_eq!(bincode::serialize(&collected.create_branch_snapshot()).unwrap(),
-            bincode::serialize(&disabled.create_branch_snapshot()).unwrap());
+        collected
+            .run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None)
+            .unwrap();
+        disabled
+            .run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None)
+            .unwrap();
+        assert_eq!(
+            bincode::serialize(&collected.create_branch_snapshot()).unwrap(),
+            bincode::serialize(&disabled.create_branch_snapshot()).unwrap()
+        );
         let summary = &disabled.summary_log[0];
         assert!(!summary.regional_resistance_collected);
         assert!(summary.deaths_by_region.is_empty());
@@ -9306,8 +9453,10 @@ mod tests {
         let row = reader.records().next().unwrap().unwrap();
         assert_eq!(headers.len(), row.len());
         for (column, name) in headers.iter().enumerate() {
-            if super::REGIONAL_RESISTANCE_REGION_NAMES.iter().any(|region|
-                name.starts_with(&format!("{region}_")) && name.contains("_deaths_")) {
+            if super::REGIONAL_RESISTANCE_REGION_NAMES
+                .iter()
+                .any(|region| name.starts_with(&format!("{region}_")) && name.contains("_deaths_"))
+            {
                 assert_eq!(&row[column], "0", "{name}");
             }
         }
@@ -9316,26 +9465,43 @@ mod tests {
     #[test]
     fn model_scope_deaths_export_preserves_layout_and_rejects_incomplete_arrays() {
         let mut simulation = model_scope_death_fixture();
-        simulation.run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None).unwrap();
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/model_scope_deaths_fixture.csv");
+        simulation
+            .run_from(MODEL_SCOPE_DEATH_FIXTURE_DAY, None)
+            .unwrap();
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("target/model_scope_deaths_fixture.csv");
         simulation.export_summary_to_csv(&path).unwrap();
         let mut reader = csv::Reader::from_path(&path).unwrap();
         let headers = reader.headers().unwrap().clone();
         let row = reader.records().next().unwrap().unwrap();
         assert_eq!(headers.len(), row.len());
         assert_eq!(&row[1], "6");
-        assert_eq!(&headers[headers.len() - 1], format!("regional_resistance_oceania_{}_{}_any_r_sum",
-            BACTERIA_LIST.last().unwrap(), DRUG_SHORT_NAMES.last().unwrap()));
+        assert_eq!(
+            &headers[headers.len() - 1],
+            format!(
+                "regional_resistance_oceania_{}_{}_any_r_sum",
+                BACTERIA_LIST.last().unwrap(),
+                DRUG_SHORT_NAMES.last().unwrap()
+            )
+        );
         let age_names = ["0_5", "6_14", "15_49", "50_79", "80plus"];
         for (region_idx, region) in super::REGIONAL_RESISTANCE_REGION_NAMES.iter().enumerate() {
             for cause in ["deaths_sepsis", "deaths_infection_non_sepsis"] {
-                assert!(!headers.iter().any(|name| name == format!("{region}_{cause}_model_scope")));
-                let column = headers.iter().position(|name| name == format!("{region}_{cause}")).unwrap();
+                assert!(!headers
+                    .iter()
+                    .any(|name| name == format!("{region}_{cause}_model_scope")));
+                let column = headers
+                    .iter()
+                    .position(|name| name == format!("{region}_{cause}"))
+                    .unwrap();
                 assert_eq!(row[column].parse::<usize>().unwrap(), 18 * (region_idx + 1));
                 for (age_idx, age) in age_names.iter().enumerate() {
                     let name = format!("{region}_prop_age_{age}_{cause}");
                     let column = headers.iter().position(|field| field == name).unwrap();
-                    assert_eq!(row[column].parse::<usize>().unwrap(), [4, 4, 4, 4, 2][age_idx] * (region_idx + 1));
+                    assert_eq!(
+                        row[column].parse::<usize>().unwrap(),
+                        [4, 4, 4, 4, 2][age_idx] * (region_idx + 1)
+                    );
                 }
             }
         }
@@ -9360,56 +9526,132 @@ mod tests {
         let drug_count = DRUG_SHORT_NAMES.len();
         let mechanism_count = ResistanceMechanism::all().len();
         for b in 0..BACTERIA_LIST.len() {
-            let active: Vec<_> = simulation.population.individuals.iter().enumerate()
-                .filter(|(_, person)| person.date_of_death.is_none()
-                    && person.age >= 0 && person.level[b] > INFECTION_EPS)
+            let active: Vec<_> = simulation
+                .population
+                .individuals
+                .iter()
+                .enumerate()
+                .filter(|(_, person)| {
+                    person.date_of_death.is_none()
+                        && person.age >= 0
+                        && person.level[b] > INFECTION_EPS
+                })
                 .collect();
             assert_eq!(summary.infections_by_bacteria[b], active.len());
-            assert_eq!(summary.infected_and_on_any_drug_by_bacteria[b],
-                active.iter().filter(|(_, p)| p.cur_use_drug.iter().any(|&on| on)).count());
+            assert_eq!(
+                summary.infected_and_on_any_drug_by_bacteria[b],
+                active
+                    .iter()
+                    .filter(|(_, p)| p.cur_use_drug.iter().any(|&on| on))
+                    .count()
+            );
             if !summary.infected_with_test_identified_by_bacteria.is_empty() {
-                assert_eq!(summary.infected_with_test_identified_by_bacteria[b],
-                    active.iter().filter(|(_, p)| p.test_identified_infection[b]).count());
-                assert_eq!(summary.infected_with_test_for_resistance_by_bacteria[b],
-                    active.iter().filter(|(_, p)| p.test_for_resistance[b]).count());
+                assert_eq!(
+                    summary.infected_with_test_identified_by_bacteria[b],
+                    active
+                        .iter()
+                        .filter(|(_, p)| p.test_identified_infection[b])
+                        .count()
+                );
+                assert_eq!(
+                    summary.infected_with_test_for_resistance_by_bacteria[b],
+                    active
+                        .iter()
+                        .filter(|(_, p)| p.test_for_resistance[b])
+                        .count()
+                );
             }
             if !summary.infected_with_bacteria_and_mechanism.is_empty() {
                 for m in 0..mechanism_count {
-                    assert_eq!(summary.infected_with_bacteria_and_mechanism[b * mechanism_count + m],
-                        active.iter().filter(|(_, p)| p.has_any_mechanism(b, m)).count());
+                    assert_eq!(
+                        summary.infected_with_bacteria_and_mechanism[b * mechanism_count + m],
+                        active
+                            .iter()
+                            .filter(|(_, p)| p.has_any_mechanism(b, m))
+                            .count()
+                    );
                 }
             }
             for d in 0..drug_count {
                 let index = b * drug_count + d;
-                let positive = active.iter().filter(|(_, p)|
-                    load_float(p.resistances[b][d].any_r) > 0.0).count();
-                let sum: f64 = active.iter().map(|(_, p)|
-                    load_float(p.resistances[b][d].any_r)).sum();
-                assert_eq!(summary.infected_with_any_r_positive_by_bacteria_drug[index], positive);
+                let positive = active
+                    .iter()
+                    .filter(|(_, p)| load_float(p.resistances[b][d].any_r) > 0.0)
+                    .count();
+                let sum: f64 = active
+                    .iter()
+                    .map(|(_, p)| load_float(p.resistances[b][d].any_r))
+                    .sum();
+                assert_eq!(
+                    summary.infected_with_any_r_positive_by_bacteria_drug[index],
+                    positive
+                );
                 assert_eq!(summary.any_r_sum_by_bacteria_drug[index], sum);
                 assert_eq!(summary.resistance_by_bacteria_drug[index], positive);
                 assert!(positive <= summary.infections_by_bacteria[b]);
-                let susceptible = active.iter().filter(|(_, p)|
-                    load_float(p.resistances[b][d].any_r)
-                        < simulation.mic_lt2_majority_r_thresholds[index]).count();
-                assert_eq!(summary.infected_and_standardized_mic_lt2_by_bacteria_drug[index], susceptible);
-                let hospital_sum: f64 = active.iter().filter(|(i, _)| hospital_before[*i])
-                    .map(|(_, p)| load_float(p.resistances[b][d].any_r)).sum();
-                assert_eq!(summary.any_r_sum_by_bacteria_drug_hospital[index], hospital_sum);
-                if !summary.infected_with_any_r_positive_hospital_by_bacteria_drug.is_empty() {
-                    let hospital_positive = active.iter().filter(|(i, p)| hospital_before[*i]
-                        && load_float(p.resistances[b][d].any_r) > 0.0).count();
-                    assert_eq!(summary.infected_with_any_r_positive_hospital_by_bacteria_drug[index], hospital_positive);
-                    assert_eq!(summary.infected_with_any_r_positive_community_by_bacteria_drug[index], positive - hospital_positive);
-                    assert!(hospital_positive <= summary.currently_infected_hospital_count_by_bacteria[b]);
-                    assert!(positive - hospital_positive <= summary.currently_infected_community_count_by_bacteria[b]);
+                let susceptible = active
+                    .iter()
+                    .filter(|(_, p)| {
+                        load_float(p.resistances[b][d].any_r)
+                            < simulation.mic_lt2_majority_r_thresholds[index]
+                    })
+                    .count();
+                assert_eq!(
+                    summary.infected_and_standardized_mic_lt2_by_bacteria_drug[index],
+                    susceptible
+                );
+                let hospital_sum: f64 = active
+                    .iter()
+                    .filter(|(i, _)| hospital_before[*i])
+                    .map(|(_, p)| load_float(p.resistances[b][d].any_r))
+                    .sum();
+                assert_eq!(
+                    summary.any_r_sum_by_bacteria_drug_hospital[index],
+                    hospital_sum
+                );
+                if !summary
+                    .infected_with_any_r_positive_hospital_by_bacteria_drug
+                    .is_empty()
+                {
+                    let hospital_positive = active
+                        .iter()
+                        .filter(|(i, p)| {
+                            hospital_before[*i] && load_float(p.resistances[b][d].any_r) > 0.0
+                        })
+                        .count();
+                    assert_eq!(
+                        summary.infected_with_any_r_positive_hospital_by_bacteria_drug[index],
+                        hospital_positive
+                    );
+                    assert_eq!(
+                        summary.infected_with_any_r_positive_community_by_bacteria_drug[index],
+                        positive - hospital_positive
+                    );
+                    assert!(
+                        hospital_positive
+                            <= summary.currently_infected_hospital_count_by_bacteria[b]
+                    );
+                    assert!(
+                        positive - hospital_positive
+                            <= summary.currently_infected_community_count_by_bacteria[b]
+                    );
                 }
                 if summary.regional_resistance_collected {
                     let start = index * super::REGION_COUNT;
-                    assert_eq!(summary.regional_resistance_positive_by_bacteria_drug_region
-                        [start..start + super::REGION_COUNT].iter().sum::<usize>(), positive);
-                    assert_eq!(summary.regional_resistance_any_r_sum_by_bacteria_drug_region
-                        [start..start + super::REGION_COUNT].iter().sum::<f64>(), sum);
+                    assert_eq!(
+                        summary.regional_resistance_positive_by_bacteria_drug_region
+                            [start..start + super::REGION_COUNT]
+                            .iter()
+                            .sum::<usize>(),
+                        positive
+                    );
+                    assert_eq!(
+                        summary.regional_resistance_any_r_sum_by_bacteria_drug_region
+                            [start..start + super::REGION_COUNT]
+                            .iter()
+                            .sum::<f64>(),
+                        sum
+                    );
                 }
             }
         }
@@ -9417,17 +9659,31 @@ mod tests {
 
     #[test]
     fn aligned_resistance_statistics_match_population_in_all_profiles() {
-        for flags in [SummaryContentFlags::all(), SummaryContentFlags::calibration_full(),
-            SummaryContentFlags::calibration_full_minimal()] {
+        for flags in [
+            SummaryContentFlags::all(),
+            SummaryContentFlags::calibration_full(),
+            SummaryContentFlags::calibration_full_minimal(),
+        ] {
             let mut simulation = regional_resistance_fixture();
             simulation.summary_content_flags = flags;
-            let before: Vec<_> = simulation.population.individuals.iter()
-                .map(|p| p.hospital_status.is_hospitalized()).collect();
-            let initial_sum: f64 = simulation.population.individuals.iter()
+            let before: Vec<_> = simulation
+                .population
+                .individuals
+                .iter()
+                .map(|p| p.hospital_status.is_hospitalized())
+                .collect();
+            let initial_sum: f64 = simulation
+                .population
+                .individuals
+                .iter()
                 .filter(|p| p.date_of_death.is_none() && p.level[0] > INFECTION_EPS)
-                .map(|p| load_float(p.resistances[0][0].any_r)).sum();
+                .map(|p| load_float(p.resistances[0][0].any_r))
+                .sum();
             simulation.run_from(0, None).unwrap();
-            assert!(initial_sum > 0.0, "fixture must exercise resistant observations");
+            assert!(
+                initial_sum > 0.0,
+                "fixture must exercise resistant observations"
+            );
             assert_aligned_infection_statistics(&simulation, &before);
         }
     }
@@ -9451,17 +9707,34 @@ mod tests {
             person.test_for_resistance[0] = true;
             person.set_any_mechanism(0, 0);
         }
-        let before: Vec<_> = simulation.population.individuals.iter()
-            .map(|p| p.hospital_status.is_hospitalized()).collect();
-        let positive_before = simulation.population.individuals.iter()
-            .filter(|p| p.date_of_death.is_none() && p.level[0] > INFECTION_EPS
-                && load_float(p.resistances[0][0].any_r) > 0.0).count();
+        let before: Vec<_> = simulation
+            .population
+            .individuals
+            .iter()
+            .map(|p| p.hospital_status.is_hospitalized())
+            .collect();
+        let positive_before = simulation
+            .population
+            .individuals
+            .iter()
+            .filter(|p| {
+                p.date_of_death.is_none()
+                    && p.level[0] > INFECTION_EPS
+                    && load_float(p.resistances[0][0].any_r) > 0.0
+            })
+            .count();
         simulation.run_from(1000, None).unwrap();
         assert!(simulation.population.individuals[0].date_of_death.is_none());
         assert_eq!(simulation.population.individuals[0].level[0], 0.0);
-        assert_eq!(simulation.population.individuals[1].date_of_death, Some(1000));
-        assert!(simulation.summary_log[0].infected_with_any_r_positive_by_bacteria_drug[0]
-            < positive_before, "fixture must distinguish pre-rule from post-rule counts");
+        assert_eq!(
+            simulation.population.individuals[1].date_of_death,
+            Some(1000)
+        );
+        assert!(
+            simulation.summary_log[0].infected_with_any_r_positive_by_bacteria_drug[0]
+                < positive_before,
+            "fixture must distinguish pre-rule from post-rule counts"
+        );
         assert_aligned_infection_statistics(&simulation, &before);
     }
 
@@ -9491,8 +9764,22 @@ mod tests {
         let mut infected = vec![0; BACTERIA_LIST.len() * super::REGION_COUNT];
         let mut positive = vec![0; infected.len() * DRUG_SHORT_NAMES.len()];
         let mut sums = vec![0.0; positive.len()];
-        for individual in [&resistant, &susceptible, &european, &cleared, &fading, &dead, &unborn] {
-            super::record_regional_resistance_infection(individual, 0, &mut infected, &mut positive, &mut sums);
+        for individual in [
+            &resistant,
+            &susceptible,
+            &european,
+            &cleared,
+            &fading,
+            &dead,
+            &unborn,
+        ] {
+            super::record_regional_resistance_infection(
+                individual,
+                0,
+                &mut infected,
+                &mut positive,
+                &mut sums,
+            );
         }
         let africa = super::region_to_index(Region::Africa);
         let europe = super::region_to_index(Region::Europe);
@@ -9513,71 +9800,138 @@ mod tests {
     #[test]
     fn regional_resistance_runtime_export_matches_post_rule_population() {
         let mut simulation = regional_resistance_fixture();
-        simulation.run_from(0, None).expect("short regional run should succeed");
+        simulation
+            .run_from(0, None)
+            .expect("short regional run should succeed");
         let summary = &simulation.summary_log[0];
         assert!(summary.regional_resistance_collected);
         for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
             let mut region_total = 0;
             for (region_idx, region) in super::REGIONAL_RESISTANCE_REGION_NAMES.iter().enumerate() {
-                let active: Vec<_> = simulation.population.individuals.iter().filter(|individual| {
-                    individual.date_of_death.is_none() && individual.age >= 0
-                        && individual.level[bacteria_idx] > INFECTION_EPS
-                        && individual.region_living.as_str() == *region
-                }).collect();
+                let active: Vec<_> = simulation
+                    .population
+                    .individuals
+                    .iter()
+                    .filter(|individual| {
+                        individual.date_of_death.is_none()
+                            && individual.age >= 0
+                            && individual.level[bacteria_idx] > INFECTION_EPS
+                            && individual.region_living.as_str() == *region
+                    })
+                    .collect();
                 let count = summary.regional_resistance_infected_by_bacteria_region
                     [bacteria_idx * super::REGION_COUNT + region_idx];
                 assert_eq!(count, active.len(), "{bacteria} in {region}");
                 region_total += count;
                 for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-                    let values: Vec<_> = active.iter().map(|individual|
-                        load_float(individual.resistances[bacteria_idx][drug_idx].any_r)).collect();
-                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * super::REGION_COUNT + region_idx;
-                    assert_eq!(summary.regional_resistance_positive_by_bacteria_drug_region[index],
-                        values.iter().filter(|&&value| value > 0.0).count());
-                    assert_eq!(summary.regional_resistance_any_r_sum_by_bacteria_drug_region[index],
-                        values.iter().sum::<f64>());
+                    let values: Vec<_> = active
+                        .iter()
+                        .map(|individual| {
+                            load_float(individual.resistances[bacteria_idx][drug_idx].any_r)
+                        })
+                        .collect();
+                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx)
+                        * super::REGION_COUNT
+                        + region_idx;
+                    assert_eq!(
+                        summary.regional_resistance_positive_by_bacteria_drug_region[index],
+                        values.iter().filter(|&&value| value > 0.0).count()
+                    );
+                    assert_eq!(
+                        summary.regional_resistance_any_r_sum_by_bacteria_drug_region[index],
+                        values.iter().sum::<f64>()
+                    );
                 }
             }
             assert_eq!(region_total, summary.infections_by_bacteria[bacteria_idx]);
         }
-        assert!(summary.regional_resistance_positive_by_bacteria_drug_region.iter().sum::<usize>() > 0);
+        assert!(
+            summary
+                .regional_resistance_positive_by_bacteria_drug_region
+                .iter()
+                .sum::<usize>()
+                > 0
+        );
 
         // Retained fixture also supports the Python end-to-end export consumer check.
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("target/regional_resistance_tests/regional_resistance.csv");
-        simulation.export_summary_to_csv(&path).expect("regional CSV should export");
+        simulation
+            .export_summary_to_csv(&path)
+            .expect("regional CSV should export");
         let mut reader = csv::Reader::from_path(&path).expect("export should be readable");
         let headers = reader.headers().unwrap().clone();
         let record = reader.records().next().unwrap().unwrap();
         assert_eq!(headers.len(), record.len());
-        let start = headers.iter().position(|name| name == "regional_resistance_collected").unwrap();
-        assert_eq!(&headers[start - 1], "deaths_infection_non_sepsis_model_scope");
-        assert_eq!(headers.len() - start,
-            1 + super::REGION_COUNT * BACTERIA_LIST.len() * (1 + 2 * DRUG_SHORT_NAMES.len()));
+        let start = headers
+            .iter()
+            .position(|name| name == "regional_resistance_collected")
+            .unwrap();
+        assert_eq!(
+            &headers[start - 1],
+            "deaths_infection_non_sepsis_model_scope"
+        );
+        assert_eq!(
+            headers.len() - start,
+            1 + super::REGION_COUNT * BACTERIA_LIST.len() * (1 + 2 * DRUG_SHORT_NAMES.len())
+        );
         assert_eq!(&record[start], "1");
         assert_eq!(&record[1], "6");
-        assert_eq!(&headers[start + 1], format!("regional_resistance_north_america_{}_infected_count", BACTERIA_LIST[0]));
-        assert_eq!(&headers[start + 2], format!("regional_resistance_north_america_{}_{}_positive_count", BACTERIA_LIST[0], DRUG_SHORT_NAMES[0]));
-        assert_eq!(&headers[headers.len() - 1], format!("regional_resistance_oceania_{}_{}_any_r_sum", BACTERIA_LIST.last().unwrap(), DRUG_SHORT_NAMES.last().unwrap()));
+        assert_eq!(
+            &headers[start + 1],
+            format!(
+                "regional_resistance_north_america_{}_infected_count",
+                BACTERIA_LIST[0]
+            )
+        );
+        assert_eq!(
+            &headers[start + 2],
+            format!(
+                "regional_resistance_north_america_{}_{}_positive_count",
+                BACTERIA_LIST[0], DRUG_SHORT_NAMES[0]
+            )
+        );
+        assert_eq!(
+            &headers[headers.len() - 1],
+            format!(
+                "regional_resistance_oceania_{}_{}_any_r_sum",
+                BACTERIA_LIST.last().unwrap(),
+                DRUG_SHORT_NAMES.last().unwrap()
+            )
+        );
         for (bacteria_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
             for (region_idx, region) in super::REGIONAL_RESISTANCE_REGION_NAMES.iter().enumerate() {
                 let field = format!("regional_resistance_{region}_{bacteria}_infected_count");
                 let column = headers.iter().position(|name| name == field).unwrap();
-                assert_eq!(record[column].parse::<usize>().unwrap(),
-                    summary.regional_resistance_infected_by_bacteria_region[bacteria_idx * super::REGION_COUNT + region_idx]);
+                assert_eq!(
+                    record[column].parse::<usize>().unwrap(),
+                    summary.regional_resistance_infected_by_bacteria_region
+                        [bacteria_idx * super::REGION_COUNT + region_idx]
+                );
                 for (drug_idx, drug) in DRUG_SHORT_NAMES.iter().enumerate() {
-                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx) * super::REGION_COUNT + region_idx;
-                    assert_eq!(record[column + 1 + 2 * drug_idx].parse::<usize>().unwrap(),
-                        summary.regional_resistance_positive_by_bacteria_drug_region[index], "{field} {drug}");
-                    assert_eq!(record[column + 2 + 2 * drug_idx].parse::<f64>().unwrap(),
-                        summary.regional_resistance_any_r_sum_by_bacteria_drug_region[index], "{field} {drug}");
+                    let index = (bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx)
+                        * super::REGION_COUNT
+                        + region_idx;
+                    assert_eq!(
+                        record[column + 1 + 2 * drug_idx].parse::<usize>().unwrap(),
+                        summary.regional_resistance_positive_by_bacteria_drug_region[index],
+                        "{field} {drug}"
+                    );
+                    assert_eq!(
+                        record[column + 2 + 2 * drug_idx].parse::<f64>().unwrap(),
+                        summary.regional_resistance_any_r_sum_by_bacteria_drug_region[index],
+                        "{field} {drug}"
+                    );
                 }
             }
         }
-        let restored: super::TimeStepSummary = bincode::deserialize(&bincode::serialize(summary).unwrap()).unwrap();
+        let restored: super::TimeStepSummary =
+            bincode::deserialize(&bincode::serialize(summary).unwrap()).unwrap();
         assert!(restored.regional_resistance_collected);
-        assert_eq!(restored.regional_resistance_any_r_sum_by_bacteria_drug_region,
-            summary.regional_resistance_any_r_sum_by_bacteria_drug_region);
+        assert_eq!(
+            restored.regional_resistance_any_r_sum_by_bacteria_drug_region,
+            summary.regional_resistance_any_r_sum_by_bacteria_drug_region
+        );
     }
 
     #[test]
@@ -9587,29 +9941,54 @@ mod tests {
         disabled.summary_content_flags.regional = false;
         collected.run_from(0, None).unwrap();
         disabled.run_from(0, None).unwrap();
-        assert_eq!(bincode::serialize(&collected.create_branch_snapshot()).unwrap(),
-            bincode::serialize(&disabled.create_branch_snapshot()).unwrap());
+        assert_eq!(
+            bincode::serialize(&collected.create_branch_snapshot()).unwrap(),
+            bincode::serialize(&disabled.create_branch_snapshot()).unwrap()
+        );
         let summary = &disabled.summary_log[0];
         assert!(!summary.regional_resistance_collected);
-        assert!(summary.regional_resistance_infected_by_bacteria_region.is_empty());
-        assert!(summary.regional_resistance_positive_by_bacteria_drug_region.is_empty());
-        assert!(summary.regional_resistance_any_r_sum_by_bacteria_drug_region.is_empty());
+        assert!(summary
+            .regional_resistance_infected_by_bacteria_region
+            .is_empty());
+        assert!(summary
+            .regional_resistance_positive_by_bacteria_drug_region
+            .is_empty());
+        assert!(summary
+            .regional_resistance_any_r_sum_by_bacteria_drug_region
+            .is_empty());
         let mut pruned = collected.summary_log[0].clone();
         pruned.apply_content_flags(disabled.summary_content_flags);
-        assert_eq!(bincode::serialize(&pruned).unwrap(), bincode::serialize(summary).unwrap());
+        assert_eq!(
+            bincode::serialize(&pruned).unwrap(),
+            bincode::serialize(summary).unwrap()
+        );
 
         let directory = TestDirectory::new("regional_resistance_disabled");
         let path = directory.path().join("summary.csv");
         disabled.export_summary_to_csv(&path).unwrap();
         let mut reader = csv::Reader::from_path(path).unwrap();
-        let start = reader.headers().unwrap().iter().position(|name| name == "regional_resistance_collected").unwrap();
+        let start = reader
+            .headers()
+            .unwrap()
+            .iter()
+            .position(|name| name == "regional_resistance_collected")
+            .unwrap();
         let record = reader.records().next().unwrap().unwrap();
         assert!(record.iter().skip(start).all(|value| value == "0"));
-        for mode in [CalibrationMode::Full, CalibrationMode::Full25Counterfactual,
-            CalibrationMode::Partial, CalibrationMode::Partial25Counterfactual, CalibrationMode::None] {
+        for mode in [
+            CalibrationMode::Full,
+            CalibrationMode::Full25Counterfactual,
+            CalibrationMode::Partial,
+            CalibrationMode::Partial25Counterfactual,
+            CalibrationMode::None,
+        ] {
             assert!(mode.summary_content_flags().regional);
         }
-        assert!(!CalibrationMode::FullMinimal.summary_content_flags().regional);
+        assert!(
+            !CalibrationMode::FullMinimal
+                .summary_content_flags()
+                .regional
+        );
         assert!(!SummaryContentFlags::none().regional);
     }
 
@@ -9624,9 +10003,21 @@ mod tests {
             simulation.summary_log[0] = complete.clone();
             let summary = &mut simulation.summary_log[0];
             match array {
-                0 => { summary.regional_resistance_infected_by_bacteria_region.pop(); },
-                1 => { summary.regional_resistance_positive_by_bacteria_drug_region.pop(); },
-                _ => { summary.regional_resistance_any_r_sum_by_bacteria_drug_region.pop(); },
+                0 => {
+                    summary
+                        .regional_resistance_infected_by_bacteria_region
+                        .pop();
+                }
+                1 => {
+                    summary
+                        .regional_resistance_positive_by_bacteria_drug_region
+                        .pop();
+                }
+                _ => {
+                    summary
+                        .regional_resistance_any_r_sum_by_bacteria_drug_region
+                        .pop();
+                }
             }
             let error = simulation.export_summary_to_csv(&path).unwrap_err();
             assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);

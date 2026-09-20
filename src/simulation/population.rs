@@ -1013,47 +1013,47 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DrugClass {
     // This class also includes flucloxacillin.
-    Penicillins,     // PEN: penicillin_g, ampicillin, amoxicillin, piperacillin, ticarcillin
+    Penicillins, // PEN: penicillin_g, ampicillin, amoxicillin, piperacillin, ticarcillin
     BliCombinations, // BLI: amox-clav, tic-clav
     BliAntiPseudomonal, // pip-tazo
-    BliSulbactam,    // amp-sulb
+    BliSulbactam, // amp-sulb
     Cephalosporins1_2, // C1-2G: cephalexin, cefazolin, cefuroxime
     // This class also includes cefixime.
-    Cephalosporins3, // C3G: ceftriaxone, ceftazidime
-    Cephalosporins3Bli, // ceftolozane-tazobactam
-    Cephalosporins4, // C4G: cefepime
-    AntiMrsaCephalosporins, // C5G: ceftaroline
+    Cephalosporins3,           // C3G: ceftriaxone, ceftazidime
+    Cephalosporins3Bli,        // ceftolozane-tazobactam
+    Cephalosporins4,           // C4G: cefepime
+    AntiMrsaCephalosporins,    // C5G: ceftaroline
     SiderophoreCephalosporins, // cefiderocol
     CeftazidimeAvibactam,
     MeropenemVaborbactam,
     AztreonamAvibactam,
-    CarbapenemsGroup1,     // ertapenem (lacks non-fermenter activity)
-    CarbapenemsGroup2,     // meropenem, imipenem_c
-    Monobactams,           // MONO: aztreonam
+    CarbapenemsGroup1, // ertapenem (lacks non-fermenter activity)
+    CarbapenemsGroup2, // meropenem, imipenem_c
+    Monobactams,       // MONO: aztreonam
     // This class also includes the historical nalidixic-acid proxy.
-    Fluoroquinolones,      // FQ: ciprofloxacin, levofloxacin, moxifloxacin, ofloxacin
+    Fluoroquinolones, // FQ: ciprofloxacin, levofloxacin, moxifloxacin, ofloxacin
     AminoglycosidesGroup1, // gentamicin, tobramycin
     AminoglycosidesGroup2, // amikacin (resists common AMEs)
-    Macrolides,            // erythromycin, azithromycin, clarithromycin
-    Lincosamides,          // clindamycin (evades macrolide efflux)
-    Glycopeptides,         // vancomycin
-    Lipoglycopeptides,     // teicoplanin, dalbavancin (evades vanB)
-    Tetracyclines,         // tetracycline, doxycycline, minocycline
-    Glycylcyclines,        // tigecycline (evades classical tet efflux/protection)
-    Polymyxins,            // colistin
-    Oxazolidinones,        // linezolid, tedizolid
-    Chloramphenicol,       // chloramphenicol
-    Sulfonamides,          // sulfanilamide, trim_sulf
-    Lipopeptides,          // daptomycin
-    Streptogramins,        // quinu_dalfo
-    Nitrofurans,           // nitrofurantoin, furazolidone
-    PhosphonicAcids,       // fosfomycin
-    Nitroimidazoles,       // metronidazole
-    Rifamycins,            // rifampicin
-    Macrocycles,           // fidaxomicin
+    Macrolides,       // erythromycin, azithromycin, clarithromycin
+    Lincosamides,     // clindamycin (evades macrolide efflux)
+    Glycopeptides,    // vancomycin
+    Lipoglycopeptides, // teicoplanin, dalbavancin (evades vanB)
+    Tetracyclines,    // tetracycline, doxycycline, minocycline
+    Glycylcyclines,   // tigecycline (evades classical tet efflux/protection)
+    Polymyxins,       // colistin
+    Oxazolidinones,   // linezolid, tedizolid
+    Chloramphenicol,  // chloramphenicol
+    Sulfonamides,     // sulfanilamide, trim_sulf
+    Lipopeptides,     // daptomycin
+    Streptogramins,   // quinu_dalfo
+    Nitrofurans,      // nitrofurantoin, furazolidone
+    PhosphonicAcids,  // fosfomycin
+    Nitroimidazoles,  // metronidazole
+    Rifamycins,       // rifampicin
+    Macrocycles,      // fidaxomicin
     SteroidAntibacterials, // fusidic_a
-    Pleuromutilins,        // retapamulin
-    Other,                 // Fallback catch-all
+    Pleuromutilins,   // retapamulin
+    Other,            // Fallback catch-all
 }
 
 impl DrugClass {

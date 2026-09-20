@@ -191,9 +191,14 @@ pub struct GlobalScalars {
     pub hospital_prevent_discharge_with_sepsis: f64,
     pub travel_probability_per_day: f64,
     pub antibiotic_infection_prevention_efficacy: f64,
+
     pub max_resistance_level: f64,
     pub resistance_emergence_bacteria_level_multiplier: f64,
+    pub resistance_emergence_low_exposure_half_saturation: f64,
+    pub resistance_combination_minimum_site_effective_activity: f64,
+    pub resistance_local_selection_minimum_site_activity: f64,
     pub multi_drug_penalty_threshold_num_drugs: f64,
+
     pub resistance_development_inhibition_single_drug: f64,
     pub resistance_development_inhibition_partial_cross: f64,
     pub mechanism_assignment_probability_on_any_r_gain: f64,
@@ -448,16 +453,36 @@ impl GlobalScalars {
                 0.7,
             ),
             max_resistance_level: get_or_default(map, "max_resistance_level", 1.0),
+
             resistance_emergence_bacteria_level_multiplier: get_or_default(
                 map,
                 "resistance_emergence_bacteria_level_multiplier",
                 0.0,
             ),
+            resistance_emergence_low_exposure_half_saturation: get_or_default(
+                map,
+                "resistance_emergence_low_exposure_half_saturation",
+                0.05,
+            )
+            .max(f64::EPSILON),
+            resistance_combination_minimum_site_effective_activity: get_or_default(
+                map,
+                "resistance_combination_minimum_site_effective_activity",
+                0.15,
+            )
+            .max(0.0),
+            resistance_local_selection_minimum_site_activity: get_or_default(
+                map,
+                "resistance_local_selection_minimum_site_activity",
+                0.05,
+            )
+            .max(0.0),
             multi_drug_penalty_threshold_num_drugs: get_or_default(
                 map,
                 "multi_drug_penalty_threshold_num_drugs",
                 2.0,
             ),
+
             resistance_development_inhibition_single_drug: get_or_default(
                 map,
                 "resistance_development_inhibition_single_drug",
@@ -566,7 +591,7 @@ impl GlobalScalars {
             neisseria_gonorrhoeae_pre_1980_acquisition_multiplier: get_or_default(
                 map,
                 "neisseria_gonorrhoeae_pre_1980_acquisition_multiplier",
-                1.2
+                1.2,
             ),
             neisseria_gonorrhoeae_pre_2000_acquisition_multiplier: get_or_default(
                 map,
@@ -3395,7 +3420,18 @@ lazy_static! {
         // Explicit defaults consumed by the typed parameter stores.
         map.insert("resistance_development_inhibition_single_drug".to_string(), 0.05);
         map.insert("resistance_development_inhibition_partial_cross".to_string(), 0.3);
-
+        map.insert(
+            "resistance_emergence_low_exposure_half_saturation".to_string(),
+            0.05,
+        );
+        map.insert(
+            "resistance_combination_minimum_site_effective_activity".to_string(),
+            0.15,
+        );
+        map.insert(
+            "resistance_local_selection_minimum_site_activity".to_string(),
+            0.05,
+        );
         map.insert("toxicity_age_multiplier_infant".to_string(), 1.8);
         map.insert("toxicity_age_multiplier_child".to_string(), 1.2);
         map.insert("toxicity_age_multiplier_adult".to_string(), 1.0);
@@ -3903,7 +3939,7 @@ lazy_static! {
         map.insert("drug_cefixime_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 0.10);
 
         // --- citrobacter_spp. ---
-        map.insert("drug_sulfanilamide_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.50);
+             map.insert("drug_sulfanilamide_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
@@ -3915,17 +3951,17 @@ lazy_static! {
         map.insert("drug_ceftriaxone_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ceftazidime_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_cefepime_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ceftaroline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ceftaroline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_cefiderocol_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_meropenem_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_imipenem_c_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ertapenem_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_aztreonam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_erythromycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clarithromycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clindamycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_erythromycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_azithromycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clarithromycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clindamycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
@@ -3937,32 +3973,32 @@ lazy_static! {
         map.insert("drug_tetracycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_tigecycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_vancomycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_tigecycline_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_vancomycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_nitrofurantoin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_fosfomycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_retapamulin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_metronidazole_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fidaxomicin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fosfomycin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_retapamulin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_metronidazole_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fidaxomicin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_furazolidone_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
+        map.insert("drug_rifampicin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_ampicillin_sulbactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_colistin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_flucloxacillin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.00);
         map.insert("drug_cefixime_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 0.80);
 
@@ -4193,13 +4229,13 @@ lazy_static! {
         map.insert("drug_tetracycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_tigecycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_tigecycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_vancomycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_teicoplanin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_dalbavancin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_linezolid_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_tedizolid_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_daptomycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_daptomycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_quinu_dalfo_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.85);
@@ -4208,9 +4244,9 @@ lazy_static! {
         map.insert("drug_retapamulin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fusidic_a_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_furazolidone_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_fidaxomicin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_furazolidone_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_rifampicin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.97);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.90);
@@ -4218,17 +4254,17 @@ lazy_static! {
         map.insert("drug_ceftazidime_avibactam_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_colistin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_flucloxacillin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.00);
         map.insert("drug_cefixime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.80);
 
         // --- klebsiella_pneumoniae ---
-        map.insert("drug_sulfanilamide_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.50);
+         map.insert("drug_sulfanilamide_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_ticarcillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ticarcillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cephalexin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_cefazolin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_cefuroxime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.70);
@@ -4257,24 +4293,24 @@ lazy_static! {
         map.insert("drug_tetracycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_minocycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_tigecycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_tigecycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_vancomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_teicoplanin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_dalbavancin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_linezolid_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_tedizolid_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_daptomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_daptomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_quinu_dalfo_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_nitrofurantoin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_nitrofurantoin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_fosfomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.55);
         map.insert("drug_retapamulin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fusidic_a_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_furazolidone_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_rifampicin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.92);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.75);
@@ -4282,20 +4318,20 @@ lazy_static! {
         map.insert("drug_ceftazidime_avibactam_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_colistin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_flucloxacillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.00);
         map.insert("drug_cefixime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 0.80);
 
         // --- morganella_spp. ---
-        map.insert("drug_sulfanilamide_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_sulfanilamide_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_penicillin_g_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ampicillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_amoxicillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_ampicillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ticarcillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_cephalexin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_cefazolin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_cefuroxime_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_cephalexin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefazolin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefuroxime_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftriaxone_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftazidime_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_cefepime_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.85);
@@ -4303,13 +4339,13 @@ lazy_static! {
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_cefiderocol_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_meropenem_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_imipenem_c_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.95);
+        map.insert("drug_imipenem_c_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_ertapenem_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_aztreonam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_erythromycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clarithromycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clindamycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_erythromycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_azithromycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clarithromycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clindamycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.90);
@@ -4322,31 +4358,31 @@ lazy_static! {
         map.insert("drug_doxycycline_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_minocycline_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_tigecycline_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_vancomycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_vancomycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_chloramphenicol_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_nitrofurantoin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fosfomycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_retapamulin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_metronidazole_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fidaxomicin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_nitrofurantoin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fosfomycin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_retapamulin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_metronidazole_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fidaxomicin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_furazolidone_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_rifampicin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_ampicillin_sulbactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_colistin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_colistin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_flucloxacillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 1.00);
         map.insert("drug_cefixime_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 0.80);
 
@@ -4363,7 +4399,7 @@ lazy_static! {
         map.insert("drug_ceftriaxone_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ceftazidime_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefepime_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.90);
-        map.insert("drug_ceftaroline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_ceftaroline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_ceftolozane_tazobactam_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_cefiderocol_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_meropenem_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.95);
@@ -4384,38 +4420,37 @@ lazy_static! {
         map.insert("drug_nalidixic_acid_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.60);
         map.insert("drug_tetracycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_minocycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_minocycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_tigecycline_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_vancomycin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_teicoplanin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_dalbavancin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_linezolid_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_tedizolid_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_daptomycin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_daptomycin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_quinu_dalfo_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_chloramphenicol_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_nitrofurantoin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_nitrofurantoin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fosfomycin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.60);
         map.insert("drug_retapamulin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fusidic_a_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_metronidazole_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
-        map.insert("drug_fidaxomicin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_furazolidone_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_rifampicin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_colistin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_colistin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_flucloxacillin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.00);
         map.insert("drug_cefixime_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 0.80);
-
         // --- serratia_spp. ---
-        map.insert("drug_sulfanilamide_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.50);
+      map.insert("drug_sulfanilamide_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_amoxicillin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
@@ -4423,7 +4458,7 @@ lazy_static! {
         map.insert("drug_ticarcillin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.70);
         map.insert("drug_cephalexin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefazolin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_cefuroxime_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.60);
+        map.insert("drug_cefuroxime_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ceftriaxone_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftazidime_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_cefepime_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
@@ -4434,10 +4469,10 @@ lazy_static! {
         map.insert("drug_imipenem_c_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ertapenem_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_aztreonam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_erythromycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clarithromycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clindamycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_erythromycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_azithromycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clarithromycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clindamycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.90);
@@ -4449,32 +4484,32 @@ lazy_static! {
         map.insert("drug_tetracycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_doxycycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_minocycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_tigecycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_vancomycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_tigecycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_vancomycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
         map.insert("drug_chloramphenicol_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_nitrofurantoin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.05);
+        map.insert("drug_nitrofurantoin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_fosfomycin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.40);
-        map.insert("drug_retapamulin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_metronidazole_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fidaxomicin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_retapamulin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_metronidazole_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fidaxomicin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_furazolidone_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_rifampicin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_ampicillin_sulbactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.95);
-        map.insert("drug_colistin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_colistin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_flucloxacillin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.00);
         map.insert("drug_cefixime_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 0.80);
 
@@ -5056,8 +5091,8 @@ lazy_static! {
         map.insert("drug_flucloxacillin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.90);
         map.insert("drug_cefixime_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
- 
-        // --- shigella_spp. --- 
+
+        // --- shigella_spp. ---
          map.insert("drug_sulfanilamide_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ampicillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.70);
@@ -5891,16 +5926,16 @@ lazy_static! {
         map.insert("drug_cefixime_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.10);
 
         // --- enterobacter_cloacae ---
-        map.insert("drug_sulfanilamide_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
+              map.insert("drug_sulfanilamide_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_penicillin_g_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_ampicillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_amoxicillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_ampicillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.75);
         map.insert("drug_ticarcillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_cephalexin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_cefazolin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
+        map.insert("drug_cephalexin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_cefazolin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_cefuroxime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_ceftriaxone_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.40);
+        map.insert("drug_ceftriaxone_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftazidime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_cefepime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_ceftaroline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
@@ -5910,10 +5945,10 @@ lazy_static! {
         map.insert("drug_imipenem_c_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_ertapenem_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_aztreonam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
-        map.insert("drug_erythromycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_azithromycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clarithromycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_clindamycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_erythromycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_azithromycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clarithromycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_clindamycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_gentamicin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_tobramycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_amikacin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.90);
@@ -5925,34 +5960,34 @@ lazy_static! {
         map.insert("drug_tetracycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_doxycycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_minocycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_tigecycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.55);
-        map.insert("drug_vancomycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_teicoplanin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_dalbavancin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_tedizolid_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_daptomycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_quinu_dalfo_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_tigecycline_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_vancomycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_teicoplanin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_dalbavancin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_linezolid_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_tedizolid_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_daptomycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_quinu_dalfo_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_trim_sulf_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
         map.insert("drug_chloramphenicol_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_nitrofurantoin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_fosfomycin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.50);
-        map.insert("drug_retapamulin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fusidic_a_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_metronidazole_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.05);
-        map.insert("drug_fidaxomicin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_retapamulin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fusidic_a_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_metronidazole_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
+        map.insert("drug_fidaxomicin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_furazolidone_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.60);
-        map.insert("drug_amoxicillin_clavulanate_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_rifampicin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.85);
-        map.insert("drug_ampicillin_sulbactam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_ampicillin_sulbactam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_ticarcillin_clavulanate_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_ceftazidime_avibactam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_meropenem_vaborbactam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.95);
         map.insert("drug_colistin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.70);
-        map.insert("drug_flucloxacillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_flucloxacillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_aztreonam_avibactam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.00);
-        map.insert("drug_cefixime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.80);
+        map.insert("drug_cefixime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 0.10);
 
         // --- yersinia_enterocolitica ---
           map.insert("drug_sulfanilamide_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.50);
@@ -7388,14 +7423,14 @@ lazy_static! {
 
         // REGIONAL CESSATION MULTIPLIERS (applied to base bacteria-specific rates)
         // High-income regions with strong healthcare systems and universal access
-        map.insert("north_america_cessation_multiplier".to_string(), 0.85); 
-        map.insert("europe_cessation_multiplier".to_string(), 0.85); 
-        map.insert("oceania_cessation_multiplier".to_string(), 0.85); 
+        map.insert("north_america_cessation_multiplier".to_string(), 0.85);
+        map.insert("europe_cessation_multiplier".to_string(), 0.85);
+        map.insert("oceania_cessation_multiplier".to_string(), 0.85);
         // Middle-income regions with variable healthcare access
-        map.insert("asia_cessation_multiplier".to_string(), 1.10); 
-        map.insert("south_america_cessation_multiplier".to_string(), 1.10); 
+        map.insert("asia_cessation_multiplier".to_string(), 1.10);
+        map.insert("south_america_cessation_multiplier".to_string(), 1.10);
         // Lower-income regions with significant healthcare challenges
-        map.insert("africa_cessation_multiplier".to_string(), 1.10); 
+        map.insert("africa_cessation_multiplier".to_string(), 1.10);
 
         // Unused compatibility keys for a proposed TB-specific regional
         // adherence layer. Current cessation logic does not read these values.
@@ -7467,7 +7502,7 @@ lazy_static! {
         map.insert("mycoplasma_genitalium_acquisition_log_odds_baseline".to_string(), -12.1);
         map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -11.8); // Periodic epidemics
         map.insert("legionella_pneumophila_acquisition_log_odds_baseline".to_string(), -15.5);
-        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -17.7); 
+        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -17.7);
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.3);
         map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.9 );
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.3);
@@ -7478,12 +7513,12 @@ lazy_static! {
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.2);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.1);
         map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -14.9);
-        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.0); 
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.0);
         map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -14.6);
         map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -15.1);
         map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -17.2);
-        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -17.5); 
+        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -17.5);
         map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.8);
         map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -16.1);
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -16.0);
@@ -7491,7 +7526,7 @@ lazy_static! {
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.3);
         map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -13.9 );
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.7);
-        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); 
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0);
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -15.9);
         map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.5 ); // Jointly parameterized with the vaccine effect below
@@ -9449,7 +9484,7 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_mph_a_emergence_rate".to_string(), 0.0); // tier 0 (EnzymeMphA: Enterobacterales + EntericPathogen only)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 30.0         ); // classes: mac (erythro, azithro, clarithro only; not clindamycin)
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // classes: oxa; 
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_oxazolidinone_emergence_rate".to_string(), 0.0); // classes: oxa;
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1         ); // classes: pen, flu, bli, ceph, mono; primary pneumococcal beta-lactam route
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0; mtrCDE is a Neisseria-specific efflux system, not present in Gram-positives
@@ -11428,7 +11463,7 @@ lazy_static! {
         map.insert("oceania_antibiotic_initiation_log_odds".to_string(), 0.0); // Similar access
         map.insert("asia_antibiotic_initiation_log_odds".to_string(), -0.6); // Multiplies initiation odds by about 0.61 before other effects.
         map.insert("south_america_antibiotic_initiation_log_odds".to_string(), -0.6); // Multiplies initiation odds by about 0.45 before other effects.
-        map.insert("africa_antibiotic_initiation_log_odds".to_string(), -0.9);  
+        map.insert("africa_antibiotic_initiation_log_odds".to_string(), -0.9);
 
         // Clinical status multipliers
         map.insert("testing_immunosuppressed_multiplier".to_string(), 2.5); // Immunosuppressed patients get more testing
@@ -11619,12 +11654,12 @@ lazy_static! {
 
         // Per-region additive sepsis-onset log-odds.  rrrr
         // Negative values = lower risk of developing sepsis from infection (better early recognition/treatment)
-        map.insert("log_odds_sepsis_onset_region_north_america".to_string(), -0.3); 
-        map.insert("log_odds_sepsis_onset_region_europe".to_string(), -0.3); 
-        map.insert("log_odds_sepsis_onset_region_oceania".to_string(), -0.3); 
-        map.insert("log_odds_sepsis_onset_region_asia".to_string(), -0.1); 
-        map.insert("log_odds_sepsis_onset_region_south_america".to_string(), -0.1); 
-        map.insert("log_odds_sepsis_onset_region_africa".to_string(), 0.1); 
+        map.insert("log_odds_sepsis_onset_region_north_america".to_string(), -0.3);
+        map.insert("log_odds_sepsis_onset_region_europe".to_string(), -0.3);
+        map.insert("log_odds_sepsis_onset_region_oceania".to_string(), -0.3);
+        map.insert("log_odds_sepsis_onset_region_asia".to_string(), -0.1);
+        map.insert("log_odds_sepsis_onset_region_south_america".to_string(), -0.1);
+        map.insert("log_odds_sepsis_onset_region_africa".to_string(), 0.1);
 
         // Unused compatibility keys from the former two-region representation.
         map.insert("log_odds_sepsis_region_a".to_string(), -0.5); // Higher resource region - better sepsis recognition/treatment
@@ -11735,13 +11770,13 @@ lazy_static! {
         map.insert("sepsis_recovery_log_odds_immunosuppressed".to_string(), -1.0); // Immunosuppressed have much lower recovery probability
 
         // Region-specific sepsis recovery log odds (reflecting healthcare quality and ICU availability)
-        map.insert("sepsis_recovery_log_odds_region_north_america".to_string(), 0.4); 
-        map.insert("sepsis_recovery_log_odds_region_europe".to_string(), 0.4); 
-        map.insert("sepsis_recovery_log_odds_region_oceania".to_string(), 0.4); 
-        map.insert("sepsis_recovery_log_odds_region_asia".to_string(), 0.0); 
-        map.insert("sepsis_recovery_log_odds_region_south_america".to_string(), -0.1); 
-        map.insert("sepsis_recovery_log_odds_region_africa".to_string(), -0.7); 
-        map.insert("sepsis_recovery_log_odds_region_home".to_string(), 0.0); 
+        map.insert("sepsis_recovery_log_odds_region_north_america".to_string(), 0.4);
+        map.insert("sepsis_recovery_log_odds_region_europe".to_string(), 0.4);
+        map.insert("sepsis_recovery_log_odds_region_oceania".to_string(), 0.4);
+        map.insert("sepsis_recovery_log_odds_region_asia".to_string(), 0.0);
+        map.insert("sepsis_recovery_log_odds_region_south_america".to_string(), -0.1);
+        map.insert("sepsis_recovery_log_odds_region_africa".to_string(), -0.7);
+        map.insert("sepsis_recovery_log_odds_region_home".to_string(), 0.0);
 
         map.insert("sepsis_minimum_duration_days".to_string(), 1.0); // Minimum sepsis duration (1 day)
 
@@ -12010,7 +12045,7 @@ lazy_static! {
         map.insert("listeria_monocytogenes_log_odds_young_adult".to_string(), 0.5);     // Moderate age-only population proxy
         map.insert("listeria_monocytogenes_log_odds_middle_age".to_string(), 0.0);      // Baseline risk
         map.insert("listeria_monocytogenes_log_odds_elderly".to_string(), 1.5);         // VERY HIGH risk
-        
+
         // --- Bacteria-Specific Age-Region Interaction Overrides ---
         // These override the general age-region interactions for specific bacteria where there's strong evidence
         // Format: {bacteria_clean}_{region}_log_odds_{age_category}
@@ -12925,7 +12960,13 @@ mod demographic_sampling_tests {
                 let mut rng = StepRng::new(bits, bits.wrapping_neg());
                 let (region, age) = sample_age_and_region_from_distribution(&mut rng);
                 assert_eq!(region, expected_region);
-                assert!((low..high).contains(&age), "age {} outside [{}, {})", age, low, high);
+                assert!(
+                    (low..high).contains(&age),
+                    "age {} outside [{}, {})",
+                    age,
+                    low,
+                    high
+                );
                 sampled_cohorts += 1;
             }
             previous = cumulative;

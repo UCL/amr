@@ -7056,11 +7056,11 @@ mod tests {
     };
     use crate::simulation::population::{
         bacterium_has_separate_microbiome_compartment, bacterium_mechanism_host_is_eligible,
-        days_since_recorded_event, infection_episode_present,
-        infection_episode_should_retire, infection_is_active, load_float,
-        mechanism_is_hgt_transferable, store_float, AntibioticUseContext, DrugClass,
-        HospitalStatus, Individual, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
-        StoredBoundedResistanceFloat, INFECTION_EPS, MISSING_EVENT_DATE,
+        days_since_recorded_event, infection_episode_present, infection_episode_should_retire,
+        infection_is_active, load_float, mechanism_is_hgt_transferable, store_float,
+        AntibioticUseContext, DrugClass, HospitalStatus, Individual, Region, ResistanceMechanism,
+        StoredBoundedResistanceFloat, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
+        MISSING_EVENT_DATE,
     };
     use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
     use rand::rngs::{mock::StepRng, SmallRng};
