@@ -662,6 +662,8 @@ fn promote_minority_mechanisms_once(
     promotion_rate: f64,
     rng: &mut impl Rng,
 ) {
+    let store = parameter_store();
+
     for mechanism_idx in 0..ResistanceMechanism::all().len() {
         if !individual.has_any_mechanism(bacteria_idx, mechanism_idx)
             || individual.has_majority_mechanism(bacteria_idx, mechanism_idx)
@@ -669,15 +671,13 @@ fn promote_minority_mechanisms_once(
             continue;
         }
 
-        let selecting_drug_present =
-            individual
-                .cur_level_drug
-                .iter()
-                .enumerate()
-                .any(|(drug_idx, &level)| {
-                    level > 0.0
-                        && param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
-                });
+        let selecting_drug_present = mechanism_has_meaningful_infection_site_selection(
+            individual,
+            bacteria_idx,
+            mechanism_idx,
+            param_cache,
+            store,
+        );
 
         if selecting_drug_present && rng.gen_bool(promotion_rate) {
             individual.set_majority_mechanism(bacteria_idx, mechanism_idx);
@@ -762,6 +762,55 @@ fn sample_unselected_mechanism_reversions(
         let mechanism_reversion_rate = store.resistance_mechanism.reversion_rate(mechanism_idx)
             * reversion_rate_multiplier
             * setting_multiplier;
+        if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
+            reverted_mechanism_mask |= 1u64 << mechanism_idx;
+        }
+    }
+
+    reverted_mechanism_mask
+}
+
+fn sample_unselected_infection_mechanism_reversions(
+    individual: &Individual,
+    bacteria_idx: usize,
+    mechanism_mask: u64,
+    param_cache: &ParameterKeyCache,
+    reversion_rate_multiplier: f64,
+    rng: &mut impl Rng,
+) -> u64 {
+    let store = parameter_store();
+
+    let setting_multiplier = if individual.hospital_status.is_hospitalized() {
+        1.0
+    } else {
+        store
+            .bacteria
+            .community_mechanism_reversion_multiplier(bacteria_idx)
+    };
+
+    let mut present_mechanism_mask = mechanism_mask;
+    let mut reverted_mechanism_mask = 0u64;
+
+    while present_mechanism_mask != 0 {
+        let mechanism_idx = present_mechanism_mask.trailing_zeros() as usize;
+        present_mechanism_mask &= present_mechanism_mask - 1;
+
+        let selecting_drug_present = mechanism_has_meaningful_infection_site_selection(
+            individual,
+            bacteria_idx,
+            mechanism_idx,
+            param_cache,
+            store,
+        );
+
+        if selecting_drug_present {
+            continue;
+        }
+
+        let mechanism_reversion_rate = store.resistance_mechanism.reversion_rate(mechanism_idx)
+            * reversion_rate_multiplier
+            * setting_multiplier;
+
         if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
             reverted_mechanism_mask |= 1u64 << mechanism_idx;
         }
@@ -2145,24 +2194,98 @@ fn standardized_site_drug_level(current_level: f64, initial_level: f64, penetrat
 
     ((current_level * penetration) / initial_level).clamp(0.0, 10.0)
 }
+#[inline]
+fn infection_site_intrinsic_activity(
+    individual: &Individual,
+    bacteria_idx: usize,
+    drug_idx: usize,
+    param_cache: &ParameterKeyCache,
+    store: &ParameterStore,
+) -> f64 {
+    let syndrome_id = individual.infectious_syndrome[bacteria_idx].max(0) as usize;
+    let standardized_site_level = standardized_site_drug_level(
+        individual.cur_level_drug[drug_idx],
+        store.drug.initial_level(drug_idx),
+        store.syndrome.drug_penetration(syndrome_id, drug_idx),
+    );
+
+    (param_cache.potency(bacteria_idx, drug_idx) * standardized_site_level).max(0.0)
+}
 
 #[inline]
-fn resistance_emergence_exposure_factor(standardized_site_level: f64) -> f64 {
+fn mechanism_has_meaningful_infection_site_selection(
+    individual: &Individual,
+    bacteria_idx: usize,
+    mechanism_idx: usize,
+    param_cache: &ParameterKeyCache,
+    store: &ParameterStore,
+) -> bool {
+    let minimum_site_activity = store
+        .globals
+        .resistance_local_selection_minimum_site_activity;
+
+    (0..individual.cur_level_drug.len()).any(|drug_idx| {
+        param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+            && infection_site_intrinsic_activity(
+                individual,
+                bacteria_idx,
+                drug_idx,
+                param_cache,
+                store,
+            ) >= minimum_site_activity
+    })
+}
+
+#[inline]
+fn has_meaningful_infection_site_drug_pressure(
+    individual: &Individual,
+    bacteria_idx: usize,
+    param_cache: &ParameterKeyCache,
+    store: &ParameterStore,
+) -> bool {
+    let minimum_site_activity = store
+        .globals
+        .resistance_local_selection_minimum_site_activity;
+
+    (0..individual.cur_level_drug.len()).any(|drug_idx| {
+        infection_site_intrinsic_activity(individual, bacteria_idx, drug_idx, param_cache, store)
+            >= minimum_site_activity
+    })
+}
+
+#[inline]
+fn resistance_emergence_exposure_factor(
+    standardized_site_level: f64,
+    low_exposure_half_saturation: f64,
+) -> f64 {
     if standardized_site_level <= 0.0 {
         return 0.0;
     }
 
     const PEAK_STANDARDIZED_SITE_LEVEL: f64 = 0.5;
     const SIGMA: f64 = 0.2;
+
     let gaussian_exponent =
         -((standardized_site_level - PEAK_STANDARDIZED_SITE_LEVEL).powi(2)) / (2.0 * SIGMA * SIGMA);
-    (0.01 + 0.99 * gaussian_exponent.fast_exp()).clamp(0.0, 1.0)
+
+    let base_factor = 0.01 + 0.99 * gaussian_exponent.fast_exp();
+
+    let half_saturation = low_exposure_half_saturation.max(f64::EPSILON);
+    let low_exposure_gate = standardized_site_level / (standardized_site_level + half_saturation);
+
+    // Normalise the gate so that the configured peak remains exactly 1.0.
+    let peak_gate = PEAK_STANDARDIZED_SITE_LEVEL / (PEAK_STANDARDIZED_SITE_LEVEL + half_saturation);
+
+    let normalised_gate = (low_exposure_gate / peak_gate).clamp(0.0, 1.0);
+
+    (base_factor * normalised_gate).clamp(0.0, 1.0)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct ResistanceEmergenceDrugExposure {
     standardized_site_level: f64,
     emergence_factor: f64,
+    site_effective_activity: f64,
 }
 
 #[inline]
@@ -2183,11 +2306,10 @@ fn resistance_emergence_bacteria_level_factor(
 
 #[inline]
 fn is_non_negligible_site_active_drug(
-    standardized_site_level: f64,
-    potency: f64,
-    potency_threshold: f64,
+    site_effective_activity: f64,
+    activity_threshold: f64,
 ) -> bool {
-    standardized_site_level > 0.0 && potency >= potency_threshold
+    site_effective_activity >= activity_threshold
 }
 
 #[inline]
@@ -5866,13 +5988,18 @@ pub(crate) fn apply_rules(
                             store.globals.resistance_emergence_bacteria_level_multiplier,
                         );
 
-                        // The exposure factor is Gaussian in normalized site exposure, peaking
-                        // at 0.5 with sigma 0.2 and retaining a 0.01 floor for positive site
-                        // exposure. Exactly zero site exposure has exactly zero selection.
+                        // Drug-driven emergence follows a mutant-selection-window-shaped
+                        // exposure curve, with a smooth low-exposure gate so that the
+                        // drug-attributable contribution tends continuously to zero.
                         let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
                         let num_drugs = DRUG_SHORT_NAMES.len();
+                        let low_exposure_half_saturation = store
+                            .globals
+                            .resistance_emergence_low_exposure_half_saturation;
+
                         let mut emergence_drug_exposures: Vec<ResistanceEmergenceDrugExposure> =
                             Vec::with_capacity(num_drugs);
+
                         for d_i in 0..num_drugs {
                             let d_level = individual.cur_level_drug[d_i];
                             let standardized_site_level = standardized_site_drug_level(
@@ -5880,25 +6007,43 @@ pub(crate) fn apply_rules(
                                 store.drug.initial_level(d_i),
                                 store.syndrome.drug_penetration(syndrome_id, d_i),
                             );
+
+                            let normalized_any_r = if max_resistance_level > f64::EPSILON {
+                                (load_float(individual.resistances[bacteria_full_idx][d_i].any_r)
+                                    / max_resistance_level)
+                                    .clamp(0.0, 1.0)
+                            } else {
+                                0.0
+                            };
+
+                            let site_effective_activity = param_cache
+                                .potency(bacteria_full_idx, d_i)
+                                * standardized_site_level
+                                * (1.0 - normalized_any_r);
+
                             emergence_drug_exposures.push(ResistanceEmergenceDrugExposure {
                                 standardized_site_level,
                                 emergence_factor: resistance_emergence_exposure_factor(
                                     standardized_site_level,
+                                    low_exposure_half_saturation,
                                 ),
+                                site_effective_activity,
                             });
                         }
 
-                        // Count only drugs with positive site exposure and non-negligible activity
-                        // against this bacterium. Intrinsically inactive or zero-penetration drugs
-                        // must not create a combination-therapy penalty for emergence.
-                        let non_negligible_potency_threshold =
-                            store.globals.minimal_potency_threshold_for_drug_selection;
-                        let active_relevant_drug_count: usize = (0..num_drugs)
-                            .filter(|&d_i| {
+                        // A drug counts as a protective combination component only when
+                        // it has meaningful current activity at this infection site after
+                        // accounting for pre-existing resistance.
+                        let protective_activity_threshold = store
+                            .globals
+                            .resistance_combination_minimum_site_effective_activity;
+
+                        let active_relevant_drug_count: usize = emergence_drug_exposures
+                            .iter()
+                            .filter(|exposure| {
                                 is_non_negligible_site_active_drug(
-                                    emergence_drug_exposures[d_i].standardized_site_level,
-                                    param_cache.potency(bacteria_full_idx, d_i),
-                                    non_negligible_potency_threshold,
+                                    exposure.site_effective_activity,
+                                    protective_activity_threshold,
                                 )
                             })
                             .count();
@@ -5943,9 +6088,8 @@ pub(crate) fn apply_rules(
                             let affected_count = (0..num_drugs)
                                 .filter(|&d_i| {
                                     is_non_negligible_site_active_drug(
-                                        emergence_drug_exposures[d_i].standardized_site_level,
-                                        param_cache.potency(bacteria_full_idx, d_i),
-                                        non_negligible_potency_threshold,
+                                        emergence_drug_exposures[d_i].site_effective_activity,
+                                        protective_activity_threshold,
                                     ) && param_cache.mechanism_applicable(
                                         mechanism_idx,
                                         bacteria_full_idx,
@@ -6196,7 +6340,7 @@ pub(crate) fn apply_rules(
             // current infected individual's any_r while removing the mechanism from the
             // majority-derived surveillance/acquisition path.
             {
-                let mut reverted_majority_mask = sample_unselected_mechanism_reversions(
+                let mut reverted_majority_mask = sample_unselected_infection_mechanism_reversions(
                     individual,
                     b_idx,
                     individual.majority_mechanism_mask(b_idx),
@@ -6212,8 +6356,15 @@ pub(crate) fn apply_rules(
 
                 // When both mechanism masks are empty but resistance fields remain, sample the
                 // configured no-drug cleanup while retaining any already reported AST snapshot.
-                let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
-                if !on_any_drug {
+                let under_meaningful_local_drug_pressure =
+                    has_meaningful_infection_site_drug_pressure(
+                        individual,
+                        b_idx,
+                        param_cache,
+                        store,
+                    );
+
+                if !under_meaningful_local_drug_pressure {
                     let has_active_mechanism = individual.any_mechanism_mask(b_idx) != 0
                         || individual.microbiome_mechanism_mask(b_idx) != 0;
                     if !has_active_mechanism
@@ -8261,22 +8412,23 @@ mod tests {
     }
 
     #[test]
-    fn de_novo_multidrug_count_ignores_zero_site_exposure_and_negligible_potency_drugs() {
+    fn de_novo_multidrug_count_requires_meaningful_site_effective_activity() {
         let threshold = parameter_store()
             .globals
-            .minimal_potency_threshold_for_drug_selection;
-        let count_relevant = |drug_states: &[(f64, f64)]| {
-            drug_states
+            .resistance_combination_minimum_site_effective_activity;
+
+        let count_relevant = |site_effective_activities: &[f64]| {
+            site_effective_activities
                 .iter()
-                .filter(|&&(standardized_site_level, potency)| {
-                    is_non_negligible_site_active_drug(standardized_site_level, potency, threshold)
+                .filter(|&&site_effective_activity| {
+                    is_non_negligible_site_active_drug(site_effective_activity, threshold)
                 })
                 .count()
         };
 
-        assert_eq!(count_relevant(&[(1.0, 0.8), (1.0, threshold / 3.0)]), 1);
-        assert_eq!(count_relevant(&[(1.0, 0.8), (1.0, threshold)]), 2);
-        assert_eq!(count_relevant(&[(1.0, 0.8), (0.0, 0.8)]), 1);
+        assert_eq!(count_relevant(&[0.8, threshold / 3.0]), 1);
+        assert_eq!(count_relevant(&[0.8, threshold]), 2);
+        assert_eq!(count_relevant(&[0.8, 0.0]), 1);
     }
 
     #[test]
@@ -8288,16 +8440,22 @@ mod tests {
         assert_eq!(standardized_site_drug_level(200.0, 10.0, 1.0), 10.0);
     }
 
-    #[test]
-    fn emergence_exposure_factor_is_zero_at_zero_and_peaks_at_medium_site_level() {
-        let zero = resistance_emergence_exposure_factor(0.0);
-        let low = resistance_emergence_exposure_factor(0.1);
-        let peak = resistance_emergence_exposure_factor(0.5);
-        let high = resistance_emergence_exposure_factor(1.0);
+    fn emergence_exposure_factor_tends_to_zero_and_peaks_at_medium_site_level() {
+        let half_saturation = parameter_store()
+            .globals
+            .resistance_emergence_low_exposure_half_saturation;
+
+        let zero = resistance_emergence_exposure_factor(0.0, half_saturation);
+        let tiny = resistance_emergence_exposure_factor(1.0e-9, half_saturation);
+        let low = resistance_emergence_exposure_factor(0.1, half_saturation);
+        let peak = resistance_emergence_exposure_factor(0.5, half_saturation);
+        let high = resistance_emergence_exposure_factor(1.0, half_saturation);
 
         assert_eq!(zero, 0.0);
+        assert!(tiny > zero);
+        assert!(tiny < low);
+        assert!(low < peak);
         assert!((peak - 1.0).abs() < 1.0e-12);
-        assert!(low > zero && low < peak);
         assert!(high > zero && high < peak);
     }
 
