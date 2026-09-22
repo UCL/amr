@@ -8440,6 +8440,7 @@ mod tests {
         assert_eq!(standardized_site_drug_level(200.0, 10.0, 1.0), 10.0);
     }
 
+    #[test]
     fn emergence_exposure_factor_tends_to_zero_and_peaks_at_medium_site_level() {
         let half_saturation = parameter_store()
             .globals
