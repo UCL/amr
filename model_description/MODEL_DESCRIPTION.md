@@ -1439,87 +1439,231 @@ bounded between 0 and 1, where $e_m$ is the enhancement multiplier for mechanism
 
 ### 7.4 Resistance emergence
 
-This subsection concerns **de novo resistance emergence during treatment** which is the original source of all resistance which occurs. 
+This subsection concerns **de novo resistance emergence within an active infection under local antibiotic exposure**. It is one route by which resistance enters the model. Resistance may also be present in a profile sampled at infection acquisition or enter through carriage inheritance, infection–microbiome exchange, horizontal gene transfer, environmental or other exogenous sources, local persistence, and ratchet pathways.
+
+The calculations in this subsection concern the drug-driven within-infection route. They do not imply that all resistance originates through de novo emergence, and they do not alter the other resistance-entry routes.
 
 **Sub-therapeutic exposure and resistance emergence:**
 
-Given the familiar mutant selection window framework (Drlica K et al., 2007), the model parameterises emergence probability as a function of drug concentration that peaks at intermediate exposure:
+Given the familiar mutant selection window framework (Drlica K et al., 2007), the model parameterises drug-driven emergence as a function of standardized exposure at the infection site:
 
-- **Very low drug levels:** Minimal selective pressure; resistant and susceptible subpopulations have little differential advantage.
-- **Sub-therapeutic levels:** Susceptible bacteria are differentially suppressed while resistant mutants retain a survival advantage — the peak of the emergence curve.
-- **Full therapeutic levels:** Both susceptible and resistant bacteria are strongly suppressed.
+- **Very low site exposure:** the drug-attributable selection contribution approaches zero continuously.
+- **Sub-therapeutic site exposure:** susceptible bacteria are differentially suppressed while resistant variants retain a survival advantage; this is the peak of the emergence curve.
+- **High site exposure:** stronger suppression reduces the emergence factor.
 
 Within the current standardized-exposure representation, incomplete courses can extend time in the sub-therapeutic selection window through cessation followed by drug-level decay. Poor adherence and underdosing are not separately represented unless a scenario changes the standardized drug level or course duration.
 
 #### Organism-specific emergence calculation
 
-De novo resistance emergence is parameterised directly at the **bacterium-mechanism** level. Each organism therefore has its own baseline emergence profile across the various mechanisms. The route classification described above determines whether a zero means an excluded host, an HGT-only route, or an eligible non-transferable mechanism with no de novo attempt; the numerical coefficient alone is not used as an indicator of host eligibility.
+De novo resistance emergence is parameterised directly at the **bacterium–mechanism** level. Each organism therefore has its own baseline emergence profile across mechanisms. Route eligibility is determined separately from the numerical emergence coefficient: a zero coefficient does not by itself establish whether the bacterium is an excluded host, an HGT-only host, or an eligible host without de novo emergence.
 
-For an eligible absent mechanism in an active infection under antibiotic exposure, first define the basic unbounded emergence score
-
-$$
-q_{b,m,t}=r_{b,m}\left(1+B_{b,t}\right)D_{b,m,t}C_{b,m,t},
-$$
-
-where $b$ denotes the bacterium, $m$ the resistance mechanism, and $t$ the simulated day. The daily emergence probability is the score restricted to the interval from zero to one:
+For an eligible absent mechanism in an active infection, define the unbounded emergence score:
 
 $$
-p_{b,m,t}=
-\begin{cases}
-0, & q_{b,m,t}\leq 0,\\\\[2pt]
-q_{b,m,t}, & 0<q_{b,m,t}<1,\\\\[2pt]
-1, & q_{b,m,t}\geq 1.
-\end{cases}
+q_{b,m,t}
+=
+r_{b,m}
+M_{\mathrm{DN}}
+M_{\mathrm{CF}}
+\left(1+B_{b,t}\right)
+D_{b,m,t}
+C_{b,m,t},
 $$
 
-All factors are constrained to be non-negative, so in normal model use only the upper limit at 1 changes the unbounded score.
+where $b$ denotes the bacterium, $m$ the resistance mechanism, and $t$ the simulated day. The daily emergence probability is:
+
+$$
+p_{b,m,t}
+=
+\min\left(1,\max\left(0,q_{b,m,t}\right)\right).
+$$
 
 | Term | Role in the model |
-|------|---------------------------|
-| `mechanism_rate` ($r_{b,m}$) | Unbounded bacterium–mechanism baseline coefficient. It is not itself a probability; the complete expression, bounded to `[0,1]`, gives the daily emergence probability |
+|------|-------------------|
+| `mechanism_rate` ($r_{b,m}$) | Unbounded bacterium–mechanism baseline coefficient. It is not itself a probability |
+| $M_{\mathrm{DN}}$ | Run-level multiplier for the active-infection de novo pathway; the neutral value is 1 |
+| $M_{\mathrm{CF}}$ | Counterfactual resistance multiplier; the neutral value is 1 |
 | `bacteria_level_factor` ($B_{b,t}$) | Log-scaled increase with within-host bacterial burden, bounded by the configured maximum effect |
-| `max_emergence_drug_factor` ($D_{b,m,t}$) | Largest exposure-window factor among positive-site-exposure drugs applicable to the mechanism; it is highest at intermediate standardized site levels and low at fully suppressive levels |
-| `multi_drug_penalty_factor` ($C_{b,m,t}$) | Suppression of emergence when two or more drugs have both positive standardized site exposure and non-negligible susceptible-organism potency (at least `minimal_potency_threshold_for_drug_selection`, currently 0.15), and the candidate mechanism covers only part of that regimen |
+| `max_emergence_drug_factor` ($D_{b,m,t}$) | Largest smoothly gated exposure-window factor among drugs that reach the infection site and are applicable to the mechanism |
+| `multi_drug_penalty_factor` ($C_{b,m,t}$) | Reduction in emergence when two or more drugs retain meaningful activity at the infection site and the candidate mechanism does not compromise the whole regimen |
 
-The bacterial-burden factor is
+The bacterial-burden factor is:
 
 $$
 B_{b,t}=M_B
 \begin{cases}
-0, & L_{b,t}\leq L_{\min},\\\\[4pt]
+0, & L_{b,t}\leq L_{\min},\\[4pt]
 \dfrac{\log_{10}(L_{b,t})-\log_{10}(L_{\min})}
       {\log_{10}(L_{b,\max})-\log_{10}(L_{\min})},
-   & L_{\min}<L_{b,t}<L_{b,\max},\\\\[10pt]
+   & L_{\min}<L_{b,t}<L_{b,\max},\\[10pt]
 1, & L_{b,t}\geq L_{b,\max},
 \end{cases}
 $$
 
-where $L_{b,t}$ is the current abstract infection level, $L_{b,\max}$ is the configured maximum level for bacterium $b$, $L_{\min}=0.0001$, and $M_B$ is `resistance_emergence_bacteria_level_multiplier` (currently 9). Thus $B_{b,t}$ ranges from 0 to 9 under the current configuration, and the multiplier $(1+B_{b,t})$ ranges from 1 to 10. The logarithmic scaling gives proportionally more resolution at low bacterial burdens than a linear relationship would.
+where $L_{b,t}$ is the current abstract infection level, $L_{b,\max}$ is the configured maximum level for bacterium $b$, $L_{\min}=0.0001$, and $M_B$ is `resistance_emergence_bacteria_level_multiplier` (currently 9). Thus $B_{b,t}$ ranges from 0 to 9 under the current configuration, and the multiplier $(1+B_{b,t})$ ranges from 1 to 10.
 
-For drug $d$, standardized site exposure is
-
-$$
-x_d=\min\left(10,\frac{\text{current drug level}_d}{\text{initial drug level}_d}
-\times \text{syndrome penetration}_d\right).
-$$
-
-Drug levels and penetration are non-negative, so $x_d$ cannot be negative; values above 10 are set to 10 for numerical stability.
-
-The exposure-window factor is
+For drug $d$, standardized site exposure is:
 
 $$
-F_d=
+x_{d,t}
+=
 \begin{cases}
-0, & x_d=0,\\\\[4pt]
-0.01+0.99\exp\left[-\dfrac{(x_d-0.5)^2}{2(0.2)^2}\right], & x_d>0.
+0,
+& \text{if current level, initial level, or syndrome penetration is non-positive},\\[4pt]
+\min\left(
+10,
+\dfrac{\text{current drug level}_{d,t}}
+      {\text{initial drug level}_{d}}
+\times
+\text{syndrome penetration}_{d}
+\right),
+& \text{otherwise}.
 \end{cases}
 $$
 
-The denominator $2(0.2)^2$ is the conventional form for a Gaussian curve with width parameter 0.2. It makes selection decline smoothly on either side of the peak at the intermediate standardized level $x_d=0.5$: at 0.2 units from the peak the Gaussian component is about 61% of its maximum, and at 0.4 units it is about 14%. Thus 0.2 determines how narrowly the model concentrates selection around intermediate exposure; it is not an MIC or drug-specific concentration.
+The basic mutant-selection-window curve is:
 
-This preserves the standardized mutant-selection window: no site exposure produces no selection, the factor peaks at $x_d=0.5$, and high standardized exposure produces a low factor. Each absent mechanism receives at most one daily draw, using the largest $F_d$ among its applicable drugs. A mechanism with no applicable drug having positive standardized site exposure is skipped. As shown in the piecewise definition of $p_{b,m,t}$ above, an emergence score of 1 or greater gives a daily emergence probability of 1.
+$$
+G(x)
+=
+0.01
++
+0.99
+\exp\left[
+-\dfrac{(x-0.5)^2}{2(0.2)^2}
+\right].
+$$
 
-**Minority-to-majority evolution.** A mechanism newly present in `mechanism_any` but not yet in `mechanism_majority` receives one daily possibility to shift to the majority with probability `majority_r_evolution_rate_per_day_when_drug_present` (default 0.18) whenever at least one drug with a positive current level is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. A successful transition affects the predominant-strain resistance-mechanism profile contributed to the circulating resistance-mechanism profile library and the mechanism's HGT donor strength; it does not change the already mechanism-derived `any_r` value.
+A smooth low-exposure gate is then applied:
+
+$$
+H(x)=\dfrac{x}{x+h},
+$$
+
+where $h$ is `resistance_emergence_low_exposure_half_saturation`, currently 0.05. The gate is normalised at the exposure-window peak:
+
+$$
+H_{\mathrm{peak}}
+=
+\dfrac{0.5}{0.5+h}.
+$$
+
+The final drug-exposure factor is:
+
+$$
+F(x)
+=
+\begin{cases}
+0, & x\leq 0,\\[4pt]
+G(x)
+\min\left(
+1,
+\dfrac{H(x)}{H_{\mathrm{peak}}}
+\right),
+& x>0.
+\end{cases}
+$$
+
+This construction ensures that:
+
+- exactly zero site exposure gives zero drug-driven emergence;
+- the drug-attributable contribution approaches zero continuously as site exposure approaches zero;
+- the factor remains equal to 1 at the intermediate-exposure peak $x=0.5$;
+- the declining high-exposure side of the original Gaussian curve is retained.
+
+For each absent mechanism, $D_{b,m,t}$ is the largest $F(x_{d,t})$ among applicable drugs with positive site exposure. Concurrent applicable drugs do not create repeated emergence attempts: each bacterium–mechanism pair receives at most one de novo draw per day.
+
+#### Combination-treatment protection
+
+A drug counts as a protective component of combination treatment only when it retains meaningful activity against the current infection at the infection site.
+
+For bacterium $b$ and drug $d$, define normalized current acquired resistance:
+
+$$
+\widetilde R_{b,d,t}
+=
+\operatorname{clamp}
+\left(
+\dfrac{\text{any\_r}_{b,d,t}}
+      {\text{max\_resistance\_level}},
+0,
+1
+\right).
+$$
+
+The drug's protective site-effective activity is:
+
+$$
+A^{\mathrm{protect}}_{b,d,t}
+=
+P_{b,d}
+x_{d,t}
+\left(1-\widetilde R_{b,d,t}\right),
+$$
+
+where $P_{b,d}$ is `potency_when_no_r`.
+
+A drug is counted as a protective regimen component when:
+
+$$
+A^{\mathrm{protect}}_{b,d,t}
+\geq
+\texttt{resistance\_combination\_minimum\_site\_effective\_activity},
+$$
+
+currently 0.15. Thus a drug does not count merely because its concentration is mathematically positive: negligible residual exposure, negligible susceptible-state potency, or near-complete current resistance can prevent it from contributing combination protection.
+
+Let:
+
+- $n$ be the number of protective regimen components;
+- $k$ be the number of those components affected by the candidate mechanism;
+- $n_{\min}$ be `multi_drug_penalty_threshold_num_drugs`, currently 2.
+
+The multidrug factor is:
+
+$$
+C_{b,m,t}
+=
+\begin{cases}
+1,
+& n<n_{\min}\ \text{or}\ k\geq n,\\[4pt]
+\texttt{resistance\_development\_inhibition\_single\_drug},
+& n\geq n_{\min}\ \text{and}\ k\leq 1,\\[4pt]
+\texttt{resistance\_development\_inhibition\_partial\_cross},
+& n\geq n_{\min}\ \text{and}\ 1<k<n.
+\end{cases}
+$$
+
+The current values are 0.05 when the candidate mechanism affects no more than one protective component, and 0.30 when it affects more than one but fewer than all protective components. There is no combination reduction when the candidate mechanism affects every protective component.
+
+Mechanism coverage is determined from the bacterium–mechanism–drug applicability mapping. It is currently counted as a binary relationship rather than being weighted by the magnitude of the mechanism's effect on each drug. Each configured fixed-combination product, such as `piperacillin_tazobactam`, is one drug entity in this calculation.
+
+**Minority-to-majority evolution.** A mechanism present in `mechanism_any` but not yet in `mechanism_majority` receives one daily opportunity to become predominant with probability `majority_r_evolution_rate_per_day_when_drug_present` (currently 0.18) only when it is under meaningful local selection.
+
+For this purpose, local intrinsic selection activity is:
+
+$$
+A^{\mathrm{selection}}_{b,d,t}
+=
+P_{b,d}x_{d,t}.
+$$
+
+A mechanism is under meaningful local selection when at least one drug:
+
+1. is applicable to that bacterium–mechanism pair; and
+2. has
+
+$$
+A^{\mathrm{selection}}_{b,d,t}
+\geq
+\texttt{resistance\_local\_selection\_minimum\_site\_activity},
+$$
+
+currently 0.05.
+
+Current acquired resistance is not subtracted from this selection measure. This is intentional: the criterion asks whether the drug exerts local selective pressure against susceptible competitors, whereas the combination-protection criterion asks whether the drug still has sufficient activity against the current infection to protect the regimen.
+
+Concurrent applicable drugs do not create additional promotion attempts. A successful transition changes `mechanism_majority`, the predominant-strain profile contributed to the circulating resistance-mechanism profile library, and HGT donor strength. It does not change whether the mechanism is present in `mechanism_any` or alter the already mechanism-derived `any_r` value.
 
 **Microbiome pathway.** If a bacterium is carried and enters its within-host update without a positive same-bacterium infection episode, each absent applicable mechanism receives one emergence attempt whenever at least one drug has a positive current level and is applicable to that bacterium-mechanism pair. Concurrent applicable drugs do not create additional attempts. The probability uses the same organism-mechanism baseline table but it does not use the infection-burden, concentration-window, or multidrug-penalty terms described above. Current drug pressure is therefore a binary trigger in this pathway. These carriage emergence draws are skipped while a positive same-bacterium infection episode exists, including a fading episode below the clinical activity threshold.
 
@@ -1530,7 +1674,45 @@ The bacterium–mechanism coefficients should therefore be read as **effective, 
 
 Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI & Hughes D, 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily **reversion rate**, used as an effective probability of removing the mechanism from carriage or demoting it from the dominant active-infection strain ("majority") when no selecting antibiotic is present. Higher rates represent faster effective turnover; lower rates represent greater persistence.
 
-Reversion operates in **both** compartments, with different effects and eligibility. In a positive infection episode, fitness-cost loss removes a mechanism from `mechanism_majority`, so it no longer contributes through the current predominant-strain profile; `mechanism_any` is retained for the currently infected individual. In the microbiome compartment, reversion removes the mechanism from `mechanism_microbiome`, after which `microbiome_r` is recalculated. Carriage reversion is evaluated only when that bacterium enters its within-host update without a positive infection episode; it is skipped during a same-bacterium infection. On an eligible day, a mechanism can revert only if no antibiotic with selective pressure for that mechanism is present. Carriage mechanisms are evaluated independently, so a drug selecting one mechanism does not preserve unrelated mechanisms. Both compartments use the same precomputed bacterium-drug-mechanism eligibility rule to determine selection, and a selecting drug must have a positive current level. This eligibility rule starts from the molecular mechanism-to-drug correspondence, applies any explicitly specified values, and excludes pairs whose susceptible-organism potency is below the model's non-negligible threshold unless they are explicitly retained. A class-associated but intrinsically inactive drug therefore does not preserve a mechanism that provides no additional modelled advantage.
+Reversion operates in **both** active-infection and microbiome compartments, but the effect of reversion and the definition of current selection differ between them.
+
+### Active-infection reversion
+
+In a positive infection episode, fitness-cost loss removes a mechanism from `mechanism_majority`. The mechanism remains in `mechanism_any`, preserving its minority presence and the current infected individual's mechanism-derived `any_r`, but it no longer contributes through the predominant-strain profile used for surveillance, resistance-profile circulation, and majority-dependent HGT donation.
+
+An infection mechanism is protected from reversion only when at least one applicable drug exerts meaningful local infection-site selection:
+
+$$
+P_{b,d}x_{d,t}
+\geq
+\texttt{resistance\_local\_selection\_minimum\_site\_activity},
+$$
+
+currently 0.05.
+
+The active-infection reversion rule therefore uses current drug level, drug-specific initial level, syndrome penetration, susceptible-state potency, and mechanism–drug applicability. A drug with zero or negligible modeled exposure at the infection site does not preserve the mechanism.
+
+### Microbiome reversion
+
+In the microbiome compartment, successful reversion removes the mechanism from `mechanism_microbiome`, after which `microbiome_r` is recalculated.
+
+Carriage reversion is evaluated only when the bacterium enters its within-host update without a positive same-bacterium infection episode. It is skipped during a same-bacterium infection.
+
+The microbiome does not use the active infection's syndrome-specific site-exposure calculation. A carriage mechanism is protected from reversion when at least one drug has a positive current whole-person drug level and is applicable to the bacterium–mechanism pair. Carriage mechanisms are evaluated independently, so selection for one mechanism does not prevent reversion of an unrelated mechanism.
+
+Both compartments use the same underlying bacterium–mechanism–drug applicability mapping, but active-infection reversion adds the meaningful local site-activity requirement described above, whereas microbiome reversion retains the positive-level binary selection test.
+
+### Residual resistance without a represented mechanism
+
+During a positive infection episode, numerical resistance fields can occasionally remain positive when neither `mechanism_any` nor `mechanism_microbiome` contains a represented mechanism. The model's mechanismless-resistance cleanup is considered only when no drug has meaningful local intrinsic activity against that bacterium:
+
+$$
+P_{b,d}x_{d,t}
+<
+\texttt{resistance\_local\_selection\_minimum\_site\_activity}
+$$
+
+for every drug. If the configured cleanup draw succeeds, the residual infection and microbiome resistance fields are reset while any already completed AST snapshot is retained.
 
 Key patterns:
 - **Most stable:** Single point mutations (e.g., *gyrA* fluoroquinolone resistance, reversion 0.0001/day) — the mutation barely affects the bacterium's fitness, so it persists for years even without ciprofloxacin pressure
@@ -1600,7 +1782,7 @@ The full reversion rates by mechanism category are shown below. The final column
 
 #### Bacterium-specific community reversion
 
-The mechanism rates above are multiplied by the run-level reversion sensitivity multiplier and, outside hospital, by a bacterium-specific `community_mechanism_reversion_multiplier`. Hospitalised people use a setting multiplier of 1.0. A reversion draw is attempted only when the person has no active drug that selects for the mechanism. The final daily probability is clamped to the interval 0–1.
+The mechanism rates above are multiplied by the run-level reversion sensitivity multiplier and, outside hospital, by a bacterium-specific `community_mechanism_reversion_multiplier`. Hospitalised people use a setting multiplier of 1.0. The mechanism rates above are multiplied by the run-level reversion sensitivity multiplier and, outside hospital, by a bacterium-specific `community_mechanism_reversion_multiplier`. Hospitalised people use a setting multiplier of 1.0. For an active infection, a reversion draw is attempted only when no applicable drug reaches the infection site with intrinsic site activity of at least `resistance_local_selection_minimum_site_activity`. For carriage, a reversion draw is attempted only when no positive-level drug is applicable to the mechanism. The final daily probability is clamped to the interval 0–1.
 
 On the active-infection side, a successful event removes the mechanism from `mechanism_majority` but leaves minority persistence in `mechanism_any`; in carriage it removes the mechanism from `mechanism_microbiome`. The process is therefore an effective loss from the transmissible/dominant or carriage state. It need not represent literal reversal of the underlying determinant, and its numerical values are model parameters rather than measured decolonisation half-lives.
 
@@ -1897,7 +2079,7 @@ Key dynamics (ordinary carriage acquisition, clearance, emergence and reversion 
 |---------|-----------|-------|---------------|
 | Resistance-mechanism profile sampling on acquisition | `community_human_reservoir_profile_probability` | Organism specific | A new hospital carriage episode samples a resistance-mechanism profile from the local hospital profile library. In the community, the per-bacterium probability determines whether a new carriage episode samples from the local community profile library. If no profile is sampled or the selected library is empty, the carriage episode begins without an acquired resistance mechanism from this route. |
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
-| Mechanism-level reversion | Mechanism-specific reversion rates | Mechanism specific | Per-mechanism reversion operates in the microbiome compartment using the same rates and potency-filtered eligibility rule as in the infection compartment (Section 7.5). Each mechanism can only revert when no positive-level active drug is clinically applicable to that bacterium–mechanism pair; selection for another mechanism does not block reversion. |
+| Mechanism-level reversion | Mechanism-specific reversion rates | Mechanism specific | Per-mechanism reversion in carriage is evaluated only when the bacterium enters its update without a positive same-bacterium infection episode. A carriage mechanism can revert only when no drug with a positive current whole-person level is applicable to that bacterium–mechanism pair. This is distinct from active-infection reversion, which additionally requires meaningful syndrome-specific site activity. Selection for another mechanism does not block reversion. |
 | De-novo emergence under treatment | `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` | Organism-mechanism specific | On an eligible carriage-update day, an absent carriage mechanism receives one emergence attempt if at least one positive-level drug applies to it (Section 7.4), using the organism-mechanism baseline and counterfactual scaling. Concurrent applicable drugs do not add attempts. Emergence writes directly to `mechanism_microbiome`; carriage-derived infection inheritance and inter-species HGT are separate processes. |
 | Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | Before candidate establishment, one shared inheritance draw is followed by independent `infection_from_microbiome_dampening` draws for host-eligible carriage mechanisms absent from the incoming infection profile. Successful copies enter `mechanism_any`, without being added to `mechanism_majority` by this step (Section 3.3). |
 | Infection ↔ microbiome transfer | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | At most one daily draw at the start of the organism's within-host update, when a positive infection episode and separate carriage already coexist and their eligible profiles differ. The probability is multiplied by the counterfactual resistance multiplier and bounded to 0–1; zero disables the draw. A successful draw shares the combined eligible mechanisms between the compartments and raises their drug-level resistance measures where needed. This is an explicit exception to the ordinary carriage-update freeze. |
@@ -2740,6 +2922,9 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | --- | ---: |
 | max_resistance_level | 1 |
 | resistance_emergence_bacteria_level_multiplier | 9 |
+| resistance_emergence_low_exposure_half_saturation | 0.05 |
+| resistance_combination_minimum_site_effective_activity | 0.15 |
+| resistance_local_selection_minimum_site_activity | 0.05 |
 | multi_drug_penalty_threshold_num_drugs | 2 |
 | resistance_development_inhibition_single_drug | 0.05 |
 | resistance_development_inhibition_partial_cross | 0.3 |
@@ -12518,11 +12703,12 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-microbiome-clearance-probability"></a>`microbiome_clearance_probability[b]` | Carriage duration, drug exposure and `effective_carriage_activity[b][d]`. | `{bacterium}_microbiome_clearance_probability_per_day`; `carriage_duration_log_odds_coefficient`; `carriage_duration_max_log_odds_effect`; potency and `antibiotic_clearance_log_odds_per_unit_activity`. | Recomputed for a carrier only when the bacterium enters its update without a positive infection episode, including carriage acquired that day. | Drug exposure and effective activity use fixed 0.1 thresholds; drug-assisted infection resolution has a separate carriage-clearance draw. | Carriage-clearance block in `rules::apply_rules` |
 | <a id="rule-infection-acquisition-probability"></a>`infection_acquisition_probability[b]` | Infection-episode absence (`level[b] == 0`), age, region, hospital status, vaccination, carriage, exposure context and policy state; current `microbiome_disruption_level` for existing C. difficile carriers. | `{bacterium}_acquisition_log_odds_baseline`; age and region acquisition families; hospital and vaccination terms; `{bacterium}_log_odds_microbiome_present`; `cdiff_carrier_progression_log_odds_per_disruption`; `cdiff_carrier_progression_max_log_odds`; organism-era and policy multipliers. | Recomputed daily for each eligible person-bacterium pair and copied to `predicted_infection_risk[b]` before the initial acquisition draw. The C. difficile term is added before the sigmoid, using carriage status before same-day carriage acquisition or clearance. | A fading positive episode is not eligible. The disruption term requires C. difficile and an allowed, currently present carriage compartment; incoming resistance mechanisms and existing therapy can subsequently determine whether a candidate becomes established. | Infection-acquisition block in `rules::apply_rules` |
 | <a id="rule-incoming-infection-mechanism-mask"></a>`incoming_infection_mechanism_mask[b]` | Mechanisms from a sampled local resistance-mechanism profile or the exogenous pathway, `mechanism_microbiome[b]`, the MDR-TB rule and current acquisition setting. | Circulating resistance-mechanism profile library and ratchet parameters; `carrier_resistance_inheritance_probability`; `infection_from_microbiome_dampening`; mechanism applicability. | Calculated only after an infection-acquisition draw succeeds, then restricted to mechanisms permitted for the bacterium. | Assigned if the infection becomes established or discarded if existing therapy prevents establishment. | Resistance-mechanism profile assembly in `rules::apply_rules`; `simulation::MechanismCache` |
-| <a id="rule-existing-therapy-prevention-probability"></a>`existing_therapy_prevention_probability[b]` | Current drug use and levels, bacterium-drug potency, and resistance implied by the incoming resistance-mechanism profile. | `antibiotic_infection_prevention_efficacy`; potency; current drug level; `max_resistance_level`; fixed effective-activity threshold of 0.5. | Evaluated for each current drug after the prospective infection mechanisms have been assembled. | Any successful prevention draw blocks establishment; syndrome penetration is not used because syndrome assignment occurs only after establishment. | Infection-acquisition prevention block in `rules::apply_rules` |
-| <a id="rule-de-novo-emergence-probability"></a>`de_novo_emergence_probability[b,m]` | Active infection, absent applicable mechanism, bacterium level, selecting drug exposure and cross-resistance context. | Unbounded `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` coefficient; counterfactual resistance multiplier; `resistance_emergence_bacteria_level_multiplier`; potency threshold; multidrug inhibition parameters; drug level and syndrome penetration. | Recomputed for each eligible bacterium-mechanism route, bounded to `[0,1]`, then used for one daily Bernoulli draw. | Standardized site exposure is current level divided by initial level and multiplied by syndrome penetration. Exactly zero site exposure has factor 0; positive exposure uses a fixed Gaussian peak at 0.5, sigma 0.2 and floor 0.01. Zero-site-exposure and inapplicable routes are skipped. | De novo resistance block in `rules::apply_rules` |
-| <a id="rule-minority-promotion-probability"></a>`minority_promotion_probability[b,m]` | Minority mechanism in `mechanism_any[b]`, absence from `mechanism_majority[b]`, selecting drug pressure. | `majority_r_evolution_rate_per_day_when_drug_present`; mechanism-drug applicability. | One draw is made per eligible minority mechanism under selecting pressure. | Promotion changes predominant-strain status, not whether any strain carries the mechanism. | `rules::promote_minority_mechanisms_once`; resistance-evolution block |
-| <a id="rule-mechanism-reversion-probability"></a>`mechanism_reversion_probability[b,m]` | Present eligible mechanism, predominant or carriage compartment, absence of current selection. | Mechanism-specific reversion rates; run-level reversion multiplier; community setting multiplier; applicability and selection conditions. | Recomputed for eligible unselected mechanisms; carriage draws require no positive same-bacterium infection episode at the start of its update. | Infection-side reversion removes majority status while retaining `mechanism_any`; carriage reversion removes the carriage mechanism. | Reversion blocks and precomputed parameters in `rules` |
-| <a id="rule-hgt-probability"></a>`hgt_probability[recipient_b,m]` | Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor-recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor-recipient-mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
+| <a id="rule-existing-therapy-prevention-probability"></a>`existing_therapy_prevention_probability[b]` | Current drug use and levels, bacterium–drug potency, and resistance implied by the incoming resistance-mechanism profile. | `antibiotic_infection_prevention_efficacy`; `drug_{drug}_for_bacteria_{bacterium}_potency_when_no_r`; current drug level; `max_resistance_level`; fixed effective-activity threshold of 0.5. | Evaluated separately for each currently active drug after the prospective infection mechanisms have been assembled. Each qualifying drug receives one prevention draw; any successful draw blocks establishment. | Syndrome penetration is not used because the infectious syndrome is assigned only after the candidate infection becomes established. The prevention calculation is separate from the infection-site exposure rules used for resistance emergence, promotion and reversion. | Infection-acquisition prevention block in `rules::apply_rules` |
+| <a id="rule-de-novo-emergence-probability"></a>`de_novo_emergence_probability[b,m]` | Active infection; absent eligible mechanism; bacterium level; current drug levels; drug-specific initial levels; syndrome penetration; bacterium–drug potency; current infection `any_r`; and mechanism–drug applicability. | Unbounded `bacteria_{bacterium}_mechanism_{mechanism}_emergence_rate` coefficient; run-level active-infection de novo multiplier; counterfactual resistance multiplier; `resistance_emergence_bacteria_level_multiplier`; `resistance_emergence_low_exposure_half_saturation`; `resistance_combination_minimum_site_effective_activity`; `multi_drug_penalty_threshold_num_drugs`; `resistance_development_inhibition_single_drug`; `resistance_development_inhibition_partial_cross`; `max_resistance_level`. | Recomputed for each eligible absent bacterium–mechanism route, bounded to `[0,1]`, and used for at most one daily Bernoulli draw for that route. The exposure contribution is the maximum among applicable drugs, so concurrent selecting drugs do not create repeated emergence attempts for the same mechanism. | Standardized site exposure is current drug level divided by its initial level and multiplied by syndrome penetration. The mutant-selection-window curve has a fixed Gaussian peak at standardized exposure 0.5 with sigma 0.2, multiplied by a smooth low-exposure gate controlled by `resistance_emergence_low_exposure_half_saturation`; drug-driven emergence is zero at zero exposure and approaches zero continuously as exposure approaches zero. A drug counts as a protective combination component only when `potency_when_no_r × standardized site exposure × (1 − normalized current any_r)` is at least `resistance_combination_minimum_site_effective_activity`. The multidrug penalty depends on how many such protective components remain active and how many are affected by the candidate mechanism. | De novo resistance block in `rules::apply_rules`; `rules::standardized_site_drug_level`; `rules::resistance_emergence_exposure_factor`; `rules::resistance_emergence_multi_drug_penalty` |
+| <a id="rule-minority-promotion-probability"></a>`minority_promotion_probability[b,m]` | Mechanism present in `mechanism_any[b]` but absent from `mechanism_majority[b]`; current drug levels; drug-specific initial levels; syndrome penetration; bacterium–drug potency; and mechanism–drug applicability. | `majority_r_evolution_rate_per_day_when_drug_present`; `resistance_local_selection_minimum_site_activity`. | One daily promotion draw is made for each eligible minority mechanism only when at least one applicable drug has `potency_when_no_r × standardized site exposure` at or above `resistance_local_selection_minimum_site_activity`. Concurrent applicable drugs do not create additional promotion draws. | Current acquired resistance is not subtracted from the local-selection measure: the criterion represents suppression of susceptible competitors by local drug exposure, rather than whether the drug remains sufficiently effective to protect the regimen. Successful promotion adds the mechanism to `mechanism_majority[b]` but does not change its presence in `mechanism_any[b]`. | `rules::promote_minority_mechanisms_once`; `rules::mechanism_has_meaningful_infection_site_selection`; resistance-evolution block in `rules::apply_rules` |
+| <a id="rule-mechanism-reversion-probability"></a>`mechanism_reversion_probability[b,m]` | Present predominant-infection or carriage mechanism; care setting; current drug exposure; and mechanism–drug applicability. Active-infection reversion additionally uses drug-specific initial levels, syndrome penetration and bacterium–drug potency. | Mechanism-specific reversion rate; run-level reversion multiplier; bacterium-specific `community_mechanism_reversion_multiplier`; `resistance_local_selection_minimum_site_activity`. | For active infection, one reversion draw is available only when no applicable drug has `potency_when_no_r × standardized site exposure` at or above `resistance_local_selection_minimum_site_activity`; success removes the mechanism from `mechanism_majority[b]` while retaining it in `mechanism_any[b]`. For carriage, one reversion draw is available only when no positive-level drug is applicable to the mechanism; success removes the mechanism from `mechanism_microbiome[b]`. | Infection and carriage intentionally use different exposure tests. Active-infection reversion is syndrome-site-specific; carriage reversion uses positive whole-person drug level and is evaluated only when the bacterium enters its daily update without a positive same-bacterium infection episode. Selection for one mechanism does not prevent reversion of an unrelated mechanism. | `rules::sample_unselected_infection_mechanism_reversions`; `rules::sample_unselected_mechanism_reversions`; reversion blocks in `rules::apply_rules` |
+| <a id="rule-hgt-probability"></a>`hgt_probability[recipient_b,m]` | Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor–recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor–recipient–mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
+Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor-recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor-recipient-mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
 | <a id="rule-new-bacteria-level"></a>`new_bacteria_level[b]` | Previous `level[b]`, growth modifiers, applied drug activity and response multiplier. | Initial and maximum level; base growth; age, immunodeficiency and syndrome growth multipliers; potency, penetration, activity and treatment-response parameters. | Calculated once per positive infection-episode day, bounded, then stored in `level[b]` unless resolution supersedes it. | Fading positive episodes continue this update; MDR-TB multidrug synergy and background effectiveness are explicit exceptions. | Infection-progression block in `rules::apply_rules` |
 | <a id="rule-symptom-onset-probability"></a>`symptom_onset_probability[b]` | `level[b]`, infection duration and current symptom indicator. | `{bacterium}_symptom_onset_base_log_odds`; threshold, delay and per-level log-odds parameters. | Recomputed for eligible infections until the symptom indicator becomes true. | No further onset draws after symptoms have occurred in that episode. | Symptom-onset block in `rules::apply_rules` |
 | <a id="rule-bacterial-identification-probability"></a>`bacterial_identification_probability[b]` | Active symptomatic infection, duration, year, hospital status, region, immunodeficiency and sepsis. | Bacterial-testing delay, availability, base rate, adoption, hospital, region, immunosuppression, sepsis and policy parameters. | Recomputed for eligible unidentified infections before the daily testing draw. | Adoption uses a fixed 40-year sigmoid. | Diagnostic-testing block in `rules::apply_rules` |
