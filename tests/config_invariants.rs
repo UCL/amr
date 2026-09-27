@@ -640,25 +640,27 @@ fn emergence_rate_tier_zero_comments_only_label_zero_rates() {
 }
 
 #[test]
-fn reviewed_above_unit_raw_potencies_are_clamped_in_the_typed_matrix() {
+fn reviewed_raw_potencies_are_normalized_in_the_typed_matrix() {
     let store = parameter_store();
     let cases = [
         (
             "drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r",
             "stenotrophomonas_maltophilia",
             "trim_sulf",
+            1.00_f64,
         ),
         (
             "drug_vancomycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r",
             "staphylococcus_epidermidis",
             "vancomycin",
+            1.00_f64,
         ),
     ];
 
-    for (key, bacteria, drug) in cases {
+    for (key, bacteria, drug, expected_raw) in cases {
         assert_eq!(
             PARAMETERS.get(key).map(|value| value.to_bits()),
-            Some(1.05_f64.to_bits()),
+            Some(expected_raw.to_bits()),
             "{key} should preserve the reviewed raw calibration input"
         );
 

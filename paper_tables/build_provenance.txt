@@ -3,30 +3,21 @@ Validation mode: legacy compatibility (--legacy-without-sf5)
 Supplementary Figure S5: omitted by compatibility mode
 
 Calibration-summary inputs:
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee066471.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee121211.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee212362.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee318002.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee467692.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee634121.txt
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee973365.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff164402.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff311750.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff591413.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff928228.txt
 
 Calibration-summary reported provenance:
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee066471.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_066471.csv; schema=6
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee121211.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_121211.csv; schema=6
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee212362.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_212362.csv; schema=6
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee318002.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_318002.csv; schema=6
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee467692.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_467692.csv; schema=6
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee634121.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_634121.csv; schema=6
-- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_eee973365.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_973365.csv; schema=6
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff164402.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_164402.csv; schema=6
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff311750.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_311750.csv; schema=6
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff591413.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_591413.csv; schema=6
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff928228.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_928228.csv; schema=6
 
 Discovered simulation-summary CSVs (authoritative preflight):
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_066471.csv: schema 6 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_121211.csv: schema 6 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_212362.csv: schema 6 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_318002.csv: schema 6 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_467692.csv: schema 6 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_634121.csv: schema 6 (current)
-- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_973365.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_164402.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_311750.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_591413.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_928228.csv: schema 6 (current)
 
 Compatibility statement: schemas 1-6 are accepted only for paper outputs unaffected by the diagnostic-cascade changes. Supplementary Figure S5 is not generated or represented by a placeholder in this build.

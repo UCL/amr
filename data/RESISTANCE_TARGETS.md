@@ -54,13 +54,160 @@ targets, source table, schema, legacy wide value matrices, and Rust-derived pote
 reachability matrices. The production loader verifies this manifest before using the target set.
 This binds the score input to the mechanism and potency projections used to determine eligibility.
 
-Regenerate the companion files from the cleaned wide matrices with:
+The definitive baseline potencies are in `src/config.rs`. After changing them, refresh both
+Rust projections, target eligibility, and its hash manifest together. The cutoff applies
+to each bacterium-drug pair: a potency below `0.15` excludes both calibration components, while
+a potency of `0.15` or greater removes that exclusion. Missing benchmarks and the other
+component-specific exclusions still apply. Crossing the cutoff does not change the benchmark
+values in the wide matrices.
+
+Run this command from the repository root (with the project's Python environment active):
 
 ```powershell
-cargo run --quiet --bin export_potency_matrix -- data/model_potency_matrix.csv
-cargo run --quiet --bin export_resistance_reachability_matrix -- data/model_resistance_reachability_matrix.csv
-python amr_simulation_output_analysis/build_resistance_targets_v1.py
+python -m amr_simulation_output_analysis.refresh_resistance_targets
 ```
+
+The command compiles and exports the Rust projections into a staging directory, copies the
+editable inputs without changing their bytes, rebuilds the target/source CSVs and manifest,
+and verifies every staged artifact. It then replaces the five generated files while holding
+`data/.resistance_targets_v1.update.lock`, publishing the manifest last. Calibration readers
+wait during this short publication step. Do not export individual matrices directly into
+`data/` during an analysis: their hashes would temporarily disagree with the old manifest.
+
+A staging failure leaves the live files untouched. A publication failure restores the old
+files before releasing the marker. If restoration also fails, the error identifies retained
+recovery files and a marker that requires investigation before it can be removed. A second
+writer cannot overwrite an existing marker. The lower-level target builder remains available
+for development and isolated output directories; use the refresh command for the live target set.
+
+Then rerun the affected calibration analyses and check the Rust matrix/target invariants and
+Python target-schema tests. Tests that record the previous configuration's eligibility counts
+must be reconciled with the regenerated set; the per-pair checks against Rust remain authoritative.
+
+On 26 September 2026, the projections and derived v1 eligibility were refreshed to match the
+definitive Rust potency configuration. This excluded 44 additional prevalence targets and 44
+additional conditional-severity targets, leaving 1,184 and 1,064 statically included rows,
+respectively. Every benchmark value and missing cell was preserved. Version 1 was retained
+because this refresh applies the existing eligibility rules to the updated model configuration.
+
+A subsequent E. faecalis potency update on the same date changed 25 values. Clindamycin moved
+below the cutoff, excluding its prevalence and severity benchmarks. Ceftaroline moved above
+the cutoff, but remains unscored because both benchmarks are unassigned. After this update,
+1,183 prevalence and 1,063 conditional-severity rows are statically included; benchmark values
+and missing cells remain unchanged.
+
+The subsequent E. faecium update changed 26 potencies: ceftaroline and fidaxomicin moved above
+the cutoff, while gentamicin and trim-sulf moved below it. All four lack assigned prevalence
+benchmarks, so the included counts remain 1,183 and 1,063. Their exclusion reasons and resistance
+reachability were refreshed; all existing benchmark values and missing cells were preserved.
+
+The subsequent S. aureus update changed 14 potencies. Cefixime moved below the cutoff, excluding
+its prevalence and severity benchmarks. Ampicillin, amoxicillin, ceftazidime, nitrofurantoin,
+and ceftazidime-avibactam moved above the cutoff but remain unscored because their benchmarks
+are unassigned. The included counts are now 1,182 prevalence and 1,062 conditional-severity rows.
+All benchmark values and missing cells were preserved.
+
+Seven additional S. aureus effective potencies now follow the definitive matrix entries after
+removing later fluoroquinolone/tetracycline assignments that overwrote them with `0.50`. These
+seven values remain above the cutoff, so this correction does not change scoring eligibility.
+
+The subsequent S. epidermidis update changed 42 raw potencies and 41 effective potencies;
+vancomycin changed from a raw `1.05` to `1.00`, with effective potency remaining `1.00`.
+Cefixime moved below the cutoff and its two benchmarks are now excluded. Seven drugs moved
+above the cutoff but remain unscored because their benchmarks are unassigned. The included
+counts are now 1,181 prevalence and 1,061 conditional-severity rows. Benchmark values and
+missing cells were preserved.
+
+The subsequent S. pneumoniae update supplied 53 entries and retained the nine earlier entries
+omitted from the pasted block. Ten potencies changed, with no crossings of the `0.15` cutoff.
+Resistance reachability and calibration eligibility are unchanged, leaving 1,181 prevalence
+and 1,061 conditional-severity rows included. The potency projection and manifest were refreshed.
+
+The subsequent S. pyogenes update supplied all 62 entries and changed eight potencies.
+Sulfanilamide and retapamulin moved above the cutoff but remain unscored because both
+components lack benchmarks. Reachability and exclusion reasons were refreshed, with the
+included counts unchanged at 1,181 prevalence and 1,061 conditional-severity rows.
+All benchmark values and missing cells were preserved.
+
+On 27 September 2026, the updated S. agalactiae block already present in `src/config.rs` was
+synchronized with the projections and documentation. Eight potencies changed relative to the
+previous export. Nitrofurantoin and retapamulin moved above the cutoff but remain unscored
+because both components lack benchmarks. The included counts remain 1,181 prevalence and
+1,061 conditional-severity rows; all benchmark values and missing cells were preserved.
+
+The subsequent H. influenzae update supplied all 62 entries and changed seven potencies.
+No values crossed the cutoff, so resistance reachability and calibration eligibility are
+unchanged. The potency projection, hash manifest, and documented potency tables were refreshed;
+all benchmark values and missing cells were preserved.
+
+The subsequent C. trachomatis update supplied all 62 entries and changed ten potencies. Six
+pairs moved above the cutoff, but all six lack assigned benchmarks; rifampicin also retains
+its explicit exclusion. Scoring inclusion therefore remains at 1,181 prevalence and 1,061
+conditional-severity rows. The staged refresh command published the projections, targets,
+source table, and manifest together. All benchmark values and missing cells were preserved.
+
+The subsequent M. genitalium update supplied all 62 entries and changed 17 potencies.
+Fusidic acid and metronidazole moved above the cutoff but remain unscored because both
+components lack benchmarks. The staged refresh updated reachability and exclusion reasons;
+the included counts remain 1,181 prevalence and 1,061 conditional-severity rows. All benchmark
+values and missing cells were preserved.
+
+The subsequent N. meningitidis update supplied all 62 entries and changed 16 potencies.
+Seven pairs moved above the cutoff. Nalidixic acid is outside the v1 target roster, and the
+other six pairs lack prevalence benchmarks. Existing severity benchmarks for ceftaroline,
+tigecycline, and flucloxacillin are preserved but remain inactive without paired prevalence
+benchmarks. Included counts remain 1,181 prevalence and 1,061 conditional-severity rows.
+The staged refresh updated the projections, exclusion reasons, and manifest without changing
+any benchmark values or missing cells.
+
+The subsequent N. gonorrhoeae update supplied all 62 entries and changed ten potencies.
+Ceftaroline, tigecycline, and flucloxacillin moved above the cutoff, but their prevalence
+benchmarks are unassigned. Their existing severity benchmarks were preserved and remain
+inactive without paired prevalence benchmarks. Included counts remain 1,181 prevalence and
+1,061 conditional-severity rows. The staged refresh updated reachability and exclusion reasons
+without changing any benchmark values or missing cells.
+
+The subsequent L. monocytogenes update supplied all 62 entries and changed 31 potencies.
+Reachability, cell statuses, and potency-based exclusion reasons were refreshed. The existing
+explicit Listeria exclusion remains in force, so the included counts stay at 1,181 prevalence
+and 1,061 conditional-severity rows. All benchmark values and missing cells were preserved.
+
+The subsequent C. difficile update supplied all 62 potencies plus the fidaxomicin initiation
+multiplier. Forty-six potencies changed; the initiation multiplier remains `1.05`. The staged
+refresh updated reachability and exclusion reasons without changing scoring inclusion, which
+remains at 1,181 prevalence and 1,061 conditional-severity rows. All benchmark values and
+missing cells were preserved.
+
+The subsequent B. fragilis update supplied all 62 entries and changed 22 potencies. Cefixime
+moved below the cutoff, excluding its prevalence and severity benchmarks. Nine pairs moved
+above the cutoff but remain unscored without prevalence benchmarks. Included counts are now
+1,180 prevalence and 1,060 conditional-severity rows. The staged refresh updated the projections,
+exclusion reasons, and manifest while preserving every benchmark value and missing cell.
+
+The subsequent M. catarrhalis update supplied all 62 entries and changed 22 potencies.
+Six pairs moved above the cutoff but lack prevalence benchmarks. The existing ceftaroline
+severity benchmark was preserved and remains inactive without its paired prevalence benchmark.
+The staged refresh updated reachability and exclusion reasons; included counts remain 1,180
+prevalence and 1,060 conditional-severity rows. All benchmark values and missing cells were preserved.
+
+The subsequent T. pallidum update supplied all 62 entries and changed 11 potencies. Ciprofloxacin,
+levofloxacin, moxifloxacin, and ofloxacin moved below the cutoff, excluding their prevalence and
+severity benchmarks. Four other drugs moved above the cutoff but remain unscored without
+prevalence benchmarks. Included counts are now 1,176 prevalence and 1,056 conditional-severity
+rows. The staged refresh updated the projections, exclusion reasons, and manifest; every
+benchmark value and missing cell was preserved.
+
+The subsequent B. pertussis update supplied all 62 entries and changed 20 potencies. Thirteen
+pairs moved above the cutoff and aztreonam-avibactam moved below it. The affected pairs lack
+prevalence benchmarks, so included counts remain 1,176 prevalence and 1,056 conditional-severity
+rows. The staged refresh updated reachability and exclusion reasons while preserving all
+benchmark values and missing cells.
+
+The subsequent H. pylori update supplied all 62 entries and changed 25 potencies. Nineteen
+pairs moved above the cutoff but lack prevalence benchmarks; rifampicin also retains its
+explicit exclusion. Included counts remain 1,176 prevalence and 1,056 conditional-severity
+rows. The staged refresh updated the projections, exclusion reasons, and manifest without
+changing any benchmark values or missing cells.
 
 Version 1 was amended during model development to count model-unrepresentable numeric prevalence
 benchmarks as fit penalties while preserving their explicit structural-gap status. Any future

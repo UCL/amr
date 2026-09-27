@@ -38,6 +38,7 @@ PROVENANCE_STRUCTURAL_PRIOR = "structural_prior"
 PROVENANCE_NOT_ASSIGNED = "not_assigned"
 
 MANIFEST_FILENAME = "resistance_targets_v1.manifest.json"
+UPDATE_LOCK_FILENAME = ".resistance_targets_v1.update.lock"
 
 _SHARED_RESERVE_DRUG_PLACEHOLDER_BACTERIA = frozenset(
     {

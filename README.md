@@ -362,6 +362,20 @@ Key provenance documents are:
 Best-guess placeholder overlays are disabled by default and are not calibration
 score inputs.
 
+After changing the definitive potency values in `src/config.rs`, run this command
+from the repository root to refresh the Rust projections, target eligibility, and
+hash manifest together:
+
+```powershell
+python -m amr_simulation_output_analysis.refresh_resistance_targets
+```
+
+The command verifies the complete generated set before publication; calibration
+readers wait while the files are being replaced. See
+[Resistance target data](data/RESISTANCE_TARGETS.md) for details. Eligibility is
+determined per bacterium-drug pair using the existing baseline-potency cutoff of
+`0.15`.
+
 ## Policy Branches
 
 `CalibrationMode::None` can run five independent branches from 2027:

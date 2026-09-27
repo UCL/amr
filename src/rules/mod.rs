@@ -8572,7 +8572,7 @@ mod tests {
         }
 
         assert_eq!(
-            applicable_cells, 5_535,
+            applicable_cells, 5_711,
             "applicability count should preserve the reviewed mechanism-drug scope"
         );
     }

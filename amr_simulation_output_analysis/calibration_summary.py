@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
@@ -17,6 +18,7 @@ import pandas as pd
 if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     from amr_simulation_output_analysis.config import PlotConfig
+    from amr_simulation_output_analysis.build_resistance_targets_v1 import UPDATE_LOCK_FILENAME
     from amr_simulation_output_analysis.data_loader import DataCache
     from amr_simulation_output_analysis.bacterium_region_deaths import calculate_bacterium_region_death_counts
     from amr_simulation_output_analysis.regional_incidence import (
@@ -41,6 +43,7 @@ if __package__ is None or __package__ == "":
     )
 else:
     from .config import PlotConfig
+    from .build_resistance_targets_v1 import UPDATE_LOCK_FILENAME
     from .data_loader import DataCache
     from .bacterium_region_deaths import calculate_bacterium_region_death_counts
     from .regional_incidence import (
@@ -75,6 +78,9 @@ RESISTANCE_AVERAGE_TARGET_SOURCE_COL = "Average benchmark source"
 RESISTANCE_TARGET_RATIONALE_COL = "Infection benchmark rationale"
 RESISTANCE_AVERAGE_TARGET_RATIONALE_COL = "Average benchmark rationale"
 RESISTANCE_TARGET_MANIFEST_FILENAME = "resistance_targets_v1.manifest.json"
+RESISTANCE_TARGET_UPDATE_LOCK_FILENAME = UPDATE_LOCK_FILENAME
+RESISTANCE_TARGET_REFRESH_WAIT_SECONDS = 10.0
+RESISTANCE_TARGET_REFRESH_POLL_SECONDS = 0.05
 
 RESISTANCE_PROVENANCE_LABELS: Dict[str, str] = {
     "empirical_estimate_with_cell_level_source": "Empirical estimate (cell source recovered)",
@@ -1442,9 +1448,19 @@ def _verify_resistance_target_manifest(path: Path) -> None:
         expected_hash = str(metadata.get("sha256") or "")
         expected_size = metadata.get("bytes")
         if expected_size != artifact_path.stat().st_size:
-            raise ValueError(f"Resistance-target artifact size mismatch: {artifact_path}")
+            raise ValueError(
+                f"Resistance-target artifact size mismatch: {artifact_path}. "
+                "The target artifacts and manifest must come from the same refresh; "
+                "run python -m amr_simulation_output_analysis.refresh_resistance_targets "
+                "from the repository root, then retry the analysis."
+            )
         if expected_hash != _sha256_file(artifact_path):
-            raise ValueError(f"Resistance-target artifact hash mismatch: {artifact_path}")
+            raise ValueError(
+                f"Resistance-target artifact hash mismatch: {artifact_path}. "
+                "The target artifacts and manifest must come from the same refresh; "
+                "run python -m amr_simulation_output_analysis.refresh_resistance_targets "
+                "from the repository root, then retry the analysis."
+            )
 
 
 def _load_resistance_target_set(
@@ -1452,12 +1468,52 @@ def _load_resistance_target_set(
     *,
     verify_manifest: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Load the versioned resistance targets and their explicit score eligibility."""
+    """Load one verified generation, retrying if publication overlaps the read."""
+
+    if not verify_manifest:
+        return _read_resistance_target_set(path)
+    if path is None:
+        raise FileNotFoundError(f"Missing versioned resistance target file: {path}")
+
+    manifest_path = path.parent / RESISTANCE_TARGET_MANIFEST_FILENAME
+    update_lock = path.parent / RESISTANCE_TARGET_UPDATE_LOCK_FILENAME
+    deadline = time.monotonic() + RESISTANCE_TARGET_REFRESH_WAIT_SECONDS
+
+    def manifest_generation() -> Optional[bytes]:
+        try:
+            return manifest_path.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    while True:
+        if not update_lock.exists():
+            generation = manifest_generation()
+            try:
+                _verify_resistance_target_manifest(path)
+                frames = _read_resistance_target_set(path)
+            except (OSError, ValueError):
+                if not update_lock.exists() and manifest_generation() == generation:
+                    raise
+            else:
+                if not update_lock.exists() and manifest_generation() == generation:
+                    return frames
+
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                "Resistance targets are being refreshed; retry the analysis after the "
+                f"refresh completes. If it was interrupted, inspect {update_lock} "
+                "and the refresh output before proceeding."
+            )
+        time.sleep(RESISTANCE_TARGET_REFRESH_POLL_SECONDS)
+
+
+def _read_resistance_target_set(
+    path: Optional[Path],
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Parse and validate target/source rows from an already verified generation."""
 
     if path is None or not path.exists():
         raise FileNotFoundError(f"Missing versioned resistance target file: {path}")
-    if verify_manifest:
-        _verify_resistance_target_manifest(path)
 
     target_set = pd.read_csv(path, dtype=str, keep_default_na=False)
     required_columns = {

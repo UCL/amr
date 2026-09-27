@@ -1,12 +1,12 @@
 {
   "artifacts": {
     "model_potency_matrix.csv": {
-      "bytes": 103757,
-      "sha256": "98843ef2f7b89541a752ea194b3a61f695e78b41e1df79bd7da11a125413f658"
+      "bytes": 102997,
+      "sha256": "8654f7a06c92247f591e9fee2ac368ab0c12fe8a1d81bcd92f169abf7aa8c80f"
     },
     "model_resistance_reachability_matrix.csv": {
-      "bytes": 222990,
-      "sha256": "123eac53cfda6333b2fe94cf4f95f88caf4d3f9df6eb1864334f7812dfec78c4"
+      "bytes": 226292,
+      "sha256": "98f78a40cbdc880650fb46b42abb9a9c6340670e76ed0c56ab6c0413d44a41c2"
     },
     "resistance_average_resistant_values.csv": {
       "bytes": 11134,
@@ -21,8 +21,8 @@
       "sha256": "a6a7ac82bf91d0626d8a35dc3836015d96e526776f67566c4866038c808edbea"
     },
     "resistance_targets_v1.csv": {
-      "bytes": 1799421,
-      "sha256": "2d100255d9d40e97bdb3a92a7aa239f4de3067579f1899295ef63fe75b733b81"
+      "bytes": 1800255,
+      "sha256": "367f2a09d11978f9dd8c1e0096ef1b2671ce489c29df00f33fa76583d6f0612b"
     },
     "resistance_targets_v1.schema.json": {
       "bytes": 3863,

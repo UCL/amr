@@ -133,8 +133,8 @@ def generate_summary_statistics():
     return summary_df
 
 
-def main():
-    """Main comprehensive analysis function."""
+def main() -> int:
+    """Run analysis and return a nonzero status when requested outputs fail."""
 
     print("=== AMR Simulation Analysis - Comprehensive Analysis ===\n")
     
@@ -143,7 +143,10 @@ def main():
 
     # Run the configured analysis workflow.
     print("Running comprehensive AMR analysis...")
+    config = None
     comprehensive_completed = False
+    comprehensive_failed = False
+    comprehensive_skipped = False
     try:
         config = PlotConfig()
         # Include the three carriage-focused detail outputs in the standalone run.
@@ -157,6 +160,7 @@ def main():
         comprehensive_completed = True
         print("   [OK] Comprehensive analysis completed successfully!\n")
     except MemoryError:
+        comprehensive_failed = True
         print("\n   [ERROR] OUT OF MEMORY!")
         print("   Try these solutions:")
         print("   1. Close other applications")
@@ -165,31 +169,44 @@ def main():
         print("   4. Run with fewer time steps in the Rust simulation\n")
         gc.collect()
     except SimulationSummarySchemaError as e:
+        comprehensive_skipped = True
         print(f"   [WARN] Comprehensive analysis skipped: {e}")
         print("   Calibration-only legacy compatibility will be attempted next.\n")
         gc.collect()
     except Exception as e:  # noqa: BLE001 - top-level CLI
+        comprehensive_failed = True
         print(f"   [ERROR] Error: {e}\n")
         gc.collect()  # Clean up on error too
 
     # Generate calibration summary file (not printed to console)
+    summary_path = None
     try:
         _t_cal = _time.time()
         summary_path = generate_calibration_summary(config)
         print(f"[TIME] Calibration summary took {_time.time() - _t_cal:.1f} seconds")
         if summary_path is not None:
             print(f"   [OK] Calibration snapshot written to {summary_path}\n")
+        else:
+            print("   [ERROR] No calibration snapshot was generated.\n")
     except Exception as e:  # noqa: BLE001 - top-level CLI
         print(f"   [ERROR] Error generating calibration snapshot: {e}\n")
 
     # Summary
-    print("=== Analysis Complete ===")
-    print("Generated outputs:")
+    failed = comprehensive_failed or summary_path is None
+    print("=== Analysis Incomplete ===" if failed else "=== Analysis Complete ===")
+    print("Output status:")
     if comprehensive_completed:
         print("\nAll plots saved to 'output_graphs/' directory.")
+    elif comprehensive_skipped:
+        print("\nComprehensive plots were skipped because of the simulation summary schema.")
     else:
-        print("\nCalibration snapshot generated; comprehensive plots were skipped.")
+        print("\nComprehensive plotting did not complete; partial outputs may exist in 'output_graphs/'.")
+    if summary_path is not None:
+        print(f"Calibration snapshot: {summary_path}")
+    else:
+        print("Calibration snapshot was not generated.")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

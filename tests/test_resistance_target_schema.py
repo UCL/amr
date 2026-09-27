@@ -249,7 +249,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
     def test_cell_statuses_make_legacy_missingness_explicit(self) -> None:
         counts = Counter((row["component"], row["cell_status"]) for row in self.rows)
-        self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1238)
+        self.assertEqual(counts[(PREVALENCE_COMPONENT, "active_target")], 1174)
         self.assertEqual(
             counts[
                 (
@@ -257,12 +257,12 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                     "active_target_model_unrepresentable",
                 )
             ],
-            56,
+            120,
         )
         self.assertEqual(
             counts[(PREVALENCE_COMPONENT, "legacy_unclassified_missing")], 1268
         )
-        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1159)
+        self.assertEqual(counts[(SEVERITY_COMPONENT, "active_target")], 1096)
         self.assertEqual(
             counts[
                 (
@@ -270,10 +270,10 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
                     "inactive_above_model_representable_maximum",
                 )
             ],
-            78,
+            77,
         )
         self.assertEqual(
-            counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 55
+            counts[(SEVERITY_COMPONENT, "inactive_model_unrepresentable")], 119
         )
         self.assertEqual(
             counts[(SEVERITY_COMPONENT, "inactive_unpaired_legacy_benchmark")],
@@ -289,8 +289,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
             for row in self.rows
             if row["include_in_score"] == "true"
         )
-        self.assertEqual(included[PREVALENCE_COMPONENT], 1228)
-        self.assertEqual(included[SEVERITY_COMPONENT], 1108)
+        self.assertEqual(included[PREVALENCE_COMPONENT], 1176)
+        self.assertEqual(included[SEVERITY_COMPONENT], 1056)
 
         allowed_reasons = {
             "legacy_prevalence_target_missing",
@@ -315,8 +315,8 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
         self.assertEqual(len(prevalence), 42 * 61)
         self.assertEqual(len(severity), 42 * 61)
-        self.assertEqual(int(prevalence["include_in_score"].sum()), 1228)
-        self.assertEqual(int(severity["include_in_score"].sum()), 1108)
+        self.assertEqual(int(prevalence["include_in_score"].sum()), 1176)
+        self.assertEqual(int(severity["include_in_score"].sum()), 1056)
 
         structural_gap = prevalence.loc[
             prevalence["Bacteria"].eq("Enterococcus faecium")
@@ -339,7 +339,7 @@ class ResistanceTargetSchemaTests(unittest.TestCase):
 
         missing_with_potency = prevalence.loc[
             prevalence["Bacteria"].eq("Acinetobacter baumannii")
-            & prevalence["drug"].eq("fosfomycin")
+            & prevalence["drug"].eq("ampicillin_sulbactam")
         ].iloc[0]
         self.assertTrue(pd.isna(missing_with_potency["target"]))
         self.assertFalse(missing_with_potency["include_in_score"])
