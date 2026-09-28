@@ -2194,6 +2194,48 @@ fn standardized_site_drug_level(current_level: f64, initial_level: f64, penetrat
 
     ((current_level * penetration) / initial_level).clamp(0.0, 10.0)
 }
+
+#[inline]
+fn mdr_tb_component_qualifies(
+    potency: f64,
+    current_level: f64,
+    initial_level: f64,
+    penetration: f64,
+    any_r: f64,
+    max_resistance_level: f64,
+    activity_threshold: f64,
+) -> bool {
+    // Validate before the exposure and resistance clamps can hide invalid inputs.
+    if [
+        potency,
+        current_level,
+        initial_level,
+        penetration,
+        any_r,
+        max_resistance_level,
+        activity_threshold,
+    ]
+    .iter()
+    .any(|value| !value.is_finite())
+        || potency <= 0.0
+        || current_level <= 0.0
+        || initial_level <= 0.0
+        || penetration <= 0.0
+        || max_resistance_level <= 0.0
+        || activity_threshold < 0.0
+    {
+        return false;
+    }
+
+    let exposure = standardized_site_drug_level(current_level, initial_level, penetration);
+    // Decoded any_r uses the same configured scale as ordinary direct activity.
+    let normalized_any_r = (any_r / max_resistance_level).clamp(0.0, 1.0);
+    let site_effective_activity = potency * exposure * (1.0 - normalized_any_r);
+    site_effective_activity.is_finite()
+        && site_effective_activity > 0.0
+        && site_effective_activity >= activity_threshold
+}
+
 #[inline]
 fn infection_site_intrinsic_activity(
     individual: &Individual,
@@ -6409,19 +6451,33 @@ pub(crate) fn apply_rules(
                 }
             }
 
-            // MDR-TB receives a configured treatment bonus when enough concurrently active
-            // drugs have non-negligible baseline potency.
+            // MDR-TB bonus eligibility uses each component's standardized local activity
+            // after current infection resistance, before either bonus term or response scaling.
             let mut tb_synergy_bonus = 0.0;
             if bacteria == "mdr_mycobacterium_tuberculosis" {
+                let syndrome_id = individual.infectious_syndrome[b_idx] as usize;
+                // Read the raw threshold so the typed reader's nonnegative clamp cannot
+                // conceal invalid values. Leave non-TB combination protection unchanged.
+                let activity_threshold =
+                    get_global_param("resistance_combination_minimum_site_effective_activity")
+                        .unwrap_or(
+                            store
+                                .globals
+                                .resistance_combination_minimum_site_effective_activity,
+                        );
                 let active_tb_drugs_count = DRUG_SHORT_NAMES
                     .iter()
                     .enumerate()
                     .filter(|(drug_idx, _drug_name)| {
-                        if individual.cur_level_drug[*drug_idx] <= 0.0 {
-                            return false;
-                        }
-                        let potency = param_cache.potency(b_idx, *drug_idx);
-                        potency >= 0.1
+                        mdr_tb_component_qualifies(
+                            param_cache.potency(b_idx, *drug_idx),
+                            individual.cur_level_drug[*drug_idx],
+                            store.drug.initial_level(*drug_idx),
+                            store.syndrome.drug_penetration(syndrome_id, *drug_idx),
+                            load_float(individual.resistances[b_idx][*drug_idx].any_r),
+                            cached_max_resistance_level,
+                            activity_threshold,
+                        )
                     })
                     .count();
 
@@ -7174,6 +7230,10 @@ impl FastMath for f64 {
         fast_math::log2(self as f32) as f64 * std::f64::consts::LN_2
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/mdr_tb.rs"]
+mod mdr_tb_tests;
 
 #[cfg(test)]
 mod tests {
@@ -8571,8 +8631,10 @@ mod tests {
             }
         }
 
+        // The reviewed MDR-TB potency update adds four cells through the existing
+        // potency gate; host eligibility and explicit applicability overrides are unchanged.
         assert_eq!(
-            applicable_cells, 5_711,
+            applicable_cells, 5_715,
             "applicability count should preserve the reviewed mechanism-drug scope"
         );
     }

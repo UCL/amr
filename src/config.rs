@@ -6310,6 +6310,7 @@ map.insert("drug_cefixime_for_bacteria_streptococcus_agalactiae_potency_when_no_
         map.insert("drug_cefixime_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.60);
 
         // --- mdr_mycobacterium_tuberculosis ---
+        // User-supplied susceptible-state modelling assumptions; resistance remains separate.
         map.insert("drug_sulfanilamide_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_penicillin_g_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ampicillin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
@@ -6335,33 +6336,33 @@ map.insert("drug_cefixime_for_bacteria_streptococcus_agalactiae_potency_when_no_
         map.insert("drug_clindamycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No TB activity — lincosamides inactive against mycobacteria
         map.insert("drug_gentamicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);
         map.insert("drug_tobramycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_amikacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);
-        map.insert("drug_ciprofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);
-        map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.4);
-        map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.5);
-        map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.35);
+        map.insert("drug_amikacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_ciprofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.70);
+        map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.70);
         map.insert("drug_nalidixic_acid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_tetracycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
         map.insert("drug_doxycycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
-        map.insert("drug_minocycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No established TB activity — not in WHO MDR-TB regimens
+        map.insert("drug_minocycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_tigecycline_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_vancomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.08);
         map.insert("drug_teicoplanin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_dalbavancin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_linezolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);
-        map.insert("drug_tedizolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_linezolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.85);
+        map.insert("drug_tedizolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.80);
         map.insert("drug_daptomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
         map.insert("drug_quinu_dalfo_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_trim_sulf_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No TB activity — TMP-SMX not active against M. tuberculosis
+        map.insert("drug_trim_sulf_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_chloramphenicol_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.0); // No TB activity — not used in TB treatment
         map.insert("drug_nitrofurantoin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_fosfomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fosfomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.00);
         map.insert("drug_retapamulin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_fusidic_a_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fusidic_a_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.50);
         map.insert("drug_metronidazole_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_fidaxomicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
+        map.insert("drug_fidaxomicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.60);
         map.insert("drug_furazolidone_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.10);
-        map.insert("drug_rifampicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.6);
+        map.insert("drug_rifampicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.90);
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ampicillin_sulbactam_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);

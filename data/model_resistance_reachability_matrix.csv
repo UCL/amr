@@ -2387,7 +2387,7 @@ mdr_mycobacterium_tuberculosis,moxifloxacin,true,0.95,mutation_gyra_parc_seconda
 mdr_mycobacterium_tuberculosis,ofloxacin,true,0.97,mutation_gyra_primary;mutation_gyra_parc_secondary
 mdr_mycobacterium_tuberculosis,tetracycline,false,0,
 mdr_mycobacterium_tuberculosis,doxycycline,false,0,
-mdr_mycobacterium_tuberculosis,minocycline,false,0,
+mdr_mycobacterium_tuberculosis,minocycline,true,0.915,global_efflux_pump;protection_tet_m
 mdr_mycobacterium_tuberculosis,tigecycline,false,0,
 mdr_mycobacterium_tuberculosis,vancomycin,false,0,
 mdr_mycobacterium_tuberculosis,teicoplanin,false,0,
@@ -2396,14 +2396,14 @@ mdr_mycobacterium_tuberculosis,linezolid,false,0,
 mdr_mycobacterium_tuberculosis,tedizolid,false,0,
 mdr_mycobacterium_tuberculosis,daptomycin,false,0,
 mdr_mycobacterium_tuberculosis,quinu_dalfo,false,0,
-mdr_mycobacterium_tuberculosis,trim_sulf,false,0,
+mdr_mycobacterium_tuberculosis,trim_sulf,true,0.85,mutation_folate_pathway
 mdr_mycobacterium_tuberculosis,chloramphenicol,false,0,
 mdr_mycobacterium_tuberculosis,nitrofurantoin,false,0,
 mdr_mycobacterium_tuberculosis,fosfomycin,false,0,
 mdr_mycobacterium_tuberculosis,retapamulin,false,0,
 mdr_mycobacterium_tuberculosis,fusidic_a,false,0,
 mdr_mycobacterium_tuberculosis,metronidazole,false,0,
-mdr_mycobacterium_tuberculosis,fidaxomicin,false,0,
+mdr_mycobacterium_tuberculosis,fidaxomicin,true,0.95,mutation_rpo_b
 mdr_mycobacterium_tuberculosis,furazolidone,false,0,
 mdr_mycobacterium_tuberculosis,rifampicin,true,0.95,mutation_rpo_b
 mdr_mycobacterium_tuberculosis,amoxicillin_clavulanate,false,0,

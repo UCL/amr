@@ -209,6 +209,14 @@ explicit exclusion. Included counts remain 1,176 prevalence and 1,056 conditiona
 rows. The staged refresh updated the projections, exclusion reasons, and manifest without
 changing any benchmark values or missing cells.
 
+The subsequent MDR-TB update supplied all 62 entries and changed 13 potencies. The staged
+refresh synchronized three reachability rows, ten target exclusion-reason rows, and the hash
+manifest. The existing MDR-TB scoring exclusion remains in force: included counts are still
+1,176 prevalence and 1,056 conditional-severity rows. All benchmark values, missing cells,
+cell statuses, scoring inclusion flags, and weights were preserved. The existing applicability
+rules now yield 5,715 cells, four more than before the potency update; resistance parameters
+and applicability overrides were not changed.
+
 Version 1 was amended during model development to count model-unrepresentable numeric prevalence
 benchmarks as fit penalties while preserving their explicit structural-gap status. Any future
 numerical or semantic target change should create a new target-set version or explicitly document

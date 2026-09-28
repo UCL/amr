@@ -5825,32 +5825,32 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | clindamycin | 0 | 1 |
 | mdr_mycobacterium_tuberculosis | gentamicin | 0.15 | 1 |
 | mdr_mycobacterium_tuberculosis | tobramycin | 0.15 | 1 |
-| mdr_mycobacterium_tuberculosis | amikacin | 0.3 | 1 |
-| mdr_mycobacterium_tuberculosis | ciprofloxacin | 0.3 | 1 |
-| mdr_mycobacterium_tuberculosis | levofloxacin | 0.4 | 1 |
-| mdr_mycobacterium_tuberculosis | moxifloxacin | 0.5 | 1 |
-| mdr_mycobacterium_tuberculosis | ofloxacin | 0.35 | 1 |
+| mdr_mycobacterium_tuberculosis | amikacin | 0.75 | 1 |
+| mdr_mycobacterium_tuberculosis | ciprofloxacin | 0.7 | 1 |
+| mdr_mycobacterium_tuberculosis | levofloxacin | 0.85 | 1 |
+| mdr_mycobacterium_tuberculosis | moxifloxacin | 0.85 | 1 |
+| mdr_mycobacterium_tuberculosis | ofloxacin | 0.7 | 1 |
 | mdr_mycobacterium_tuberculosis | tetracycline | 0 | 0.25 |
 | mdr_mycobacterium_tuberculosis | doxycycline | 0 | 0.25 |
-| mdr_mycobacterium_tuberculosis | minocycline | 0 | 0.25 |
+| mdr_mycobacterium_tuberculosis | minocycline | 0.6 | 0.25 |
 | mdr_mycobacterium_tuberculosis | tigecycline | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | vancomycin | 0.08 | 1 |
 | mdr_mycobacterium_tuberculosis | teicoplanin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | dalbavancin | 0.1 | 0.5 |
-| mdr_mycobacterium_tuberculosis | linezolid | 0.3 | 0.5 |
-| mdr_mycobacterium_tuberculosis | tedizolid | 0.1 | 0.5 |
+| mdr_mycobacterium_tuberculosis | linezolid | 0.85 | 0.5 |
+| mdr_mycobacterium_tuberculosis | tedizolid | 0.8 | 0.5 |
 | mdr_mycobacterium_tuberculosis | daptomycin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | quinu_dalfo | 0.1 | 0.5 |
-| mdr_mycobacterium_tuberculosis | trim_sulf | 0 | 0.04 |
+| mdr_mycobacterium_tuberculosis | trim_sulf | 0.5 | 0.04 |
 | mdr_mycobacterium_tuberculosis | chloramphenicol | 0 | 1 |
 | mdr_mycobacterium_tuberculosis | nitrofurantoin | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | fosfomycin | 0.1 | 1 |
+| mdr_mycobacterium_tuberculosis | fosfomycin | 0 | 1 |
 | mdr_mycobacterium_tuberculosis | retapamulin | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | fusidic_a | 0.1 | 1 |
+| mdr_mycobacterium_tuberculosis | fusidic_a | 0.5 | 1 |
 | mdr_mycobacterium_tuberculosis | metronidazole | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | fidaxomicin | 0.1 | 1 |
+| mdr_mycobacterium_tuberculosis | fidaxomicin | 0.6 | 1 |
 | mdr_mycobacterium_tuberculosis | furazolidone | 0.1 | 1 |
-| mdr_mycobacterium_tuberculosis | rifampicin | 0.6 | 1 |
+| mdr_mycobacterium_tuberculosis | rifampicin | 0.9 | 1 |
 | mdr_mycobacterium_tuberculosis | amoxicillin_clavulanate | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | piperacillin_tazobactam | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ampicillin_sulbactam | 0.05 | 1 |
@@ -12711,7 +12711,7 @@ rule used by the model rather than a configurable parameter.
 | <a id="rule-hgt-probability"></a>`hgt_probability[recipient_b,m]` | 
 
 Eligible donor and recipient compartments, donor mechanism, hospital setting, antibiotic pressure and donor predominant-strain status. | Donor-recipient HGT rate matrix; `hgt_hospital_multiplier`; antibiotic-context multipliers; `hgt_minority_donor_multiplier`; counterfactual resistance multiplier. | Calculated for eligible donor-recipient-mechanism routes before transfer sampling. | Donor and recipient must share a represented infection or carriage compartment; MDR-TB is excluded and applicability conditions are enforced. | HGT block in `rules::apply_rules`; precomputed HGT parameters |
-| <a id="rule-new-bacteria-level"></a>`new_bacteria_level[b]` | Previous `level[b]`, growth modifiers, applied drug activity and response multiplier. | Initial and maximum level; base growth; age, immunodeficiency and syndrome growth multipliers; potency, penetration, activity and treatment-response parameters. | Calculated once per positive infection-episode day, bounded, then stored in `level[b]` unless resolution supersedes it. | Fading positive episodes continue this update; MDR-TB multidrug synergy and background effectiveness are explicit exceptions. | Infection-progression block in `rules::apply_rules` |
+| <a id="rule-new-bacteria-level"></a>`new_bacteria_level[b]` | Previous `level[b]`, growth modifiers, applied drug activity and response multiplier. | Initial and maximum level; base growth; age, immunodeficiency and syndrome growth multipliers; potency, penetration, activity and treatment-response parameters. | Calculated once per positive infection-episode day, bounded, then stored in `level[b]` unless resolution supersedes it. | Fading positive episodes continue this update; MDR-TB synergy and background effectiveness both require the configured minimum count of individually qualifying drugs. Eligibility uses finite, positive baseline potency times standardized exposure at the actual infection site times remaining susceptibility from current any_r, at or above resistance_combination_minimum_site_effective_activity, before either bonus or response/load scaling. Subthreshold drugs retain their direct activity. | Infection-progression block in `rules::apply_rules` |
 | <a id="rule-symptom-onset-probability"></a>`symptom_onset_probability[b]` | `level[b]`, infection duration and current symptom indicator. | `{bacterium}_symptom_onset_base_log_odds`; threshold, delay and per-level log-odds parameters. | Recomputed for eligible infections until the symptom indicator becomes true. | No further onset draws after symptoms have occurred in that episode. | Symptom-onset block in `rules::apply_rules` |
 | <a id="rule-bacterial-identification-probability"></a>`bacterial_identification_probability[b]` | Active symptomatic infection, duration, year, hospital status, region, immunodeficiency and sepsis. | Bacterial-testing delay, availability, base rate, adoption, hospital, region, immunosuppression, sepsis and policy parameters. | Recomputed for eligible unidentified infections before the daily testing draw. | Adoption uses a fixed 40-year sigmoid. | Diagnostic-testing block in `rules::apply_rules` |
 | <a id="rule-resistance-testing-probability"></a>`resistance_testing_probability[b]` | Bacterial identification, year, hospital status, region, immunodeficiency, sepsis and policy state. | AST availability, base rate, initial adoption, maximum temporal, hospital, region, immunosuppression, sepsis and policy multipliers. | Recomputed for eligible uninitiated AST before the daily initiation draw. | Adoption uses a fixed 50-year sigmoid; result delivery occurs later. | Resistance-testing block in `rules::apply_rules` |

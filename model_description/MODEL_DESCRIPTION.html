@@ -23649,31 +23649,31 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">amikacin</td>
-<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">0.75</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">ciprofloxacin</td>
-<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">0.7</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">levofloxacin</td>
-<td style="text-align: right;">0.4</td>
+<td style="text-align: right;">0.85</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">moxifloxacin</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.85</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">ofloxacin</td>
-<td style="text-align: right;">0.35</td>
+<td style="text-align: right;">0.7</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
@@ -23691,7 +23691,7 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">minocycline</td>
-<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.6</td>
 <td style="text-align: right;">0.25</td>
 </tr>
 <tr>
@@ -23721,13 +23721,13 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">linezolid</td>
-<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">0.85</td>
 <td style="text-align: right;">0.5</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">tedizolid</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.8</td>
 <td style="text-align: right;">0.5</td>
 </tr>
 <tr>
@@ -23745,7 +23745,7 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">trim_sulf</td>
-<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.5</td>
 <td style="text-align: right;">0.04</td>
 </tr>
 <tr>
@@ -23763,7 +23763,7 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">fosfomycin</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
@@ -23775,7 +23775,7 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">fusidic_a</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
@@ -23787,7 +23787,7 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">fidaxomicin</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.6</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
@@ -23799,7 +23799,7 @@ their names describe the intended column structure, not downloaded observations.
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
 <td style="text-align: right;">rifampicin</td>
-<td style="text-align: right;">0.6</td>
+<td style="text-align: right;">0.9</td>
 <td style="text-align: right;">1</td>
 </tr>
 <tr>
@@ -58162,7 +58162,7 @@ rule used by the model rather than a configurable parameter.</p>
 <td>Previous <code>level[b]</code>, growth modifiers, applied drug activity and response multiplier.</td>
 <td>Initial and maximum level; base growth; age, immunodeficiency and syndrome growth multipliers; potency, penetration, activity and treatment-response parameters.</td>
 <td>Calculated once per positive infection-episode day, bounded, then stored in <code>level[b]</code> unless resolution supersedes it.</td>
-<td>Fading positive episodes continue this update; MDR-TB multidrug synergy and background effectiveness are explicit exceptions.</td>
+<td>Fading positive episodes continue this update; MDR-TB synergy and background effectiveness both require the configured minimum count of individually qualifying drugs. Eligibility uses finite, positive baseline potency times standardized exposure at the actual infection site times remaining susceptibility from current any_r, at or above resistance_combination_minimum_site_effective_activity, before either bonus or response/load scaling. Subthreshold drugs retain their direct activity.</td>
 <td>Infection-progression block in <code>rules::apply_rules</code></td>
 </tr>
 <tr>
