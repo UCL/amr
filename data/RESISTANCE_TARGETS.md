@@ -217,6 +217,29 @@ cell statuses, scoring inclusion flags, and weights were preserved. The existing
 rules now yield 5,715 cells, four more than before the potency update; resistance parameters
 and applicability overrides were not changed.
 
+The subsequent M. pneumoniae update supplied all 62 entries and changed 16 potencies. The
+staged refresh synchronized one reachability row, four target exclusion-reason rows, and
+the hash manifest. All benchmark values, missing cells, cell statuses, scoring inclusion
+flags, and weights were preserved; included counts remain 1,176 prevalence and 1,056
+conditional-severity rows. The existing applicability rules now yield 5,721 cells, six more
+than before this potency update. The Markdown and HTML potency tables were synchronized;
+Python consumers continue to read the generated tables without source changes.
+
+The subsequent Morganella spp. update supplied all 62 entries and changed 11 potencies.
+The staged refresh synchronized one reachability row, two target exclusion-reason rows,
+and the hash manifest. All benchmark values, missing cells, cell statuses, scoring inclusion
+flags, and weights were preserved; included counts remain 1,176 prevalence and 1,056
+conditional-severity rows. The existing applicability rules now yield 5,731 cells, ten more
+than before this potency update. The Markdown and HTML potency tables were synchronized;
+Python consumers continue to read the generated tables without source changes.
+
+The subsequent Proteus spp. update supplied all 62 entries and changed three potencies.
+The staged refresh synchronized the potency projection and its hash manifest. Reachability,
+all target rows, and the source table were unchanged; included counts remain 1,176 prevalence
+and 1,056 conditional-severity rows. The applicability count remains 5,731. The Markdown and
+HTML potency tables were synchronized; Python consumers continue to read the generated
+tables without source changes.
+
 Version 1 was amended during model development to count model-unrepresentable numeric prevalence
 benchmarks as fit penalties while preserving their explicit structural-gap status. Any future
 numerical or semantic target change should create a new target-set version or explicitly document

@@ -8631,10 +8631,10 @@ mod tests {
             }
         }
 
-        // The reviewed MDR-TB potency update adds four cells through the existing
+        // The reviewed Morganella potency update adds ten cells through the existing
         // potency gate; host eligibility and explicit applicability overrides are unchanged.
         assert_eq!(
-            applicable_cells, 5_715,
+            applicable_cells, 5_731,
             "applicability count should preserve the reviewed mechanism-drug scope"
         );
     }

@@ -445,7 +445,7 @@ morganella_spp.,cefuroxime,false,0,
 morganella_spp.,ceftriaxone,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 morganella_spp.,ceftazidime,true,0.999999726671875,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 morganella_spp.,cefepime,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
-morganella_spp.,ceftaroline,false,0,
+morganella_spp.,ceftaroline,true,0.9977366423125,enzyme_esbl_ctx_m;enzyme_esbl_tem;enzyme_esbl_shv;enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 morganella_spp.,ceftolozane_tazobactam,true,0.9999825,enzyme_kpc;enzyme_ndm_vim;enzyme_ampc_cmy;enzyme_ampc_dha;mutation_ampc_derepression;mutation_pbp_mosaic
 morganella_spp.,cefiderocol,true,0.6,mutation_siderophore_uptake
 morganella_spp.,meropenem,true,0.9984999999999999,enzyme_kpc;enzyme_ndm_vim;enzyme_oxa_48
@@ -2459,7 +2459,7 @@ mycoplasma_pneumoniae,tedizolid,false,0,
 mycoplasma_pneumoniae,daptomycin,false,0,
 mycoplasma_pneumoniae,quinu_dalfo,false,0,
 mycoplasma_pneumoniae,trim_sulf,false,0,
-mycoplasma_pneumoniae,chloramphenicol,false,0,
+mycoplasma_pneumoniae,chloramphenicol,true,0.991432,target_site_cfr;enzyme_cat;efflux_acrab_tolc;efflux_mexxy_oprm;global_efflux_pump;efflux_mtr_cde
 mycoplasma_pneumoniae,nitrofurantoin,false,0,
 mycoplasma_pneumoniae,fosfomycin,false,0,
 mycoplasma_pneumoniae,retapamulin,false,0,
