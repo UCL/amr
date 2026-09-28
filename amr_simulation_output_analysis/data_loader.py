@@ -17,7 +17,12 @@ from typing import Optional, Dict, Any, List
 import logging
 import gc
 from .config import DataConfig, PlotConfig
-from .column_selector import get_required_columns, estimate_memory_savings
+from .column_selector import DETAIL_PLOT_PATTERNS, get_required_columns, estimate_memory_savings
+from .cache_provenance import (
+    SourceChangedError, assert_source_unchanged, cache_context, cache_matches,
+    source_fingerprint, write_cache,
+)
+from .policy import policy_ids, rolling_by_trajectory
 from .summary_schema import (
     SUMMARY_SCHEMA_VERSION_COLUMN,
     SimulationSummarySchemaError,
@@ -97,6 +102,27 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Bump when derived-column semantics change, even if the CSV schema is unchanged.
+PREPROCESSING_CACHE_VERSION = 2
+
+
+def _requested_source_columns(
+    source_columns: List[str],
+    use_column_subset: bool = True,
+    include_detail_plots: bool = False,
+    enabled_detail_plots: Optional[List[str]] = None,
+) -> List[str]:
+    if not use_column_subset:
+        return list(source_columns)
+    return get_required_columns(
+        source_columns,
+        include_grouped_plots=True,
+        include_calibration=True,
+        include_detail_plots=include_detail_plots,
+        enabled_detail_plots=enabled_detail_plots,
+    )
+
+
 class DataCache:
     """
     Singleton cache for simulation and empirical data.
@@ -125,18 +151,71 @@ class DataCache:
         self._drug_list: Optional[list] = None
         self._resistance_mechanisms: Optional[list] = None
         self._simulation_csv_path: Optional[Path] = None
+        self._source_fingerprint: Optional[Dict[str, Any]] = None
+        self._source_columns: Optional[List[str]] = None
+        self._load_options: Dict[str, Any] = {
+            'use_column_subset': True,
+            'include_detail_plots': False,
+            'enabled_detail_plots': None,
+        }
+        self._preprocessed_context: Optional[Dict[str, Any]] = None
         self._plot_config: Optional[PlotConfig] = None
         self._preprocess_options: Dict[str, Any] = {}
         self._initialized = True
         
         logger.info("DataCache initialized")
+
+    def _invalidate_simulation_data(self) -> None:
+        self._simulation_data = None
+        self._preprocessed_data = None
+        self._preprocessed_context = None
+        self._bacteria_list = None
+        self._drug_list = None
+        self._resistance_mechanisms = None
+        self._preprocess_options = {}
+
+    def _select_source(self, csv_file: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        selected = csv_file if csv_file is not None else self._simulation_csv_path
+        if selected is None:
+            selected = DataConfig().simulation_file
+        path = Path(selected).resolve()
+        self._simulation_csv_path = path
+        try:
+            fingerprint = source_fingerprint(path)
+        except OSError as error:
+            self._invalidate_simulation_data()
+            self._source_fingerprint = None
+            self._source_columns = None
+            logger.error("Cannot access simulation CSV %s: %s", path, error)
+            return None
+        if fingerprint != self._source_fingerprint:
+            self._invalidate_simulation_data()
+            self._source_fingerprint = fingerprint
+            self._source_columns = None
+        if self._source_columns is None:
+            self._source_columns = get_csv_columns(path)
+        return fingerprint
+
+    def _check_source_unchanged(self, expected: Dict[str, Any]) -> None:
+        try:
+            assert_source_unchanged(self._simulation_csv_path, expected)
+        except SourceChangedError:
+            self._invalidate_simulation_data()
+            self._source_fingerprint = None
+            self._source_columns = None
+            raise
+
+    def _drop_raw_after_preprocessing(self, config: PlotConfig) -> None:
+        if getattr(config, 'drop_raw_data_after_preprocess', True):
+            self._simulation_data = None
+            gc.collect()
     
     def get_simulation_data(
         self,
         csv_file: str = None,
         force_reload: bool = False,
-        use_column_subset: bool = True,
-        include_detail_plots: bool = False,
+        use_column_subset: Optional[bool] = None,
+        include_detail_plots: Optional[bool] = None,
         enabled_detail_plots: Optional[List[str]] = None,
         allow_legacy_calibration_schemas: bool = False,
     ) -> Optional[pd.DataFrame]:
@@ -144,69 +223,55 @@ class DataCache:
         Get cached simulation data, loading if necessary.
         
         Args:
-            csv_file: Path to CSV file (uses default if None)
-            force_reload: Force reload even if cached
-            use_column_subset: Only load columns needed for grouped plots + calibration
-            include_detail_plots: DEPRECATED - use enabled_detail_plots instead
+            csv_file: Path to CSV file (None reuses the selected source, or the default initially)
+            force_reload: Reload the CSV, bypassing memory and raw Parquet caches
+            use_column_subset: Only load requested columns; None retains the last setting (initially True)
+            include_detail_plots: DEPRECATED; None retains the last setting (initially False)
             enabled_detail_plots: List of specific detail plot names to load columns for
+                (None retains the previous request; [] clears it)
             allow_legacy_calibration_schemas: Additionally permit schemas 1-2 for
                 the calibration-summary compatibility workflow (3-5 are supported normally)
             
         Returns:
             DataFrame with simulation data or None if loading failed
         """
-        if csv_file is None:
-            csv_file = str(DataConfig().simulation_file)
-        csv_path = Path(csv_file)
+        if force_reload:
+            self._source_columns = None
+        fingerprint = self._select_source(csv_file)
+        if fingerprint is None:
+            return None
+        csv_path = self._simulation_csv_path
+        if use_column_subset is not None:
+            self._load_options['use_column_subset'] = use_column_subset
+        if include_detail_plots is not None:
+            self._load_options['include_detail_plots'] = include_detail_plots
+        if enabled_detail_plots is not None:
+            self._load_options['enabled_detail_plots'] = list(enabled_detail_plots)
+        required_columns = _requested_source_columns(self._source_columns, **self._load_options)
 
-        if self._simulation_csv_path is not None:
-            previous_path = self._simulation_csv_path.resolve(strict=False)
-            requested_path = csv_path.resolve(strict=False)
-            if previous_path != requested_path:
-                self._simulation_data = None
-                self._preprocessed_data = None
-                self._bacteria_list = None
-                self._drug_list = None
-                self._resistance_mechanisms = None
-                self._preprocess_options = {}
-                force_reload = True
-
-        if self._simulation_data is not None and not force_reload:
+        if (self._simulation_data is not None and not force_reload
+                and set(required_columns).issubset(self._simulation_data.columns)):
             validate_summary_frame(
                 self._simulation_data,
-                self._simulation_csv_path or csv_path,
+                csv_path,
                 allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
             )
             return self._simulation_data
 
         if force_reload:
-            self._simulation_data = None
-            self._preprocessed_data = None
-            self._bacteria_list = None
-            self._drug_list = None
-            self._resistance_mechanisms = None
-            self._preprocess_options = {}
-
-        if self._simulation_data is None:
-            self._simulation_csv_path = csv_path
-            self._simulation_data = load_simulation_data(
-                str(csv_path),
-                use_column_subset=use_column_subset,
-                include_detail_plots=include_detail_plots,
-                enabled_detail_plots=enabled_detail_plots,
-                allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
-            )
-            
-            # Clear dependent cached data when simulation data reloads
-            if self._simulation_data is not None:
-                self._preprocessed_data = None
-                self._bacteria_list = None
-                self._drug_list = None 
-                self._resistance_mechanisms = None
-                logger.info(f"Simulation data loaded and cached: {len(self._simulation_data)} rows")
-        
-        return self._simulation_data
-        
+            self._invalidate_simulation_data()
+        self._simulation_data = None
+        loaded = load_simulation_data(
+            str(csv_path),
+            **self._load_options,
+            allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
+            force_reload=force_reload,
+        )
+        self._check_source_unchanged(fingerprint)
+        self._simulation_data = loaded
+        self._bacteria_list = None
+        self._drug_list = None
+        self._resistance_mechanisms = None
         return self._simulation_data
     
     def get_preprocessed_data(
@@ -224,13 +289,25 @@ class DataCache:
         Returns:
             DataFrame with preprocessed simulation data or None if failed
         """
-        # Persist the latest plotting configuration so downstream calls remain consistent
+        # Persist plot preferences; loading options and source survive raw-data dropping.
         if plot_config is not None:
             self._plot_config = plot_config
         elif self._plot_config is None:
             self._plot_config = PlotConfig()
 
         plot_cfg = self._plot_config or PlotConfig()
+        if force_reload:
+            self._source_columns = None
+        fingerprint = self._select_source()
+        if fingerprint is None:
+            return None
+        csv_path = self._simulation_csv_path
+        load_options = dict(self._load_options)
+        if load_options['include_detail_plots'] and not load_options['enabled_detail_plots']:
+            load_options['use_column_subset'] = False
+        detail_names = set(load_options['enabled_detail_plots'] or [])
+        detail_names.update(name for name in DETAIL_PLOT_PATTERNS if getattr(plot_cfg, name, False))
+        load_options['enabled_detail_plots'] = sorted(detail_names)
 
         enable_microbiome_aggregates = any(
             [
@@ -240,85 +317,62 @@ class DataCache:
             ]
         )
 
-        previous_flag = self._preprocess_options.get('enable_microbiome_aggregates')
-        if previous_flag is not None and previous_flag != enable_microbiome_aggregates:
-            force_reload = True
+        required_columns = _requested_source_columns(self._source_columns, **load_options)
+        context = cache_context(fingerprint, 'preprocessed', {
+            'preprocessing_version': PREPROCESSING_CACHE_VERSION,
+            'enable_microbiome_aggregates': enable_microbiome_aggregates,
+        })
+        self._load_options = load_options
+        if (not force_reload and self._preprocessed_data is not None
+                and self._preprocessed_context == context
+                and set(required_columns).issubset(self._preprocessed_data.columns)):
+            validate_summary_frame(self._preprocessed_data, csv_path)
+            self._drop_raw_after_preprocessing(plot_cfg)
+            return self._preprocessed_data
 
-        # Check for preprocessed parquet cache first
+        self._preprocessed_data = None
+        self._preprocessed_context = None
+        data_cfg = DataConfig()
         preprocessed_parquet_path = None
-        if self._simulation_csv_path is not None:
-            preprocessed_parquet_path = self._simulation_csv_path.with_suffix('.preprocessed.parquet')
-            if preprocessed_parquet_path.exists() and not force_reload:
+        if data_cfg.enable_parquet_cache:
+            preprocessed_parquet_path = _resolve_parquet_cache_path(
+                csv_path, data_cfg.parquet_cache_path,
+            ).with_suffix('.preprocessed.parquet')
+        if not force_reload and preprocessed_parquet_path is not None:
+            cached = _read_parquet_cache(preprocessed_parquet_path, context=context)
+            if cached is not None and set(required_columns).issubset(cached.columns):
                 try:
-                    # Use Polars for parquet reading when available.
-                    import time as _time
-                    _t_preproc = _time.time()
-                    if is_polars_available():
-                        import polars as pl
-                        print(f"[TIME] Reading preprocessed parquet with Polars...")
-                        polars_df = pl.read_parquet(preprocessed_parquet_path)
-                        print(f"[TIME] Polars preprocessed parquet read took {_time.time() - _t_preproc:.1f}s")
-                        _t_conv = _time.time()
-                        self._preprocessed_data = polars_df.to_pandas()
-                        print(f"[TIME] Polars->pandas conversion took {_time.time() - _t_conv:.1f}s")
-                    else:
-                        print(f"[TIME] Reading preprocessed parquet with pandas...")
-                        self._preprocessed_data = pd.read_parquet(preprocessed_parquet_path)
-                        print(f"[TIME] pandas preprocessed parquet read took {_time.time() - _t_preproc:.1f}s")
-                    validate_summary_frame(self._preprocessed_data, preprocessed_parquet_path)
-                    source_columns = get_csv_columns(self._simulation_csv_path)
-                    missing_required_columns = _missing_required_analysis_columns(
-                        self._preprocessed_data.columns.tolist(),
-                        source_columns,
-                    )
-                    if missing_required_columns:
-                        raise ValueError(
-                            f"preprocessed cache is missing {len(missing_required_columns)} "
-                            "required analysis column(s)"
-                        )
-                    self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
-                    logger.info(f"Loaded preprocessed data from cache: {len(self._preprocessed_data)} rows")
-                    print(f"Loaded preprocessed data from cache ({len(self._preprocessed_data)} rows)")
-                    return self._preprocessed_data
-                except Exception as e:
-                    self._preprocessed_data = None
-                    logger.warning(f"Failed to read preprocessed cache, will reprocess: {e}")
-                    print(f"[WARN] Failed to read preprocessed cache: {e}")
+                    validate_summary_frame(cached, preprocessed_parquet_path)
+                except SimulationSummarySchemaError as error:
+                    logger.warning("Ignoring invalid preprocessed cache: %s", error)
+                else:
+                    self._check_source_unchanged(fingerprint)
+                    self._preprocessed_data = cached
+                    self._preprocessed_context = context
 
-        if self._preprocessed_data is None or force_reload:
-            sim_data = self.get_simulation_data()
-            if sim_data is not None:
-                # Note: preprocess_data handles copying internally when needed
-                # With Polars optimization, data is converted to Polars and back,
-                # so no explicit copy is needed here
-                self._preprocessed_data = preprocess_data(
-                    sim_data,
-                    enable_microbiome_aggregates=enable_microbiome_aggregates,
-                )
-                self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
-                logger.info("Data preprocessing completed and cached")
-                
-                # MEMORY OPTIMIZATION: Drop raw data after preprocessing to free memory
-                # The preprocessed data contains everything needed for plotting
-                drop_raw = getattr(plot_cfg, 'drop_raw_data_after_preprocess', True)
-                if drop_raw and self._simulation_data is not None:
-                    mem_freed = self._simulation_data.memory_usage(deep=True).sum() / 1024**2
-                    self._simulation_data = None
-                    gc.collect()
-                    print(f"[MEMORY] Freed raw data after preprocessing ({mem_freed:.0f}MB)")
-                
-                # Save preprocessed data to parquet cache for future runs
-                if preprocessed_parquet_path is not None and self._preprocessed_data is not None:
-                    try:
-                        self._preprocessed_data.to_parquet(preprocessed_parquet_path, compression='snappy', index=False)
-                        logger.info(f"Saved preprocessed data to cache: {preprocessed_parquet_path}")
-                        print(f"Saved preprocessed data to cache for faster future loads")
-                    except Exception as e:
-                        logger.warning(f"Failed to write preprocessed cache: {e}")
+        if self._preprocessed_data is None:
+            sim_data = self.get_simulation_data(
+                str(csv_path), force_reload=force_reload, **load_options,
+            )
+            if sim_data is None:
+                return None
+            # The pandas fallback assigns derived columns; keep the raw cache raw.
+            processed = preprocess_data(
+                sim_data.copy(deep=False),
+                enable_microbiome_aggregates=enable_microbiome_aggregates,
+            )
+            self._check_source_unchanged(fingerprint)
+            validate_summary_frame(processed, csv_path)
+            self._preprocessed_data = processed
+            self._preprocessed_context = context
+            _write_parquet_cache(
+                processed, preprocessed_parquet_path, data_cfg.parquet_cache_compression,
+                context=context,
+            )
+            self._check_source_unchanged(fingerprint)
 
-        if self._preprocessed_data is not None and 'enable_microbiome_aggregates' not in self._preprocess_options:
-            self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
-        
+        self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
+        self._drop_raw_after_preprocessing(plot_cfg)
         return self._preprocessed_data
 
     def get_data(self, dataset: str = 'preprocessed', force_reload: bool = False) -> Optional[pd.DataFrame]:
@@ -328,7 +382,7 @@ class DataCache:
         if key in {'preprocessed', 'analysis', 'main'}:
             return self.get_preprocessed_data(force_reload=force_reload)
         if key in {'raw', 'simulation'}:
-            return self.get_simulation_data(force_reload=force_reload)
+            return self.get_simulation_data(force_reload=force_reload, **self._load_options)
 
         raise ValueError(f"Unsupported dataset key: {dataset}")
 
@@ -358,8 +412,10 @@ class DataCache:
     
     def get_bacteria_list(self, force_reload: bool = False) -> list:
         """Get cached bacteria list extracted from CSV headers."""
+        if self._select_source() is None:
+            return []
         if self._bacteria_list is None or force_reload:
-            sim_data = self.get_simulation_data()
+            sim_data = self._inventory_data(force_reload)
             if sim_data is not None:
                 self._bacteria_list = extract_bacteria_list_from_csv(sim_data)
                 logger.info(f"Extracted {len(self._bacteria_list)} bacteria from CSV headers")
@@ -368,8 +424,10 @@ class DataCache:
     
     def get_drug_list(self, force_reload: bool = False) -> list:
         """Get cached drug list extracted from CSV headers."""
+        if self._select_source() is None:
+            return []
         if self._drug_list is None or force_reload:
-            sim_data = self.get_simulation_data()
+            sim_data = self._inventory_data(force_reload)
             if sim_data is not None:
                 self._drug_list = extract_drug_list_from_csv(sim_data)
                 logger.info(f"Extracted {len(self._drug_list)} drugs from CSV headers")
@@ -378,13 +436,26 @@ class DataCache:
     
     def get_resistance_mechanisms(self, force_reload: bool = False) -> list:
         """Get cached resistance mechanisms extracted from CSV headers.""" 
+        if self._select_source() is None:
+            return []
         if self._resistance_mechanisms is None or force_reload:
-            sim_data = self.get_simulation_data()
+            sim_data = self._inventory_data(force_reload)
             if sim_data is not None:
                 self._resistance_mechanisms = extract_resistance_mechanisms_from_csv(sim_data)
                 logger.info(f"Extracted {len(self._resistance_mechanisms)} resistance mechanisms")
         
         return self._resistance_mechanisms or []
+
+    def _inventory_data(self, force_reload: bool) -> Optional[pd.DataFrame]:
+        if not force_reload:
+            frame = self._simulation_data
+            if frame is None:
+                frame = self._preprocessed_data
+            required = _requested_source_columns(self._source_columns, **self._load_options)
+            if frame is not None and set(required).issubset(frame.columns):
+                validate_summary_frame(frame, self._simulation_csv_path)
+                return frame
+        return self.get_simulation_data(force_reload=force_reload, **self._load_options)
     
     def clear_cache(self):
         """Clear all cached data to free memory."""
@@ -395,6 +466,14 @@ class DataCache:
         self._drug_list = None
         self._resistance_mechanisms = None
         self._simulation_csv_path = None
+        self._source_fingerprint = None
+        self._source_columns = None
+        self._preprocessed_context = None
+        self._load_options = {
+            'use_column_subset': True,
+            'include_detail_plots': False,
+            'enabled_detail_plots': None,
+        }
         self._plot_config = None
         self._empirical_includes_best_guess_placeholders = None
         self._preprocess_options = {}
@@ -427,33 +506,32 @@ def _resolve_parquet_cache_path(csv_path: Path, configured_path: Optional[Path])
     return resolved / f"{csv_path.stem}.parquet"
 
 
-def _read_parquet_cache(parquet_path: Path) -> Optional[pd.DataFrame]:
-    """Attempt to load a cached parquet dataframe using Polars or pandas."""
+def _read_parquet_cache(
+    parquet_path: Path, *, context: Optional[Dict[str, Any]] = None,
+) -> Optional[pd.DataFrame]:
+    """Read provenance and values from the same opened cache artifact."""
     import time as _time
     _t_start = _time.time()
     
-    # Try Polars first.
-    if is_polars_available():
-        try:
-            import polars as pl
-            print(f"[TIME] Reading parquet with Polars...")
-            polars_df = pl.read_parquet(parquet_path)
-            print(f"[TIME] Polars parquet read took {_time.time() - _t_start:.1f}s")
-            _t_conv = _time.time()
-            df = polars_df.to_pandas()
-            print(f"[TIME] Polars->pandas conversion took {_time.time() - _t_conv:.1f}s")
-            logger.info("Loaded %s rows from parquet cache %s (Polars)", len(df), parquet_path)
-            print(f"Loaded {len(df)} time steps of simulation data (parquet cache via Polars)")
-            return df
-        except Exception as exc:
-            logger.warning("Polars parquet read failed, trying pandas: %s", exc)
-            print(f"[WARN] Polars parquet read failed: {exc}")
-    
-    # Fallback to pandas
     try:
-        print(f"[TIME] Reading parquet with pandas/pyarrow...")
-        df = pd.read_parquet(parquet_path)
-        print(f"[TIME] pandas parquet read took {_time.time() - _t_start:.1f}s")
+        with parquet_path.open('rb') as cache_file:
+            if context is not None and not cache_matches(cache_file, context):
+                return None
+            if is_polars_available():
+                try:
+                    import polars as pl
+                    cache_file.seek(0)
+                    polars_df = pl.read_parquet(cache_file)
+                    df = polars_df.to_pandas()
+                    logger.info("Loaded %s rows from parquet cache %s (Polars)", len(df), parquet_path)
+                    return df
+                except Exception as exc:
+                    logger.warning("Polars parquet read failed, trying pandas: %s", exc)
+            cache_file.seek(0)
+            df = pd.read_parquet(cache_file)
+            print(f"[TIME] Parquet cache read took {_time.time() - _t_start:.1f}s")
+    except FileNotFoundError:
+        return None
     except ImportError as exc:
         logger.warning("Parquet cache unavailable; install pyarrow or fastparquet to enable it: %s", exc)
         return None
@@ -470,22 +548,13 @@ def _write_parquet_cache(
     df: pd.DataFrame,
     parquet_path: Optional[Path],
     compression: Optional[str],
+    *,
+    context: Dict[str, Any],
 ) -> None:
-    """Persist a dataframe to parquet, ignoring errors silently but logging them."""
+    """Publish a cache with its provenance; optional cache failures only log."""
     if parquet_path is None:
         return
-
-    try:
-        parquet_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_parquet(parquet_path, compression=compression or None, index=False)
-    except ImportError as exc:
-        logger.warning("Skipping parquet cache write; install pyarrow or fastparquet to enable it: %s", exc)
-        return
-    except Exception as exc:
-        logger.warning("Failed to write parquet cache %s: %s", parquet_path, exc)
-        return
-
-    logger.info("Wrote parquet cache to %s", parquet_path)
+    write_cache(df, parquet_path, context, compression=compression or None)
 
 def load_simulation_data(
     csv_file: str,
@@ -493,6 +562,7 @@ def load_simulation_data(
     include_detail_plots: bool = False,
     enabled_detail_plots: Optional[List[str]] = None,
     allow_legacy_calibration_schemas: bool = False,
+    force_reload: bool = False,
 ) -> Optional[pd.DataFrame]:
     """
     Load simulation data from CSV file with optional column subsetting.
@@ -508,17 +578,21 @@ def load_simulation_data(
         enabled_detail_plots: List of specific detail plot names to include columns for
         allow_legacy_calibration_schemas: Additionally permit schemas 1-2 for the
             calibration-summary compatibility workflow (3-5 are supported normally)
+        force_reload: Bypass the raw Parquet cache and reload the source CSV
         
     Returns:
         DataFrame with simulation data or None if loading failed
     """
     data_cfg = DataConfig()
-    csv_path = Path(csv_file)
+    csv_path = Path(csv_file).resolve()
 
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_file}")
         print(f"Error: {csv_file} not found. Run the Rust simulation first.")
         return None
+
+    fingerprint = source_fingerprint(csv_path)
+    context = cache_context(fingerprint, 'raw')
 
     # Validate before consulting caches or selecting thousands of wide columns.
     all_columns = get_csv_columns(csv_path)
@@ -558,36 +632,23 @@ def load_simulation_data(
         if usecols:
             parquet_path = parquet_path.with_suffix(f'{cache_suffix}.parquet')
         
-        if parquet_path.exists():
-            csv_mtime = csv_path.stat().st_mtime if csv_path.exists() else None
-            parquet_mtime = parquet_path.stat().st_mtime
-            cache_is_fresh = csv_mtime is None or parquet_mtime >= csv_mtime
-            if cache_is_fresh:
-                cache_df = _read_parquet_cache(parquet_path)
-                if cache_df is not None:
+        if not force_reload:
+            cache_df = _read_parquet_cache(parquet_path, context=context)
+            if cache_df is not None:
+                try:
                     validate_summary_frame(
                         cache_df,
                         parquet_path,
                         allow_legacy_calibration_schemas=allow_legacy_calibration_schemas,
                     )
-                    if usecols:
-                        missing_cached_cols = [col for col in usecols if col not in cache_df.columns]
-                        if missing_cached_cols:
-                            logger.info(
-                                "Parquet cache %s is missing %d requested column(s); refreshing from CSV",
-                                parquet_path,
-                                len(missing_cached_cols),
-                            )
-                        else:
-                            return cache_df
-                    else:
+                except SimulationSummarySchemaError as error:
+                    logger.warning("Ignoring invalid raw cache: %s", error)
+                else:
+                    required = usecols if usecols is not None else all_columns
+                    if set(required).issubset(cache_df.columns):
+                        assert_source_unchanged(csv_path, fingerprint)
                         return cache_df
-            else:
-                logger.info(
-                    "Parquet cache %s is older than CSV %s; refreshing from CSV",
-                    parquet_path,
-                    csv_path,
-                )
+                    logger.info("Parquet cache %s lacks requested columns; refreshing", parquet_path)
 
     # Use Polars when loading the full column set.
     if is_polars_available() and usecols is None:
@@ -608,12 +669,14 @@ def load_simulation_data(
                     )
                     # Downcast floating-point columns to reduce memory use.
                     df = downcast_floats(df)
-                    _write_parquet_cache(df, parquet_path, parquet_compression)
+                    assert_source_unchanged(csv_path, fingerprint)
+                    _write_parquet_cache(df, parquet_path, parquet_compression, context=context)
+                    assert_source_unchanged(csv_path, fingerprint)
                     return df
         except MemoryError:
             logger.warning("Polars load ran out of memory, falling back to pandas with column subset")
             gc.collect()
-        except SimulationSummarySchemaError:
+        except (SimulationSummarySchemaError, SourceChangedError):
             raise
         except Exception as e:
             logger.warning(f"Polars load failed, falling back to pandas: {e}")
@@ -631,7 +694,9 @@ def load_simulation_data(
         logger.info(f"Loaded {len(df)} time steps, {len(df.columns)} columns from {csv_file}")
         print(f"Loaded {len(df)} time steps × {len(df.columns)} columns")
         df = downcast_floats(df)
-        _write_parquet_cache(df, parquet_path, parquet_compression)
+        assert_source_unchanged(csv_path, fingerprint)
+        _write_parquet_cache(df, parquet_path, parquet_compression, context=context)
+        assert_source_unchanged(csv_path, fingerprint)
         return df
 
     except MemoryError as mem_err:
@@ -642,7 +707,7 @@ def load_simulation_data(
         gc.collect()
         return None
 
-    except SimulationSummarySchemaError:
+    except (SimulationSummarySchemaError, SourceChangedError):
         raise
 
     except Exception as e:
@@ -685,7 +750,7 @@ def _preprocessing_input_columns(
     derived columns already present in the input, including ``time_in_years``.
     """
     fixed = {
-        'time_step', 'total_population', 'total_currently_infected',
+        'time_step', 'run_id', 'policy_option', 'total_population', 'total_currently_infected',
         'total_deaths', 'total_with_resistance',
         'currently_infected_and_on_drug_count',
         'infection_acquisition_people_past_year', 'deaths_past_year',
@@ -729,6 +794,8 @@ def preprocess_data(
         DataFrame with additional calculated columns
     """
     import time as _time
+    # Validate grouping before either backend; an unknown policy cannot be pooled.
+    policy_ids(df)
     _preprocess_start = _time.time()
     logger.info("Starting data preprocessing")
     print(f"[TIME] Preprocessing started at {_time.strftime('%H:%M:%S')}")
@@ -1121,8 +1188,8 @@ def preprocess_data(
                 logger.debug("Skipping carrier incidence derivation for %s due to missing presence column", slug)
                 continue
 
-            carrier_rolling = df[carrier_col].rolling(window=365, min_periods=1).sum()
-            non_carrier_rolling = df[non_carrier_col].rolling(window=365, min_periods=1).sum()
+            carrier_rolling = rolling_by_trajectory(df, df[carrier_col], 365, operation='sum')
+            non_carrier_rolling = rolling_by_trajectory(df, df[non_carrier_col], 365, operation='sum')
             total_rolling = carrier_rolling + non_carrier_rolling
 
             incidence_cols = {

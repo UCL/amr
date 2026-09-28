@@ -5879,8 +5879,9 @@ def _figure_7_rows_from_simulation_csv(csv_path: Path) -> list[dict[str, object]
     Compute all-age regional infection death rates from one simulation_summary CSV.
 
     The rate is deaths from sepsis plus infection_non_sepsis per 100,000 alive
-    per year during calendar years 2022-2025. The denominator is regional
-    person-years alive, not an unweighted mean of age-specific rates.
+    per year during calendar years 2022-2025 for baseline policy 0. Legacy
+    summaries without a policy column are treated as baseline. The denominator
+    is regional person-years alive, computed separately for each retained run.
     """
     columns = _simulation_csv_columns(csv_path)
     if columns is None:
@@ -5901,8 +5902,7 @@ def _figure_7_rows_from_simulation_csv(csv_path: Path) -> list[dict[str, object]
         return []
 
     usecols = ["time_in_years"]
-    if "run_id" in columns:
-        usecols.append("run_id")
+    usecols.extend(column for column in ("run_id", "policy_option", "regional_resistance_collected") if column in columns)
     for region in available_regions:
         usecols.extend([
             f"{region}_population",
@@ -5915,23 +5915,29 @@ def _figure_7_rows_from_simulation_csv(csv_path: Path) -> list[dict[str, object]
     except (FileNotFoundError, ValueError, OSError):
         return []
 
+    if "policy_option" in df.columns:
+        df = df.loc[pd.to_numeric(df["policy_option"], errors="coerce").eq(0)].copy()
     df["calendar_year"] = _F1_SIM_EPOCH_YEAR + pd.to_numeric(df["time_in_years"], errors="coerce")
     df = df[(df["calendar_year"] >= 2022.0) & (df["calendar_year"] < 2026.0)].copy()
     if df.empty:
         return []
-
-    time_values = pd.to_numeric(df["time_in_years"], errors="coerce").dropna().sort_values()
-    diffs = time_values.diff().dropna()
-    diffs = diffs[diffs > 0]
-    step_years = float(diffs.median()) if not diffs.empty else 1.0 / 365.0
-    if not np.isfinite(step_years) or step_years <= 0:
-        step_years = 1.0 / 365.0
 
     group_cols = ["run_id"] if "run_id" in df.columns else []
     grouped = df.groupby(group_cols, dropna=False) if group_cols else [(csv_path.stem, df)]
 
     rows: list[dict[str, object]] = []
     for run_key, run_df in grouped:
+        if "regional_resistance_collected" in run_df.columns:
+            collected = pd.to_numeric(run_df["regional_resistance_collected"], errors="coerce")
+            if not collected.eq(1).all():
+                # Uncollected days cannot be interpreted as zero observed deaths.
+                continue
+        time_values = pd.to_numeric(run_df["time_in_years"], errors="coerce").dropna().sort_values()
+        diffs = time_values.diff().dropna()
+        diffs = diffs[diffs > 0]
+        step_years = float(diffs.median()) if not diffs.empty else 1.0 / 365.0
+        if not np.isfinite(step_years) or step_years <= 0:
+            step_years = 1.0 / 365.0
         for region in available_regions:
             pop_col = f"{region}_population"
             sepsis_col = f"{region}_deaths_sepsis"
@@ -5973,10 +5979,10 @@ def make_figure_7_infection_death_rate_by_region(csv_paths: list[Path], out_dir:
         ax.text(
             0.5,
             0.5,
-            "All-age regional infection death rates require regional infection-death counts\n"
-            "and regional population denominators for the calibration window.\n\n"
-            "The available inputs did not contain the required numerator and denominator\n"
-            "columns in matching simulation_summary_*.csv files.",
+            "All-age regional infection death rates require baseline-policy observations\n"
+            "with regional death counts and population denominators for 2022-2025.\n\n"
+            "No eligible observations were available. Where collection is recorded,\n"
+            "it must be enabled throughout each run's selected window.",
             ha="center",
             va="center",
             transform=ax.transAxes,
@@ -5991,10 +5997,11 @@ def make_figure_7_infection_death_rate_by_region(csv_paths: list[Path], out_dir:
             out_dir,
             stem,
             title,
-            "All-age regional infection death rates require regional infection-death counts and "
-            "regional population denominators for the calibration window. The available calibration "
-            "summary contains age-specific rates but not the denominators needed to combine them "
-            "into all-age regional rates.",
+            "All-age regional infection death rates require baseline policy 0 observations, "
+            "regional infection-death counts and population denominators for 2022-2025. "
+            "No eligible observations were available. Where a collection marker is present, "
+            "it must equal 1 throughout the selected window; unavailable collection is not zero mortality. "
+            "Legacy summaries without a policy column are treated as baseline.",
             [],
             agg=agg,
         )
@@ -6053,9 +6060,11 @@ def make_figure_7_infection_death_rate_by_region(csv_paths: list[Path], out_dir:
         out_dir,
         stem,
         title,
-        f"Bars show mean infection deaths per 100,000 regional person-years during 2022-2025 "
+        f"Bars show mean baseline-policy infection deaths per 100,000 regional person-years during 2022-2025 "
         f"across {n_runs} run{'s' if n_runs != 1 else ''}; error bars are two-sided 95% t confidence "
-        "intervals. Sepsis and non-sepsis infection deaths are included. "
+        "intervals. Only policy 0 is included; legacy summaries without a policy column are treated as baseline. "
+        "Where a regional collection marker is present, it must equal 1 throughout each run's selected window. "
+        "Sepsis and non-sepsis infection deaths are included. "
         "Their scope follows the source schema: schema 6 and later exclude deaths with only "
         "H. pylori/MDR-TB contributors; schemas 1-5 retain the broader counts.",
         [],

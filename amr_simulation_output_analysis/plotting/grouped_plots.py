@@ -4,6 +4,7 @@ Grouped summary plots for AMR simulation analysis.
 """
 
 import gc
+from copy import copy
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -14,8 +15,9 @@ from matplotlib.lines import Line2D
 from pathlib import Path
 from typing import Optional
 
-from ..utils import safe_divide, setup_logging, normalize_policy_identifier_list, coerce_policy_identifier
+from ..utils import safe_divide, setup_logging, coerce_policy_identifier
 from ..config import PlotConfig
+from ..policy import iter_policy_frames, policy_ids, rolling_by_trajectory, select_policy_rows
 from ..calibration_summary import (
     get_resistance_benchmark_table,
     _filter_resistance_rows_for_fit,
@@ -33,6 +35,49 @@ def _grouped_figure_path(fig_number: int, config: PlotConfig, run_identifier: Op
     return config.output_dir / f"grouped_figure_{fig_number}{suffix}{extension}"
 
 def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
+    """Overlay selected policy lines and export stacked figures separately by policy."""
+    if config is None:
+        config = PlotConfig()
+    if not getattr(config, 'grouped_plots', True):
+        return
+
+    selected = select_policy_rows(df, getattr(config, 'policies_to_plot', None))
+    if selected.empty:
+        return
+
+    stacked_figures = (5, 8, 9)
+    selected_stacks = {
+        number for number in stacked_figures
+        if getattr(config, f'create_grouped_figure_{number}', False)
+    }
+    if selected_stacks and 'run_id' in selected:
+        runs_per_policy = selected.groupby(policy_ids(selected))['run_id'].nunique(dropna=False)
+        if runs_per_policy.gt(1).any():
+            raise ValueError("Stacked figures require one run per policy; select one run before plotting")
+    policy_count = selected['policy_option'].nunique() if 'policy_option' in selected else 1
+    if policy_count > 1 and selected_stacks:
+        overlay_config = copy(config)
+        for number in stacked_figures:
+            setattr(overlay_config, f'create_grouped_figure_{number}', False)
+        if any(getattr(overlay_config, f'create_grouped_figure_{number}', False)
+               for number in range(1, 13)):
+            _render_grouped_plots(selected, overlay_config, run_identifier)
+
+        for policy, frame in iter_policy_frames(selected):
+            policy_config = copy(config)
+            policy_config.output_dir = Path(config.output_dir) / f'policy_{policy}'
+            policy_config.policies_to_plot = [policy]
+            for number in range(1, 13):
+                setattr(policy_config, f'create_grouped_figure_{number}', number in selected_stacks)
+            _render_grouped_plots(frame, policy_config, run_identifier)
+    else:
+        if policy_count == 1:
+            # Stacks need chronological rows even when there is only one policy.
+            _, selected = next(iter_policy_frames(selected))
+        _render_grouped_plots(selected, config, run_identifier)
+
+
+def _render_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
     """
     Create grouped plots, each file containing 4 subplots.
     
@@ -82,10 +127,14 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         1: ':',  # Policy 1 as dotted
         2: '--',  # Policy 2 as dashed
     }
-    raw_policy_setting = getattr(config, 'policies_to_plot', None)
-    normalized_policy_setting = normalize_policy_identifier_list(raw_policy_setting)
-    allow_extra_policies = normalized_policy_setting is None
-    POLICIES_TO_PLOT = normalized_policy_setting or [0, 1, 2]
+    POLICIES_TO_PLOT = (
+        df['policy_option'].dropna().unique().tolist() if 'policy_option' in df.columns else []
+    )
+
+    def smooth(values, window=SMOOTHING_WINDOW_DAYS, *, operation='mean', center=True):
+        return rolling_by_trajectory(
+            df, values, window, operation=operation, center=center, min_periods=1,
+        )
 
     def _policy_linestyle(policy_value):
         """Resolve requested linestyle for a policy identifier."""
@@ -140,25 +189,25 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             policy_col = df['policy_option']
             available_policies = policy_col.dropna().unique().tolist()
             groups = []
-            for policy_value in POLICIES_TO_PLOT:
+            for policy_value in sorted(POLICIES_TO_PLOT, key=_policy_sort_key):
                 if policy_value in available_policies:
                     mask = policy_col == policy_value
                     groups.append((policy_value, mask))
 
-            if allow_extra_policies:
-                extra_policies = [
-                    value for value in available_policies if value not in POLICIES_TO_PLOT
-                ]
-                for policy_value in sorted(extra_policies, key=_policy_sort_key):
-                    mask = policy_col == policy_value
-                    groups.append((policy_value, mask))
-
-            if not groups:
-                groups = [(None, None)]  # None mask means use all rows
         else:
             groups = [(None, None)]
 
+        if 'run_id' in df.columns:
+            trajectory_groups = []
+            for policy_value, mask in groups:
+                policy_mask = mask if mask is not None else pd.Series(True, index=df.index)
+                for run_id in df.loc[policy_mask, 'run_id'].unique():
+                    run_mask = df['run_id'].isna() if pd.isna(run_id) else df['run_id'] == run_id
+                    trajectory_groups.append((policy_value, policy_mask & run_mask))
+            groups = trajectory_groups
+
         label_used = False
+        labeled_policies = set()
         plotted = False
 
         for policy_value, mask in groups:
@@ -189,14 +238,16 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             if already_smoothed:
                 series_to_plot = values
             else:
-                series_to_plot = (
-                    pd.Series(values)
-                    .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
-                    .mean()
+                series_to_plot = rolling_by_trajectory(
+                    segment, values, SMOOTHING_WINDOW_DAYS, min_periods=1, center=True,
                 )
 
             if separate_policy_labels and policy_value is not None:
-                line_label = f"{label or value_col or 'Series'} – {_policy_label(policy_value)}"
+                line_label = (
+                    f"{label or value_col or 'Series'} – {_policy_label(policy_value)}"
+                    if policy_value not in labeled_policies else None
+                )
+                labeled_policies.add(policy_value)
             else:
                 line_label = label if not label_used else None
 
@@ -248,12 +299,11 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         return running_total
 
     # Generate figures based on individual configuration settings
-    if config.grouped_plots:
+    if config.create_grouped_figure_1:
         # --- Group 1 ---
-        if config.create_grouped_figure_1:
-            fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
-            axes1 = axes1.flatten()
-            fig1.suptitle('Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16, fontweight='bold', y=0.95)
+        fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+        axes1 = axes1.flatten()
+        fig1.suptitle('Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16, fontweight='bold', y=0.95)
         
         # 1. Living Population Over Time
         if 'total_population' in df.columns:
@@ -892,11 +942,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             for res_type in resolution_types:
                 series = resolution_df[res_type]
                 if series.notna().any():
-                    smoothed = (
-                        series
-                        .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
-                        .mean()
-                    )
+                    smoothed = smooth(series)
                     plotted = plot_segmented_series(
                         axes5[1],
                         series=smoothed,
@@ -912,10 +958,10 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes5[1].set_ylabel('Resolution Events per Day')
                 axes5[1].set_ylim(bottom=0)
                 # Add policy line style key manually
+                legend_policies = sorted(POLICIES_TO_PLOT, key=_policy_sort_key)
                 custom_lines = [
-                    Line2D([0], [0], color='gray', lw=2, linestyle='-'),
-                    Line2D([0], [0], color='gray', lw=2, linestyle=':'),
-                    Line2D([0], [0], color='gray', lw=2, linestyle='--'),
+                    Line2D([0], [0], color='gray', lw=2, linestyle=_policy_linestyle(policy))
+                    for policy in legend_policies
                 ]
                 # distinct colors legend
                 first_legend = axes5[1].legend(loc='upper left', fontsize=8)
@@ -923,7 +969,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 
                 # Add a second legend for policies
                 axes5[1].legend(
-                    custom_lines, ['Policy 0', 'Policy 1', 'Policy 2'],
+                    custom_lines, [_policy_label(policy) for policy in legend_policies],
                     loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8, title='Policies'
                 )
                 
@@ -935,12 +981,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             # 3. Total Currently Infected vs Total On Drug (bottom-left)
             if 'total_currently_infected' in df.columns and 'currently_taking_drug_count' in df.columns:
                 # Apply smoothing to both series
-                infected_smooth = pd.Series(df['total_currently_infected']).rolling(
-                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-                ).mean()
-                on_drug_smooth = pd.Series(df['currently_taking_drug_count']).rolling(
-                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-                ).mean()
+                infected_smooth = smooth(df['total_currently_infected'])
+                on_drug_smooth = smooth(df['currently_taking_drug_count'])
                 
                 infected_plotted = plot_segmented_series(
                     axes5[2],
@@ -977,8 +1019,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             # 4. Resolution rate as proportion of total infections (bottom-right)
             if 'total_currently_infected' in df.columns:
                 total_daily_resolutions = total_resolutions
-                smoothed_resolutions = pd.Series(total_daily_resolutions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                smoothed_infections = pd.Series(df['total_currently_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                smoothed_resolutions = smooth(total_daily_resolutions)
+                smoothed_infections = smooth(df['total_currently_infected'])
                 
                 # Calculate resolution rate as percentage of current infections
                 resolution_rate = np.where(smoothed_infections > 0, 
@@ -1056,9 +1098,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             overall_ratio = safe_divide(total_activity_r_sum, total_max_possible, default=np.nan)
             overall_ratio = np.where(total_max_possible < 1e-9, np.nan, overall_ratio)
             overall_ratio = pd.Series(overall_ratio, index=df.index)
-            overall_ratio_smooth = overall_ratio.rolling(
-                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-            ).mean()
+            overall_ratio_smooth = smooth(overall_ratio)
             
             if plot_segmented_series(
                 axes6[0],
@@ -1081,9 +1121,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes6[0].set_axis_off()
             
             # 2. Total Activity R Sum Over Time (top-right)
-            total_activity_r_smooth = total_activity_r_sum.rolling(
-                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-            ).mean()
+            total_activity_r_smooth = smooth(total_activity_r_sum)
             
             if plot_segmented_series(
                 axes6[1],
@@ -1102,9 +1140,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes6[1].set_axis_off()
             
             # 3. Maximum possible applied activity over time (bottom-left)
-            total_infected_smooth = total_max_possible.rolling(
-                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-            ).mean()
+            total_infected_smooth = smooth(total_max_possible)
             
             if plot_segmented_series(
                 axes6[2],
@@ -1148,9 +1184,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     bacteria_ratio = safe_divide(df[activity_r_sum_col], df[max_possible_col])
                     bacteria_ratio = np.where(df[max_possible_col] < 1e-9, np.nan, bacteria_ratio)
                     bacteria_ratio = pd.Series(bacteria_ratio, index=df.index)
-                    bacteria_ratio_smooth = bacteria_ratio.rolling(
-                        window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-                    ).mean()
+                    bacteria_ratio_smooth = smooth(bacteria_ratio)
                     plotted = plot_segmented_series(
                         axes6[3],
                         series=bacteria_ratio_smooth,
@@ -1381,10 +1415,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             # Create time series with smoothing
             syndrome_props_smooth = np.zeros_like(syndrome_proportions)
             for i in range(len(syndrome_cols)):
-                syndrome_props_smooth[:, i] = pd.Series(syndrome_proportions[:, i]).rolling(
-                    window=min(SMOOTHING_WINDOW_DAYS, len(syndrome_proportions)), 
-                    min_periods=1, center=True
-                ).mean()
+                syndrome_props_smooth[:, i] = smooth(
+                    syndrome_proportions[:, i], min(SMOOTHING_WINDOW_DAYS, len(df)),
+                )
             
             # Create stacked area plot
             syndrome_colors = plt.cm.tab10(np.linspace(0, 1, len(syndrome_cols)))
@@ -1454,10 +1487,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 # Create time series with smoothing (absolute numbers, not proportions)
                 region_data_smooth = np.zeros_like(region_data, dtype=float)
                 for i in range(len(region_cols)):
-                    region_data_smooth[:, i] = pd.Series(region_data[:, i]).rolling(
-                        window=min(SMOOTHING_WINDOW_DAYS, len(region_data)), 
-                        min_periods=1, center=True
-                    ).mean()
+                    region_data_smooth[:, i] = smooth(
+                        region_data[:, i], min(SMOOTHING_WINDOW_DAYS, len(df)),
+                    )
                 
                 # Create stacked area plot
                 region_colors = plt.cm.Set3(np.linspace(0, 1, len(region_cols)))
@@ -1566,7 +1598,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 
                 bottom = np.zeros(len(df['time_in_years'][mask]))
                 for i, (col, color, label) in enumerate(zip(death_cols, colors, labels)):
-                    smoothed_data = pd.Series(df[col]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                    smoothed_data = smooth(df[col])
                     axes8[3].fill_between(df['time_in_years'][mask], bottom, bottom + smoothed_data[mask], 
                                         color=color, alpha=0.7, label=label)
                     bottom += smoothed_data[mask]
@@ -1651,9 +1683,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             print("Processing polypharmacy data")
             
             # Apply smoothing to polypharmacy data like other plots
-            people_1_smooth = pd.Series(df['people_on_1_drug']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            people_2_smooth = pd.Series(df['people_on_2_drugs']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            people_3plus_smooth = pd.Series(df['people_on_3plus_drugs']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            people_1_smooth = smooth(df['people_on_1_drug'])
+            people_2_smooth = smooth(df['people_on_2_drugs'])
+            people_3plus_smooth = smooth(df['people_on_3plus_drugs'])
             
             # Create stacked area plot showing polypharmacy distribution
             axes9[1].stackplot(df['time_in_years'], 
@@ -1908,7 +1940,10 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     (df['policy_option'] == policy_value)
                     & (df['time_in_years'] >= MIN_YEAR_POLICY)
                 )
-                needed_cols = ['time_in_years']
+                needed_cols = ['time_in_years'] + [
+                    column for column in ('time_step', 'run_id', 'policy_option')
+                    if column in df.columns
+                ]
                 if have_prop:
                     needed_cols += [SEPSIS_PROP_COL, NON_SEPSIS_PROP_COL]
                 else:
@@ -1924,11 +1959,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     y_label = 'Infection Deaths (Past Year)'
                 if combined.dropna().empty:
                     continue
-                x = seg['time_in_years'] + config.start_year
-                y_smooth = (
-                    pd.Series(combined.values)
-                    .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
-                    .mean()
+                y_smooth = rolling_by_trajectory(
+                    seg, combined, SMOOTHING_WINDOW_DAYS, min_periods=1, center=True,
                 )
                 policy_label = _policy_label(policy_value)
                 year_range = policy_year_ranges.get(policy_value)
@@ -1938,13 +1970,18 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                         policy_label = f"{policy_label} ({start_year}-{end_year})"
                     else:
                         policy_label = f"{policy_label} ({start_year})"
-                ax_plot11.plot(
-                    x.values,
-                    y_smooth.values,
-                    color=POLICY_COMPARE_COLORS[idx % len(POLICY_COMPARE_COLORS)],
-                    linewidth=2,
-                    label=policy_label,
+                trajectories = (
+                    (part for _, part in seg.groupby('run_id', sort=False, dropna=False))
+                    if 'run_id' in seg.columns else (seg,)
                 )
+                for trajectory_index, trajectory in enumerate(trajectories):
+                    ax_plot11.plot(
+                        trajectory['time_in_years'].values + config.start_year,
+                        y_smooth.loc[trajectory.index].values,
+                        color=POLICY_COMPARE_COLORS[idx % len(POLICY_COMPARE_COLORS)],
+                        linewidth=2,
+                        label=policy_label if trajectory_index == 0 else None,
+                    )
                 plotted_any = True
 
             if plotted_any:
@@ -2124,26 +2161,22 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                         numerator_series = pd.to_numeric(df[entry['numerator_col']], errors='coerce')
                         denominator_series = pd.to_numeric(df[entry['denominator_col']], errors='coerce')
 
-                        primary_num = numerator_series.rolling(
-                            window=primary_window_days,
-                            min_periods=1,
-                        ).sum()
-                        primary_den = denominator_series.rolling(
-                            window=primary_window_days,
-                            min_periods=1,
-                        ).sum()
+                        primary_num = smooth(
+                            numerator_series, primary_window_days, operation='sum', center=False,
+                        )
+                        primary_den = smooth(
+                            denominator_series, primary_window_days, operation='sum', center=False,
+                        )
                         selected_pct = primary_num.div(primary_den.where(primary_den > 0.0)) * 100.0
                         selected_den = primary_den
 
                         if expanded_window_days > primary_window_days:
-                            expanded_num = numerator_series.rolling(
-                                window=expanded_window_days,
-                                min_periods=1,
-                            ).sum()
-                            expanded_den = denominator_series.rolling(
-                                window=expanded_window_days,
-                                min_periods=1,
-                            ).sum()
+                            expanded_num = smooth(
+                                numerator_series, expanded_window_days, operation='sum', center=False,
+                            )
+                            expanded_den = smooth(
+                                denominator_series, expanded_window_days, operation='sum', center=False,
+                            )
                             expanded_pct = expanded_num.div(expanded_den.where(expanded_den > 0.0)) * 100.0
 
                             needs_expanded = selected_pct.isna() | (selected_den < low_sample_threshold)

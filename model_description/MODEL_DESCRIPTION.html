@@ -55697,13 +55697,17 @@ may consume those legacy calibration snapshots only with <code>--legacy-without-
 omits Supplementary Figure S5 entirely. Comprehensive analysis and SF5 remain schema-3-only.</p>
 <p>The launcher also writes run metadata including the RNG seed, source identifier, requested
 population and horizon, configured policies, last observed timestep, and summary-file hash.
-The current completion status describes successful CSV export and hashing, rather than an
-independent check that every requested policy trajectory finished. <code>Simulation::run()</code>
-prints a baseline checkpoint error or an alternate-branch error without returning that
-failure to the launcher. A subsequently exported partial, branch-incomplete, or header-only
-CSV can therefore receive <code>status=completed</code> metadata. Checkpoint files themselves are
-validated using a payload checksum and run metadata when restored; this validation failure
-is subject to the same error-reporting behaviour.</p>
+<code>Simulation::run()</code> returns a <code>Result</code> covering the baseline and every requested alternate
+trajectory. Checkpoint write, restore, checksum, and policy-continuation failures propagate
+to the launcher with stage and policy context. Requested branches outside the run horizon
+and incomplete branch summaries are errors. The launcher records <code>status=simulation_failed</code>
+and <code>failure_detail</code>, skips summary export, and returns a nonzero process exit status.
+Completed trajectories are exported to an <code>.incomplete</code> file, hashed, and only then renamed
+to the final <code>.csv</code> path. Export, hash, publication, or final metadata failures also return
+nonzero. Metadata is staged and replaced only after the entire write succeeds, so a failed
+update preserves the previous record. <code>status=completed</code> requires successful trajectories
+and output publication; retained <code>.incomplete</code> files are diagnostic artifacts, not completed
+simulation outputs. Checkpoint handles clean up their temporary files on success and error.</p>
 <h3 id="c2-row-structure">C.2 Row Structure</h3>
 <p>Each retained row represents one simulated day for one policy, identified by <code>policy_option</code>.
 Days use a 365-day year from the 1930 epoch. The current launcher selects 10,000,000 population

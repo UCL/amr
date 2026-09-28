@@ -500,7 +500,8 @@ fn simulation_constructor_preserves_lookup_and_flat_matrix_dimensions() {
 #[test]
 fn full_summary_rows_preserve_expected_vector_dimensions() {
     let mut simulation = Simulation::new(8, 1, false, Some(112_358_132), CalibrationMode::None);
-    simulation.run();
+    simulation.set_active_policy_branches(&[]);
+    simulation.run().expect("tiny simulation should complete");
 
     let summary = simulation
         .summary_log

@@ -101,6 +101,11 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
     """
     if not POLARS_AVAILABLE or df is None:
         return df
+
+    if 'policy_option' in df.columns:
+        identifiers = df['policy_option'].cast(pl.Float64, strict=False)
+        if identifiers.null_count() or not (identifiers.is_finite() & (identifiers == identifiers.floor())).all():
+            raise ValueError("policy_option must contain finite integer policy identifiers")
     
     logger.info("Starting Polars preprocessing")
     
@@ -436,10 +441,17 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
         if non_carrier_col not in df.columns or presence_col not in df.columns:
             continue
 
-        carrier_rolling = pl.col(carrier_col).rolling_sum(window_size=365, min_samples=1)
-        non_carrier_rolling = pl.col(non_carrier_col).rolling_sum(
-            window_size=365,
-            min_samples=1,
+        partitions = []
+        if 'run_id' in df.columns:
+            partitions.append(pl.col('run_id'))
+        if 'policy_option' in df.columns:
+            partitions.append(pl.col('policy_option').cast(pl.Float64).cast(pl.Int64))
+        time_column = 'time_step' if 'time_step' in df.columns else 'time_in_years'
+        carrier_rolling = pl.col(carrier_col).rolling_sum(window_size=365, min_samples=1).over(
+            partitions or [pl.lit(0)], order_by=pl.col(time_column).cast(pl.Float64),
+        )
+        non_carrier_rolling = pl.col(non_carrier_col).rolling_sum(window_size=365, min_samples=1).over(
+            partitions or [pl.lit(0)], order_by=pl.col(time_column).cast(pl.Float64),
         )
         total_rolling = carrier_rolling + non_carrier_rolling
         derived = [

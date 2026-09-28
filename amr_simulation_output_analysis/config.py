@@ -258,7 +258,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_955368"
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_442403"
         ".csv")
     )
     cache_data: bool = True  # Compatibility field; in-memory caching is currently always enabled.

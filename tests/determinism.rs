@@ -28,7 +28,7 @@ fn summary_csv_for_thread_count(threads: usize) -> String {
         let mut simulation =
             Simulation::new(64, 4, false, Some(987_654_321), CalibrationMode::Partial);
         simulation.summary_content_flags = SummaryContentFlags::none();
-        simulation.run();
+        simulation.run().expect("tiny simulation should complete");
 
         let output_path = output_path(&format!("threads_{threads}"));
         simulation

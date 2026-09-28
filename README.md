@@ -205,6 +205,15 @@ records the source hash, seed and seed source, run ID, population, time steps,
 mode, policies, thread count, duration, output path, CSV SHA-256 hash,
 validation status, and completion or failure state.
 
+`Simulation::run()` returns a `Result`; checkpoint and policy-branch failures
+reach the launcher and produce a nonzero exit status with `status=simulation_failed`
+and a `failure_detail` in the metadata. A failed trajectory is not exported.
+CSV output is first written under an `.incomplete` filename, then hashed and
+renamed to its final `.csv` name. Export, checksum, publication, and final metadata
+failures also return nonzero. Metadata is replaced only after its complete write
+succeeds, preserving the previous record if an update fails. Retained `.incomplete`
+files are diagnostic artifacts and are not completed simulation outputs.
+
 Schema 4 introduced resistance snapshots by home region. With regional collection enabled
 (including the default `Full` calibration mode), the calibration summary reports
 resistance prevalence and conditional mean `any_r` for all six regions, with the
@@ -291,6 +300,40 @@ The analysis writes calibration summaries and configured plots under
 `output_graphs/`. Plot selection, policies, output format and memory settings
 are controlled by `PlotConfig`; the input CSV and Parquet-cache options are
 controlled by `DataConfig` in `amr_simulation_output_analysis/config.py`.
+
+Raw and preprocessed Parquet caches record their source-file identity, cache
+version, and preprocessing options inside the file. Cached frames must also
+contain the currently requested columns. Changed sources or options trigger a
+reload; older caches without this metadata are rebuilt automatically. Cache files
+are published atomically, and disabling `enable_parquet_cache` disables both disk
+cache layers.
+
+For Python callers, `DataCache` keeps the selected CSV and loading options when
+later calls omit them, including after preprocessing releases the raw frame.
+Supply a new CSV path to switch sources, or call `clear_cache()` to return to the
+configured default. `force_reload=True` bypasses cached data and reads the CSV
+again. If the source changes during loading or preprocessing, the operation raises
+an error instead of returning data associated with the wrong source state.
+
+Policy comparisons keep each trajectory separate during rolling calculations and
+smoothing. Grouped line figures retain their policy overlays. When multiple
+policies are selected, grouped figures 5, 8 and 9 (which contain stacked charts)
+and detail plots are written separately under `output_graphs/policy_<id>/`.
+Selecting one policy retains the existing output layout. Cache-backed detail
+plots use the same selected rows as the dispatcher, and requesting only absent
+policies raises an error instead of plotting other policies. Derived caches from
+before this correction are rebuilt automatically. Detail and stacked plots require
+one run per policy, as produced by a normal simulation CSV; concatenated runs must
+be selected individually for these outputs.
+
+Paper Figure 8, the regional infection-death-rate calibration figure, includes
+baseline policy 0 only. Where a regional collection marker is present, it must
+show collection throughout that run's selected window; unavailable collection
+does not produce zero-mortality bars. Legacy files without a policy column are
+treated as baseline.
+
+The standalone `multi_run_activity_r_plot.py` also compares baseline policy 0
+across runs, filtering policies before smoothing or aligning time axes.
 
 The calibration snapshot includes overall infection acquisition rates by region
 for its baseline calibration window and exports the table to

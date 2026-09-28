@@ -18,8 +18,10 @@ use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::backtrace::Backtrace;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const RAYON_WORKER_STACK_BYTES: usize = 4 * 1024 * 1024;
 
@@ -93,6 +95,109 @@ fn hash_file_sha256(path: &std::path::Path) -> std::io::Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+#[derive(Debug)]
+struct RunOutput {
+    status: &'static str,
+    csv_path: Option<PathBuf>,
+    summary_hash: Option<String>,
+    failure_detail: Option<String>,
+}
+
+impl RunOutput {
+    fn fail(&mut self, status: &'static str, error: io::Error) {
+        self.status = status;
+        self.failure_detail = Some(error.to_string());
+    }
+
+    fn exit_code(&self) -> ExitCode {
+        if self.status == "completed" {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn reserve_incomplete_file(path: &Path) -> io::Result<(PathBuf, File)> {
+    static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
+    let mut incomplete_name = path.as_os_str().to_os_string();
+    incomplete_name.push(format!(
+        ".{}.{}.incomplete",
+        std::process::id(),
+        NEXT_FILE_ID.fetch_add(1, Ordering::Relaxed)
+    ));
+    let incomplete_path = PathBuf::from(incomplete_name);
+    let file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&incomplete_path)?;
+    Ok((incomplete_path, file))
+}
+
+fn write_atomic_metadata(
+    path: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+) -> io::Result<()> {
+    let (incomplete_path, mut file) = reserve_incomplete_file(path)?;
+    write(&mut file)?;
+    file.sync_all()?;
+    drop(file);
+    // A failed write must preserve the previous metadata, usually `status=started`.
+    std::fs::rename(incomplete_path, path)
+}
+
+/// Publish a summary only after every trajectory, CSV write, and checksum succeeds.
+/// Failed exports remain explicitly named `.incomplete`, outside the analysis CSV glob.
+fn finish_run_output(
+    run_result: io::Result<()>,
+    csv_path: &Path,
+    export: impl FnOnce(&Path) -> io::Result<()>,
+) -> RunOutput {
+    let mut output = RunOutput {
+        status: "simulation_failed",
+        csv_path: None,
+        summary_hash: None,
+        failure_detail: None,
+    };
+    if let Err(error) = run_result {
+        output.fail("simulation_failed", error);
+        return output;
+    }
+
+    // Reserve a unique file. If an old file already has this name, fail without touching it.
+    let incomplete_path = match reserve_incomplete_file(csv_path) {
+        Ok((path, file)) => {
+            drop(file);
+            path
+        }
+        Err(error) => {
+            output.fail("csv_export_failed", error);
+            return output;
+        }
+    };
+    output.csv_path = Some(incomplete_path.clone());
+
+    if let Err(error) = export(&incomplete_path) {
+        output.fail("csv_export_failed", error);
+        return output;
+    }
+    let hash = match hash_file_sha256(&incomplete_path) {
+        Ok(hash) => hash,
+        Err(error) => {
+            output.fail("summary_hash_failed", error);
+            return output;
+        }
+    };
+    if let Err(error) = std::fs::rename(&incomplete_path, csv_path) {
+        output.fail("csv_publish_failed", error);
+        return output;
+    }
+    output.status = "completed";
+    output.csv_path = Some(csv_path.to_path_buf());
+    output.summary_hash = Some(hash);
+    output
+}
+
 fn classify_panic(payload: &str, location: &str) -> &'static str {
     let payload_lower = payload.to_ascii_lowercase();
     let location_lower = location.to_ascii_lowercase();
@@ -126,6 +231,7 @@ fn write_run_metadata(
     duration_secs: Option<f64>,
     summary_hash: Option<&str>,
     failure_class: &str,
+    failure_detail: Option<&str>,
     last_timestep: Option<usize>,
     config_validation_mode: &str,
     config_validation_status: &str,
@@ -133,85 +239,86 @@ fn write_run_metadata(
     config_validation_warnings: usize,
     config_validation_report_path: Option<&std::path::Path>,
 ) -> std::io::Result<()> {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(path)?;
+    write_atomic_metadata(path, |file| {
+        writeln!(file, "status={}", status)?;
+        writeln!(
+            file,
+            "updated_utc={}",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        )?;
+        writeln!(file, "source_hash={}", source_hash)?;
+        writeln!(file, "rng_seed={}", seed.value)?;
+        writeln!(file, "rng_seed_source={}", seed.source)?;
+        writeln!(
+            file,
+            "run_id={}",
+            run_id.map_or_else(|| "pending".to_string(), |id| id.to_string())
+        )?;
+        writeln!(file, "population_size={}", population_size)?;
+        writeln!(file, "time_steps={}", time_steps)?;
+        writeln!(file, "calibration_mode={}", calibration_mode)?;
+        writeln!(file, "active_policies={:?}", active_policies)?;
+        writeln!(
+            file,
+            "last_timestep={}",
+            last_timestep.map_or_else(|| "pending".to_string(), |step| step.to_string())
+        )?;
+        let rayon_threads = rayon::current_num_threads();
+        writeln!(file, "rayon_threads={}", rayon_threads)?;
+        writeln!(
+            file,
+            "rayon_worker_stack_bytes={}",
+            RAYON_WORKER_STACK_BYTES
+        )?;
+        writeln!(file, "config_validation_mode={}", config_validation_mode)?;
+        writeln!(
+            file,
+            "config_validation_status={}",
+            config_validation_status
+        )?;
+        writeln!(
+            file,
+            "config_validation_errors={}",
+            config_validation_errors
+        )?;
+        writeln!(
+            file,
+            "config_validation_warnings={}",
+            config_validation_warnings
+        )?;
+        writeln!(
+            file,
+            "config_validation_report={}",
+            config_validation_report_path
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "pending".to_string())
+        )?;
+        writeln!(
+            file,
+            "duration_seconds={}",
+            duration_secs.map_or_else(|| "pending".to_string(), |secs| format!("{:.3}", secs))
+        )?;
+        writeln!(
+            file,
+            "summary_csv={}",
+            csv_path
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "pending".to_string())
+        )?;
+        writeln!(file, "summary_hash={}", summary_hash.unwrap_or("pending"))?;
+        writeln!(file, "failure_class={}", failure_class)?;
+        writeln!(
+            file,
+            "failure_detail={}",
+            failure_detail.unwrap_or("none").replace(['\r', '\n'], " ")
+        )?;
+        writeln!(file, "replay_env=AMR_RNG_SEED={}", seed.value)?;
 
-    writeln!(file, "status={}", status)?;
-    writeln!(
-        file,
-        "updated_utc={}",
-        Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
-    )?;
-    writeln!(file, "source_hash={}", source_hash)?;
-    writeln!(file, "rng_seed={}", seed.value)?;
-    writeln!(file, "rng_seed_source={}", seed.source)?;
-    writeln!(
-        file,
-        "run_id={}",
-        run_id.map_or_else(|| "pending".to_string(), |id| id.to_string())
-    )?;
-    writeln!(file, "population_size={}", population_size)?;
-    writeln!(file, "time_steps={}", time_steps)?;
-    writeln!(file, "calibration_mode={}", calibration_mode)?;
-    writeln!(file, "active_policies={:?}", active_policies)?;
-    writeln!(
-        file,
-        "last_timestep={}",
-        last_timestep.map_or_else(|| "pending".to_string(), |step| step.to_string())
-    )?;
-    let rayon_threads = rayon::current_num_threads();
-    writeln!(file, "rayon_threads={}", rayon_threads)?;
-    writeln!(
-        file,
-        "rayon_worker_stack_bytes={}",
-        RAYON_WORKER_STACK_BYTES
-    )?;
-    writeln!(file, "config_validation_mode={}", config_validation_mode)?;
-    writeln!(
-        file,
-        "config_validation_status={}",
-        config_validation_status
-    )?;
-    writeln!(
-        file,
-        "config_validation_errors={}",
-        config_validation_errors
-    )?;
-    writeln!(
-        file,
-        "config_validation_warnings={}",
-        config_validation_warnings
-    )?;
-    writeln!(
-        file,
-        "config_validation_report={}",
-        config_validation_report_path
-            .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "pending".to_string())
-    )?;
-    writeln!(
-        file,
-        "duration_seconds={}",
-        duration_secs.map_or_else(|| "pending".to_string(), |secs| format!("{:.3}", secs))
-    )?;
-    writeln!(
-        file,
-        "summary_csv={}",
-        csv_path
-            .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "pending".to_string())
-    )?;
-    writeln!(file, "summary_hash={}", summary_hash.unwrap_or("pending"))?;
-    writeln!(file, "failure_class={}", failure_class)?;
-    writeln!(file, "replay_env=AMR_RNG_SEED={}", seed.value)?;
-
-    Ok(())
+        Ok(())
+    })
 }
 
-fn main() {
+fn main() -> ExitCode {
     install_panic_log_hook();
     configure_rayon_worker_stack();
     let _ = env_logger::builder().is_test(false).try_init();
@@ -323,6 +430,7 @@ fn main() {
             None,
             None,
             "config_validation_failed",
+            Some("Configuration validation rejected the run before simulation"),
             None,
             &config_validation_mode.to_string(),
             config_validation_report.status(),
@@ -364,6 +472,7 @@ fn main() {
         None,
         None,
         "running",
+        None,
         None,
         &config_validation_mode.to_string(),
         config_validation_report.status(),
@@ -413,7 +522,7 @@ fn main() {
     use std::time::Instant;
     let start = Instant::now();
 
-    simulation.run();
+    let run_result = simulation.run();
 
     let duration = start.elapsed();
 
@@ -426,37 +535,15 @@ fn main() {
     let csv_basename = format!("simulation_summary_{:06}.csv", run_id);
     let csv_path = output_dir.join(&csv_basename);
 
-    // The summary CSV is the primary handoff to the Python analysis scripts.
-    let (summary_hash, final_status, failure_class) =
-        match simulation.export_summary_to_csv(&csv_path) {
-            Ok(()) => {
-                println!("Summary data exported to {}", csv_path.display());
-                match hash_file_sha256(&csv_path) {
-                    Ok(hash) => (Some(hash), "completed", "completed"),
-                    Err(err) => {
-                        eprintln!(
-                            "Warning: unable to hash summary CSV {}: {}",
-                            csv_path.display(),
-                            err
-                        );
-                        (
-                            None,
-                            "completed_with_summary_hash_error",
-                            "summary_hash_failed",
-                        )
-                    }
-                }
-            }
-            Err(err) => {
-                println!("Error exporting CSV: {}", err);
-                (None, "csv_export_failed", "csv_export_failed")
-            }
-        };
-    let last_timestep = observability::current_timestep().or_else(|| time_steps.checked_sub(1));
+    // A failed trajectory must never be handed to analysis as a completed summary.
+    let mut output = finish_run_output(run_result, &csv_path, |path| {
+        simulation.export_summary_to_csv(path)
+    });
+    let last_timestep = observability::current_timestep();
 
     if let Err(err) = write_run_metadata(
         &metadata_path,
-        final_status,
+        output.status,
         &source_hash,
         resolved_run_seed,
         population_size,
@@ -464,10 +551,11 @@ fn main() {
         calibration_mode,
         active_policies,
         Some(run_id),
-        Some(&csv_path),
+        output.csv_path.as_deref(),
         Some(duration.as_secs_f64()),
-        summary_hash.as_deref(),
-        failure_class,
+        output.summary_hash.as_deref(),
+        output.status,
+        output.failure_detail.as_deref(),
         last_timestep,
         &config_validation_mode.to_string(),
         config_validation_report.status(),
@@ -476,26 +564,38 @@ fn main() {
         config_validation_report_for_metadata,
     ) {
         eprintln!(
-            "Warning: unable to update run metadata {}: {}",
+            "Error: unable to update run metadata {}: {}",
             metadata_path.display(),
             err
         );
+        // Preserve the primary failure if the simulation or output already failed.
+        if output.status == "completed" {
+            output.fail("metadata_write_failed", err);
+        }
+    }
+
+    if let Some(detail) = &output.failure_detail {
+        eprintln!("[run-failure] {}: {}", output.status, detail);
+    }
+    if output.status == "completed" {
+        println!("Summary data exported to {}", csv_path.display());
     }
 
     println!(
         "[report] status={} run_id={} source_hash={} rng_seed={} last_timestep={} summary_hash={} failure_class={} config_validation_status={} config_validation_mode={} summary_csv={}",
-        final_status,
+        output.status,
         run_id,
         source_hash,
         resolved_run_seed.value,
         last_timestep
             .map(|step| step.to_string())
             .unwrap_or_else(|| "pending".to_string()),
-        summary_hash.as_deref().unwrap_or("pending"),
-        failure_class,
+        output.summary_hash.as_deref().unwrap_or("pending"),
+        output.status,
         config_validation_report.status(),
         config_validation_mode,
-        csv_path.display()
+        output.csv_path.as_deref().map(|path| path.display().to_string())
+            .unwrap_or_else(|| "pending".to_string())
     );
 
     if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
@@ -508,6 +608,7 @@ fn main() {
         duration.as_secs_f64()
     );
     println!("                          ");
+    output.exit_code()
 }
 
 fn install_panic_log_hook() {
@@ -652,4 +753,253 @@ fn validate_bacteria_configuration() {
         println!("   {}. {}", i + 1, bacteria);
     }
     println!("=====================================\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "amr_run_output_{}_{}_{}",
+                std::process::id(),
+                Utc::now().timestamp_nanos_opt().unwrap(),
+                NEXT_ID.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn csv_path(&self) -> PathBuf {
+            self.0.join("simulation_summary_123456.csv")
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            // Only this uniquely created test directory is owned by this fixture.
+            assert_eq!(self.0.parent(), Some(std::env::temp_dir().as_path()));
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_fixture_metadata(path: &Path, output: &RunOutput) {
+        write_run_metadata(
+            path,
+            output.status,
+            "test-source",
+            ResolvedRunSeed {
+                value: 123,
+                source: "test",
+            },
+            2,
+            3,
+            CalibrationMode::Partial,
+            &[0],
+            Some(123456),
+            output.csv_path.as_deref(),
+            Some(0.1),
+            output.summary_hash.as_deref(),
+            output.status,
+            output.failure_detail.as_deref(),
+            None,
+            "strict",
+            "passed",
+            0,
+            0,
+            None,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn failed_trajectory_does_not_export_or_replace_existing_summary() {
+        let directory = TestDirectory::new();
+        let csv_path = directory.csv_path();
+        std::fs::write(&csv_path, "previous completed run").unwrap();
+        let output = finish_run_output(
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "policy 2 checkpoint checksum mismatch",
+            )),
+            &csv_path,
+            |_| panic!("failed trajectories must not export summaries"),
+        );
+        assert_eq!(output.status, "simulation_failed");
+        assert_eq!(output.exit_code(), ExitCode::FAILURE);
+        assert!(output.csv_path.is_none());
+        assert!(output.summary_hash.is_none());
+        assert_eq!(
+            std::fs::read_to_string(&csv_path).unwrap(),
+            "previous completed run"
+        );
+        let metadata_path = directory.0.join("metadata.txt");
+        write_fixture_metadata(&metadata_path, &output);
+        let metadata = std::fs::read_to_string(metadata_path).unwrap();
+        assert!(metadata.contains("status=simulation_failed\n"));
+        assert!(metadata.contains("failure_detail=policy 2 checkpoint checksum mismatch\n"));
+        assert!(metadata.contains("summary_csv=pending\n"));
+        assert!(metadata.contains("last_timestep=pending\n"));
+        assert!(!metadata.contains("status=completed\n"));
+    }
+
+    #[test]
+    fn failed_export_retains_only_an_explicitly_incomplete_file() {
+        let directory = TestDirectory::new();
+        let csv_path = directory.csv_path();
+        let output = finish_run_output(Ok(()), &csv_path, |path| {
+            std::fs::write(path, "partial CSV contents")?;
+            Err(io::Error::other("injected write failure"))
+        });
+        assert_eq!(output.status, "csv_export_failed");
+        assert_eq!(output.exit_code(), ExitCode::FAILURE);
+        assert!(!csv_path.exists());
+        let incomplete = output.csv_path.unwrap();
+        assert_eq!(incomplete.extension().unwrap(), "incomplete");
+        assert_eq!(
+            std::fs::read_to_string(incomplete).unwrap(),
+            "partial CSV contents"
+        );
+    }
+
+    #[test]
+    fn successful_export_publishes_the_hashed_file() {
+        let directory = TestDirectory::new();
+        let csv_path = directory.csv_path();
+        let output = finish_run_output(Ok(()), &csv_path, |path| {
+            std::fs::write(path, "time_step,policy_option\n0,0\n")
+        });
+        assert_eq!(output.status, "completed");
+        assert_eq!(output.exit_code(), ExitCode::SUCCESS);
+        assert_eq!(output.csv_path.as_deref(), Some(csv_path.as_path()));
+        assert_eq!(
+            output.summary_hash,
+            Some(hash_file_sha256(&csv_path).unwrap())
+        );
+        assert!(output.failure_detail.is_none());
+        assert_eq!(std::fs::read_dir(&directory.0).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn missing_export_cannot_be_hashed_or_reported_as_completed() {
+        let directory = TestDirectory::new();
+        let csv_path = directory.csv_path();
+        let output = finish_run_output(Ok(()), &csv_path, |path| std::fs::remove_file(path));
+        assert_eq!(output.status, "summary_hash_failed");
+        assert_eq!(output.exit_code(), ExitCode::FAILURE);
+        assert!(!csv_path.exists());
+        assert!(output.summary_hash.is_none());
+    }
+
+    #[test]
+    fn failed_publication_retains_the_incomplete_file_and_returns_failure() {
+        let directory = TestDirectory::new();
+        let csv_path = directory.csv_path();
+        std::fs::create_dir(&csv_path).unwrap();
+        let output = finish_run_output(Ok(()), &csv_path, |path| {
+            std::fs::write(path, "finished CSV")
+        });
+        assert_eq!(output.status, "csv_publish_failed");
+        assert_eq!(output.exit_code(), ExitCode::FAILURE);
+        assert!(csv_path.is_dir());
+        assert_eq!(
+            std::fs::read_to_string(output.csv_path.unwrap()).unwrap(),
+            "finished CSV"
+        );
+    }
+
+    #[test]
+    fn metadata_write_failure_preserves_previous_status_and_reports_failure() {
+        let directory = TestDirectory::new();
+        let metadata_path = directory.0.join("metadata.txt");
+        std::fs::write(&metadata_path, "status=started\n").unwrap();
+        let error = write_atomic_metadata(&metadata_path, |file| {
+            writeln!(file, "status=completed")?;
+            Err(io::Error::other("injected metadata write failure"))
+        })
+        .expect_err("partial metadata must never replace the current record");
+        assert_eq!(
+            std::fs::read_to_string(&metadata_path).unwrap(),
+            "status=started\n"
+        );
+
+        let mut output = RunOutput {
+            status: "completed",
+            csv_path: None,
+            summary_hash: None,
+            failure_detail: None,
+        };
+        output.fail("metadata_write_failed", error);
+        assert_eq!(output.exit_code(), ExitCode::FAILURE);
+        assert!(output
+            .failure_detail
+            .unwrap()
+            .contains("metadata write failure"));
+
+        write_fixture_metadata(
+            &metadata_path,
+            &RunOutput {
+                status: "simulation_failed",
+                csv_path: None,
+                summary_hash: None,
+                failure_detail: Some("checkpoint restore failed".to_string()),
+            },
+        );
+        assert!(std::fs::read_to_string(metadata_path)
+            .unwrap()
+            .contains("status=simulation_failed\n"));
+    }
+
+    // Run in a child test process below to exercise the same ExitCode returned by main.
+    #[test]
+    fn launcher_exit_probe() -> ExitCode {
+        let Ok(case) = std::env::var("AMR_TEST_RUN_OUTPUT_CASE") else {
+            return ExitCode::SUCCESS;
+        };
+        let directory = PathBuf::from(std::env::var_os("AMR_TEST_RUN_OUTPUT_DIR").unwrap());
+        let run_result = if case == "simulation_failed" {
+            Err(io::Error::other("checkpoint restore failed"))
+        } else {
+            Ok(())
+        };
+        let output = finish_run_output(run_result, &directory.join("summary.csv"), |path| {
+            std::fs::write(path, "time_step\n0\n")?;
+            if case == "csv_export_failed" {
+                Err(io::Error::other("summary write failed"))
+            } else {
+                Ok(())
+            }
+        });
+        write_fixture_metadata(&directory.join("metadata.txt"), &output);
+        output.exit_code()
+    }
+
+    #[test]
+    fn launcher_exit_status_and_metadata_agree_on_success_and_failures() {
+        for case in ["completed", "simulation_failed", "csv_export_failed"] {
+            let directory = TestDirectory::new();
+            let child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "tests::launcher_exit_probe", "--nocapture"])
+                .env("AMR_TEST_RUN_OUTPUT_CASE", case)
+                .env("AMR_TEST_RUN_OUTPUT_DIR", &directory.0)
+                .output()
+                .unwrap();
+            assert_eq!(
+                child.status.success(),
+                case == "completed",
+                "{case}: {:?}",
+                child
+            );
+            let metadata = std::fs::read_to_string(directory.0.join("metadata.txt")).unwrap();
+            assert!(metadata.contains(&format!("status={case}\n")), "{metadata}");
+            assert_eq!(
+                directory.0.join("summary.csv").exists(),
+                case == "completed"
+            );
+        }
+    }
 }

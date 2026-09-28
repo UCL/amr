@@ -605,7 +605,7 @@ fn journey_output_path() -> PathBuf {
 #[test]
 fn summary_csv_rows_match_header_width_for_tiny_run() {
     let mut simulation = Simulation::new(64, 4, false, Some(246_813_579), CalibrationMode::Partial);
-    simulation.run();
+    simulation.run().expect("tiny simulation should complete");
 
     let summary = simulation
         .summary_log

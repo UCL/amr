@@ -12012,13 +12012,17 @@ historical schemas 1-5 lack the necessary headline-scope detail.
 
 The launcher also writes run metadata including the RNG seed, source identifier, requested
 population and horizon, configured policies, last observed timestep, and summary-file hash.
-The current completion status describes successful CSV export and hashing, rather than an
-independent check that every requested policy trajectory finished. `Simulation::run()`
-prints a baseline checkpoint error or an alternate-branch error without returning that
-failure to the launcher. A subsequently exported partial, branch-incomplete, or header-only
-CSV can therefore receive `status=completed` metadata. Checkpoint files themselves are
-validated using a payload checksum and run metadata when restored; this validation failure
-is subject to the same error-reporting behaviour.
+`Simulation::run()` returns a `Result` covering the baseline and every requested alternate
+trajectory. Checkpoint write, restore, checksum, and policy-continuation failures propagate
+to the launcher with stage and policy context. Requested branches outside the run horizon
+and incomplete branch summaries are errors. The launcher records `status=simulation_failed`
+and `failure_detail`, skips summary export, and returns a nonzero process exit status.
+Completed trajectories are exported to an `.incomplete` file, hashed, and only then renamed
+to the final `.csv` path. Export, hash, publication, or final metadata failures also return
+nonzero. Metadata is staged and replaced only after the entire write succeeds, so a failed
+update preserves the previous record. `status=completed` requires successful trajectories
+and output publication; retained `.incomplete` files are diagnostic artifacts, not completed
+simulation outputs. Checkpoint handles clean up their temporary files on success and error.
 
 
 

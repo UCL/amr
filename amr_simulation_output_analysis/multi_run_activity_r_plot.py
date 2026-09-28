@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Plot overall activity_r ratio for every available simulation run.
+"""Plot baseline-policy overall activity_r ratio for available simulation runs.
 
 This script mirrors the top-left panel of grouped figure 6, but overlays one
-line per simulation_summary_<run_id>.csv so that multi-run variability is easy
-to inspect in a single figure.
+line per simulation_summary_<run_id>.csv so that baseline variability is easy
+to inspect in a single figure. Only policy 0 is included; legacy summaries
+without a policy column are treated as baseline.
 """
 
 from __future__ import annotations
@@ -43,6 +44,27 @@ def _detect_bacteria_columns(df: pd.DataFrame) -> List[str]:
 
 
 def _compute_overall_ratio(df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
+    """Calculate one chronologically smoothed baseline trajectory per CSV."""
+    if "policy_option" in df.columns:
+        baseline = pd.to_numeric(df["policy_option"], errors="coerce").eq(0)
+        df = df.loc[baseline]
+    if df.empty:
+        raise ValueError("No baseline policy 0 observations were found in the CSV")
+    if "run_id" in df.columns and df["run_id"].nunique(dropna=False) > 1:
+        raise ValueError("A CSV must contain only one baseline run_id for a per-run activity line")
+
+    if "time_in_years" in df.columns:
+        time_values = pd.to_numeric(df["time_in_years"], errors="coerce").to_numpy(dtype=float)
+    elif "time_step" in df.columns:
+        time_values = pd.to_numeric(df["time_step"], errors="coerce").to_numpy(dtype=float) / 365.0
+    else:
+        raise ValueError("Baseline observations require time_in_years or time_step")
+    if not np.isfinite(time_values).all():
+        raise ValueError("Baseline observation times must be finite numeric values")
+    positions = np.argsort(time_values, kind="stable")
+    df = df.iloc[positions].reset_index(drop=True)
+    years = pd.Series(time_values[positions], index=df.index, name="time_in_years")
+
     bacteria = _detect_bacteria_columns(df)
     if not bacteria:
         raise ValueError("No applied-activity columns were found in the CSV")
@@ -70,7 +92,6 @@ def _compute_overall_ratio(df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
     ).mean()
     smoothed_clipped = smoothed.clip(upper=1.0)
-    years = df["time_in_years"] if "time_in_years" in df else df["time_step"] / 365.0
     return years, smoothed_clipped
 
 
@@ -117,7 +138,7 @@ def main() -> None:
             continue
         ratio_matrix.append(ratio_np)
 
-    ax.set_title("Overall Activity R Ratio by Run (clipped at 1.0)")
+    ax.set_title("Baseline (Policy 0) Overall Activity R Ratio by Run (clipped at 1.0)")
     ax.set_xlabel("Time (years)")
     ax.set_ylabel("Activity R Ratio")
     ax.set_ylim(0.0, 1.0)
@@ -148,7 +169,7 @@ def main() -> None:
         )
         ax_summary.plot(time_axis, median, color="tab:blue", linewidth=2.0, label="Median")
         ax_summary.set_title(
-            "Overall Activity R Ratio – Median and 90% Range Across Runs (clipped at 1.0)"
+            "Baseline (Policy 0) Activity R Ratio – Median and 90% Range Across Runs (clipped at 1.0)"
         )
         ax_summary.set_xlabel("Time (years)")
         ax_summary.set_ylabel("Activity R Ratio")

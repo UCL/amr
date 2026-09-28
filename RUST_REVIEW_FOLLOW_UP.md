@@ -18,15 +18,15 @@ The priorities below distinguish confirmed correctness defects from confirmed be
 
    **Verified:** Two new Rust regression tests compare raw statistics with the actual final population across full, standard-calibration and minimal-calibration profiles, and explicitly exercise same-day clearance and death. They check positive-count bounds, hospital/community partitions, regional/global counts and sums, testing stocks, mechanism counts and susceptibility counts. Seventeen new Python tests enforce schema-5 arithmetic and preserve historical handling. A schema-5 Rust export passed the real Python benchmark and regional-table calculations. A separate comparison with the previous compiled binary matched all 64,703 non-version fields in the unchanged short-run fixture. Full Rust and Python suites retained only the three previously recorded parameter/whitespace failures.
 
-2. [ ] **High priority: propagate checkpoint and policy-branch failures to the launcher.**
+2. [x] **High priority: propagate checkpoint and policy-branch failures to the launcher.**
 
    **Evidence:** [Simulation::run](src/simulation/simulation.rs), around lines 6835 and 6866-6899, returns `()` and only prints baseline/branch errors. [main.rs](src/main.rs), around lines 416 and 431-435, then exports summaries and can record `completed` if export and hashing succeed.
 
    **Why change it:** A failed checkpoint write, checksum check or restore can leave truncated output or missing policy branches with successful completion metadata.
 
-   **Proposed work:** Return a `Result` from the run path and propagate failure through the launcher to an unsuccessful process exit and truthful run metadata. Mark completion only after all requested trajectories finish. If partial outputs are retained, identify them explicitly as incomplete.
+   **Implemented:** `Simulation::run()` returns `io::Result<()>` with stage/policy context. Branch errors preserve baseline and previously completed policy summaries for diagnosis, restore policy flags, and reach the launcher. Missing branch points and incomplete branch coverage fail explicitly. Failed trajectories are not exported; CSV publication follows successful staged writing and hashing. Failed CSV artifacts have an `.incomplete` suffix. Metadata includes failure details and is itself staged before replacement, so failed writes preserve the previous status. Simulation, CSV, hash, publication, and final metadata errors produce nonzero exit status.
 
-   **Verification:** Force checkpoint-write and checkpoint-restore failures, including failure after an earlier policy succeeded. Check exit status, metadata, branch coverage and cleanup. Keep successful fixed-seed checkpoint parity tests passing.
+   **Verification:** Small regression fixtures force checkpoint-write, missing-restore, and checksum failures, including failure after an earlier policy succeeded. Tests cover retained summaries, reset policy flags, cleanup, missing branch points, incomplete coverage, CSV/hash/publication failures, metadata write failure, and child-process exit status. Existing disk/in-memory parity, multi-policy output ranges, CSV invariants, dimension checks, and deterministic-thread checks pass.
 
 3. [x] **High priority: activate the agreed infection/carriage exchange pathway (implemented and regression-verified).**
 
@@ -102,4 +102,4 @@ The priorities below distinguish confirmed correctness defects from confirmed be
 
 The review's baseline was 157 passing library tests and one failing library test, plus a separate failing configuration-invariant test. The other exercised Rust targets passed. These are existing failures to reconcile, not evidence of changes introduced by future repairs.
 
-Suggested order for the remaining review work: address failure propagation; resolve the outstanding carriage and treatment-tracking decisions before changing those pathways; then reconcile parameter tests, maintain generated documentation and complete CI coverage. Item 3 records the separately agreed exchange change. Preserve separate reviewable changes for reporting repairs and changes to model dynamics.
+Suggested order for the remaining review work: resolve the outstanding carriage and treatment-tracking decisions before changing those pathways; then reconcile parameter tests, maintain generated documentation and complete CI coverage. Item 2 records completed failure propagation; item 3 records the separately agreed exchange change. Preserve separate reviewable changes for reporting repairs and changes to model dynamics.

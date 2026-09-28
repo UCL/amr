@@ -134,11 +134,62 @@ def _split_sections(lines: list[str]) -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 def _split_row(line: str) -> list[str]:
-    """Split a fixed-width row on two or more consecutive spaces."""
+    """Split a compact row whose nonempty cells have whitespace delimiters."""
     return re.split(r"\s{2,}", line.strip())
 
 
-def _table_from_section(section_lines: list[str]) -> pd.DataFrame:
+def _fixed_width_boundaries(header: str, rows: list[str]) -> list[int] | None:
+    """Locate column separators without discarding blank cells or header padding.
+
+    Headers and values can have different alignments, so header token starts are
+    not cell boundaries. A separator must remain blank in every row. Require one
+    unambiguous separator in each header gap; compact legacy tables need not have
+    consistent character positions and are handled separately.
+    """
+    labels = list(re.finditer(r"\S.*?(?=\s{2,}|$)", header))
+    if len(labels) < 2 or not rows:
+        return None
+
+    occupied = bytearray(len(header))
+    for row in rows:
+        for value in re.finditer(r"\S+", row):
+            start, end = value.span()
+            end = min(end, len(header))
+            if start < end:
+                occupied[start:end] = b"\x01" * (end - start)
+
+    boundaries = [0]
+    for left, right in zip(labels, labels[1:]):
+        gap = occupied[left.end():right.start()]
+        separators = list(re.finditer(b"\x00{2,}", gap))
+        if len(separators) != 1:
+            return None
+        boundaries.append(left.end() + separators[0].start())
+
+    if any(len(_split_row(row)) == len(labels) and len(row) < boundaries[-1] for row in rows):
+        return None
+
+    # Whitespace in compact rows can coincide with every header gap. Genuine
+    # fixed-width columns also align their values with one edge of the header;
+    # check that before interpreting wide delimiters as empty cells.
+    ends = [*boundaries[1:], None]
+    for label, start, end in zip(labels, boundaries, ends):
+        left_aligned = right_aligned = True
+        header_end = label.start() + len(label.group().rstrip())
+        for row in rows:
+            cell = row[start:end]
+            if not cell.strip():
+                continue
+            left_aligned &= start + len(cell) - len(cell.lstrip()) == label.start()
+            right_aligned &= start + len(cell.rstrip()) == header_end
+            if not left_aligned and not right_aligned:
+                return None
+    return boundaries
+
+
+def _table_from_section(
+    section_lines: list[str], *, require_complete_rows: bool = False,
+) -> pd.DataFrame:
     """
     Find the column-header row (first non-empty line after the section title
     that contains at least one 2+-space gap), then parse all following data rows.
@@ -157,18 +208,38 @@ def _table_from_section(section_lines: list[str]) -> pd.DataFrame:
     if header_idx is None:
         return pd.DataFrame()
 
-    headers = _split_row(section_lines[header_idx])
-    rows: list[list[str]] = []
+    header = section_lines[header_idx]
+    headers = _split_row(header)
+    data_lines: list[str] = []
     for line in section_lines[header_idx + 1:]:
         s = line.strip()
         if not s:
             continue
         if s.startswith("Note:") or s.startswith("Observation") or s.startswith("*"):
             continue
+        if re.fullmatch(r"[-=]{3,}", s):
+            continue
+        data_lines.append(line)
+
+    boundaries = _fixed_width_boundaries(header, data_lines)
+    if boundaries is not None and len(boundaries) != len(headers):
+        boundaries = None
+    rows: list[list[str]] = []
+    for line in data_lines:
+        if boundaries is not None:
+            ends = [*boundaries[1:], None]
+            rows.append([line[start:end].strip() for start, end in zip(boundaries, ends)])
+            continue
+
         parts = _split_row(line)
         if not any(parts):
             continue
-        # Pad or truncate to match header width
+        if require_complete_rows and len(parts) != len(headers):
+            raise ValueError(
+                "Cannot determine calibration table column boundaries: "
+                f"expected {len(headers)} cells, found {len(parts)} in {line.strip()!r}"
+            )
+        # Preserve compact legacy/mixed-section handling when no fixed layout exists.
         while len(parts) < len(headers):
             parts.append("")
         rows.append(parts[:len(headers)])
@@ -219,7 +290,7 @@ _BENCH_COLS = [
 
 
 def _parse_resistance_benchmarks(section_lines: list[str]) -> pd.DataFrame:
-    dynamic = _table_from_section(section_lines)
+    dynamic = _table_from_section(section_lines, require_complete_rows=True)
     if not dynamic.empty:
         return dynamic
 
@@ -431,57 +502,89 @@ def _agg_dataframes(
     passthrough_cols: list[str] | None = None,
 ) -> pd.DataFrame:
     """
-    Aggregate N DataFrames (same structure) aligned on key_cols.
+    Aggregate matching keys across runs, retaining their first-seen order.
+
+    Rows and columns present in only some runs are retained. Missing observations
+    do not contribute numeric values. Keys must be present and unique within each
+    run. The run-specific trailing " *" on Bacteria labels is ignored for identity;
+    the first observed display label is retained.
+
     Numeric columns → "median (p5–p95)" strings.
-    Non-numeric columns → taken from the first run.
-    passthrough_cols: columns to copy verbatim from the first run (no aggregation).
+    Non-numeric columns → the first run containing that key and column.
+    passthrough_cols: copy that first cell verbatim, including explicit missingness.
     """
-    dfs = [d for d in dfs if d is not None and not d.empty]
-    if not dfs:
-        return pd.DataFrame()
-    ref = dfs[0]
-    n_rows = len(ref)
+    if not key_cols or len(set(key_cols)) != len(key_cols):
+        raise ValueError("Aggregation requires nonempty, distinct key columns")
+
     key_set = set(key_cols)
     passthrough_set = set(passthrough_cols or [])
-    result = ref[key_cols].copy().reset_index(drop=True)
-
-    for col in ref.columns:
-        if col in key_set:
+    value_columns: dict[str, None] = {}
+    rows_by_key: dict[tuple, list[dict]] = {}
+    for run_number, df in enumerate(dfs, start=1):
+        if df is None or df.empty:
             continue
-        if col in passthrough_set:
-            result[col] = ref[col].reset_index(drop=True)
-            continue
-        # Gather this column from every run, aligned by row index
-        col_per_run: list[list] = []
-        for df in dfs:
-            if col in df.columns:
-                col_per_run.append(df[col].tolist()[:n_rows])
-            else:
-                col_per_run.append([np.nan] * n_rows)
+        if not df.columns.is_unique:
+            raise ValueError(f"Run {run_number} contains duplicate column names")
+        missing_keys = [col for col in key_cols if col not in df.columns]
+        if missing_keys:
+            raise ValueError(f"Run {run_number} is missing key columns: {missing_keys}")
+        if df[key_cols].isna().any().any():
+            raise ValueError(f"Run {run_number} contains null key values in {key_cols}")
 
-        aggregated: list[str] = []
-        for i in range(n_rows):
-            numeric_vals = [
-                float(col_per_run[r][i])
-                for r in range(len(col_per_run))
-                if i < len(col_per_run[r]) and _is_numeric(col_per_run[r][i])
-            ]
+        for col in df.columns:
+            if col not in key_set:
+                value_columns.setdefault(col, None)
+
+        seen: set[tuple] = set()
+        for row in df.to_dict(orient="records"):
+            key_values = []
+            for col in key_cols:
+                value = row[col]
+                if isinstance(value, str):
+                    value = value.strip()
+                    if col == "Bacteria":
+                        value = value.removesuffix(" *").strip()
+                    if not value:
+                        raise ValueError(f"Run {run_number} contains a blank key in {col!r}")
+                key_values.append(value)
+            key = tuple(key_values)
+            try:
+                duplicate = key in seen
+                seen.add(key)
+            except TypeError as error:
+                raise ValueError(f"Run {run_number} contains an unhashable key: {key!r}") from error
+            if duplicate:
+                raise ValueError(f"Run {run_number} contains duplicate keys for {key_cols}: {key!r}")
+            rows_by_key.setdefault(key, []).append(row)
+
+    if not rows_by_key:
+        return pd.DataFrame()
+
+    records = []
+    for matching_rows in rows_by_key.values():
+        record = {col: matching_rows[0][col] for col in key_cols}
+        for col in value_columns:
+            values = [row[col] for row in matching_rows if col in row]
+            first_value = values[0] if values else np.nan
+            if col in passthrough_set:
+                record[col] = first_value
+                continue
+            numeric_vals = [float(value) for value in values if _is_numeric(value)]
             if numeric_vals:
-                aggregated.append(_fmt_agg(numeric_vals))
+                record[col] = _fmt_agg(numeric_vals)
             else:
-                # Fallback: use first run's string value
-                fallback = col_per_run[0][i] if col_per_run and i < len(col_per_run[0]) else ""
-                aggregated.append(str(fallback) if fallback not in (None, np.nan) else "—")
-        result[col] = aggregated
+                record[col] = "—" if pd.isna(first_value) else str(first_value)
+        records.append(record)
 
-    return result
+    return pd.DataFrame(records, columns=[*key_cols, *value_columns])
 
 
 def aggregate(parsed_list: list[dict]) -> dict:
     """
     Aggregate N parsed run dicts into a single dict.
-    For N=1 runs, values are formatted without confidence intervals.
-    For N>1 runs, numeric cells become "median (p5–p95)" strings.
+    Each table matches rows by its identifying columns, independently of sorting.
+    A cell with one observation is formatted without an interval; multiple
+    observations become "median (p5–p95)" strings.
     """
     if not parsed_list:
         return {}
@@ -498,7 +601,7 @@ def aggregate(parsed_list: list[dict]) -> dict:
         "serious_resistance_locus":   ["Bacteria"],
         "syndrome_incidence":         ["Syndrome"],
         "block_scores":               ["Block"],
-        "largest_contributors":       ["Block"],
+        "largest_contributors":       ["Block", "Target"],
         "drug_class_share":           ["Class"],
         "overall_resistance_fit":     ["Component"],
         "resistance_per_bacteria":    ["Bacteria"],
@@ -507,7 +610,7 @@ def aggregate(parsed_list: list[dict]) -> dict:
     }
 
     # Columns that are fixed calibration targets (not simulation outputs);
-    # copy verbatim from the first run rather than aggregating.
+    # copy the first matching row/column cell verbatim rather than aggregating.
     _passthrough_cols: dict[str, list[str]] = {
         "headline_metrics":    ["Target", "Unit"],
         "bacteria_infections": ["Infection target (%)", "Carriage target (%)"],
@@ -523,7 +626,10 @@ def aggregate(parsed_list: list[dict]) -> dict:
     for section, key_cols in _df_key_cols.items():
         dfs = [p.get(section, pd.DataFrame()) for p in parsed_list]
         pt = _passthrough_cols.get(section, [])
-        agg[section] = _agg_dataframes(dfs, key_cols, pt)
+        try:
+            agg[section] = _agg_dataframes(dfs, key_cols, pt)
+        except ValueError as error:
+            raise ValueError(f"Cannot aggregate {section}: {error}") from error
 
     # Microbiome resistance scalar
     vals = [p.get("microbiome_resistance", np.nan) for p in parsed_list]

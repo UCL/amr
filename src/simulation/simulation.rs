@@ -3425,7 +3425,13 @@ impl Simulation {
             if let Some(step) = branch_capture_step {
                 if t == step && branch_snapshot.is_none() {
                     if self.use_disk_branch_checkpoint {
-                        let checkpoint = self.persist_branch_snapshot_to_disk(step)?;
+                        let checkpoint =
+                            self.persist_branch_snapshot_to_disk(step).map_err(|err| {
+                                std::io::Error::new(
+                                    err.kind(),
+                                    format!("write branch checkpoint at time step {step}: {err}"),
+                                )
+                            })?;
                         branch_snapshot = Some(StoredBranchSnapshot::OnDisk(checkpoint));
                     } else {
                         let snapshot = self.create_branch_snapshot();
@@ -7026,7 +7032,11 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self) {
+    /// Run the baseline and every requested alternate policy.
+    ///
+    /// An error leaves any completed summaries available for diagnosis, but they do not
+    /// constitute a completed run. In particular, checkpoint failures must reach callers.
+    pub fn run(&mut self) -> std::io::Result<()> {
         // Assign this invocation a pseudo-random identifier. It is written to summary CSV rows
         // and temporary checkpoint metadata but is not guaranteed unique across independent runs.
         observability::clear_run_context();
@@ -7057,41 +7067,64 @@ impl Simulation {
         } else {
             None
         };
-        let baseline_snapshot = match self.run_from(0, branch_step) {
-            Ok(snapshot) => snapshot,
-            Err(err) => {
-                eprintln!("Error while running baseline policy: {}", err);
-                return;
-            }
-        };
+        self.run_baseline_and_policy_branches(branch_step)
+    }
 
-        if !self.calibration_mode.uses_policy_branches() {
-            return;
+    fn run_baseline_and_policy_branches(
+        &mut self,
+        branch_step: Option<usize>,
+    ) -> std::io::Result<()> {
+        let branch_policies: Vec<PolicyAdjustments> = self
+            .branch_policy_adjustments
+            .iter()
+            .copied()
+            .filter(|policy| {
+                self.calibration_mode.uses_policy_branches() && policy.policy_option != 0
+            })
+            .collect();
+        if !branch_policies.is_empty() && branch_step.is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "requested alternate policies have no branch point within the {}-step run",
+                    self.time_steps
+                ),
+            ));
         }
 
-        if let (Some(stored_snapshot), Some(step)) = (baseline_snapshot, branch_step) {
-            // The initial run is the complete policy-0 trajectory. Keep it as the canonical
-            // baseline; policy 0 in the requested ID list is redundant, so continue only the
-            // true alternatives from the checkpoint.
-            let baseline_summary_log = std::mem::take(&mut self.summary_log);
-            let branch_policies: Vec<PolicyAdjustments> = self
-                .branch_policy_adjustments
-                .clone()
-                .into_iter()
-                .filter(|policy| policy.policy_option != 0)
-                .collect();
-
-            let branch_result =
-                self.run_stored_policy_branches(stored_snapshot, step, branch_policies);
-
-            self.current_policy_adjustments = self.baseline_policy_adjustments;
-            self.branch_active = false;
-            self.summary_log = baseline_summary_log;
-
-            if let Err(err) = branch_result {
-                eprintln!("Error running alternate policy branches: {}", err);
-            }
+        let baseline_snapshot = self.run_from(0, branch_step).map_err(|err| {
+            std::io::Error::new(err.kind(), format!("baseline policy 0 failed: {err}"))
+        })?;
+        if branch_policies.is_empty() {
+            return Ok(());
         }
+
+        let step = branch_step.expect("requested branch point was checked before baseline");
+        let stored_snapshot = baseline_snapshot.ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("baseline did not capture the requested checkpoint at time step {step}"),
+            )
+        })?;
+        self.run_alternate_policy_branches(stored_snapshot, step, branch_policies)
+    }
+
+    fn run_alternate_policy_branches(
+        &mut self,
+        stored_snapshot: StoredBranchSnapshot,
+        branch_step: usize,
+        branch_policies: Vec<PolicyAdjustments>,
+    ) -> std::io::Result<()> {
+        // Keep the complete baseline canonical even if checkpoint restoration or a later
+        // continuation fails. Already completed alternate summaries remain available too.
+        let baseline_summary_log = std::mem::take(&mut self.summary_log);
+        let branch_result =
+            self.run_stored_policy_branches(stored_snapshot, branch_step, branch_policies);
+
+        self.current_policy_adjustments = self.baseline_policy_adjustments;
+        self.branch_active = false;
+        self.summary_log = baseline_summary_log;
+        branch_result
     }
 
     fn policy_branch_step(&self) -> Option<usize> {
@@ -7126,7 +7159,17 @@ impl Simulation {
             StoredBranchSnapshot::OnDisk(checkpoint) => {
                 for policy in branch_policies {
                     self.release_active_state_for_disk_restore();
-                    let snapshot = self.load_branch_snapshot_from_disk(&checkpoint, branch_step)?;
+                    let snapshot = self
+                        .load_branch_snapshot_from_disk(&checkpoint, branch_step)
+                        .map_err(|err| {
+                            std::io::Error::new(
+                                err.kind(),
+                                format!(
+                                    "restore checkpoint for policy {} at time step {branch_step}: {err}",
+                                    policy.policy_option
+                                ),
+                            )
+                        })?;
                     self.run_policy_branch(snapshot, branch_step, policy)?;
                 }
                 Ok(())
@@ -7175,6 +7218,15 @@ impl Simulation {
         branch_step: usize,
         policy: PolicyAdjustments,
     ) -> std::io::Result<()> {
+        if branch_step >= self.time_steps {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "policy {} branch at time step {branch_step} has no continuation before run end {}",
+                    policy.policy_option, self.time_steps
+                ),
+            ));
+        }
         println!(
             "Starting alternate policy branch (option {}) from time step {}",
             policy.policy_option, branch_step
@@ -7196,21 +7248,36 @@ impl Simulation {
                 self.reset_all_resistance_state();
             }
 
-            self.run_from(branch_step, None)?;
+            self.run_from(branch_step, None).map_err(|err| {
+                std::io::Error::new(
+                    err.kind(),
+                    format!("run alternate policy {} failed: {err}", policy.policy_option),
+                )
+            })?;
 
-            let branch_summaries: Vec<TimeStepSummary> = std::mem::take(&mut self.summary_log)
-                .into_iter()
-                .filter(|entry| {
-                    entry.policy_option == policy.policy_option
-                        && (policy.policy_option != 0 || entry.time_step >= branch_step)
-                })
-                .collect();
-            if !branch_summaries.is_empty() {
-                self.policy_branch_summary_log.push(PolicyBranchSummary {
-                    policy_option: policy.policy_option,
-                    summaries: branch_summaries,
-                });
+            let expected_steps = (branch_step..self.time_steps).filter(|&step| {
+                self.calibration_mode
+                    .retains_summary_year(SIMULATION_START_YEAR + step as f64 / DAYS_PER_YEAR)
+            });
+            if self.summary_log.is_empty()
+                || !expected_steps.map(|step| (step, policy.policy_option)).eq(
+                    self.summary_log
+                        .iter()
+                        .map(|entry| (entry.time_step, entry.policy_option)),
+                )
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "alternate policy {} has incomplete summary coverage from time step {branch_step}",
+                        policy.policy_option
+                    ),
+                ));
             }
+            self.policy_branch_summary_log.push(PolicyBranchSummary {
+                policy_option: policy.policy_option,
+                summaries: std::mem::take(&mut self.summary_log),
+            });
             Ok(())
         })();
         self.branch_active = false;
@@ -9049,7 +9116,8 @@ mod tests {
         is_new_person_level_sepsis_episode, person_day_vital_status,
         record_diagnostic_cascade_stage, sample_hypergeometric_left_count,
         targeted_course_started_for_bacterium, BranchSnapshot, CalibrationMode, MechanismCache,
-        MechanismProfileCache, PolicyAdjustments, Simulation, SummaryContentFlags, DAYS_PER_YEAR,
+        MechanismProfileCache, PolicyAdjustments, Simulation, StoredBranchSnapshot,
+        SummaryContentFlags, DAYS_PER_YEAR,
         DIAGNOSTIC_CASCADE_BACTERIAL_ID_IDX, DIAGNOSTIC_CASCADE_COMMUNITY_IDX,
         DIAGNOSTIC_CASCADE_EFFECTIVE_TARGETED_TREATMENT_IDX, DIAGNOSTIC_CASCADE_ELIGIBLE_IDX,
         DIAGNOSTIC_CASCADE_HOSPITAL_IDX, DIAGNOSTIC_CASCADE_SETTING_COUNT,
@@ -10372,6 +10440,191 @@ mod tests {
         assert!(!checkpoint_path.exists());
     }
 
+    fn short_baseline_with_disk_checkpoint(directory: &Path) -> (Simulation, StoredBranchSnapshot) {
+        let mut simulation = small_checkpoint_simulation(directory);
+        simulation.time_steps = 3;
+        let checkpoint = simulation
+            .run_from(0, Some(1))
+            .expect("short baseline should complete")
+            .expect("short baseline should capture its checkpoint");
+        (simulation, checkpoint)
+    }
+
+    #[test]
+    fn checkpoint_write_failure_reaches_caller_with_partial_baseline() {
+        let directory = TestDirectory::new("checkpoint_write_failure");
+        let blocked_directory = directory.path().join("occupied");
+        std::fs::write(&blocked_directory, b"preserve this file")
+            .expect("checkpoint path blocker should be created");
+        let expected_kind = std::fs::create_dir_all(&blocked_directory)
+            .expect_err("existing file should prevent directory creation")
+            .kind();
+        let mut simulation = small_checkpoint_simulation(&blocked_directory);
+        simulation.time_steps = 3;
+
+        let error = simulation
+            .run_baseline_and_policy_branches(Some(1))
+            .expect_err("checkpoint write failure must fail the run");
+
+        assert_eq!(error.kind(), expected_kind);
+        assert!(error.to_string().contains("baseline policy 0"));
+        assert!(error
+            .to_string()
+            .contains("write branch checkpoint at time step 1"));
+        assert_eq!(simulation.summary_log.len(), 1);
+        assert_eq!(simulation.summary_log[0].time_step, 0);
+        assert!(simulation.policy_branch_summary_log.is_empty());
+        assert!(!simulation.branch_active);
+        assert_eq!(simulation.current_policy_adjustments.policy_option, 0);
+        assert_eq!(
+            std::fs::read(&blocked_directory).unwrap(),
+            b"preserve this file"
+        );
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn requested_policy_outside_run_horizon_is_an_error() {
+        let mut simulation = Simulation::new(
+            0,
+            3,
+            false,
+            Some(123),
+            CalibrationMode::Partial25Counterfactual,
+        );
+
+        let error = simulation
+            .run()
+            .expect_err("requested continuation must not silently disappear");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(error.to_string().contains("no branch point"));
+        assert!(simulation.summary_log.is_empty());
+        assert!(simulation.policy_branch_summary_log.is_empty());
+        assert!(!simulation.branch_active);
+    }
+
+    #[test]
+    fn checkpoint_restore_failure_preserves_baseline_and_reports_policy() {
+        let directory = TestDirectory::new("checkpoint_restore_failure");
+        let (mut simulation, stored_checkpoint) =
+            short_baseline_with_disk_checkpoint(directory.path());
+        let baseline = bincode::serialize(&simulation.summary_log).unwrap();
+        let StoredBranchSnapshot::OnDisk(ref checkpoint) = stored_checkpoint else {
+            panic!("fixture must use disk checkpointing");
+        };
+        let checkpoint_path = checkpoint.path.clone();
+        std::fs::remove_file(&checkpoint_path).expect("checkpoint should be removable");
+        let policy = PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals)
+            .expect("policy 2 should exist");
+
+        let error = simulation
+            .run_alternate_policy_branches(stored_checkpoint, 1, vec![policy])
+            .expect_err("missing checkpoint must fail policy continuation");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+        assert!(error.to_string().contains("restore checkpoint for policy 2"));
+        assert_eq!(bincode::serialize(&simulation.summary_log).unwrap(), baseline);
+        assert!(simulation.policy_branch_summary_log.is_empty());
+        assert!(!simulation.branch_active);
+        assert_eq!(simulation.current_policy_adjustments.policy_option, 0);
+        assert!(!checkpoint_path.exists());
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn corrupt_checkpoint_failure_keeps_earlier_policy_output_and_cleans_up() {
+        let directory = TestDirectory::new("checkpoint_late_corruption");
+        let (mut simulation, stored_checkpoint) =
+            short_baseline_with_disk_checkpoint(directory.path());
+        let baseline = std::mem::take(&mut simulation.summary_log);
+        let baseline_bytes = bincode::serialize(&baseline).unwrap();
+        let StoredBranchSnapshot::OnDisk(ref checkpoint) = stored_checkpoint else {
+            panic!("fixture must use disk checkpointing");
+        };
+        let checkpoint_path = checkpoint.path.clone();
+        let first_snapshot = simulation
+            .load_branch_snapshot_from_disk(checkpoint, 1)
+            .expect("first policy should restore the valid checkpoint");
+        let first_policy =
+            PolicyAdjustments::from_id(1, &crate::config::parameter_store().globals).unwrap();
+        simulation
+            .run_policy_branch(first_snapshot, 1, first_policy)
+            .expect("first policy should finish before checkpoint corruption");
+        simulation.summary_log = baseline;
+        let completed_policy = bincode::serialize(&simulation.policy_branch_summary_log).unwrap();
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&checkpoint_path)
+            .unwrap();
+        file.seek(SeekFrom::End(-1)).unwrap();
+        let mut byte = [0_u8; 1];
+        file.read_exact(&mut byte).unwrap();
+        byte[0] ^= 0xff;
+        file.seek(SeekFrom::End(-1)).unwrap();
+        file.write_all(&byte).unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+
+        let next_policy =
+            PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals).unwrap();
+        let error = simulation
+            .run_alternate_policy_branches(stored_checkpoint, 1, vec![next_policy])
+            .expect_err("later corrupt restore must fail the run");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("restore checkpoint for policy 2"));
+        assert!(error.to_string().contains("checksum mismatch"));
+        assert_eq!(
+            bincode::serialize(&simulation.summary_log).unwrap(),
+            baseline_bytes
+        );
+        assert_eq!(
+            bincode::serialize(&simulation.policy_branch_summary_log).unwrap(),
+            completed_policy
+        );
+        assert_eq!(simulation.policy_branch_summary_log.len(), 1);
+        assert_eq!(simulation.policy_branch_summary_log[0].policy_option, 1);
+        assert!(!simulation.branch_active);
+        assert_eq!(simulation.current_policy_adjustments.policy_option, 0);
+        assert!(
+            !checkpoint_path.exists(),
+            "failed checkpoint handle must clean up"
+        );
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn empty_policy_output_fails_without_losing_baseline() {
+        let directory = TestDirectory::new("empty_policy_output");
+        let (mut simulation, checkpoint) = short_baseline_with_disk_checkpoint(directory.path());
+        drop(checkpoint);
+        let baseline = bincode::serialize(&simulation.summary_log).unwrap();
+        let snapshot = simulation.create_branch_snapshot();
+        simulation.calibration_mode = CalibrationMode::Full25Counterfactual;
+        let policy =
+            PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals).unwrap();
+
+        let error = simulation
+            .run_alternate_policy_branches(
+                StoredBranchSnapshot::InMemory(Box::new(snapshot)),
+                1,
+                vec![policy],
+            )
+            .expect_err("a requested branch without retained output must fail");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(error
+            .to_string()
+            .contains("policy 2 has incomplete summary coverage"));
+        assert_eq!(bincode::serialize(&simulation.summary_log).unwrap(), baseline);
+        assert!(simulation.policy_branch_summary_log.is_empty());
+        assert!(!simulation.branch_active);
+        assert_eq!(simulation.current_policy_adjustments.policy_option, 0);
+    }
+
     #[test]
     fn disk_checkpoint_rejects_checksum_corruption() {
         let directory = TestDirectory::new("checkpoint_checksum");
@@ -10424,7 +10677,7 @@ mod tests {
     fn disk_checkpoint_population_moves_into_policy_branch() {
         let directory = TestDirectory::new("checkpoint_move_restore");
         let mut simulation = small_checkpoint_simulation(directory.path());
-        let branch_step = simulation.time_steps;
+        let branch_step = simulation.time_steps - 1;
         let checkpoint = simulation
             .persist_branch_snapshot_to_disk(branch_step)
             .expect("borrowed checkpoint should persist");
@@ -10440,7 +10693,7 @@ mod tests {
 
         simulation
             .run_policy_branch(snapshot, branch_step, policy)
-            .expect("empty policy continuation should complete");
+            .expect("one-step policy continuation should complete");
 
         assert_eq!(
             simulation.population.individuals.as_ptr(),
@@ -10462,18 +10715,12 @@ mod tests {
         simulation.run_id = 123_456;
         simulation.enable_disk_branch_checkpointing(Some(directory.path().to_path_buf()));
 
-        let stored_snapshot = simulation
-            .run_from(0, Some(1))
-            .expect("short baseline should run")
-            .expect("branch checkpoint should be captured");
-        let baseline_summaries = std::mem::take(&mut simulation.summary_log);
-        let policy = PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals)
-            .expect("policy 2 should exist");
-
         simulation
-            .run_stored_policy_branches(stored_snapshot, 1, vec![policy])
-            .expect("counterfactual branch should run");
-        simulation.summary_log = baseline_summaries;
+            .run_baseline_and_policy_branches(Some(1))
+            .expect("short baseline and counterfactual branch should complete");
+
+        assert!(!simulation.branch_active);
+        assert_eq!(simulation.current_policy_adjustments.policy_option, 0);
 
         assert_eq!(
             simulation

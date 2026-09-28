@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Set
 import logging
 import math
+from copy import copy
+from functools import wraps
+from inspect import signature
 
 from ..config import PlotConfig
 from ..calibration_summary import (
@@ -27,6 +30,7 @@ from ..calibration_summary import (
     RESISTANCE_TARGET_COL,
 )
 from ..data_loader import DataCache
+from ..policy import iter_policy_frames, policy_ids, select_policy_rows
 from ..utils import (
     safe_divide,
     extract_bacteria_list_from_csv,
@@ -54,6 +58,130 @@ OUTPUT_FILES = {
     'sepsis_prop': 'sepsis_among_infected_proportion.png',
     'resistance_prop': 'resistance_among_infected.png',
 }
+
+
+def _policy_plot_config(config: PlotConfig, policy: int, multiple: bool) -> PlotConfig:
+    """Give one policy its own output settings without changing the caller's config."""
+    scoped = copy(config)
+    scoped.policies_to_plot = [policy]
+    scoped._detail_policy_scope = policy
+    scoped.output_dir = Path(config.output_dir)
+    if multiple:
+        scoped.output_dir /= f"policy_{policy}"
+    scoped.output_dir.mkdir(parents=True, exist_ok=True)
+    return scoped
+
+
+def _selected_detail_frames(data: pd.DataFrame, config: PlotConfig):
+    # Count selected policies without retaining another copy of a very wide frame.
+    identifiers = pd.DataFrame({'policy_option': policy_ids(data).to_numpy()})
+    selected = select_policy_rows(identifiers, config.policies_to_plot)
+    count = selected['policy_option'].nunique()
+    for policy, frame in iter_policy_frames(data, config.policies_to_plot):
+        if 'run_id' in frame and frame['run_id'].nunique(dropna=False) > 1:
+            raise ValueError("Detail plots require one run per policy; select one run before plotting")
+        yield frame, _policy_plot_config(config, policy, multiple=count > 1)
+
+
+def _combined_plot_result(results):
+    if len(results) == 1:
+        return results[0]
+    if results and all(isinstance(result, int) for result in results):
+        return sum(results)
+    return None
+
+
+def _isolate_dataframe_policies(function):
+    """Partition before any plot-specific smoothing, statistics, or aggregation."""
+    parameters = signature(function)
+    data_name = next(iter(parameters.parameters))
+
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        bound = parameters.bind(*args, **kwargs)
+        data = bound.arguments[data_name]
+        config = bound.arguments['config']
+        if getattr(config, '_detail_policy_scope', None) is not None:
+            return function(*args, **kwargs)
+        # This wrapper sits outside safe_plot_creation so selection errors propagate.
+        results = []
+        for frame, scoped_config in _selected_detail_frames(data, config):
+            bound.arguments[data_name] = frame
+            bound.arguments['config'] = scoped_config
+            results.append(function(*bound.args, **bound.kwargs))
+        return _combined_plot_result(results)
+    return wrapper
+
+
+class _PolicyDataCache:
+    """A read-only view of the authoritative frame supplied to one policy's plots.
+
+    Dataframe-based dispatch has already applied any caller row filters. Returning
+    that frame for all simulation aliases prevents cache-backed plot functions
+    from silently replacing it with the global, unfiltered dataset.
+    """
+    def __init__(self, cache, frame: pd.DataFrame):
+        self._cache = cache
+        self._frame = frame
+
+    def get_simulation_data(self, *args, **kwargs):
+        return self._frame
+
+    def get_preprocessed_data(self, *args, **kwargs):
+        return self._frame
+
+    def get_data(self, dataset='preprocessed', force_reload=False):
+        key = (dataset or 'preprocessed').lower()
+        if key in {'preprocessed', 'analysis', 'main', 'raw', 'simulation'}:
+            return self._frame
+        raise ValueError(f"Unsupported dataset key: {dataset}")
+
+    def get_bacteria_list(self, force_reload=False):
+        return extract_bacteria_list_from_csv(self._frame)
+
+    def get_drug_list(self, force_reload=False):
+        return extract_drug_list_from_csv(self._frame)
+
+    def get_resistance_mechanisms(self, force_reload=False):
+        return extract_resistance_mechanisms_from_csv(self._frame)
+
+    def get_empirical_data(self, force_reload=False):
+        return self._cache.get_empirical_data(force_reload=force_reload)
+
+    def get_simulation_csv_path(self):
+        return self._cache.get_simulation_csv_path()
+
+
+def _isolate_cached_policies(*, raw=False):
+    """Apply identical isolation to direct calls of cache-backed plot functions."""
+    def decorate(function):
+        @wraps(function)
+        def wrapper(config, data_cache, *args, **kwargs):
+            if isinstance(data_cache, _PolicyDataCache):
+                return function(config, data_cache, *args, **kwargs)
+            data = (
+                data_cache.get_simulation_data()
+                if raw else data_cache.get_preprocessed_data()
+            )
+            if data is None:
+                return None
+            results = []
+            for frame, scoped_config in _selected_detail_frames(data, config):
+                results.append(function(
+                    scoped_config, _PolicyDataCache(data_cache, frame), *args, **kwargs,
+                ))
+            return _combined_plot_result(results)
+        return wrapper
+    return decorate
+
+
+def _baseline_benchmark_plot(function):
+    """Calibration references are explicitly baseline-only, even on direct calls."""
+    @wraps(function)
+    def wrapper(config):
+        select_policy_rows(pd.DataFrame({'policy_option': [0]}), config.policies_to_plot)
+        return function(config)
+    return wrapper
 
 
 def _normalize_identifier(name: str) -> str:
@@ -100,6 +228,7 @@ def _regional_infection_deaths_use_headline_scope(df: pd.DataFrame) -> bool:
     return not versions.empty and bool(versions.ge(6).all())
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create separate infection and death proportion plots."""
@@ -153,6 +282,7 @@ def create_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     logger.info(f"[OK] Death proportion plot saved to {output_path}")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_infection_duration_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create infection duration analysis plot."""
@@ -192,6 +322,7 @@ def create_infection_duration_plot(df: pd.DataFrame, config: PlotConfig) -> None
     logger.info(f"[OK] Infection duration plot saved to {output_path}")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_sepsis_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create sepsis proportion plot if data is available."""
@@ -223,6 +354,7 @@ def create_sepsis_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     logger.info(f"[OK] Sepsis proportion plot saved to {output_path}")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create death causes analysis plot if data is available."""
@@ -362,6 +494,7 @@ def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     logger.info(f"[OK] Death causes plot saved to {output_path}")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_resistance_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create standalone resistance among infected plot (excludes MDR-TB)."""
@@ -392,6 +525,7 @@ def create_resistance_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     plt.close()
     logger.info(f"[OK] Resistance proportion plot saved to {output_path}")
 
+@_baseline_benchmark_plot
 @safe_plot_creation
 def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
     """Create per-bacteria bar charts comparing simulated resistance to targets."""
@@ -470,7 +604,7 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         ax.set_xticklabels(drugs, rotation=30, ha="right")
         ax.set_ylabel("Percent resistant")
 
-        title_parts = [f"{bacteria}: Resistance Benchmarks"]
+        title_parts = [f"{bacteria}: Baseline (policy 0) Resistance Benchmarks"]
         if target_year:
             title_parts.append(f"target year {int(target_year)}")
         ax.set_title(" – ".join(title_parts))
@@ -509,16 +643,21 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         logger.info(f"[OK] Resistance benchmark chart saved to {output_path}")
 
 
+@_isolate_dataframe_policies
 def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
-    """Create all detail plots based on configuration settings."""
-    logger.info("Creating detail plots...")
+    """Create selected detail outputs independently for each requested policy.
+
+    Multiple policies use separate ``policy_N`` output directories. A single
+    selected policy retains the existing output layout.
+    """
+    logger.info("Creating detail plots for policy %s...", config._detail_policy_scope)
     
     # Create basic plots if enabled
     if config.basic_plots:
         create_proportion_plots(data, config)
     
     # Create infection-related plots
-    data_cache = DataCache()
+    data_cache = _PolicyDataCache(DataCache(), data)
     
     if config.infection_duration:
         create_infection_duration_plot(config, data_cache)
@@ -535,7 +674,7 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.infection_resolution_by_bacteria:
         create_infection_resolution_by_bacteria_plots(config, data_cache)
 
-    if config.resistance_benchmark_bar_charts:
+    if config.resistance_benchmark_bar_charts and config._detail_policy_scope == 0:
         create_resistance_benchmark_bar_charts(config)
     
     # Create the enabled detail plots.
@@ -645,6 +784,7 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     logger.info("Detail plots creation completed")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_distribution_drug_use_by_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -711,6 +851,7 @@ def create_distribution_drug_use_by_bacteria_plots(df: pd.DataFrame, config: Plo
         print(f"  [OK] {fname} saved.")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_bacteria_infection_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -758,6 +899,7 @@ def create_bacteria_infection_proportion_plots(df: pd.DataFrame, config: PlotCon
         print(f"  [OK] {fname} saved.")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -852,6 +994,7 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         print(f"  [OK] {fname} saved.")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation  
 def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -1020,6 +1163,7 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
         print(f"    ✓ {fname} saved.")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation  
 def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -1313,6 +1457,7 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
     print(f"     - Overall plots in: overall/")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -1421,6 +1566,7 @@ def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) ->
     print(f"  [OK] Created {plots_created} incidence plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -1853,6 +1999,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
     print(f"\n=== COMPLETED: {plots_created} resistance plots created ===")
 
 
+@_isolate_dataframe_policies
 def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
     Plot the legacy `_sum_mic_` reciprocal-activity proxy by bacterium and drug.
@@ -2267,6 +2414,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         print(f"[OK] Created {plots_created} mean MIC by drug plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -2493,6 +2641,7 @@ def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=N
     return sim_years, means, p5, p95
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create a separate death-rate plot for each region."""
@@ -2645,6 +2794,7 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
         logger.info(f"✓ Created {plots_created} death rate plots by region")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_incidence_of_infection_hospital_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create hospital incidence of infection plots by bacteria and region.
@@ -2781,6 +2931,7 @@ def create_incidence_of_infection_hospital_plots(df: pd.DataFrame, config: PlotC
         logger.info(f"✓ Created {plots_created} hospital incidence of infection plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig, empirical_data: dict = None) -> None:
     """
@@ -2926,6 +3077,7 @@ def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: 
         logger.info(f"✓ Created {plots_created} drug failure rate by region plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_death_rate_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -3071,6 +3223,7 @@ def create_death_rate_by_bacteria_region_plots(df: pd.DataFrame, config: PlotCon
         logger.info(f"✓ Created {plots_created} death rate by bacteria and region plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_age_distribution_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -3184,6 +3337,7 @@ def create_age_distribution_by_region_plots(df: pd.DataFrame, config: PlotConfig
         logger.info(f"✓ Created {plots_created} age distribution plots by region")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -3380,6 +3534,7 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
             )
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -3533,6 +3688,7 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
         logger.info(f"✓ Created {plots_created} age-specific death rate plots by region")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_syndrome_distribution_by_bacteria_plots_working(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -3695,6 +3851,7 @@ def create_syndrome_distribution_by_bacteria_plots_working(df: pd.DataFrame, con
 
 # === DRUG SCORE ANALYSIS FUNCTIONS ===
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_drug_score_summary_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -3848,6 +4005,7 @@ def get_clinical_guidance_info(bacteria_name: str) -> Optional[str]:
     return guidance.get(bacteria_name)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_clinical_guideline_analysis_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -4019,6 +4177,7 @@ def analyze_bacteria_drug_scores(recent_data: pd.DataFrame, bacteria_name: str) 
 
 # === RESISTANCE ANALYSIS FUNCTIONS ===
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_mean_activity_r_by_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -4088,6 +4247,7 @@ def create_mean_activity_r_by_bacteria_plots(df: pd.DataFrame, config: PlotConfi
     logger.info(f"✓ Created {plot_count} mean activity_r by bacteria plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_resistance_mechanism_by_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -4169,6 +4329,7 @@ def create_resistance_mechanism_by_bacteria_plots(df: pd.DataFrame, config: Plot
     logger.info(f"✓ Created {plot_count} resistance mechanism by bacteria plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -4297,6 +4458,7 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
 
 # === MICROBIOME ANALYSIS FUNCTIONS ===
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_microbiome_acquisition_on_off_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Plot microbiome acquisition rates split by antibiotic exposure for each bacteria."""
@@ -4427,6 +4589,7 @@ def create_microbiome_acquisition_on_off_drug_plots(df: pd.DataFrame, config: Pl
     logger.info("✓ Created %d microbiome acquisition plots plus summary", plot_counter)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_microbiome_clearance_on_off_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Plot microbiome clearance rates split by antibiotic exposure for each bacteria."""
@@ -4557,6 +4720,7 @@ def create_microbiome_clearance_on_off_drug_plots(df: pd.DataFrame, config: Plot
     logger.info("✓ Created %d microbiome clearance plots plus summary", plot_counter)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -4652,6 +4816,7 @@ def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df: 
     logger.info(f"✓ Created {plot_count} microbiome presence proportion plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_microbiome_resistance_microbiome_vs_infection_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Plot resistant share in microbiome versus resistant share among active infections for each bacteria."""
@@ -4727,6 +4892,7 @@ def create_microbiome_resistance_microbiome_vs_infection_plots(df: pd.DataFrame,
         logger.info("✓ Created %d microbiome resistance comparison plots", plots_created)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_carrier_infection_share_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Plot carrier share of active infections for the most prevalent bacteria."""
@@ -4805,6 +4971,7 @@ def create_carrier_infection_share_plot(df: pd.DataFrame, config: PlotConfig) ->
     logger.info("✓ Created carrier infection share plot: %s", output_path)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_carrier_vs_non_carrier_incidence_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """Plot incidence rates among carriers versus non-carriers for high-burden bacteria."""
@@ -4938,6 +5105,7 @@ def create_carrier_vs_non_carrier_incidence_plots(df: pd.DataFrame, config: Plot
     logger.info("✓ Created %d carrier incidence plots", plot_count)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_carriage_duration_distribution_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Visualize carriage duration distributions for high-prevalence bacteria."""
@@ -5065,6 +5233,7 @@ def create_carriage_duration_distribution_plot(df: pd.DataFrame, config: PlotCon
     logger.info("✓ Created carriage duration distribution plot: %s", output_path)
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
@@ -5230,6 +5399,7 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: Pl
     return plots_created
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_infection_resolution_by_bacteria_plots(
     config: PlotConfig, data_cache: DataCache
@@ -5378,6 +5548,7 @@ def create_infection_resolution_by_bacteria_plots(
     return plots_created
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_infection_duration_plot(
     config: PlotConfig, data_cache: DataCache
@@ -5437,6 +5608,7 @@ def create_infection_duration_plot(
     return 1
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_sepsis_plot(
     config: PlotConfig, data_cache: DataCache
@@ -5479,6 +5651,7 @@ def create_sepsis_plot(
     return 1
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_death_causes_plot(
     config: PlotConfig, data_cache: DataCache
@@ -5604,6 +5777,7 @@ def create_death_causes_plot(
     return 1
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_resistance_plot(
     config: PlotConfig, data_cache: DataCache
@@ -5638,6 +5812,7 @@ def create_resistance_plot(
     return 1
 
 
+@_isolate_cached_policies(raw=True)
 @safe_plot_creation  
 def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCache):
     """Create all-cause death rate plots for each bacteria individually (deaths per currently infected)."""
@@ -5787,6 +5962,7 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
         logger.info(f"Created {plots_created} death rate by bacteria plots")
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing proportion of microbiome presence with resistance by drug."""
@@ -5930,6 +6106,7 @@ def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(confi
         logger.info(f"Created {plots_created} microbiome resistance by drug plots")
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing mean resistance by drug for each bacteria in hospital settings."""
@@ -6158,6 +6335,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfi
         logger.info(f"Created {plots_created} hospital resistance plots")
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_age_specific_death_rate_by_region_plots(config: PlotConfig, data_cache: DataCache):
     """Create age-specific death rate plots by region."""
@@ -6381,6 +6559,7 @@ def create_age_specific_death_rate_by_region_plots(config: PlotConfig, data_cach
         logger.info(f"Created {plots_created} age-specific death rate plots")
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_syndrome_distribution_by_bacteria_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing clinical syndrome distribution by bacteria using stacked area plots."""
@@ -6604,6 +6783,7 @@ def create_syndrome_distribution_by_bacteria_plots(config: PlotConfig, data_cach
         logger.info(f"Created {plots_created} syndrome distribution plots")
 
 
+@_isolate_cached_policies()
 @safe_plot_creation
 def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing proportion of people with any resistance by drug for each bacteria."""
@@ -6816,6 +6996,7 @@ def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_pl
         logger.info(f"Created {plots_created} proportion resistance by drug plots")
 
 
+@_isolate_dataframe_policies
 @safe_plot_creation
 def create_global_antibiotic_activity_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
