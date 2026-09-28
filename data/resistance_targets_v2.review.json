@@ -1,0 +1,750 @@
+{
+  "target_set_version": "resistance_targets_v2",
+  "review_date": "2026-09-28",
+  "reference_window": "contemporary_2025_benchmark_informed_by_evidence_published_through_2026",
+  "baseline_manifest_sha256": "c54e1883fa299a5ee822c0baf8a452bc2068338ab8046ad185a1d777f339a936",
+  "units": "Proportions in [0,1]; 0.40 denotes 40%. Conditional severity is a separate unitless model quantity.",
+  "observation_model_mismatch": "Clinical isolate susceptibility classifications and genomic samples are not equivalent to active-infection person-days with model any_r > 0. Small positive model effects do not necessarily imply clinical breakpoint resistance. No observation-model transformation is inferred here.",
+  "sources": [
+    {
+      "source_id": "saunders_bashh_2025",
+      "citation": "Saunders J et al. BASHH UK national guideline for doxycycline post-exposure prophylaxis for prevention of syphilis, 2025. doi:10.1177/09564624251352053.",
+      "url": "https://journals.sagepub.com/doi/10.1177/09564624251352053",
+      "access": "Full guideline HTML checked, antimicrobial resistance section.",
+      "publication_year": 2025,
+      "observation_years": null,
+      "geography": "UK guideline reviewing international literature",
+      "specimen_or_care_setting": "Mixed literature; no single surveillance sampling frame",
+      "denominator": null,
+      "breakpoint_standard_version": null,
+      "checked_finding": "Reports no observed doxycycline resistance in T. pallidum or C. trachomatis at guideline publication.",
+      "use": "Supports pragmatic T. pallidum near-zero prior only; does not establish an exact global prevalence."
+    },
+    {
+      "source_id": "long_eid_2026",
+      "citation": "Long GS et al. Genomic Analysis of Doxycycline Resistance-Associated 16S rRNA Mutations in Treponema pallidum Subspecies pallidum. Emerg Infect Dis. 2026;32(2):242-245. doi:10.3201/eid3202.251060.",
+      "url": "https://wwwnc.cdc.gov/eid/article/32/2/25-1060_article",
+      "access": "Full article HTML and Table 1 caption checked.",
+      "publication_year": 2026,
+      "observation_years": "Canadian samples 2016-2024; most from 2024; global archival sampling years not extracted",
+      "geography": "Canada plus previously published global genomes",
+      "specimen_or_care_setting": "Genomic samples, not representative clinical breakpoint surveillance",
+      "denominator": "17 Canadian genomes plus 784 published genomes; not a phenotypic tested denominator",
+      "breakpoint_standard_version": "Not applicable to this genomic observation",
+      "checked_finding": "No investigated putative doxycycline-associated variants observed; phenotypic relevance remains unvalidated.",
+      "use": "Context for structural prior; no genomic fraction is relabelled as clinical resistance prevalence."
+    },
+    {
+      "source_id": "liu_atlas_2019_2023",
+      "citation": "Liu Y, Zheng X, Wu B. ATLAS analysis of Enterococcus faecalis/faecium susceptibility, 2019-2023. J Glob Antimicrob Resist. 2026;46:254-263. doi:10.1016/j.jgar.2025.12.018. PMID:41490597.",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41490597/",
+      "publisher_url": "https://www.sciencedirect.com/science/article/pii/S2213716525002863",
+      "access": "PubMed abstract recovered via indexed primary-source search; publisher highlights checked. Full text attempts returned ScienceDirect 403 and JGAR inaccessible; tables/supplements not recovered.",
+      "publication_year": 2026,
+      "observation_years": "2019-2023",
+      "geography": "59 countries, six continents",
+      "specimen_or_care_setting": "Clinical isolates across wards and infection sites; detailed mix not recovered",
+      "denominator": "6036 E. faecium isolates overall; drug-specific tested denominators not recovered",
+      "breakpoint_standard_version": null,
+      "resistant_count": null,
+      "all_region_resistant_proportion": null,
+      "checked_finding": "Abstract gives susceptibility above 90% for tigecycline and linezolid, with no exact all-region resistant percentage for either.",
+      "use": "Unassigned pending recovery of drug-specific resistant results and criteria; do not subtract susceptibility from 100 or substitute highest regional resistance."
+    },
+    {
+      "source_id": "coombs_aesop_2024",
+      "citation": "Coombs G et al. AGAR AESOP Bloodstream Infection Annual Report 2024. Commun Dis Intell. 2025;49. doi:10.33321/cdi.2025.49.053. PMID:41248469.",
+      "url": "https://ojs.cdi.cdc.gov.au/index.php/cdi/article/download/3420/4985/7267",
+      "access": "Full publisher PDF checked, methodology, Table 2 and breakpoint reference.",
+      "publication_year": 2025,
+      "observation_years": "2024-01-01 to 2024-12-31",
+      "geography": "Australia; 55 institutions",
+      "specimen_or_care_setting": "Bloodstream episodes; hospital and community onset",
+      "denominator": "593 E. faecium tested for linezolid; 599 E. faecium episodes overall",
+      "breakpoint_standard_version": "EUCAST; cited version 15.0 (2025)",
+      "resistant_count": {
+        "linezolid": 1
+      },
+      "reported_percent": {
+        "linezolid": 0.2
+      },
+      "checked_finding": "Table 2 explicitly separates susceptible and resistant counts.",
+      "use": "Geographically and clinically restricted context; no transformation to a global model target. Ampicillin/amoxicillin remain missing."
+    },
+    {
+      "source_id": "altun_klimik_2010_2023",
+      "citation": "Altun B, Hazirolan G, Gur D. Antibiotic Resistance of Enterococcus faecium and Enterococcus faecalis (2010-2023). Klimik J. 2025;38(1):13-18. doi:10.36519/kd.2025.5110.",
+      "url": "https://www.klimikdergisi.org/en/2025/03/21/antibiotic-resistance-of-enterococcus-faecium-and-enterococcus-faecalis-2010-2023/",
+      "access": "Publisher abstract and reference list checked; PDF/full Turkish article not checked.",
+      "publication_year": 2025,
+      "observation_years": "2010-2023",
+      "geography": "Hacettepe University Hospitals, Turkey",
+      "specimen_or_care_setting": "Blood, respiratory, skin/soft tissue, urine, intra-abdominal and other sterile specimens",
+      "denominator": "241 E. faecium overall; drug-specific tested denominators not recovered from abstract",
+      "breakpoint_standard_version": "EUCAST stated; reference list cites v14.0 (2024), full-text implementation unverified",
+      "checked_finding": "Abstract reports 1.2% tigecycline resistance and no linezolid resistance detected in E. faecium.",
+      "use": "Single-centre context only; no Turkish percentage substituted into a global reference."
+    },
+    {
+      "source_id": "kang_korea_2016_2019",
+      "citation": "Kang T, Choi YJ, Jang WJ. A Nationwide Investigation on the Distribution and Antimicrobial Susceptibility Profiling of Chlamydia trachomatis Collected from Patients in Korea. Infect Chemother. 2026;58(1):39-48. doi:10.3947/ic.2025.0081.",
+      "url": "https://icjournal.org/pdf/10.3947/ic.2025.0081",
+      "original_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13053900/",
+      "access": "PMC page browser challenge; full publisher PDF checked, sampling and susceptibility results/Table 3.",
+      "publication_year": 2026,
+      "observation_years": "2016-08 to 2019-04",
+      "geography": "Korea",
+      "specimen_or_care_setting": "Female patient isolates from public health centres, clinics and hospitals",
+      "denominator": "118 recovered clinical isolates from 1011 female samples",
+      "breakpoint_standard_version": "Experimental susceptibility distributions; no validated global clinical resistance transformation adopted",
+      "checked_finding": "Reports distributions for tetracycline, levofloxacin, azithromycin and rifampicin.",
+      "use": "Context only; elevated inhibitory concentrations are not global acquired-resistance prevalence, and findings are not extrapolated to every drug."
+    }
+  ],
+  "source_registry_additions": [
+    {
+      "source_id": "review_tp_tetracycline_near_zero_v2",
+      "provenance_class": "structural_prior",
+      "source_type": "review_informed_structural_prior",
+      "description": "Near-zero prevalence prior with centre 0.0; evidence primarily doxycycline/tetracycline; minocycline is class-based only. See review.json sources saunders_bashh_2025 and long_eid_2026. No measured global zero or confidence bounds asserted.",
+      "url": "https://doi.org/10.1177/09564624251352053;https://doi.org/10.3201/eid3202.251060"
+    },
+    {
+      "source_id": "review_tp_rare_positive_severity_v2",
+      "provenance_class": "structural_prior",
+      "source_type": "structural_prior",
+      "description": "Preserved model-scale conditional severity for rare positive simulated infections when prevalence prior centre is zero. Values inherited unchanged from v1; not clinical breakpoint estimates.",
+      "url": ""
+    },
+    {
+      "source_id": "review_efa_unassigned_v2",
+      "provenance_class": "not_assigned",
+      "source_type": "reference_withdrawal_review",
+      "description": "Legacy E. faecium tigecycline/linezolid references withdrawn. Exact all-region resistant results and susceptibility criteria not recovered from ATLAS; geographically restricted studies not used as global proxies. See review.json.",
+      "url": "https://doi.org/10.1016/j.jgar.2025.12.018"
+    },
+    {
+      "source_id": "review_ct_unassigned_v2",
+      "provenance_class": "not_assigned",
+      "source_type": "reference_withdrawal_review",
+      "description": "Thirteen positive C. trachomatis legacy references lack compatible species-drug provenance beyond a generic bacterium note; withdrawn pending review. Korean 2016-2019 susceptibility study does not validate global acquired-resistance targets.",
+      "url": "https://doi.org/10.3947/ic.2025.0081"
+    }
+  ],
+  "decisions": [
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Treponema pallidum",
+      "drug": "tetracycline",
+      "revision_kind": "numeric_revision_and_structural_prior",
+      "expected": {
+        "value": "0.08",
+        "source_id": "legacy_prevalence_note__treponema_pallidum",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "0.0",
+        "target_type": "expert_assigned_model_benchmark",
+        "provenance_class": "structural_prior",
+        "source_id": "review_tp_tetracycline_near_zero_v2",
+        "target_denominator": "model_active_infection_person_days",
+        "transformation": "explicit_near_zero_modelling_convention_not_measured_prevalence",
+        "rationale": "Pragmatic near-zero structural prior centred at 0.0, not a measured global prevalence; uncertainty remains unassigned. Doxycycline/tetracycline literature provides the supporting context.",
+        "uncertainty_lower": "",
+        "uncertainty_upper": ""
+      },
+      "rationale": "Pragmatic near-zero structural prior centred at 0.0, not a measured global prevalence; uncertainty remains unassigned. Doxycycline/tetracycline literature provides the supporting context.",
+      "review_source_ids": [
+        "saunders_bashh_2025",
+        "long_eid_2026"
+      ]
+    },
+    {
+      "component": "resistance_severity_conditional_mean_any_r",
+      "bacteria": "Treponema pallidum",
+      "drug": "tetracycline",
+      "revision_kind": "severity_rare_positive_prior_value_preserved",
+      "expected": {
+        "value": "0.62",
+        "source_id": "expert_model_scale_any_r_v1",
+        "provenance_class": "expert_informed_placeholder"
+      },
+      "updates": {
+        "provenance_class": "structural_prior",
+        "source_id": "review_tp_rare_positive_severity_v2",
+        "rationale": "Numerical model-scale severity preserved as a rare-positive prior conditional on any_r > 0; a zero prevalence prior centre does not imply zero conditional severity."
+      },
+      "rationale": "Numerical conditional severity and eligibility restrictions preserved; interpretation explicitly rare-positive.",
+      "review_source_ids": [
+        "saunders_bashh_2025",
+        "long_eid_2026"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Treponema pallidum",
+      "drug": "doxycycline",
+      "revision_kind": "numeric_revision_and_structural_prior",
+      "expected": {
+        "value": "0.06",
+        "source_id": "legacy_prevalence_note__treponema_pallidum",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "0.0",
+        "target_type": "expert_assigned_model_benchmark",
+        "provenance_class": "structural_prior",
+        "source_id": "review_tp_tetracycline_near_zero_v2",
+        "target_denominator": "model_active_infection_person_days",
+        "transformation": "explicit_near_zero_modelling_convention_not_measured_prevalence",
+        "rationale": "Pragmatic near-zero structural prior centred at 0.0, not a measured global prevalence; uncertainty remains unassigned. Doxycycline/tetracycline literature provides the supporting context.",
+        "uncertainty_lower": "",
+        "uncertainty_upper": ""
+      },
+      "rationale": "Pragmatic near-zero structural prior centred at 0.0, not a measured global prevalence; uncertainty remains unassigned. Doxycycline/tetracycline literature provides the supporting context.",
+      "review_source_ids": [
+        "saunders_bashh_2025",
+        "long_eid_2026"
+      ]
+    },
+    {
+      "component": "resistance_severity_conditional_mean_any_r",
+      "bacteria": "Treponema pallidum",
+      "drug": "doxycycline",
+      "revision_kind": "severity_rare_positive_prior_value_preserved",
+      "expected": {
+        "value": "0.60",
+        "source_id": "expert_model_scale_any_r_v1",
+        "provenance_class": "expert_informed_placeholder"
+      },
+      "updates": {
+        "provenance_class": "structural_prior",
+        "source_id": "review_tp_rare_positive_severity_v2",
+        "rationale": "Numerical model-scale severity preserved as a rare-positive prior conditional on any_r > 0; a zero prevalence prior centre does not imply zero conditional severity."
+      },
+      "rationale": "Numerical conditional severity and eligibility restrictions preserved; interpretation explicitly rare-positive.",
+      "review_source_ids": [
+        "saunders_bashh_2025",
+        "long_eid_2026"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Treponema pallidum",
+      "drug": "minocycline",
+      "revision_kind": "numeric_revision_and_structural_prior",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__treponema_pallidum",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "0.0",
+        "target_type": "expert_assigned_model_benchmark",
+        "provenance_class": "structural_prior",
+        "source_id": "review_tp_tetracycline_near_zero_v2",
+        "target_denominator": "model_active_infection_person_days",
+        "transformation": "explicit_near_zero_modelling_convention_not_measured_prevalence",
+        "rationale": "Pragmatic near-zero structural prior centred at 0.0, not a measured global prevalence; uncertainty remains unassigned. Class-based prior inferred from doxycycline/tetracycline context, with no independent minocycline surveillance estimate.",
+        "uncertainty_lower": "",
+        "uncertainty_upper": ""
+      },
+      "rationale": "Pragmatic near-zero structural prior centred at 0.0, not a measured global prevalence; uncertainty remains unassigned. Class-based prior inferred from doxycycline/tetracycline context, with no independent minocycline surveillance estimate.",
+      "review_source_ids": [
+        "saunders_bashh_2025",
+        "long_eid_2026"
+      ]
+    },
+    {
+      "component": "resistance_severity_conditional_mean_any_r",
+      "bacteria": "Treponema pallidum",
+      "drug": "minocycline",
+      "revision_kind": "severity_rare_positive_prior_value_preserved",
+      "expected": {
+        "value": "0.58",
+        "source_id": "expert_model_scale_any_r_v1",
+        "provenance_class": "expert_informed_placeholder"
+      },
+      "updates": {
+        "provenance_class": "structural_prior",
+        "source_id": "review_tp_rare_positive_severity_v2",
+        "rationale": "Numerical model-scale severity preserved as a rare-positive prior conditional on any_r > 0; a zero prevalence prior centre does not imply zero conditional severity."
+      },
+      "rationale": "Numerical conditional severity and eligibility restrictions preserved; interpretation explicitly rare-positive.",
+      "review_source_ids": [
+        "saunders_bashh_2025",
+        "long_eid_2026"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Enterococcus faecium",
+      "drug": "tigecycline",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.4",
+        "source_id": "legacy_prevalence_note__enterococcus_faecium",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_efa_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Legacy positive central reference withdrawn: exact all-region resistant proportion and susceptibility criteria not recovered; restricted country estimates not transformed into global references."
+      },
+      "rationale": "Legacy positive central reference withdrawn: exact all-region resistant proportion and susceptibility criteria not recovered; restricted country estimates not transformed into global references.",
+      "review_source_ids": [
+        "liu_atlas_2019_2023",
+        "coombs_aesop_2024",
+        "altun_klimik_2010_2023"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Enterococcus faecium",
+      "drug": "linezolid",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.1",
+        "source_id": "legacy_prevalence_note__enterococcus_faecium",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_efa_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Legacy positive central reference withdrawn: exact all-region resistant proportion and susceptibility criteria not recovered; restricted country estimates not transformed into global references."
+      },
+      "rationale": "Legacy positive central reference withdrawn: exact all-region resistant proportion and susceptibility criteria not recovered; restricted country estimates not transformed into global references.",
+      "review_source_ids": [
+        "liu_atlas_2019_2023",
+        "coombs_aesop_2024",
+        "altun_klimik_2010_2023"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "erythromycin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.1",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "azithromycin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "clarithromycin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.1",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "clindamycin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.2",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "ciprofloxacin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.1",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "levofloxacin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "moxifloxacin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "ofloxacin",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.1",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "tetracycline",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "doxycycline",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "minocycline",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "tigecycline",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.05",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    },
+    {
+      "component": "resistance_prevalence_any_r_positive",
+      "bacteria": "Chlamydia trachomatis",
+      "drug": "chloramphenicol",
+      "revision_kind": "withdrawal_as_unassigned",
+      "expected": {
+        "value": "0.1",
+        "source_id": "legacy_prevalence_note__chlamydia_trachomatis",
+        "provenance_class": "evidence_informed_benchmark_cell_provenance_unrecovered"
+      },
+      "updates": {
+        "value": "",
+        "reference_year": "",
+        "geography": "",
+        "infection_or_specimen": "",
+        "care_setting": "",
+        "target_denominator": "",
+        "uncertainty_lower": "",
+        "uncertainty_upper": "",
+        "evidence_weight": "",
+        "target_type": "not_assigned",
+        "provenance_class": "not_assigned",
+        "source_id": "review_ct_unassigned_v2",
+        "transformation": "none_reference_withdrawn_pending_review",
+        "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance."
+      },
+      "rationale": "Unsupported positive legacy reference withdrawn: only generic WHO GLASS/GRAM note, without compatible recovered species-drug provenance. Absence of evidence is not proof of zero resistance.",
+      "review_source_ids": [
+        "kang_korea_2016_2019"
+      ]
+    }
+  ],
+  "unresolved": "E. faecium tigecycline and linezolid all-region replacements remain unresolved; existing tedizolid 0.10 unchanged and separately unresolved. No new positive numerical reference assigned."
+}

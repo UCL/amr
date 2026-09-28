@@ -14,17 +14,20 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 
 
 class ResistanceTargetSnapshotTests(unittest.TestCase):
+    target_version = "resistance_targets_v1"
+
     def setUp(self):
         self.temporary = TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.data = Path(self.temporary.name)
-        self.manifest_path = self.data / summary.RESISTANCE_TARGET_MANIFEST_FILENAME
+        self.manifest_path = self.data / f"{self.target_version}.manifest.json"
         shutil.copy2(DATA / self.manifest_path.name, self.manifest_path)
         manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         for name in manifest["artifacts"]:
+            (self.data / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(DATA / name, self.data / name)
-        self.target = self.data / "resistance_targets_v1.csv"
-        self.lock = self.data / summary.RESISTANCE_TARGET_UPDATE_LOCK_FILENAME
+        self.target = self.data / f"{self.target_version}.csv"
+        self.lock = self.data / f".{self.target_version}.update.lock"
 
     def test_reader_waits_for_publication_before_verifying(self):
         potency = self.data / "model_potency_matrix.csv"
@@ -105,6 +108,8 @@ class ResistanceTargetSnapshotTests(unittest.TestCase):
             & prevalence["drug"].eq(changed_key[1])
         ].iloc[0]
         self.assertEqual(row["target"], 0.123456)
+        self.assertEqual(prevalence.attrs["target_sha256"], hashlib.sha256(self.target.read_bytes()).hexdigest())
+        self.assertEqual(prevalence.attrs["manifest_sha256"], hashlib.sha256(self.manifest_path.read_bytes()).hexdigest())
 
     def test_stable_corruption_remains_an_error_without_retry(self):
         with self.target.open("ab") as handle:
@@ -122,6 +127,10 @@ class ResistanceTargetSnapshotTests(unittest.TestCase):
                     summary._load_resistance_target_set(self.target)
         verify.assert_not_called()
         self.assertTrue(self.lock.exists())
+
+
+class ResistanceTargetV2SnapshotTests(ResistanceTargetSnapshotTests):
+    target_version = "resistance_targets_v2"
 
 
 if __name__ == "__main__":

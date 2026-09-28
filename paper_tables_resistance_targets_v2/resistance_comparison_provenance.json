@@ -1,0 +1,92 @@
+{
+  "runs": [
+    {
+      "original_run_meta": {
+        "run_id": "fff164402",
+        "source_file": "output_graphs\\calibration_summary_fff164402.txt",
+        "simulation_source_csv": "amr_simulation_output_analysis_outputs\\simulation_summary_164402.csv",
+        "simulation_summary_schema": "6 (current)",
+        "target_year": "2025",
+        "window_duration": "4.00 simulated years (totals annualized to yearly equivalents)",
+        "mean_pop": "5,934,838",
+        "final_pop": "6,040,323",
+        "scale_factor": "1,381.6720"
+      },
+      "original_summary_sha256": "4a182fc8aa17f48cc558c6fcdba785f02cc2b51cde67b4cec69760f13c75d57a",
+      "original_reference_version": "not recorded in summary; embedded reference values retained in row audit",
+      "comparison_reference": {
+        "target_set_version": "resistance_targets_v2",
+        "target_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.csv",
+        "target_sha256": "118748033b7c989d63203596546b1a6a6c3d5874bbc31b69f5eee46c44f83a35",
+        "manifest_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.manifest.json",
+        "manifest_sha256": "4272fe2f29acb8dff4302b73c9fca509f3e16b436f065b76fab789e7b70c3f96"
+      }
+    },
+    {
+      "original_run_meta": {
+        "run_id": "fff311750",
+        "source_file": "output_graphs\\calibration_summary_fff311750.txt",
+        "simulation_source_csv": "amr_simulation_output_analysis_outputs\\simulation_summary_311750.csv",
+        "simulation_summary_schema": "6 (current)",
+        "target_year": "2025",
+        "window_duration": "4.00 simulated years (totals annualized to yearly equivalents)",
+        "mean_pop": "5,930,774",
+        "final_pop": "6,036,712",
+        "scale_factor": "1,382.6188"
+      },
+      "original_summary_sha256": "4e641d0c535447c51be816d53f388efb56c988160983d938d131ed981b3d6ff2",
+      "original_reference_version": "not recorded in summary; embedded reference values retained in row audit",
+      "comparison_reference": {
+        "target_set_version": "resistance_targets_v2",
+        "target_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.csv",
+        "target_sha256": "118748033b7c989d63203596546b1a6a6c3d5874bbc31b69f5eee46c44f83a35",
+        "manifest_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.manifest.json",
+        "manifest_sha256": "4272fe2f29acb8dff4302b73c9fca509f3e16b436f065b76fab789e7b70c3f96"
+      }
+    },
+    {
+      "original_run_meta": {
+        "run_id": "fff591413",
+        "source_file": "output_graphs\\calibration_summary_fff591413.txt",
+        "simulation_source_csv": "amr_simulation_output_analysis_outputs\\simulation_summary_591413.csv",
+        "simulation_summary_schema": "6 (current)",
+        "target_year": "2025",
+        "window_duration": "4.00 simulated years (totals annualized to yearly equivalents)",
+        "mean_pop": "5,931,887",
+        "final_pop": "6,038,220",
+        "scale_factor": "1,382.3594"
+      },
+      "original_summary_sha256": "ad3f51abfeeceba4cf59aeb6e7ce7820d3db8d0a61155f7f9a9b2759270300bd",
+      "original_reference_version": "not recorded in summary; embedded reference values retained in row audit",
+      "comparison_reference": {
+        "target_set_version": "resistance_targets_v2",
+        "target_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.csv",
+        "target_sha256": "118748033b7c989d63203596546b1a6a6c3d5874bbc31b69f5eee46c44f83a35",
+        "manifest_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.manifest.json",
+        "manifest_sha256": "4272fe2f29acb8dff4302b73c9fca509f3e16b436f065b76fab789e7b70c3f96"
+      }
+    },
+    {
+      "original_run_meta": {
+        "run_id": "fff928228",
+        "source_file": "output_graphs\\calibration_summary_fff928228.txt",
+        "simulation_source_csv": "amr_simulation_output_analysis_outputs\\simulation_summary_928228.csv",
+        "simulation_summary_schema": "6 (current)",
+        "target_year": "2025",
+        "window_duration": "4.00 simulated years (totals annualized to yearly equivalents)",
+        "mean_pop": "5,914,495",
+        "final_pop": "6,019,359",
+        "scale_factor": "1,386.4244"
+      },
+      "original_summary_sha256": "21fe6f7b14d7738124ab62ece377a6128be70c9a4ee8f764d6d96da53ff79506",
+      "original_reference_version": "not recorded in summary; embedded reference values retained in row audit",
+      "comparison_reference": {
+        "target_set_version": "resistance_targets_v2",
+        "target_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.csv",
+        "target_sha256": "118748033b7c989d63203596546b1a6a6c3d5874bbc31b69f5eee46c44f83a35",
+        "manifest_path": "C:\\Users\\w3sth\\rust_amr_project\\data\\resistance_targets_v2.manifest.json",
+        "manifest_sha256": "4272fe2f29acb8dff4302b73c9fca509f3e16b436f065b76fab789e7b70c3f96"
+      }
+    }
+  ]
+}

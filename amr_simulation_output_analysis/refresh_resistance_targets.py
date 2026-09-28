@@ -21,28 +21,17 @@ import uuid
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-from .build_resistance_targets_v1 import (
+from .build_resistance_targets_v2 import (
+    INPUT_FILENAMES,
+    GENERATED_FILENAMES,
     MANIFEST_FILENAME,
     TARGET_SET_VERSION,
     UPDATE_LOCK_FILENAME,
-    build_resistance_targets_v1,
+    build_resistance_targets_v2,
 )
 
 
 RESISTANCE_TARGET_UPDATE_LOCK_FILENAME = UPDATE_LOCK_FILENAME
-INPUT_FILENAMES = (
-    "resistance_prevalence_values.csv",
-    "resistance_average_resistant_values.csv",
-    "resistance_targets_v1.schema.json",
-)
-# The manifest is the commit record and must be published last.
-GENERATED_FILENAMES = (
-    "model_potency_matrix.csv",
-    "model_resistance_reachability_matrix.csv",
-    "resistance_targets_v1.csv",
-    "resistance_target_sources_v1.csv",
-    MANIFEST_FILENAME,
-)
 
 
 def _rust_source_hashes(root: Path) -> Dict[str, str]:
@@ -161,7 +150,7 @@ def _publish_staged(
 
 
 def refresh_resistance_targets(root: Optional[Path] = None) -> Tuple[Path, ...]:
-    """Export Rust matrices, rebuild targets, and publish the five generated files.
+    """Export Rust matrices, rebuild active v2 targets, and publish their manifest last.
 
     Existing live artifacts are untouched if staging fails. Publication failures
     restore the previous artifacts before allowing readers to resume. A failed
@@ -175,12 +164,16 @@ def refresh_resistance_targets(root: Optional[Path] = None) -> Tuple[Path, ...]:
     staged_data.mkdir()
     try:
         for filename in INPUT_FILENAMES:
+            (staged_data / filename).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(data_dir / filename, staged_data / filename)
         rust_sources = _rust_source_hashes(project_root)
         _export_rust_projections(project_root, staged_data)
         _verify_rust_sources(project_root, rust_sources)
-        build_resistance_targets_v1(staged_root)
+        build_resistance_targets_v2(staged_root)
         _verify_staged_manifest(staged_data)
+        # Reject invalid row/source semantics before publishing a hashed generation.
+        from .calibration_summary import _load_resistance_target_set
+        _load_resistance_target_set(staged_data / f"{TARGET_SET_VERSION}.csv")
         _publish_staged(staged_data, data_dir, project_root, rust_sources)
     finally:
         # A backup directory left behind with the marker may be needed to repair

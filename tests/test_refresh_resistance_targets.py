@@ -23,6 +23,7 @@ class RefreshResistanceTargetsTests(unittest.TestCase):
         self.data = self.root / "data"
         self.data.mkdir()
         for filename in refresh.INPUT_FILENAMES + refresh.GENERATED_FILENAMES:
+            (self.data / filename).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(DATA / filename, self.data / filename)
         self.before = {
             filename: (self.data / filename).read_bytes()
@@ -151,7 +152,7 @@ class RefreshResistanceTargetsTests(unittest.TestCase):
         self.assertFalse(self.marker.exists())
 
     def test_staged_hash_mismatch_prevents_publication(self):
-        build = refresh.build_resistance_targets_v1
+        build = refresh.build_resistance_targets_v2
 
         def damage_after_build(root):
             build(root)
@@ -159,7 +160,7 @@ class RefreshResistanceTargetsTests(unittest.TestCase):
                 handle.write(b"\n")
 
         with patch.object(refresh, "_export_rust_projections", side_effect=self.export_fixture):
-            with patch.object(refresh, "build_resistance_targets_v1", side_effect=damage_after_build):
+            with patch.object(refresh, "build_resistance_targets_v2", side_effect=damage_after_build):
                 with self.assertRaisesRegex(ValueError, "manifest mismatch"):
                     refresh.refresh_resistance_targets(self.root)
         self.assert_live_unchanged()
@@ -168,7 +169,7 @@ class RefreshResistanceTargetsTests(unittest.TestCase):
     def test_rust_source_changed_during_staging_prevents_publication(self):
         source = self.root / "src" / "config.rs"
         source.parent.mkdir()
-        build = refresh.build_resistance_targets_v1
+        build = refresh.build_resistance_targets_v2
 
         for change_during in ("export", "build"):
             with self.subTest(change_during=change_during):
@@ -185,7 +186,7 @@ class RefreshResistanceTargetsTests(unittest.TestCase):
                         source.write_text("// revised configuration\n", encoding="utf-8")
 
                 with patch.object(refresh, "_export_rust_projections", side_effect=export_and_maybe_edit):
-                    with patch.object(refresh, "build_resistance_targets_v1", side_effect=build_and_maybe_edit):
+                    with patch.object(refresh, "build_resistance_targets_v2", side_effect=build_and_maybe_edit):
                         with self.assertRaisesRegex(RuntimeError, "Rust source inputs changed"):
                             refresh.refresh_resistance_targets(self.root)
                 self.assert_live_unchanged()

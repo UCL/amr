@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Resistance comparison: resistance_targets_v2</title><style>
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5; max-width: 1500px; margin: 0 auto;
+  padding: 24px; color: #222; font-size: 13px;
+}
+h1  { font-size: 1.25em; border-bottom: 2px solid #2c3e50;
+      padding-bottom: 8px; color: #2c3e50; margin-bottom: 4px; }
+h2  { font-size: 1.05em; margin-top: 26px; color: #2c3e50;
+      border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.subtitle { color: #555; font-size: 0.9em; margin-bottom: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px 0;
+        font-size: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+th, td { border: 1px solid #ccc; padding: 5px 9px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 160px; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; }
+th { background: #eef1f5; font-weight: 600; color: #2c3e50; }
+tr:nth-child(even) td { background: #fafbfc; }
+tr:hover td { background: #eef4fb; }
+.total-row td { font-weight: 600; background: #e2e8f0 !important; }
+.note  { font-style: italic; color: #666; font-size: 0.87em; margin: 4px 0; }
+.meta-box {
+  background: #f4f7fb; border-left: 4px solid #3498db;
+  padding: 9px 14px; margin-bottom: 14px;
+  border-radius: 0 4px 4px 0; font-size: 0.88em; color: #333;
+}
+ol.footnotes { font-size: 0.87em; color: #444; padding-left: 22px; margin-top: 20px; }
+ol.footnotes li { margin-bottom: 7px; line-height: 1.5; }
+.back-link { font-size: 0.83em; margin-bottom: 12px; }
+a { color: #2980b9; }
+</style></head>
+<body>
+<h1>Resistance comparison: resistance_targets_v2</h1><p>Existing runs compared with the selected reference set; no simulation or recalibration was performed.</p><ul><li><a href='Tables/Supplementary_Table_S2__detailed_bacterium_drug_resistance_benchmarks.html'>Supplementary_Table_S2__detailed_bacterium_drug_resistance_benchmarks</a></li><li><a href='Figures/Figure_2A__hospital_resistance_fit_by_bacteria_drug_class.html'>Figure_2A__hospital_resistance_fit_by_bacteria_drug_class</a></li><li><a href='Figures/Figure_2B__community_resistance_fit_by_bacteria_drug_class.html'>Figure_2B__community_resistance_fit_by_bacteria_drug_class</a></li><li><a href='Figures/Figure_2i__calibration_resistance_gram_positive.html'>Figure_2i__calibration_resistance_gram_positive</a></li><li><a href='Figures/Figure_2ii__calibration_resistance_enteric_gram_negative.html'>Figure_2ii__calibration_resistance_enteric_gram_negative</a></li><li><a href='Figures/Figure_2iii__calibration_resistance_other_bacteria.html'>Figure_2iii__calibration_resistance_other_bacteria</a></li></ul><p><a href='resistance_reference_overlay_audit.csv'>Reference overlay audit</a> | <a href='resistance_class_membership_audit.csv'>Class membership and aggregate effects</a> | <a href='resistance_comparison_provenance.json'>Run and comparison provenance</a></p><pre>Paper-output build provenance
+Validation mode: current and compatible schemas (3, 4, 5, 6)
+Supplementary Figure S5: not generated (resistance-only comparison)
+
+Calibration-summary inputs:
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff164402.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff311750.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff591413.txt
+- C:\Users\w3sth\rust_amr_project\output_graphs\calibration_summary_fff928228.txt
+
+Calibration-summary reported provenance:
+- output_graphs\calibration_summary_fff164402.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_164402.csv; schema=6
+- output_graphs\calibration_summary_fff311750.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_311750.csv; schema=6
+- output_graphs\calibration_summary_fff591413.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_591413.csv; schema=6
+- output_graphs\calibration_summary_fff928228.txt: source CSV=amr_simulation_output_analysis_outputs\simulation_summary_928228.csv; schema=6
+
+Discovered simulation-summary CSVs (authoritative preflight):
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_164402.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_311750.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_591413.csv: schema 6 (current)
+- C:\Users\w3sth\rust_amr_project\amr_simulation_output_analysis_outputs\simulation_summary_928228.csv: schema 6 (current)
+
+Selected resistance comparison reference (separate from original run provenance):
+target_set_version: resistance_targets_v2
+target_path: C:\Users\w3sth\rust_amr_project\data\resistance_targets_v2.csv
+target_sha256: 118748033b7c989d63203596546b1a6a6c3d5874bbc31b69f5eee46c44f83a35
+manifest_path: C:\Users\w3sth\rust_amr_project\data\resistance_targets_v2.manifest.json
+manifest_sha256: 4272fe2f29acb8dff4302b73c9fca509f3e16b436f065b76fab789e7b70c3f96
+Embedded historical targets are replaced for comparison only; original measurements and summaries are unchanged.
+
+Output scope: resistance comparisons only; original calibration scores are not recomputed.
+</pre></body></html>

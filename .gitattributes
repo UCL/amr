@@ -21,3 +21,10 @@
 *.gif binary
 *.ico binary
 *.pdf binary
+
+# Version-bound reference bytes must survive checkout unchanged for SHA-256 checks.
+/data/resistance_targets_v1_snapshot/** -text
+/data/resistance_targets_v2.* -text
+/data/resistance_target_sources_v2.csv -text
+/data/model_potency_matrix.csv -text
+/data/model_resistance_reachability_matrix.csv -text

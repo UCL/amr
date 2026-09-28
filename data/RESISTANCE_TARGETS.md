@@ -1,5 +1,21 @@
 # Resistance target data
 
+The active reference set is now **`resistance_targets_v2`**. Its reviewed corrections,
+row-level before/after table, source access record, and reproduction instructions are in
+[RESISTANCE_TARGETS_V2_REVIEW.md](RESISTANCE_TARGETS_V2_REVIEW.md). The default loader and
+transactional refresh command use v2. The unchanged legacy wide matrices no longer supply
+active references or fallback values for v2.
+
+V2 starts with the byte-preserved inputs in `resistance_targets_v1_snapshot/` and explicit
+decisions in `resistance_targets_v2.review.json`. Its manifest binds those versioned inputs,
+the v2 schema, target/source/audit outputs, and current Rust eligibility projections.
+The historical v1 description below records the earlier workflow; refresh now publishes
+v2 under `data/.resistance_targets_v2.update.lock`, validates parsed rows and sources before
+publication, and writes the v2 manifest last. Existing live v1 files are preserved, and the
+snapshot remains independently reproducible even after later projection refreshes.
+
+## Historical version 1 baseline
+
 `resistance_targets_v1.csv` is the versioned long-form companion to the two legacy wide matrices:
 
 - `resistance_prevalence_values.csv`

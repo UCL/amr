@@ -360,6 +360,7 @@
     ]
   },
   "resistance_targets": {
-    "path": "data/resistance_prevalence_values.csv"
+    "path": "data/resistance_prevalence_values.csv",
+    "long_form_path": "data/resistance_targets_v2.csv"
   }
 }

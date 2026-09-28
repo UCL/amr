@@ -1,0 +1,606 @@
+Bacteria,Class,sim,lo,hi,target,n_runs,reference_available,paired_drugs,simulation_only
+Acinetobacter baumannii,Aminoglycosides (J01G),59.032417781304815,35.672182023210055,82.39265353939957,46.666666666666664,4,True,amikacin;gentamicin;tobramycin,59.032417781304815
+Acinetobacter baumannii,Beta-lactamase combinations (J01CR),69.25041766446641,58.86399286549749,79.63684246343533,47.5,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,69.2504176644664
+Acinetobacter baumannii,Carbapenems (J01DH),69.30845437725858,59.45370440020235,79.16320435431483,52.5,4,True,imipenem_c;meropenem,69.30845437725858
+Acinetobacter baumannii,Cephalosporins 3G,69.87734489980816,60.473958443417914,79.28073135619842,65.0,4,True,ceftazidime,69.87734489980816
+Acinetobacter baumannii,Cephalosporins 4G,69.87734489980816,60.473958443417914,79.28073135619842,55.0,4,True,cefepime,69.87734489980816
+Acinetobacter baumannii,Fluoroquinolones (J01M),76.35913846423698,71.61738833272106,81.10088859575289,68.25,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,76.35913846423698
+Acinetobacter baumannii,Novel BL/BLI,69.08046497135128,58.64430295917704,79.51662698352551,21.5,4,True,ceftazidime_avibactam;meropenem_vaborbactam,69.08046497135128
+Acinetobacter baumannii,Penicillins (J01C),69.48548449348853,59.53154187807769,79.43942710889937,67.5,4,True,piperacillin;ticarcillin,69.48548449348853
+Acinetobacter baumannii,Polymyxins (J01XB),38.20634612152956,10.010207848478064,66.40248439458107,12.0,4,True,colistin,38.20634612152956
+Acinetobacter baumannii,Siderophore Cephalosporins,0.009636882275846118,0.0,0.040301441677588465,5.0,4,True,cefiderocol,0.009636882275846118
+Acinetobacter baumannii,Tetracyclines (J01A),55.51543587895774,29.81975277980453,81.21111897811095,50.0,4,True,minocycline;tigecycline,55.51543587895774
+Bacteroides fragilis,Beta-lactamase combinations (J01CR),60.9491627513561,52.54653903934102,69.35178646337118,23.25,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,60.9491627513561
+Bacteroides fragilis,Carbapenems (J01DH),42.818596395222364,29.5926800036628,56.04451278678193,6.0,4,True,ertapenem;imipenem_c;meropenem,42.818596395222364
+Bacteroides fragilis,Cephalosporins 3G,79.09812409698341,75.61781917120341,82.57842902276342,75.0,4,True,ceftazidime;ceftriaxone,79.09812409698341
+Bacteroides fragilis,Cephalosporins 3G/BLI,60.60452326139712,52.259442408659645,68.9496041141346,4.0,4,True,ceftolozane_tazobactam,60.60452326139712
+Bacteroides fragilis,Cephalosporins 4G,79.09812409698341,75.61781917120341,82.57842902276342,70.0,4,True,cefepime,79.09812409698341
+Bacteroides fragilis,Chloramphenicol (J01BA),77.49630825240513,65.3935781107815,89.59903839402875,20.0,4,True,chloramphenicol,77.49630825240513
+Bacteroides fragilis,Fluoroquinolones (J01M),60.734718892294424,56.588738963942426,64.88069882064642,35.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,60.734718892294424
+Bacteroides fragilis,Lincosamides (J01FF),11.166296905286266,0.0,24.504671068253494,40.0,4,True,clindamycin,11.166296905286266
+Bacteroides fragilis,Nitroimidazoles,4.443347071608122,0.0,11.626175886275686,5.0,4,True,metronidazole,4.443347071608122
+Bacteroides fragilis,Novel BL/BLI,47.54254626012838,35.83734203307531,59.247750487181456,12.5,4,True,ceftazidime_avibactam;meropenem_vaborbactam,47.54254626012838
+Bacteroides fragilis,Sulfonamides (J01E),13.875577927330761,0.0,31.90821932039568,30.0,4,True,trim_sulf,13.875577927330761
+Bacteroides fragilis,Tetracyclines (J01A),76.1342391936819,63.48262417595664,88.78585421140718,43.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,76.1342391936819
+Bordetella pertussis,Aminoglycosides (J01G),7.672973685798099,6.077422568480904,9.268524803115294,20.0,4,True,amikacin;gentamicin;tobramycin,7.672973685798099
+Bordetella pertussis,Cephalosporins 3G,,,,,0,False,,3.730802696099512
+Bordetella pertussis,Cephalosporins 3G/BLI,1.3873184516650507,0.2405515153558182,2.534085387974283,4.0,4,True,ceftolozane_tazobactam,1.3873184516650507
+Bordetella pertussis,Chloramphenicol (J01BA),16.978272360199558,12.381052270293209,21.575492450105905,15.0,4,True,chloramphenicol,16.978272360199558
+Bordetella pertussis,Fluoroquinolones (J01M),4.616283489232252,3.4674724545988944,5.76509452386561,12.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,4.616283489232252
+Bordetella pertussis,Macrolides (J01F),18.614188298787198,10.366185134254954,26.86219146331944,8.333333333333334,4,True,azithromycin;clarithromycin;erythromycin,18.614188298787198
+Bordetella pertussis,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Bordetella pertussis,Sulfonamides (J01E),3.7045380104063987,2.1938014848184486,5.215274535994348,20.0,4,True,trim_sulf,3.7045380104063987
+Bordetella pertussis,Tetracyclines (J01A),14.378516532214546,10.351911396061894,18.405121668367197,10.0,4,True,doxycycline;minocycline;tetracycline,14.378516532214546
+Burkholderia cepacia complex,Beta-lactamase combinations (J01CR),,,,,0,False,,26.44667674014743
+Burkholderia cepacia complex,Carbapenems (J01DH),26.42760732748534,0.0,57.05865440214505,10.0,4,True,meropenem,26.42760732748534
+Burkholderia cepacia complex,Cephalosporins 3G,31.93854064547287,0.0,66.0626823530155,15.0,4,True,ceftazidime,31.93854064547287
+Burkholderia cepacia complex,Cephalosporins 3G/BLI,,,,,0,False,,26.44667674014743
+Burkholderia cepacia complex,Cephalosporins 4G,,,,,0,False,,31.93854064547287
+Burkholderia cepacia complex,Chloramphenicol (J01BA),,,,,0,False,,28.87103778496249
+Burkholderia cepacia complex,Fluoroquinolones (J01M),34.64225465471525,0.0,98.94080232345638,20.0,4,True,levofloxacin,37.441551343181985
+Burkholderia cepacia complex,Novel BL/BLI,,,,,0,False,,24.405911075019855
+Burkholderia cepacia complex,Penicillins (J01C),,,,,0,False,,31.93854064547287
+Burkholderia cepacia complex,Siderophore Cephalosporins,,,,,0,False,,0.0
+Burkholderia cepacia complex,Sulfonamides (J01E),1.9870327993897787,0.0,8.069477510570309,10.0,4,True,trim_sulf,1.9870327993897787
+Burkholderia cepacia complex,Tetracyclines (J01A),11.22183274123767,0.0,42.03767965584278,5.0,4,True,minocycline,11.22183274123767
+Campylobacter jejuni,Aminoglycosides (J01G),0.0,0.0,0.0,11.666666666666666,4,True,amikacin;gentamicin;tobramycin,0.0
+Campylobacter jejuni,Beta-lactamase combinations (J01CR),,,,,0,False,,0.0
+Campylobacter jejuni,Carbapenems (J01DH),,,,,0,False,,0.0
+Campylobacter jejuni,Cephalosporins 3G,,,,,0,False,,0.0
+Campylobacter jejuni,Cephalosporins 4G,,,,,0,False,,0.0
+Campylobacter jejuni,Chloramphenicol (J01BA),33.05903676612489,25.4942928280932,40.62378070415658,15.0,4,True,chloramphenicol,33.05903676612489
+Campylobacter jejuni,Fluoroquinolones (J01M),42.02322939163485,40.15513123696868,43.89132754630102,52.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,42.02322939163485
+Campylobacter jejuni,Fosfomycin (J01XX01),,,,,0,False,,0.0
+Campylobacter jejuni,Lincosamides (J01FF),7.730389171358507,6.425640872033563,9.03513747068345,12.0,4,True,clindamycin,7.730389171358507
+Campylobacter jejuni,Macrolides (J01F),24.364293517784514,17.860287588642077,30.86829944692695,7.0,4,True,azithromycin;clarithromycin;erythromycin,24.364293517784514
+Campylobacter jejuni,Nitrofurans (J01XE),,,,,0,False,,0.0
+Campylobacter jejuni,Novel BL/BLI,,,,,0,False,,0.0
+Campylobacter jejuni,Penicillins (J01C),,,,,0,False,,0.0
+Campylobacter jejuni,Tetracyclines (J01A),53.071776797419105,46.35945106595718,59.78410252888103,38.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,53.071776797419105
+Chlamydia trachomatis,Chloramphenicol (J01BA),,,,,0,False,,28.85466410672251
+Chlamydia trachomatis,Fluoroquinolones (J01M),,,,,0,False,,16.48051905317832
+Chlamydia trachomatis,Lincosamides (J01FF),,,,,0,False,,27.34028095319181
+Chlamydia trachomatis,Macrolides (J01F),,,,,0,False,,24.373279633458182
+Chlamydia trachomatis,Tetracyclines (J01A),,,,,0,False,,28.410340917071167
+Citrobacter spp.,Aminoglycosides (J01G),54.29654644118843,48.56710530558687,60.025987576789994,30.0,4,True,amikacin;gentamicin;tobramycin,54.29654644118843
+Citrobacter spp.,Anti-MRSA Cephalosporins (5G),,,,,0,False,,77.79863230479782
+Citrobacter spp.,Beta-lactamase combinations (J01CR),76.01252099596402,72.13970692172941,79.88533507019864,25.0,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,76.01252099596402
+Citrobacter spp.,Carbapenems (J01DH),57.00129978224761,48.69482508199261,65.30777448250261,11.666666666666666,4,True,ertapenem;imipenem_c;meropenem,57.00129978224761
+Citrobacter spp.,Cephalosporins 1-2G,77.79863230479782,75.095828111776,80.50143649781964,30.0,4,True,cefuroxime,77.79863230479782
+Citrobacter spp.,Cephalosporins 3G,77.79863230479782,75.095828111776,80.50143649781964,28.333333333333332,4,True,cefixime;ceftazidime;ceftriaxone,77.79863230479782
+Citrobacter spp.,Cephalosporins 3G/BLI,76.01252099596402,72.13970692172941,79.88533507019864,4.0,4,True,ceftolozane_tazobactam,76.01252099596402
+Citrobacter spp.,Cephalosporins 4G,77.79863230479782,75.095828111776,80.50143649781964,30.0,4,True,cefepime,77.79863230479782
+Citrobacter spp.,Chloramphenicol (J01BA),61.48077816602407,56.10927132702182,66.85228500502632,25.0,4,True,chloramphenicol,61.48077816602407
+Citrobacter spp.,Fluoroquinolones (J01M),75.41975831764586,70.22057633763781,80.61894029765391,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,75.41975831764586
+Citrobacter spp.,Fosfomycin (J01XX01),6.69068203991565,3.284090497715565,10.097273582115735,15.0,4,True,fosfomycin,6.69068203991565
+Citrobacter spp.,Monobactams,75.68989872613804,71.97088334881697,79.40891410345911,30.0,4,True,aztreonam,75.68989872613804
+Citrobacter spp.,Nitrofurans (J01XE),9.650574665562065,0.0,21.57284756509081,15.0,4,True,nitrofurantoin,9.650574665562065
+Citrobacter spp.,Novel BL/BLI,66.72826119241692,61.36163110526497,72.09489127956887,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,66.72826119241692
+Citrobacter spp.,Penicillins (J01C),77.81528042983425,75.09227917319397,80.53828168647452,30.0,4,True,piperacillin;ticarcillin,77.81528042983425
+Citrobacter spp.,Polymyxins (J01XB),11.950055207973893,5.043652080769506,18.85645833517828,20.0,4,True,colistin,11.950055207973893
+Citrobacter spp.,Siderophore Cephalosporins,0.00312656328164082,0.0,0.013075287643821909,1.0,4,True,cefiderocol,0.00312656328164082
+Citrobacter spp.,Sulfonamides (J01E),35.639377603607976,22.045594808359592,49.233160398856356,20.0,4,True,sulfanilamide;trim_sulf,35.639377603607976
+Citrobacter spp.,Tetracyclines (J01A),62.78272996702307,58.31891433953671,67.24654559450943,18.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,62.78272996702307
+Clostridioides difficile,Fidaxomicin,0.13588955766986163,0.0,0.5620962554269704,5.0,4,True,fidaxomicin,0.13588955766986163
+Clostridioides difficile,Glycopeptides (J01XA),0.0,0.0,0.0,10.0,4,True,teicoplanin,0.0
+Clostridioides difficile,Lipoglycopeptides,0.0,0.0,0.0,10.0,4,True,dalbavancin,0.0
+Clostridioides difficile,Nitroimidazoles,5.284356521767986,0.0,11.950776033941505,5.0,4,True,metronidazole,5.284356521767986
+Clostridioides difficile,Oxazolidinones (J01XX),8.109765615163068,1.6989147871461059,14.520616443180032,10.0,4,True,linezolid;tedizolid,8.109765615163068
+Clostridioides difficile,Tetracyclines (J01A),54.5365952323703,40.87101899106608,68.20217147367453,10.0,4,True,doxycycline;minocycline;tetracycline,54.5365952323703
+Enterobacter cloacae,Aminoglycosides (J01G),60.455393578096945,26.38263503691128,94.52815211928261,30.0,4,True,amikacin;gentamicin;tobramycin,60.455393578096945
+Enterobacter cloacae,Beta-lactamase combinations (J01CR),88.6248054488973,82.20621265867968,95.04339823911494,32.5,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,88.6248054488973
+Enterobacter cloacae,Carbapenems (J01DH),88.48444924059667,81.98551644644692,94.98338203474643,16.666666666666668,4,True,ertapenem;imipenem_c;meropenem,88.48444924059667
+Enterobacter cloacae,Cephalosporins 1-2G,89.0069517367071,83.01291919374266,95.00098427967153,50.0,4,True,cefuroxime,89.0069517367071
+Enterobacter cloacae,Cephalosporins 3G,89.0069517367071,83.01291919374266,95.00098427967153,55.0,4,True,ceftazidime;ceftriaxone,89.0069517367071
+Enterobacter cloacae,Cephalosporins 3G/BLI,88.6248054488973,82.20621265867968,95.04339823911494,4.0,4,True,ceftolozane_tazobactam,88.6248054488973
+Enterobacter cloacae,Cephalosporins 4G,89.0069517367071,83.01291919374266,95.00098427967153,35.0,4,True,cefepime,89.0069517367071
+Enterobacter cloacae,Chloramphenicol (J01BA),67.71889751034183,26.328502816096197,100.0,30.0,4,True,chloramphenicol,67.71889751034183
+Enterobacter cloacae,Fluoroquinolones (J01M),71.69763257480712,51.752288038152,91.64297711146223,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,71.69763257480712
+Enterobacter cloacae,Fosfomycin (J01XX01),18.217838347302,0.0,41.8495704548879,25.0,4,True,fosfomycin,18.217838347302
+Enterobacter cloacae,Monobactams,50.732513102043114,18.452045025762907,83.01298117832332,40.0,4,True,aztreonam,50.732513102043114
+Enterobacter cloacae,Nitrofurans (J01XE),30.224739198871696,0.0,64.25641802602425,25.0,4,True,nitrofurantoin,30.224739198871696
+Enterobacter cloacae,Novel BL/BLI,71.19429864884427,52.713841814797505,89.67475548289103,13.333333333333334,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,71.19429864884427
+Enterobacter cloacae,Penicillins (J01C),89.02389582266159,83.07071994799983,94.97707169732334,37.5,4,True,piperacillin;ticarcillin,89.02389582266159
+Enterobacter cloacae,Polymyxins (J01XB),48.29936458173999,14.239415957187163,82.35931320629281,20.0,4,True,colistin,48.29936458173999
+Enterobacter cloacae,Siderophore Cephalosporins,0.00351831871276446,0.0,0.014713608856780972,1.0,4,True,cefiderocol,0.00351831871276446
+Enterobacter cloacae,Sulfonamides (J01E),76.68931739962008,51.07419753013727,100.0,27.5,4,True,sulfanilamide;trim_sulf,76.68931739962008
+Enterobacter cloacae,Tetracyclines (J01A),56.743020339018,9.775610048913151,100.0,18.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,56.743020339018
+Enterobacter spp.,Aminoglycosides (J01G),63.86695264706916,42.3099511813091,85.42395411282922,30.0,4,True,amikacin;gentamicin;tobramycin,63.86695264706916
+Enterobacter spp.,Anti-MRSA Cephalosporins (5G),,,,,0,False,,0.0
+Enterobacter spp.,Beta-lactamase combinations (J01CR),83.39599171543983,81.67666350721986,85.11531992365981,32.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,83.39599171543983
+Enterobacter spp.,Carbapenems (J01DH),81.25219160340316,78.77253195974981,83.73185124705651,16.666666666666668,4,True,ertapenem;imipenem_c;meropenem,81.25219160340316
+Enterobacter spp.,Cephalosporins 1-2G,84.20023941975664,82.32679452066957,86.07368431884372,35.0,4,True,cefuroxime,84.20023941975664
+Enterobacter spp.,Cephalosporins 3G,84.20023941975664,82.32679452066958,86.0736843188437,45.0,4,True,cefixime;ceftazidime;ceftriaxone,84.20023941975664
+Enterobacter spp.,Cephalosporins 3G/BLI,83.39599171543983,81.67666350721986,85.11531992365981,4.0,4,True,ceftolozane_tazobactam,83.39599171543983
+Enterobacter spp.,Cephalosporins 4G,84.20023941975664,82.32679452066957,86.07368431884372,30.0,4,True,cefepime,84.20023941975664
+Enterobacter spp.,Chloramphenicol (J01BA),63.772448397066015,52.90954542708988,74.63535136704215,30.0,4,True,chloramphenicol,63.772448397066015
+Enterobacter spp.,Fluoroquinolones (J01M),79.74184505765069,78.02523319216051,81.45845692314087,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,79.74184505765069
+Enterobacter spp.,Fosfomycin (J01XX01),9.426534415325852,7.430494283022388,11.422574547629315,25.0,4,True,fosfomycin,9.426534415325852
+Enterobacter spp.,Monobactams,78.18585990108969,68.61508935992451,87.75663044225486,35.0,4,True,aztreonam,78.18585990108969
+Enterobacter spp.,Nitrofurans (J01XE),9.176808427366202,7.362072164835656,10.991544689896749,25.0,4,True,nitrofurantoin,9.176808427366202
+Enterobacter spp.,Novel BL/BLI,78.57102843604865,71.74597459642048,85.39608227567682,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,78.57102843604865
+Enterobacter spp.,Penicillins (J01C),84.24105973959524,82.39380647312429,86.0883130060662,32.5,4,True,piperacillin;ticarcillin,84.24105973959524
+Enterobacter spp.,Polymyxins (J01XB),22.429848433302404,0.0,55.80373386961139,20.0,4,True,colistin,22.429848433302404
+Enterobacter spp.,Siderophore Cephalosporins,0.019357391112023614,0.0,0.0409367011738529,1.0,4,True,cefiderocol,0.019357391112023614
+Enterobacter spp.,Sulfonamides (J01E),37.47078187655538,12.157540747875448,62.78402300523531,22.5,4,True,sulfanilamide;trim_sulf,37.47078187655538
+Enterobacter spp.,Tetracyclines (J01A),63.33201589196374,52.489414395747254,74.17461738818024,18.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,63.33201589196374
+Enterococcus faecalis,Anti-MRSA Cephalosporins (5G),,,,,0,False,,0.0
+Enterococcus faecalis,Beta-lactamase combinations (J01CR),1.6161879089824747,0.0,5.755870434890797,15.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,1.6161879089824747
+Enterococcus faecalis,Carbapenems (J01DH),0.0,0.0,0.0,2.0,4,True,imipenem_c;meropenem,0.0
+Enterococcus faecalis,Chloramphenicol (J01BA),43.950885912964914,38.72907797110246,49.172693854827365,25.0,4,True,chloramphenicol,43.950885912964914
+Enterococcus faecalis,Fluoroquinolones (J01M),42.87890798760937,37.018698457919335,48.7391175172994,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,42.87890798760937
+Enterococcus faecalis,Fosfomycin (J01XX01),0.48595948146187085,0.0,1.111893682915035,10.0,4,True,fosfomycin,0.48595948146187085
+Enterococcus faecalis,Glycopeptides (J01XA),1.3903075453798435,0.0,3.1143444487649217,7.5,4,True,teicoplanin;vancomycin,1.3903075453798435
+Enterococcus faecalis,Lipoglycopeptides,1.054951640610646,0.0,2.403060488153981,10.0,4,True,dalbavancin,1.054951640610646
+Enterococcus faecalis,Lipopeptides (J01XX09),1.739677107314915,1.0776800221910878,2.401674192438742,5.0,4,True,daptomycin,1.739677107314915
+Enterococcus faecalis,Macrolides (J01F),55.32262055691019,51.95906948750753,58.68617162631285,38.333333333333336,4,True,azithromycin;clarithromycin;erythromycin,55.32262055691019
+Enterococcus faecalis,Nitrofurans (J01XE),4.754155164029507,0.39833285368669724,9.109977474372318,10.0,4,True,nitrofurantoin,4.754155164029507
+Enterococcus faecalis,Novel BL/BLI,0.0,0.0,0.0,20.0,4,True,meropenem_vaborbactam,0.0
+Enterococcus faecalis,Oxazolidinones (J01XX),10.415958966377204,9.160016444863485,11.671901487890922,5.0,4,True,linezolid;tedizolid,10.415958966377204
+Enterococcus faecalis,Penicillins (J01C),1.6161879089824747,0.0,5.755870434890797,14.0,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,1.6161879089824747
+Enterococcus faecalis,Tetracyclines (J01A),43.34803851074058,35.06780447506033,51.62827254642083,13.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,43.34803851074058
+Enterococcus faecium,Anti-MRSA Cephalosporins (5G),,,,,0,False,,0.0
+Enterococcus faecium,Beta-lactamase combinations (J01CR),,,,,0,False,,1.6188706054552489
+Enterococcus faecium,Chloramphenicol (J01BA),66.12730580328468,62.601341961271274,69.6532696452981,65.0,4,True,chloramphenicol,66.12730580328468
+Enterococcus faecium,Fidaxomicin,,,,,0,False,,0.0
+Enterococcus faecium,Fluoroquinolones (J01M),37.96435315665916,33.48350211017834,42.44520420313997,68.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,37.96435315665916
+Enterococcus faecium,Fosfomycin (J01XX01),15.613591865207574,5.50862898051307,25.71855474990208,60.0,4,True,fosfomycin,15.613591865207574
+Enterococcus faecium,Glycopeptides (J01XA),67.08869413825825,64.90181948786525,69.27556878865124,42.5,4,True,teicoplanin;vancomycin,67.08869413825825
+Enterococcus faecium,Lincosamides (J01FF),63.14103095645609,60.633802582093196,65.64825933081899,65.0,4,True,clindamycin,63.14103095645609
+Enterococcus faecium,Lipoglycopeptides,64.07295560545005,61.32454596001575,66.82136525088436,45.0,4,True,dalbavancin,64.07295560545005
+Enterococcus faecium,Lipopeptides (J01XX09),2.17900827881187,1.7970926548929365,2.5609239027308037,10.0,4,True,daptomycin,2.17900827881187
+Enterococcus faecium,Macrolides (J01F),49.46558556366273,44.93267124112986,53.998499886195596,58.333333333333336,4,True,azithromycin;clarithromycin;erythromycin,49.46558556366273
+Enterococcus faecium,Nitrofurans (J01XE),48.860532194780774,40.52682487084874,57.194239518712806,60.0,4,True,nitrofurantoin,48.860532194780774
+Enterococcus faecium,Oxazolidinones (J01XX),40.038748387014564,34.5256617139316,45.55183506009753,10.0,4,True,tedizolid,40.038748387014564
+Enterococcus faecium,Penicillins (J01C),,,,,0,False,,1.6188706054552489
+Enterococcus faecium,Streptogramins (J01FG),0.0,0.0,0.0,50.0,4,True,quinu_dalfo,0.0
+Enterococcus faecium,Tetracyclines (J01A),48.46216313407889,39.63405892947655,57.29026733868123,45.0,4,True,doxycycline;minocycline;tetracycline,46.67546228243846
+Escherichia coli,Aminoglycosides (J01G),42.523849670381765,37.59423895234626,47.45346038841727,10.666666666666666,4,True,amikacin;gentamicin;tobramycin,42.523849670381765
+Escherichia coli,Anti-MRSA Cephalosporins (5G),80.78621403474816,77.80075269118521,83.7716753783111,12.0,4,True,ceftaroline,80.78621403474816
+Escherichia coli,Beta-lactamase combinations (J01CR),68.6688574081609,63.80050575208606,73.53720906423575,15.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,68.6688574081609
+Escherichia coli,Carbapenems (J01DH),59.446293659763604,51.78732167530257,67.10526564422463,3.3333333333333335,4,True,ertapenem;imipenem_c;meropenem,59.446293659763604
+Escherichia coli,Cephalosporins 1-2G,80.78621403474816,77.80075269118521,83.7716753783111,41.666666666666664,4,True,cefazolin;cefuroxime;cephalexin,80.78621403474816
+Escherichia coli,Cephalosporins 3G,80.78621403474816,77.80075269118521,83.7716753783111,18.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,80.78621403474816
+Escherichia coli,Cephalosporins 3G/BLI,68.58433990214007,63.77805731231804,73.3906224919621,4.0,4,True,ceftolozane_tazobactam,68.58433990214007
+Escherichia coli,Cephalosporins 4G,80.78621403474816,77.80075269118521,83.7716753783111,15.0,4,True,cefepime,80.78621403474816
+Escherichia coli,Chloramphenicol (J01BA),45.57644104357347,37.61009098403497,53.542791103111966,12.0,4,True,chloramphenicol,45.57644104357347
+Escherichia coli,Fluoroquinolones (J01M),63.97521372522293,57.99640109304075,69.9540263574051,30.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,63.97521372522293
+Escherichia coli,Fosfomycin (J01XX01),14.417112232942625,10.761150694262938,18.07307377162231,8.0,4,True,fosfomycin,14.417112232942625
+Escherichia coli,Monobactams,65.17362005202793,58.43898261558789,71.90825748846797,18.0,4,True,aztreonam,65.17362005202793
+Escherichia coli,Nitrofurans (J01XE),15.856363213629956,10.051142771061976,21.661583656197937,8.0,4,True,nitrofurantoin,15.856363213629956
+Escherichia coli,Novel BL/BLI,45.72453347168939,40.5810146651649,50.86805227821388,2.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,45.72453347168939
+Escherichia coli,Penicillins (J01C),80.88519782693827,77.88848887497092,83.88190677890562,42.25,4,True,amoxicillin;ampicillin;piperacillin;ticarcillin,80.88519782693827
+Escherichia coli,Polymyxins (J01XB),2.8397810143830498,1.9945138976870904,3.685048131079009,1.0,4,True,colistin,2.8397810143830498
+Escherichia coli,Siderophore Cephalosporins,0.024166870827143704,0.0,0.05104074739855832,1.0,4,True,cefiderocol,0.024166870827143704
+Escherichia coli,Sulfonamides (J01E),63.06151743481412,57.65347479820048,68.46956007142776,38.5,4,True,sulfanilamide;trim_sulf,63.06151743481412
+Escherichia coli,Tetracyclines (J01A),68.08340818479716,62.512163792525996,73.65465257706833,38.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,68.08340818479716
+Haemophilus influenzae,Aminoglycosides (J01G),34.784840981142224,32.42651794929925,37.143164012985196,20.0,4,True,amikacin;gentamicin;tobramycin,34.784840981142224
+Haemophilus influenzae,Anti-MRSA Cephalosporins (5G),52.86296511940502,48.41418488449223,57.31174535431781,20.0,4,True,ceftaroline,52.86296511940502
+Haemophilus influenzae,Beta-lactamase combinations (J01CR),52.43983249398754,47.97894559565365,56.90071939232143,10.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,52.43983249398754
+Haemophilus influenzae,Carbapenems (J01DH),46.98478195558741,42.98168892716464,50.987874984010176,5.0,4,True,ertapenem;imipenem_c;meropenem,46.98478195558741
+Haemophilus influenzae,Cephalosporins 1-2G,52.86296511940502,48.41418488449223,57.31174535431781,38.333333333333336,4,True,cefazolin;cefuroxime;cephalexin,52.86296511940502
+Haemophilus influenzae,Cephalosporins 3G,52.86296511940502,48.41418488449223,57.31174535431781,11.666666666666666,4,True,cefixime;ceftazidime;ceftriaxone,52.86296511940502
+Haemophilus influenzae,Cephalosporins 3G/BLI,52.349857611601585,47.76446891542392,56.93524630777925,4.0,4,True,ceftolozane_tazobactam,52.349857611601585
+Haemophilus influenzae,Cephalosporins 4G,52.86296511940502,48.41418488449223,57.31174535431781,15.0,4,True,cefepime,52.86296511940502
+Haemophilus influenzae,Chloramphenicol (J01BA),30.603617946822503,27.485727478250045,33.72150841539496,15.0,4,True,chloramphenicol,30.603617946822503
+Haemophilus influenzae,Fluoroquinolones (J01M),42.879603888095446,39.485466282083145,46.273741494107746,12.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,42.879603888095446
+Haemophilus influenzae,Macrolides (J01F),48.14497345433634,44.16137825509482,52.12856865357786,28.333333333333332,4,True,azithromycin;clarithromycin;erythromycin,48.14497345433634
+Haemophilus influenzae,Monobactams,46.27211860203499,44.15008062629981,48.394156577770175,15.0,4,True,aztreonam,46.27211860203499
+Haemophilus influenzae,Novel BL/BLI,47.20357677750524,45.00102518969055,49.40612836531993,5.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,47.20357677750524
+Haemophilus influenzae,Penicillins (J01C),71.06044509059004,68.84185140596664,73.27903877521344,34.0,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,71.06044509059004
+Haemophilus influenzae,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Haemophilus influenzae,Sulfonamides (J01E),22.529075710821584,17.770776731159202,27.287374690483965,20.0,4,True,trim_sulf,22.529075710821584
+Haemophilus influenzae,Tetracyclines (J01A),30.178296336628748,27.167368783954412,33.189223889303086,13.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,30.178296336628748
+Helicobacter pylori,Beta-lactamase combinations (J01CR),20.664215768791127,18.93033325259126,22.398098284990994,10.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam,20.664215768791127
+Helicobacter pylori,Chloramphenicol (J01BA),20.736441638405246,16.101925334174656,25.370957942635837,20.0,4,True,chloramphenicol,20.736441638405246
+Helicobacter pylori,Fluoroquinolones (J01M),17.357074085217167,14.361166640610612,20.352981529823722,12.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,17.357074085217167
+Helicobacter pylori,Macrolides (J01F),17.691088619578775,14.636992249369644,20.745184989787905,7.0,4,True,azithromycin;clarithromycin;erythromycin,17.691088619578775
+Helicobacter pylori,Nitroimidazoles,3.104549821322904,1.8025763900742213,4.406523252571587,50.0,4,True,metronidazole,3.104549821322904
+Helicobacter pylori,Penicillins (J01C),20.664215768791127,18.93033325259126,22.398098284990994,4.0,4,True,amoxicillin;ampicillin,20.664215768791127
+Helicobacter pylori,Tetracyclines (J01A),27.214450610640984,20.519349498723145,33.909551722558824,8.0,4,True,doxycycline;minocycline;tetracycline,27.214450610640984
+Invasive non-typhoidal Salmonella spp.,Aminoglycosides (J01G),28.55970176760027,27.257837106699604,29.861566428500936,30.0,4,True,amikacin;gentamicin;tobramycin,28.55970176760027
+Invasive non-typhoidal Salmonella spp.,Beta-lactamase combinations (J01CR),21.501297017263436,17.613743795408265,25.388850239118607,22.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,21.501297017263436
+Invasive non-typhoidal Salmonella spp.,Carbapenems (J01DH),8.940260988994599,5.946135972044714,11.934386005944482,10.0,4,True,ertapenem;imipenem_c;meropenem,8.940260988994599
+Invasive non-typhoidal Salmonella spp.,Cephalosporins 1-2G,77.1874093751273,76.0749315219463,78.29988722830831,38.333333333333336,4,True,cefazolin;cefuroxime;cephalexin,77.1874093751273
+Invasive non-typhoidal Salmonella spp.,Cephalosporins 3G,77.1874093751273,76.0749315219463,78.29988722830831,21.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,77.1874093751273
+Invasive non-typhoidal Salmonella spp.,Cephalosporins 3G/BLI,21.410834787225,17.561427851165014,25.260241723284985,4.0,4,True,ceftolozane_tazobactam,21.410834787225
+Invasive non-typhoidal Salmonella spp.,Cephalosporins 4G,77.1874093751273,76.0749315219463,78.29988722830831,30.0,4,True,cefepime,77.1874093751273
+Invasive non-typhoidal Salmonella spp.,Chloramphenicol (J01BA),25.023966828578292,23.212798623898685,26.8351350332579,35.0,4,True,chloramphenicol,25.023966828578292
+Invasive non-typhoidal Salmonella spp.,Fluoroquinolones (J01M),64.62633945132498,63.11050399598869,66.14217490666127,38.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,64.62633945132498
+Invasive non-typhoidal Salmonella spp.,Macrolides (J01F),,,,,0,False,,0.18593820226755647
+Invasive non-typhoidal Salmonella spp.,Monobactams,76.10868227820502,74.88618236537317,77.33118219103687,25.0,4,True,aztreonam,76.10868227820502
+Invasive non-typhoidal Salmonella spp.,Nitrofurans (J01XE),,,,,0,False,,0.0
+Invasive non-typhoidal Salmonella spp.,Novel BL/BLI,6.98623614446808,4.486914567245435,9.485557721690725,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,6.98623614446808
+Invasive non-typhoidal Salmonella spp.,Penicillins (J01C),77.38096835085659,76.28507827005737,78.47685843165581,43.75,4,True,amoxicillin;ampicillin;piperacillin;ticarcillin,77.38096835085659
+Invasive non-typhoidal Salmonella spp.,Polymyxins (J01XB),0.7134680681367334,0.540149763202757,0.8867863730707097,20.0,4,True,colistin,0.7134680681367334
+Invasive non-typhoidal Salmonella spp.,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Invasive non-typhoidal Salmonella spp.,Sulfonamides (J01E),25.851089140017265,23.50586365202496,28.19631462800957,40.0,4,True,trim_sulf,25.851089140017265
+Invasive non-typhoidal Salmonella spp.,Tetracyclines (J01A),31.470402001857934,29.288699531447012,33.65210447226886,18.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,31.470402001857934
+Klebsiella pneumoniae,Aminoglycosides (J01G),57.8990104375109,21.38071018262297,94.41731069239884,16.0,4,True,amikacin;gentamicin;tobramycin,57.8990104375109
+Klebsiella pneumoniae,Anti-MRSA Cephalosporins (5G),94.33099683729118,92.98867204082407,95.67332163375829,25.0,4,True,ceftaroline,94.33099683729118
+Klebsiella pneumoniae,Beta-lactamase combinations (J01CR),94.1028991239856,92.6770838953618,95.52871435260938,29.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,94.1028991239856
+Klebsiella pneumoniae,Carbapenems (J01DH),94.00343474083472,92.59222415102596,95.41464533064348,13.0,4,True,ertapenem;imipenem_c;meropenem,94.00343474083472
+Klebsiella pneumoniae,Cephalosporins 1-2G,94.33099683729118,92.98867204082407,95.67332163375829,65.0,4,True,cefazolin;cefuroxime;cephalexin,94.33099683729118
+Klebsiella pneumoniae,Cephalosporins 3G,94.33099683729118,92.98867204082407,95.67332163375829,34.0,4,True,cefixime;ceftazidime;ceftriaxone,94.33099683729118
+Klebsiella pneumoniae,Cephalosporins 3G/BLI,94.09408676593388,92.67556301640494,95.51261051546282,4.0,4,True,ceftolozane_tazobactam,94.09408676593388
+Klebsiella pneumoniae,Cephalosporins 4G,94.33099683729118,92.98867204082407,95.67332163375829,28.0,4,True,cefepime,94.33099683729118
+Klebsiella pneumoniae,Chloramphenicol (J01BA),70.18459008805686,53.189693676938795,87.17948649917494,18.0,4,True,chloramphenicol,70.18459008805686
+Klebsiella pneumoniae,Fluoroquinolones (J01M),80.89183347205129,70.74059777547882,91.04306916862376,36.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,80.89183347205129
+Klebsiella pneumoniae,Fosfomycin (J01XX01),29.039507913140326,24.94349073736419,33.13552508891647,30.0,4,True,fosfomycin,29.039507913140326
+Klebsiella pneumoniae,Monobactams,65.11306810579032,28.56462288639014,100.0,32.0,4,True,aztreonam,65.11306810579032
+Klebsiella pneumoniae,Nitrofurans (J01XE),,,,,0,False,,57.50130746626451
+Klebsiella pneumoniae,Novel BL/BLI,78.7655211887658,57.79776372627785,99.73327865125376,7.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,78.7655211887658
+Klebsiella pneumoniae,Penicillins (J01C),94.34286668549926,93.0017593579831,95.68397401301542,35.0,4,True,piperacillin,94.34286668549926
+Klebsiella pneumoniae,Polymyxins (J01XB),30.43009825487472,3.7509095546010656,57.10928695514838,8.0,4,True,colistin,30.43009825487472
+Klebsiella pneumoniae,Siderophore Cephalosporins,0.033146765375967634,0.0,0.11959773178828231,1.0,4,True,cefiderocol,0.033146765375967634
+Klebsiella pneumoniae,Sulfonamides (J01E),65.82671650512947,43.42537451723001,88.22805849302893,47.5,4,True,sulfanilamide;trim_sulf,65.82671650512947
+Klebsiella pneumoniae,Tetracyclines (J01A),72.74908761554587,55.532704115783574,89.96547111530818,28.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,72.74908761554587
+Legionella pneumophila,Aminoglycosides (J01G),,,,,0,False,,0.1547965734775614
+Legionella pneumophila,Carbapenems (J01DH),,,,,0,False,,1.8710567667947424
+Legionella pneumophila,Cephalosporins 3G,,,,,0,False,,2.070787342168602
+Legionella pneumophila,Chloramphenicol (J01BA),,,,,0,False,,0.0
+Legionella pneumophila,Fluoroquinolones (J01M),0.06445407203875916,0.0,0.182998404919964,1.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin,0.06445407203875916
+Legionella pneumophila,Fusidic acid (J01XC),,,,,0,False,,0.0
+Legionella pneumophila,Macrolides (J01F),1.0590246883306442,0.0,2.617009804167734,1.0,4,True,azithromycin;clarithromycin;erythromycin,1.0590246883306442
+Legionella pneumophila,Novel BL/BLI,,,,,0,False,,1.8710567667947424
+Legionella pneumophila,Sulfonamides (J01E),,,,,0,False,,0.008333333333333333
+Legionella pneumophila,Tetracyclines (J01A),,,,,0,False,,0.1951207656303761
+Listeria monocytogenes,Beta-lactamase combinations (J01CR),,,,,0,False,,0.0
+Listeria monocytogenes,Carbapenems (J01DH),,,,,0,False,,0.0
+Listeria monocytogenes,Chloramphenicol (J01BA),,,,,0,False,,22.640550003196786
+Listeria monocytogenes,Fluoroquinolones (J01M),,,,,0,False,,24.672097462022492
+Listeria monocytogenes,Macrolides (J01F),,,,,0,False,,21.50052135239937
+Listeria monocytogenes,Penicillins (J01C),,,,,0,False,,0.0
+Listeria monocytogenes,Sulfonamides (J01E),,,,,0,False,,17.323110739690524
+Listeria monocytogenes,Tetracyclines (J01A),,,,,0,False,,22.643842364917596
+Moraxella catarrhalis,Beta-lactamase combinations (J01CR),52.42234239998658,28.193874667742858,76.6508101322303,10.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,52.42234239998658
+Moraxella catarrhalis,Carbapenems (J01DH),52.08140341261964,27.31984964734161,76.84295717789767,5.0,4,True,ertapenem;imipenem_c;meropenem,52.08140341261964
+Moraxella catarrhalis,Cephalosporins 1-2G,52.78759203521019,28.64781587004478,76.9273682003756,15.0,4,True,cefazolin;cefuroxime;cephalexin,52.78759203521019
+Moraxella catarrhalis,Cephalosporins 3G,52.78759203521019,28.64781587004478,76.9273682003756,5.0,4,True,cefixime;ceftazidime;ceftriaxone,52.78759203521019
+Moraxella catarrhalis,Cephalosporins 3G/BLI,52.388231972812356,28.12593165520233,76.65053229042238,4.0,4,True,ceftolozane_tazobactam,52.388231972812356
+Moraxella catarrhalis,Cephalosporins 4G,52.78759203521019,28.64781587004478,76.9273682003756,5.0,4,True,cefepime,52.78759203521019
+Moraxella catarrhalis,Chloramphenicol (J01BA),5.6631279839046345,4.600050374797764,6.726205593011505,5.0,4,True,chloramphenicol,5.6631279839046345
+Moraxella catarrhalis,Fluoroquinolones (J01M),9.422574735284902,0.0,20.802074357697574,5.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,9.422574735284902
+Moraxella catarrhalis,Macrolides (J01F),34.59646732472694,17.70667125083967,51.486263398614206,18.333333333333332,4,True,azithromycin;clarithromycin;erythromycin,34.59646732472694
+Moraxella catarrhalis,Monobactams,11.014223259866995,0.0,23.06202873371881,5.0,4,True,aztreonam,11.014223259866995
+Moraxella catarrhalis,Novel BL/BLI,36.67961734574039,20.762044973306793,52.597189718173986,5.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,36.67961734574039
+Moraxella catarrhalis,Penicillins (J01C),78.9913901374658,70.9965933180756,86.986186956856,59.0,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,78.9913901374658
+Moraxella catarrhalis,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Moraxella catarrhalis,Sulfonamides (J01E),4.428081987516735,1.412768637648468,7.4433953373850015,10.0,4,True,trim_sulf,4.428081987516735
+Moraxella catarrhalis,Tetracyclines (J01A),10.27189696771219,5.586128175172668,14.957665760251711,10.0,4,True,doxycycline;minocycline;tetracycline;tigecycline,10.27189696771219
+Morganella spp.,Aminoglycosides (J01G),72.54967812641988,63.2381668606331,81.86118939220665,30.0,4,True,amikacin;gentamicin;tobramycin,72.54967812641988
+Morganella spp.,Beta-lactamase combinations (J01CR),75.57740896387882,71.04205027795096,80.11276764980668,30.0,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,75.57740896387882
+Morganella spp.,Carbapenems (J01DH),74.58946637939275,69.31533009486748,79.86360266391802,11.666666666666666,4,True,ertapenem;imipenem_c;meropenem,74.58946637939275
+Morganella spp.,Cephalosporins 3G,76.40973922969218,72.03612532139927,80.78335313798509,36.666666666666664,4,True,cefixime;ceftazidime;ceftriaxone,76.40973922969218
+Morganella spp.,Cephalosporins 3G/BLI,75.44509766857739,70.77823351829548,80.1119618188593,4.0,4,True,ceftolozane_tazobactam,75.44509766857739
+Morganella spp.,Cephalosporins 4G,76.40973922969218,72.03612532139927,80.78335313798509,35.0,4,True,cefepime,76.40973922969218
+Morganella spp.,Chloramphenicol (J01BA),68.3542841691268,44.76998679282448,91.93858154542912,30.0,4,True,chloramphenicol,68.3542841691268
+Morganella spp.,Fluoroquinolones (J01M),82.78558683120545,79.44993754758428,86.12123611482662,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,82.78558683120545
+Morganella spp.,Monobactams,59.110513135944366,34.68326423589616,83.53776203599257,30.0,4,True,aztreonam,59.110513135944366
+Morganella spp.,Novel BL/BLI,61.69313072212317,46.80669991873154,76.5795615255148,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,61.69313072212317
+Morganella spp.,Penicillins (J01C),76.45657020719906,72.08570800770427,80.82743240669386,37.5,4,True,piperacillin;ticarcillin,76.45657020719906
+Morganella spp.,Siderophore Cephalosporins,0.01721170395869191,0.0,0.07197934595524955,1.0,4,True,cefiderocol,0.01721170395869191
+Morganella spp.,Sulfonamides (J01E),44.03993317307155,7.320455440737327,80.75941090540579,35.0,4,True,trim_sulf,44.03993317307155
+Mycoplasma genitalium,Chloramphenicol (J01BA),,,,,0,False,,53.763798462304734
+Mycoplasma genitalium,Fluoroquinolones (J01M),76.83495431431547,73.57670376578211,80.09320486284882,45.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,76.83495431431547
+Mycoplasma genitalium,Macrolides (J01F),72.88105241524367,71.66882164862403,74.09328318186331,55.0,4,True,azithromycin;clarithromycin;erythromycin,72.88105241524367
+Mycoplasma genitalium,Tetracyclines (J01A),61.172184140154044,52.04658361336286,70.29778466694523,32.5,4,True,doxycycline;minocycline;tetracycline;tigecycline,61.172184140154044
+Mycoplasma pneumoniae,Fluoroquinolones (J01M),0.19929563106397646,0.14452139211932874,0.2540698700086242,2.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin,0.19929563106397646
+Mycoplasma pneumoniae,Macrolides (J01F),35.38414997128707,26.86560280013591,43.902697142438235,20.0,4,True,azithromycin;clarithromycin;erythromycin,35.38414997128707
+Mycoplasma pneumoniae,Tetracyclines (J01A),9.62611410388869,0.17706736487562758,19.075160842901752,1.0,4,True,doxycycline;tetracycline,7.218700242793876
+Neisseria gonorrhoeae,Aminoglycosides (J01G),27.784534316821706,0.0,65.523404904412,5.0,4,True,amikacin;gentamicin;tobramycin,27.784534316821706
+Neisseria gonorrhoeae,Beta-lactamase combinations (J01CR),40.74548898045981,0.0,90.27837808112568,45.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,40.74548898045981
+Neisseria gonorrhoeae,Carbapenems (J01DH),,,,,0,False,,0.0
+Neisseria gonorrhoeae,Cephalosporins 1-2G,40.750902481731984,0.0,90.29912161394878,53.333333333333336,4,True,cefazolin;cefuroxime;cephalexin,40.750902481731984
+Neisseria gonorrhoeae,Cephalosporins 3G,40.750902481731984,0.0,90.29912161394878,9.666666666666666,4,True,cefixime;ceftazidime;ceftriaxone,40.750902481731984
+Neisseria gonorrhoeae,Cephalosporins 3G/BLI,40.74548898045981,0.0,90.27837808112568,4.0,4,True,ceftolozane_tazobactam,40.74548898045981
+Neisseria gonorrhoeae,Cephalosporins 4G,40.750902481731984,0.0,90.29912161394878,20.0,4,True,cefepime,40.750902481731984
+Neisseria gonorrhoeae,Chloramphenicol (J01BA),80.55110298068581,58.81690783077629,100.0,60.0,4,True,chloramphenicol,80.55110298068581
+Neisseria gonorrhoeae,Fluoroquinolones (J01M),86.42976149032572,76.18618924342093,96.67333373723051,80.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,86.42976149032572
+Neisseria gonorrhoeae,Macrolides (J01F),28.151524756269698,0.0,65.36287544831558,31.666666666666668,4,True,azithromycin;clarithromycin;erythromycin,28.151524756269698
+Neisseria gonorrhoeae,Monobactams,40.750902481731984,0.0,90.29912161394878,25.0,4,True,aztreonam,40.750902481731984
+Neisseria gonorrhoeae,Novel BL/BLI,27.163659320306543,0.0,60.18558538741711,30.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,27.163659320306543
+Neisseria gonorrhoeae,Penicillins (J01C),50.8724699663144,0.0,100.0,46.0,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,50.8724699663144
+Neisseria gonorrhoeae,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Neisseria gonorrhoeae,Sulfonamides (J01E),64.7746229855156,18.15036291212118,100.0,70.0,4,True,trim_sulf,64.7746229855156
+Neisseria gonorrhoeae,Tetracyclines (J01A),80.62060700063259,58.817556614757805,100.0,65.0,4,True,doxycycline;minocycline;tetracycline,80.62060700063259
+Neisseria meningitidis,Aminoglycosides (J01G),0.10173111288922174,0.0,0.22544172981065191,4.333333333333333,4,True,amikacin;gentamicin;tobramycin,0.10173111288922174
+Neisseria meningitidis,Beta-lactamase combinations (J01CR),0.639468644749831,0.5520357533452775,0.7269015361543845,12.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,0.639468644749831
+Neisseria meningitidis,Carbapenems (J01DH),0.4575612633186511,0.1695191840518645,0.7456033425854377,0.10000000000000002,4,True,ertapenem;imipenem_c;meropenem,0.4575612633186511
+Neisseria meningitidis,Cephalosporins 1-2G,0.6871475061406888,0.5867942577812691,0.7875007545001084,11.333333333333334,4,True,cefazolin;cefuroxime;cephalexin,0.6871475061406888
+Neisseria meningitidis,Cephalosporins 3G,0.6871475061406888,0.5867942577812691,0.7875007545001084,2.0,4,True,cefixime;ceftazidime;ceftriaxone,0.6871475061406888
+Neisseria meningitidis,Cephalosporins 3G/BLI,0.6286881359098138,0.5467336005678285,0.710642671251799,4.0,4,True,ceftolozane_tazobactam,0.6286881359098138
+Neisseria meningitidis,Cephalosporins 4G,0.6871475061406888,0.5867942577812691,0.7875007545001084,2.0,4,True,cefepime,0.6871475061406888
+Neisseria meningitidis,Chloramphenicol (J01BA),0.038342696511332194,0.0,0.12210965896842514,8.0,4,True,chloramphenicol,0.038342696511332194
+Neisseria meningitidis,Fluoroquinolones (J01M),5.261663868342123,0.3933103781091374,10.13001735857511,4.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,5.261663868342123
+Neisseria meningitidis,Macrolides (J01F),0.4088377014500714,0.23581626670907263,0.5818591361910702,7.333333333333333,4,True,azithromycin;clarithromycin;erythromycin,0.4088377014500714
+Neisseria meningitidis,Monobactams,0.3395723590222136,0.0,0.8001737090970791,2.0,4,True,aztreonam,0.3395723590222136
+Neisseria meningitidis,Novel BL/BLI,0.40050012631068205,0.18544129684605795,0.6155589557753062,0.10000000000000002,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,0.40050012631068205
+Neisseria meningitidis,Penicillins (J01C),0.6871475061406888,0.5867942577812691,0.7875007545001084,16.8,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,0.6871475061406888
+Neisseria meningitidis,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Neisseria meningitidis,Sulfonamides (J01E),13.775341879331592,6.725170633127343,20.825513125535842,10.0,4,True,trim_sulf,13.775341879331592
+Neisseria meningitidis,Tetracyclines (J01A),2.7434651331357407,0.0,7.729687430449996,6.333333333333333,4,True,doxycycline;minocycline;tetracycline,2.7434651331357407
+Proteus spp.,Aminoglycosides (J01G),76.49189928367434,70.32169779013307,82.66210077721561,30.0,4,True,amikacin;gentamicin;tobramycin,76.49189928367434
+Proteus spp.,Anti-MRSA Cephalosporins (5G),,,,,0,False,,85.65468468940519
+Proteus spp.,Beta-lactamase combinations (J01CR),84.65809527581425,83.75509279640421,85.56109775522428,21.25,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,84.65809527581425
+Proteus spp.,Carbapenems (J01DH),83.60655261049507,81.79718026610567,85.41592495488447,10.0,4,True,ertapenem;imipenem_c;meropenem,83.60655261049507
+Proteus spp.,Cephalosporins 1-2G,85.65468468940519,84.8538885606061,86.45548081820428,28.333333333333332,4,True,cefazolin;cefuroxime;cephalexin,85.65468468940519
+Proteus spp.,Cephalosporins 3G,85.65468468940519,84.8538885606061,86.45548081820428,21.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,85.65468468940519
+Proteus spp.,Cephalosporins 3G/BLI,84.65141863870282,83.76624452740154,85.5365927500041,4.0,4,True,ceftolozane_tazobactam,84.65141863870282
+Proteus spp.,Cephalosporins 4G,85.65468468940519,84.8538885606061,86.45548081820428,20.0,4,True,cefepime,85.65468468940519
+Proteus spp.,Chloramphenicol (J01BA),74.18069361977035,65.88374321684675,82.47764402269395,25.0,4,True,chloramphenicol,74.18069361977035
+Proteus spp.,Fluoroquinolones (J01M),84.0760652593452,83.0344892810148,85.1176412376756,28.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,84.0760652593452
+Proteus spp.,Fosfomycin (J01XX01),31.31945685796991,8.679673125505136,53.95924059043469,10.0,4,True,fosfomycin,31.31945685796991
+Proteus spp.,Monobactams,71.4893773992778,53.73021430084741,89.24854049770819,25.0,4,True,aztreonam,71.4893773992778
+Proteus spp.,Novel BL/BLI,68.24033496269716,52.06382566302702,84.4168442623673,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,68.24033496269716
+Proteus spp.,Penicillins (J01C),86.93445029147429,86.2779124895534,87.59098809339518,28.75,4,True,amoxicillin;ampicillin;piperacillin;ticarcillin,86.93445029147429
+Proteus spp.,Siderophore Cephalosporins,0.10857213897745782,0.0,0.42635382225056867,1.0,4,True,cefiderocol,0.10857213897745782
+Proteus spp.,Sulfonamides (J01E),56.82243410584197,31.136369270017504,82.50849894166643,25.0,4,True,sulfanilamide;trim_sulf,56.82243410584197
+Providencia stuartii,Aminoglycosides (J01G),86.86521189790729,80.7226825782066,93.00774121760797,45.0,4,True,amikacin,86.86521189790729
+Providencia stuartii,Beta-lactamase combinations (J01CR),89.0470465630085,81.89601979795667,96.19807332806032,40.0,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,89.0470465630085
+Providencia stuartii,Carbapenems (J01DH),54.34858714698767,0.0,100.0,21.666666666666668,4,True,ertapenem;imipenem_c;meropenem,54.34858714698767
+Providencia stuartii,Cephalosporins 1-2G,93.45195102782489,89.44784502864569,97.45605702700409,55.0,4,True,cefuroxime,93.45195102782489
+Providencia stuartii,Cephalosporins 3G,93.45195102782489,89.44784502864569,97.45605702700409,51.666666666666664,4,True,cefixime;ceftazidime;ceftriaxone,93.45195102782489
+Providencia stuartii,Cephalosporins 3G/BLI,88.99243159850822,81.90936951160371,96.07549368541272,4.0,4,True,ceftolozane_tazobactam,88.99243159850822
+Providencia stuartii,Cephalosporins 4G,93.45195102782489,89.44784502864569,97.45605702700409,50.0,4,True,cefepime,93.45195102782489
+Providencia stuartii,Chloramphenicol (J01BA),41.25811214387882,12.994453514098808,69.52177077365883,45.0,4,True,chloramphenicol,41.25811214387882
+Providencia stuartii,Fluoroquinolones (J01M),88.88089105353691,81.39211674759781,96.36966535947602,52.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,88.88089105353691
+Providencia stuartii,Monobactams,93.22285769321951,89.61396189443134,96.83175349200768,50.0,4,True,aztreonam,93.22285769321951
+Providencia stuartii,Novel BL/BLI,41.987485311716455,0.0,87.13580619898056,18.333333333333332,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,41.987485311716455
+Providencia stuartii,Penicillins (J01C),93.45195102782489,89.44784502864569,97.45605702700409,55.0,4,True,piperacillin;ticarcillin,93.45195102782489
+Providencia stuartii,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Providencia stuartii,Sulfonamides (J01E),85.94464085186257,81.42194818906589,90.46733351465926,55.0,4,True,trim_sulf,85.94464085186257
+Pseudomonas aeruginosa,Aminoglycosides (J01G),36.62374301218306,15.898262905632407,57.34922311873372,13.666666666666666,4,True,amikacin;gentamicin;tobramycin,36.62374301218306
+Pseudomonas aeruginosa,Beta-lactamase combinations (J01CR),30.43352913192019,4.659381527863097,56.20767673597728,18.5,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,30.43352913192019
+Pseudomonas aeruginosa,Carbapenems (J01DH),30.8544964869805,5.856305311816659,55.85268766214435,26.5,4,True,imipenem_c;meropenem,30.8544964869805
+Pseudomonas aeruginosa,Cephalosporins 3G,30.728369633493152,4.96849441306783,56.488244853918474,22.0,4,True,ceftazidime,30.728369633493152
+Pseudomonas aeruginosa,Cephalosporins 3G/BLI,29.973424723369146,3.9026825862945174,56.044166860443774,8.0,4,True,ceftolozane_tazobactam,29.973424723369146
+Pseudomonas aeruginosa,Cephalosporins 4G,30.728369633493152,4.96849441306783,56.488244853918474,18.0,4,True,cefepime,30.728369633493152
+Pseudomonas aeruginosa,Fluoroquinolones (J01M),41.28735029285923,29.129814954791552,53.444885630926905,26.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,41.28735029285923
+Pseudomonas aeruginosa,Fosfomycin (J01XX01),,,,,0,False,,0.24117979914420662
+Pseudomonas aeruginosa,Monobactams,17.7007531003739,3.8747222772272405,31.526783923520554,22.0,4,True,aztreonam,17.7007531003739
+Pseudomonas aeruginosa,Novel BL/BLI,24.805269384077206,4.181438858823931,45.42909990933048,8.666666666666666,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,24.805269384077206
+Pseudomonas aeruginosa,Penicillins (J01C),30.716711127780485,4.942073470207369,56.4913487853536,27.5,4,True,piperacillin;ticarcillin,30.716711127780485
+Pseudomonas aeruginosa,Polymyxins (J01XB),6.320755467750099,0.0,18.36864696110277,3.0,4,True,colistin,6.320755467750099
+Pseudomonas aeruginosa,Siderophore Cephalosporins,0.00285335871364319,0.0,0.00948769033398494,5.0,4,True,cefiderocol,0.00285335871364319
+Salmonella enterica serovar paratyphi a,Aminoglycosides (J01G),55.03685480968364,44.86000310869674,65.21370651067055,30.0,4,True,amikacin;gentamicin;tobramycin,55.03685480968364
+Salmonella enterica serovar paratyphi a,Beta-lactamase combinations (J01CR),33.71208595166227,18.32366712339885,49.100504779925686,22.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,33.71208595166227
+Salmonella enterica serovar paratyphi a,Carbapenems (J01DH),11.166830658713991,8.504281604648824,13.829379712779158,10.0,4,True,ertapenem;imipenem_c;meropenem,11.166830658713991
+Salmonella enterica serovar paratyphi a,Cephalosporins 1-2G,70.28841986688178,57.064175939456774,83.51266379430679,38.333333333333336,4,True,cefazolin;cefuroxime;cephalexin,70.28841986688178
+Salmonella enterica serovar paratyphi a,Cephalosporins 3G,70.28841986688178,57.064175939456774,83.51266379430679,16.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,70.28841986688178
+Salmonella enterica serovar paratyphi a,Cephalosporins 3G/BLI,33.02685860901333,17.5245776911214,48.52913952690526,4.0,4,True,ceftolozane_tazobactam,33.02685860901333
+Salmonella enterica serovar paratyphi a,Cephalosporins 4G,70.28841986688178,57.064175939456774,83.51266379430679,25.0,4,True,cefepime,70.28841986688178
+Salmonella enterica serovar paratyphi a,Chloramphenicol (J01BA),32.154761136964346,20.291184941122722,44.01833733280597,35.0,4,True,chloramphenicol,32.154761136964346
+Salmonella enterica serovar paratyphi a,Fluoroquinolones (J01M),53.60633066508666,51.38323026103847,55.82943106913485,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,53.60633066508666
+Salmonella enterica serovar paratyphi a,Macrolides (J01F),,,,,0,False,,0.0732243104710764
+Salmonella enterica serovar paratyphi a,Monobactams,68.02090881168769,54.641580715332395,81.40023690804298,25.0,4,True,aztreonam,68.02090881168769
+Salmonella enterica serovar paratyphi a,Nitrofurans (J01XE),,,,,0,False,,0.0
+Salmonella enterica serovar paratyphi a,Novel BL/BLI,9.213440570927137,6.64477778363988,11.782103358214394,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,9.213440570927137
+Salmonella enterica serovar paratyphi a,Penicillins (J01C),70.30768207785903,57.0970095190768,83.51835463664126,40.0,4,True,amoxicillin;ampicillin;piperacillin;ticarcillin,70.30768207785903
+Salmonella enterica serovar paratyphi a,Polymyxins (J01XB),0.39209974689508553,0.0,0.9543798795473601,20.0,4,True,colistin,0.39209974689508553
+Salmonella enterica serovar paratyphi a,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Salmonella enterica serovar paratyphi a,Sulfonamides (J01E),3.0165455634243266,1.239987620473766,4.793103506374887,40.0,4,True,trim_sulf,3.0165455634243266
+Salmonella enterica serovar paratyphi a,Tetracyclines (J01A),38.234697506493276,24.88953688240503,51.57985813058153,18.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,38.234697506493276
+Salmonella enterica serovar typhi,Aminoglycosides (J01G),41.59013817357505,11.183045777041006,71.9972305701091,30.0,4,True,amikacin;gentamicin;tobramycin,41.59013817357505
+Salmonella enterica serovar typhi,Beta-lactamase combinations (J01CR),36.637291225523214,0.0,73.67142559023965,22.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,36.637291225523214
+Salmonella enterica serovar typhi,Carbapenems (J01DH),16.15787632781051,0.0,32.34807560315655,10.0,4,True,ertapenem;imipenem_c;meropenem,16.15787632781051
+Salmonella enterica serovar typhi,Cephalosporins 1-2G,62.823369762991746,40.77046838039712,84.87627114558637,38.333333333333336,4,True,cefazolin;cefuroxime;cephalexin,62.823369762991746
+Salmonella enterica serovar typhi,Cephalosporins 3G,62.823369762991746,40.77046838039712,84.87627114558637,16.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,62.823369762991746
+Salmonella enterica serovar typhi,Cephalosporins 3G/BLI,36.62922410709791,0.0,73.67510588420384,4.0,4,True,ceftolozane_tazobactam,36.62922410709791
+Salmonella enterica serovar typhi,Cephalosporins 4G,62.823369762991746,40.77046838039712,84.87627114558637,25.0,4,True,cefepime,62.823369762991746
+Salmonella enterica serovar typhi,Chloramphenicol (J01BA),48.96470549176912,22.70465239867768,75.22475858486055,35.0,4,True,chloramphenicol,48.96470549176912
+Salmonella enterica serovar typhi,Fluoroquinolones (J01M),58.572672871643455,53.365539402804465,63.779806340482445,33.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,58.572672871643455
+Salmonella enterica serovar typhi,Macrolides (J01F),,,,,0,False,,0.22910600459869776
+Salmonella enterica serovar typhi,Monobactams,53.9879017130589,15.136133571506633,92.83966985461117,25.0,4,True,aztreonam,53.9879017130589
+Salmonella enterica serovar typhi,Nitrofurans (J01XE),,,,,0,False,,0.002960156296252442
+Salmonella enterica serovar typhi,Novel BL/BLI,12.351769287576053,2.9819298569998463,21.72160871815226,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,12.351769287576053
+Salmonella enterica serovar typhi,Penicillins (J01C),63.11159888484495,40.87735381300435,85.34584395668556,40.0,4,True,amoxicillin;ampicillin;piperacillin;ticarcillin,63.11159888484495
+Salmonella enterica serovar typhi,Polymyxins (J01XB),0.5484155702417661,0.0,1.1951053089302284,20.0,4,True,colistin,0.5484155702417661
+Salmonella enterica serovar typhi,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Salmonella enterica serovar typhi,Sulfonamides (J01E),3.2511319199432127,1.238001862673781,5.264261977212644,40.0,4,True,trim_sulf,3.2511319199432127
+Salmonella enterica serovar typhi,Tetracyclines (J01A),53.84309666755478,28.987040401785027,78.69915293332454,18.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,53.84309666755478
+Serratia spp.,Aminoglycosides (J01G),33.10531016560225,11.728915665859379,54.48170466534512,35.0,4,True,amikacin;gentamicin;tobramycin,33.10531016560225
+Serratia spp.,Beta-lactamase combinations (J01CR),41.25212422765954,21.576314785928805,60.927933669390285,30.0,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,41.25212422765954
+Serratia spp.,Carbapenems (J01DH),38.54427603563836,17.824325744681328,59.26422632659539,11.666666666666666,4,True,ertapenem;imipenem_c;meropenem,38.54427603563836
+Serratia spp.,Cephalosporins 3G,43.91422317697619,26.222423392662478,61.60602296128991,33.333333333333336,4,True,cefixime;ceftazidime;ceftriaxone,43.91422317697619
+Serratia spp.,Cephalosporins 3G/BLI,41.2373203786588,21.58863043572395,60.88601032159365,4.0,4,True,ceftolozane_tazobactam,41.2373203786588
+Serratia spp.,Cephalosporins 4G,43.91422317697619,26.22242339266247,61.606022961289916,35.0,4,True,cefepime,43.91422317697619
+Serratia spp.,Chloramphenicol (J01BA),37.01764252906981,22.900362037100933,51.13492302103869,30.0,4,True,chloramphenicol,37.01764252906981
+Serratia spp.,Fluoroquinolones (J01M),46.03197837198747,32.15583702625187,59.908119717723075,28.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,46.03197837198747
+Serratia spp.,Fosfomycin (J01XX01),11.846759041160382,4.760584353153032,18.932933729167733,20.0,4,True,fosfomycin,11.846759041160382
+Serratia spp.,Monobactams,35.64229233657001,18.33219552803455,52.95238914510547,30.0,4,True,aztreonam,35.64229233657001
+Serratia spp.,Novel BL/BLI,34.42417868181399,16.778460790747683,52.069896572880296,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,34.42417868181399
+Serratia spp.,Penicillins (J01C),44.063113056185756,26.54649168532728,61.57973442704423,42.5,4,True,piperacillin;ticarcillin,44.063113056185756
+Serratia spp.,Siderophore Cephalosporins,0.062373144315189984,0.0,0.23299054750457232,1.0,4,True,cefiderocol,0.062373144315189984
+Serratia spp.,Sulfonamides (J01E),32.27326323689318,7.448215651071507,57.09831082271485,27.5,4,True,sulfanilamide;trim_sulf,32.27326323689318
+Serratia spp.,Tetracyclines (J01A),37.3486025449676,22.803196758524663,51.89400833141053,10.0,4,True,minocycline,36.99253086453761
+Shigella spp.,Aminoglycosides (J01G),36.30075562133377,27.142905858151657,45.458605384515884,28.333333333333332,4,True,amikacin;gentamicin;tobramycin,36.30075562133377
+Shigella spp.,Anti-MRSA Cephalosporins (5G),,,,,0,False,,64.89530847132998
+Shigella spp.,Beta-lactamase combinations (J01CR),56.84168829622173,42.96477517558,70.71860141686346,33.75,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,56.84168829622173
+Shigella spp.,Carbapenems (J01DH),32.07156947239522,22.949518742093503,41.193620202696934,15.0,4,True,ertapenem;imipenem_c;meropenem,32.07156947239522
+Shigella spp.,Cephalosporins 1-2G,64.89530847132998,51.052142297266826,78.73847464539314,43.333333333333336,4,True,cefazolin;cefuroxime;cephalexin,64.89530847132998
+Shigella spp.,Cephalosporins 3G,64.89530847132998,51.052142297266826,78.73847464539314,31.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,64.89530847132998
+Shigella spp.,Cephalosporins 3G/BLI,56.70992058907201,42.80811769327592,70.61172348486811,4.0,4,True,ceftolozane_tazobactam,56.70992058907201
+Shigella spp.,Cephalosporins 4G,64.89530847132998,51.052142297266826,78.73847464539314,30.0,4,True,cefepime,64.89530847132998
+Shigella spp.,Chloramphenicol (J01BA),59.94682026374896,48.31244564434265,71.58119488315528,35.0,4,True,chloramphenicol,59.94682026374896
+Shigella spp.,Fluoroquinolones (J01M),79.70227190944614,78.24380515349075,81.16073866540152,58.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,79.70227190944614
+Shigella spp.,Fosfomycin (J01XX01),,,,,0,False,,0.820760705221079
+Shigella spp.,Macrolides (J01F),81.90842124712327,80.21261368790876,83.60422880633779,25.0,4,True,azithromycin,81.90842124712327
+Shigella spp.,Monobactams,51.69786057015604,40.902426220899955,62.49329491941212,35.0,4,True,aztreonam,51.69786057015604
+Shigella spp.,Nitrofurans (J01XE),,,,,0,False,,4.799679993993945
+Shigella spp.,Novel BL/BLI,26.194079283418017,14.397964282040551,37.99019428479548,10.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,26.194079283418017
+Shigella spp.,Penicillins (J01C),91.05273619313564,87.87598741021802,94.22948497605327,50.0,4,True,amoxicillin;ampicillin;piperacillin;ticarcillin,91.05273619313564
+Shigella spp.,Polymyxins (J01XB),9.679165942902255,7.230715195319755,12.127616690484755,20.0,4,True,colistin,9.679165942902255
+Shigella spp.,Siderophore Cephalosporins,0.0037424220218179034,0.001296245792327119,0.006188598251308687,1.0,4,True,cefiderocol,0.0037424220218179034
+Shigella spp.,Sulfonamides (J01E),46.83211943475062,35.36674181614926,58.297497053351975,30.0,4,True,sulfanilamide;trim_sulf,46.83211943475062
+Shigella spp.,Tetracyclines (J01A),56.446333015114405,48.43968323160662,64.45298279862219,28.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,56.446333015114405
+Staphylococcus aureus,Aminoglycosides (J01G),85.03449177329396,79.37698721856137,90.69199632802656,40.0,4,True,amikacin;gentamicin;tobramycin,85.03449177329396
+Staphylococcus aureus,Anti-MRSA Cephalosporins (5G),0.0,0.0,0.0,2.0,4,True,ceftaroline,0.0
+Staphylococcus aureus,Beta-lactamase combinations (J01CR),91.90983076752556,91.67006600914456,92.14959552590656,37.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,91.90983076752556
+Staphylococcus aureus,Carbapenems (J01DH),91.90983076752556,91.67006600914455,92.14959552590658,40.0,4,True,ertapenem;imipenem_c;meropenem,91.90983076752556
+Staphylococcus aureus,Cephalosporins 1-2G,91.90983076752556,91.67006600914455,92.14959552590658,40.0,4,True,cefazolin;cefuroxime;cephalexin,91.90983076752556
+Staphylococcus aureus,Cephalosporins 3G,91.90983076752556,91.67006600914456,92.14959552590656,45.0,4,True,ceftriaxone,45.95491538376278
+Staphylococcus aureus,Cephalosporins 4G,91.90983076752556,91.67006600914456,92.14959552590656,40.0,4,True,cefepime,91.90983076752556
+Staphylococcus aureus,Chloramphenicol (J01BA),83.10739153990517,74.94634145210068,91.26844162770965,30.0,4,True,chloramphenicol,83.10739153990517
+Staphylococcus aureus,Fluoroquinolones (J01M),72.83061933570785,60.690150229028006,84.9710884423877,38.75,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,72.83061933570785
+Staphylococcus aureus,Fosfomycin (J01XX01),,,,,0,False,,1.2242245468102368
+Staphylococcus aureus,Fusidic acid (J01XC),38.516382785531704,25.11767876226246,51.91508680880095,20.0,4,True,fusidic_a,38.516382785531704
+Staphylococcus aureus,Glycopeptides (J01XA),85.76876692785089,75.92237510734961,95.61515874835217,5.0,4,True,teicoplanin;vancomycin,85.76876692785089
+Staphylococcus aureus,Lincosamides (J01FF),86.32459042972744,77.19424304402787,95.454937815427,45.0,4,True,clindamycin,86.32459042972744
+Staphylococcus aureus,Lipoglycopeptides,85.74250429451976,75.91952260474508,95.56548598429444,10.0,4,True,dalbavancin,85.74250429451976
+Staphylococcus aureus,Lipopeptides (J01XX09),0.4732831953737528,0.13937407535196317,0.8071923153955425,1.0,4,True,daptomycin,0.4732831953737528
+Staphylococcus aureus,Macrolides (J01F),80.23327457722348,67.1603376101256,93.30621154432137,38.333333333333336,4,True,azithromycin;clarithromycin;erythromycin,80.23327457722348
+Staphylococcus aureus,Nitrofurans (J01XE),,,,,0,False,,0.0
+Staphylococcus aureus,Novel BL/BLI,91.90983076752556,91.67006600914456,92.14959552590656,40.0,4,True,meropenem_vaborbactam,45.95491538376278
+Staphylococcus aureus,Oxazolidinones (J01XX),74.55039474953571,66.92562554078727,82.17516395828416,1.0,4,True,linezolid;tedizolid,74.55039474953571
+Staphylococcus aureus,Penicillins (J01C),95.36312728888399,94.99611803120501,95.73013654656296,61.25,4,True,flucloxacillin;penicillin_g;piperacillin;ticarcillin,63.57541819258933
+Staphylococcus aureus,Pleuromutilins,74.2300349455874,67.31547376632994,81.14459612484487,15.0,4,True,retapamulin,74.2300349455874
+Staphylococcus aureus,Streptogramins (J01FG),0.0,0.0,0.0,10.0,4,True,quinu_dalfo,0.0
+Staphylococcus aureus,Sulfonamides (J01E),54.365769414038574,36.340579553575814,72.39095927450134,35.0,4,True,trim_sulf,54.365769414038574
+Staphylococcus aureus,Tetracyclines (J01A),72.2776756953864,60.756828923740436,83.79852246703237,23.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,72.2776756953864
+Staphylococcus epidermidis,Aminoglycosides (J01G),23.338789945521427,0.0,57.66676547455342,31.666666666666668,4,True,amikacin;gentamicin;tobramycin,23.338789945521427
+Staphylococcus epidermidis,Anti-MRSA Cephalosporins (5G),0.0,0.0,0.0,5.0,4,True,ceftaroline,0.0
+Staphylococcus epidermidis,Beta-lactamase combinations (J01CR),87.27026664871525,76.36289384369212,98.17763945373838,43.75,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,87.27026664871525
+Staphylococcus epidermidis,Carbapenems (J01DH),87.27026664871525,76.36289384369212,98.17763945373838,60.0,4,True,ertapenem;imipenem_c;meropenem,87.27026664871525
+Staphylococcus epidermidis,Cephalosporins 1-2G,87.27026664871525,76.36289384369212,98.17763945373838,71.66666666666667,4,True,cefazolin;cefuroxime;cephalexin,87.27026664871525
+Staphylococcus epidermidis,Cephalosporins 3G,,,,,0,False,,0.0
+Staphylococcus epidermidis,Cephalosporins 4G,87.27026664871525,76.36289384369212,98.17763945373838,60.0,4,True,cefepime,87.27026664871525
+Staphylococcus epidermidis,Chloramphenicol (J01BA),13.18838456781409,0.0,30.468498812468965,20.0,4,True,chloramphenicol,13.18838456781409
+Staphylococcus epidermidis,Fluoroquinolones (J01M),74.43061255925525,58.73106100493386,90.13016411357664,47.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,74.43061255925525
+Staphylococcus epidermidis,Fosfomycin (J01XX01),0.0,0.0,0.0,15.0,4,True,fosfomycin,0.0
+Staphylococcus epidermidis,Fusidic acid (J01XC),1.2698741358518157,0.0,2.5928081379898114,20.0,4,True,fusidic_a,1.2698741358518157
+Staphylococcus epidermidis,Glycopeptides (J01XA),56.13183119945946,22.152964860756775,90.11069753816216,0.5,4,True,teicoplanin;vancomycin,56.13183119945946
+Staphylococcus epidermidis,Lincosamides (J01FF),66.04484102655242,25.30451738715984,100.0,55.0,4,True,clindamycin,66.04484102655242
+Staphylococcus epidermidis,Lipoglycopeptides,56.13183119945946,22.152964860756775,90.11069753816216,1.0,4,True,dalbavancin,56.13183119945946
+Staphylococcus epidermidis,Lipopeptides (J01XX09),0.0,0.0,0.0,1.0,4,True,daptomycin,0.0
+Staphylococcus epidermidis,Macrolides (J01F),64.98593750533752,22.046956541174318,100.0,58.333333333333336,4,True,azithromycin;clarithromycin;erythromycin,64.98593750533752
+Staphylococcus epidermidis,Nitrofurans (J01XE),,,,,0,False,,0.0
+Staphylococcus epidermidis,Novel BL/BLI,87.27026664871525,76.36289384369212,98.17763945373838,45.0,4,True,meropenem_vaborbactam,43.635133324357625
+Staphylococcus epidermidis,Oxazolidinones (J01XX),1.4964413036072823,0.0,3.903037003983977,1.0,4,True,linezolid;tedizolid,1.4964413036072823
+Staphylococcus epidermidis,Penicillins (J01C),87.41181599567588,76.62074824521767,98.20288374613409,75.0,4,True,flucloxacillin;piperacillin;ticarcillin,43.70590799783794
+Staphylococcus epidermidis,Pleuromutilins,1.4964413036072823,0.0,3.903037003983977,10.0,4,True,retapamulin,1.4964413036072823
+Staphylococcus epidermidis,Streptogramins (J01FG),0.0,0.0,0.0,5.0,4,True,quinu_dalfo,0.0
+Staphylococcus epidermidis,Sulfonamides (J01E),49.757683061397024,19.97062710520622,79.54473901758783,35.0,4,True,trim_sulf,49.757683061397024
+Staphylococcus epidermidis,Tetracyclines (J01A),42.13953076972605,0.0,85.92058735208388,21.666666666666668,4,True,doxycycline;minocycline;tetracycline,31.604648077294534
+Stenotrophomonas maltophilia,Beta-lactamase combinations (J01CR),,,,,0,False,,27.512415920898697
+Stenotrophomonas maltophilia,Chloramphenicol (J01BA),56.68161329267796,39.12749777687888,74.23572880847703,50.0,4,True,chloramphenicol,56.68161329267796
+Stenotrophomonas maltophilia,Fluoroquinolones (J01M),37.842571246086166,9.810810211297653,65.87433228087468,47.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,37.842571246086166
+Stenotrophomonas maltophilia,Novel BL/BLI,,,,,0,False,,15.813454988992898
+Stenotrophomonas maltophilia,Siderophore Cephalosporins,0.0,0.0,0.0,5.0,4,True,cefiderocol,0.0
+Stenotrophomonas maltophilia,Sulfonamides (J01E),23.245054735604214,0.0,69.00789550101793,15.0,4,True,trim_sulf,23.245054735604214
+Stenotrophomonas maltophilia,Tetracyclines (J01A),75.1474565406019,58.67563773321912,91.61927534798467,41.666666666666664,4,True,doxycycline;minocycline;tetracycline,65.97009013777564
+Streptococcus agalactiae,Anti-MRSA Cephalosporins (5G),0.3786957600003217,0.0,0.8240926879778806,0.1,4,True,ceftaroline,0.3786957600003217
+Streptococcus agalactiae,Beta-lactamase combinations (J01CR),0.3786957600003217,0.0,0.8240926879778806,0.1,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,0.3786957600003217
+Streptococcus agalactiae,Carbapenems (J01DH),0.0,0.0,0.0,0.10000000000000002,4,True,ertapenem;imipenem_c;meropenem,0.0
+Streptococcus agalactiae,Cephalosporins 1-2G,0.3786957600003217,0.0,0.8240926879778805,0.10000000000000002,4,True,cefazolin;cefuroxime;cephalexin,0.3786957600003217
+Streptococcus agalactiae,Cephalosporins 3G,0.3786957600003217,0.0,0.8240926879778805,0.10000000000000002,4,True,cefixime;ceftazidime;ceftriaxone,0.3786957600003217
+Streptococcus agalactiae,Cephalosporins 3G/BLI,,,,,0,False,,0.3786957600003217
+Streptococcus agalactiae,Cephalosporins 4G,0.3786957600003217,0.0,0.8240926879778806,0.1,4,True,cefepime,0.3786957600003217
+Streptococcus agalactiae,Chloramphenicol (J01BA),31.90392010323191,29.93641036288808,33.87142984357574,5.0,4,True,chloramphenicol,31.90392010323191
+Streptococcus agalactiae,Fluoroquinolones (J01M),19.303366564069997,17.402237360448215,21.20449576769178,2.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,19.303366564069997
+Streptococcus agalactiae,Fosfomycin (J01XX01),,,,,0,False,,0.0
+Streptococcus agalactiae,Glycopeptides (J01XA),9.928557303354925,8.647867738725179,11.209246867984671,0.1,4,True,teicoplanin;vancomycin,9.928557303354925
+Streptococcus agalactiae,Lincosamides (J01FF),29.640817338031447,26.91947566424428,32.36215901181861,32.0,4,True,clindamycin,29.640817338031447
+Streptococcus agalactiae,Lipoglycopeptides,7.370253537945918,6.344258221016826,8.39624885487501,0.1,4,True,dalbavancin,7.370253537945918
+Streptococcus agalactiae,Lipopeptides (J01XX09),0.0,0.0,0.0,0.1,4,True,daptomycin,0.0
+Streptococcus agalactiae,Macrolides (J01F),28.737666452676898,26.88915577217865,30.586177133175145,23.333333333333332,4,True,azithromycin;clarithromycin;erythromycin,28.737666452676898
+Streptococcus agalactiae,Nitrofurans (J01XE),,,,,0,False,,0.0
+Streptococcus agalactiae,Novel BL/BLI,0.18934788000016084,0.0,0.4120463439889403,0.1,4,True,ceftazidime_avibactam;meropenem_vaborbactam,0.18934788000016084
+Streptococcus agalactiae,Oxazolidinones (J01XX),6.671185393640192,5.168866806947678,8.173503980332706,0.1,4,True,linezolid;tedizolid,6.671185393640192
+Streptococcus agalactiae,Penicillins (J01C),0.3786957600003217,0.0,0.8240926879778805,0.10000000000000002,4,True,amoxicillin;ampicillin;flucloxacillin;penicillin_g;piperacillin;ticarcillin,0.3786957600003217
+Streptococcus agalactiae,Pleuromutilins,,,,,0,False,,0.0
+Streptococcus agalactiae,Streptogramins (J01FG),0.0,0.0,0.0,2.0,4,True,quinu_dalfo,0.0
+Streptococcus agalactiae,Sulfonamides (J01E),7.090209787750623,6.3098546396404025,7.870564935860843,12.0,4,True,trim_sulf,7.090209787750623
+Streptococcus agalactiae,Tetracyclines (J01A),29.191807241529595,26.766958794072757,31.616655688986434,28.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,29.191807241529595
+Streptococcus pneumoniae,Anti-MRSA Cephalosporins (5G),46.11289843622133,0.0,100.0,2.0,4,True,ceftaroline,46.11289843622133
+Streptococcus pneumoniae,Beta-lactamase combinations (J01CR),46.11289843622133,0.0,100.0,25.0,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,46.11289843622133
+Streptococcus pneumoniae,Carbapenems (J01DH),0.0,0.0,0.0,5.0,4,True,ertapenem;imipenem_c;meropenem,0.0
+Streptococcus pneumoniae,Cephalosporins 1-2G,46.11289843622133,0.0,100.0,25.0,4,True,cefazolin;cefuroxime;cephalexin,46.11289843622133
+Streptococcus pneumoniae,Cephalosporins 3G,46.11289843622133,0.0,100.0,16.666666666666668,4,True,cefixime;ceftazidime;ceftriaxone,46.11289843622133
+Streptococcus pneumoniae,Cephalosporins 3G/BLI,,,,,0,False,,46.11289843622133
+Streptococcus pneumoniae,Cephalosporins 4G,46.11289843622133,0.0,100.0,25.0,4,True,cefepime,46.11289843622133
+Streptococcus pneumoniae,Chloramphenicol (J01BA),35.36997583622485,2.90431472416369,67.83563694828601,25.0,4,True,chloramphenicol,35.36997583622485
+Streptococcus pneumoniae,Fluoroquinolones (J01M),14.773001948341932,1.6488169093598515,27.897186987324012,12.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,14.773001948341932
+Streptococcus pneumoniae,Fosfomycin (J01XX01),,,,,0,False,,0.0001231718222285724
+Streptococcus pneumoniae,Glycopeptides (J01XA),0.3809918257829093,0.0,1.5344813820696126,2.5,4,True,teicoplanin;vancomycin,0.3809918257829093
+Streptococcus pneumoniae,Lincosamides (J01FF),31.56733996110132,3.4820337974620372,59.652646124740606,45.0,4,True,clindamycin,31.56733996110132
+Streptococcus pneumoniae,Lipoglycopeptides,0.3809918257829093,0.0,1.5344813820696126,5.0,4,True,dalbavancin,0.3809918257829093
+Streptococcus pneumoniae,Lipopeptides (J01XX09),0.0,0.0,0.0,0.0,4,True,daptomycin,0.0
+Streptococcus pneumoniae,Macrolides (J01F),46.23259413002007,10.278123112859788,82.18706514718035,38.333333333333336,4,True,azithromycin;clarithromycin;erythromycin,46.23259413002007
+Streptococcus pneumoniae,Novel BL/BLI,23.056449218110664,0.0,65.45637368932614,5.0,4,True,ceftazidime_avibactam;meropenem_vaborbactam,23.056449218110664
+Streptococcus pneumoniae,Oxazolidinones (J01XX),0.02961478997545451,0.008048243788202486,0.05118133616270654,2.5,4,True,linezolid;tedizolid,0.02961478997545451
+Streptococcus pneumoniae,Penicillins (J01C),46.11289843622133,0.0,100.0,27.5,4,True,amoxicillin;ampicillin;flucloxacillin;penicillin_g;piperacillin;ticarcillin,46.11289843622133
+Streptococcus pneumoniae,Streptogramins (J01FG),0.0,0.0,0.0,10.0,4,True,quinu_dalfo,0.0
+Streptococcus pneumoniae,Sulfonamides (J01E),51.598011672635494,30.02334424658855,73.17267909868244,35.0,4,True,trim_sulf,51.598011672635494
+Streptococcus pneumoniae,Tetracyclines (J01A),42.59211581045875,0.892218469702911,84.29201315121459,13.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,42.59211581045875
+Streptococcus pyogenes,Anti-MRSA Cephalosporins (5G),0.0,0.0,0.0,0.1,4,True,ceftaroline,0.0
+Streptococcus pyogenes,Beta-lactamase combinations (J01CR),0.0,0.0,0.0,0.1,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,0.0
+Streptococcus pyogenes,Carbapenems (J01DH),0.0,0.0,0.0,0.10000000000000002,4,True,ertapenem;imipenem_c;meropenem,0.0
+Streptococcus pyogenes,Cephalosporins 1-2G,0.0,0.0,0.0,0.10000000000000002,4,True,cefazolin;cefuroxime;cephalexin,0.0
+Streptococcus pyogenes,Cephalosporins 3G,0.0,0.0,0.0,0.10000000000000002,4,True,cefixime;ceftazidime;ceftriaxone,0.0
+Streptococcus pyogenes,Cephalosporins 3G/BLI,,,,,0,False,,0.0
+Streptococcus pyogenes,Cephalosporins 4G,0.0,0.0,0.0,0.1,4,True,cefepime,0.0
+Streptococcus pyogenes,Chloramphenicol (J01BA),16.846017167176257,9.348278172690005,24.343756161662508,8.0,4,True,chloramphenicol,16.846017167176257
+Streptococcus pyogenes,Fluoroquinolones (J01M),10.19205971313799,9.004071597997433,11.380047828278547,2.0,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,10.19205971313799
+Streptococcus pyogenes,Fosfomycin (J01XX01),,,,,0,False,,0.008547008547008548
+Streptococcus pyogenes,Glycopeptides (J01XA),0.1610982169765109,0.0,0.5103600780878705,0.1,4,True,teicoplanin;vancomycin,0.1610982169765109
+Streptococcus pyogenes,Lincosamides (J01FF),22.311118647669282,19.90932168487764,24.712915610460925,20.0,4,True,clindamycin,22.311118647669282
+Streptococcus pyogenes,Lipoglycopeptides,0.030532151363206583,0.0,0.09011947903573275,0.1,4,True,dalbavancin,0.030532151363206583
+Streptococcus pyogenes,Lipopeptides (J01XX09),0.0,0.0,0.0,0.1,4,True,daptomycin,0.0
+Streptococcus pyogenes,Macrolides (J01F),21.823131719954304,20.74610853790066,22.900154902007948,14.0,4,True,azithromycin;clarithromycin;erythromycin,21.823131719954304
+Streptococcus pyogenes,Novel BL/BLI,0.0,0.0,0.0,0.1,4,True,ceftazidime_avibactam;meropenem_vaborbactam,0.0
+Streptococcus pyogenes,Oxazolidinones (J01XX),6.97734693369351,5.610091664731301,8.344602202655718,0.1,4,True,linezolid;tedizolid,6.97734693369351
+Streptococcus pyogenes,Penicillins (J01C),0.0,0.0,0.0,0.10000000000000002,4,True,amoxicillin;ampicillin;flucloxacillin;penicillin_g;piperacillin;ticarcillin,0.0
+Streptococcus pyogenes,Pleuromutilins,,,,,0,False,,0.0
+Streptococcus pyogenes,Streptogramins (J01FG),0.0,0.0,0.0,2.0,4,True,quinu_dalfo,0.0
+Streptococcus pyogenes,Sulfonamides (J01E),2.3757824644157877,1.3632806847646473,3.388284244066928,15.0,4,True,trim_sulf,1.1878912322078938
+Streptococcus pyogenes,Tetracyclines (J01A),12.254339666244363,3.8183667026841785,20.690312629804545,11.75,4,True,doxycycline;minocycline;tetracycline;tigecycline,12.254339666244363
+Treponema pallidum,Anti-MRSA Cephalosporins (5G),0.0,0.0,0.0,0.1,4,True,ceftaroline,0.0
+Treponema pallidum,Beta-lactamase combinations (J01CR),0.0,0.0,0.0,0.1,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,0.0
+Treponema pallidum,Carbapenems (J01DH),0.0,0.0,0.0,0.10000000000000002,4,True,ertapenem;imipenem_c;meropenem,0.0
+Treponema pallidum,Cephalosporins 1-2G,0.0,0.0,0.0,0.10000000000000002,4,True,cefazolin;cefuroxime;cephalexin,0.0
+Treponema pallidum,Cephalosporins 3G,0.0,0.0,0.0,0.1,4,True,ceftazidime;ceftriaxone,0.0
+Treponema pallidum,Cephalosporins 4G,0.0,0.0,0.0,0.1,4,True,cefepime,0.0
+Treponema pallidum,Chloramphenicol (J01BA),15.468661499106677,5.7960137750020895,25.141309223211266,5.0,4,True,chloramphenicol,15.468661499106677
+Treponema pallidum,Macrolides (J01F),0.0,0.0,0.0,19.333333333333332,4,True,azithromycin;clarithromycin;erythromycin,0.0
+Treponema pallidum,Monobactams,0.0,0.0,0.0,0.1,4,True,aztreonam,0.0
+Treponema pallidum,Novel BL/BLI,0.0,0.0,0.0,0.10000000000000002,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,0.0
+Treponema pallidum,Penicillins (J01C),0.0,0.0,0.0,0.1,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,0.0
+Treponema pallidum,Tetracyclines (J01A),15.693213339164274,8.236969046013662,23.149457632314885,0.0,4,True,doxycycline;minocycline;tetracycline,15.693213339164274
+Vibrio cholerae,Aminoglycosides (J01G),32.986329472710786,32.071057722645236,33.901601222776335,10.0,4,True,amikacin;gentamicin;tobramycin,32.986329472710786
+Vibrio cholerae,Beta-lactamase combinations (J01CR),39.01595393580127,37.7376641187783,40.294243752824244,12.5,4,True,amoxicillin_clavulanate;ampicillin_sulbactam;piperacillin_tazobactam;ticarcillin_clavulanate,39.01595393580127
+Vibrio cholerae,Carbapenems (J01DH),24.12583623343751,21.23160672637497,27.02006574050005,5.0,4,True,ertapenem;imipenem_c;meropenem,24.12583623343751
+Vibrio cholerae,Cephalosporins 1-2G,50.197539161085935,49.42734260492929,50.96773571724258,18.333333333333332,4,True,cefazolin;cefuroxime;cephalexin,50.197539161085935
+Vibrio cholerae,Cephalosporins 3G,50.197539161085935,49.42734260492929,50.96773571724258,10.0,4,True,cefixime;ceftazidime;ceftriaxone,50.197539161085935
+Vibrio cholerae,Cephalosporins 3G/BLI,36.21014539081391,34.94965616223693,37.4706346193909,4.0,4,True,ceftolozane_tazobactam,36.21014539081391
+Vibrio cholerae,Cephalosporins 4G,50.197539161085935,49.42734260492929,50.96773571724258,10.0,4,True,cefepime,50.197539161085935
+Vibrio cholerae,Chloramphenicol (J01BA),32.11357058288803,30.4974704610513,33.72967070472476,10.0,4,True,chloramphenicol,32.11357058288803
+Vibrio cholerae,Fluoroquinolones (J01M),37.85804205316285,35.96672673091604,39.74935737540966,12.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,37.85804205316285
+Vibrio cholerae,Macrolides (J01F),34.113460840573794,31.311129346955273,36.91579233419231,18.333333333333332,4,True,azithromycin;clarithromycin;erythromycin,34.113460840573794
+Vibrio cholerae,Monobactams,38.255491880104174,35.85882475880437,40.65215900140398,10.0,4,True,aztreonam,38.255491880104174
+Vibrio cholerae,Nitrofurans (J01XE),,,,,0,False,,0.7772590271059887
+Vibrio cholerae,Novel BL/BLI,19.205074870941164,17.195946598096413,21.214203143785916,5.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,19.205074870941164
+Vibrio cholerae,Penicillins (J01C),50.37864887837987,49.45928232690489,51.29801542985485,16.0,4,True,amoxicillin;ampicillin;penicillin_g;piperacillin;ticarcillin,50.37864887837987
+Vibrio cholerae,Polymyxins (J01XB),0.10411678756003274,0.0,0.2928171505033858,10.0,4,True,colistin,0.10411678756003274
+Vibrio cholerae,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Vibrio cholerae,Sulfonamides (J01E),23.30974680984259,15.230849874164777,31.388643745520405,10.0,4,True,sulfanilamide;trim_sulf,23.30974680984259
+Vibrio cholerae,Tetracyclines (J01A),27.374155877978872,26.07684422126004,28.671467534697705,5.0,4,True,doxycycline;minocycline;tetracycline;tigecycline,27.374155877978872
+Yersinia enterocolitica,Aminoglycosides (J01G),19.80471130951517,16.751240706061285,22.858181912969055,10.0,4,True,amikacin;gentamicin;tobramycin,19.80471130951517
+Yersinia enterocolitica,Beta-lactamase combinations (J01CR),70.27332451293691,65.54437877367718,75.00227025219664,7.5,4,True,piperacillin_tazobactam;ticarcillin_clavulanate,70.27332451293691
+Yersinia enterocolitica,Carbapenems (J01DH),6.8278423092720635,6.0193468992657255,7.636337719278401,5.0,4,True,ertapenem;imipenem_c;meropenem,6.8278423092720635
+Yersinia enterocolitica,Cephalosporins 1-2G,73.60178164231769,69.92840881778872,77.27515446684666,30.0,4,True,cefuroxime,73.60178164231769
+Yersinia enterocolitica,Cephalosporins 3G,73.60178164231769,69.92840881778872,77.27515446684666,11.666666666666666,4,True,cefixime;ceftazidime;ceftriaxone,73.60178164231769
+Yersinia enterocolitica,Cephalosporins 3G/BLI,70.21929549163403,65.42088452166227,75.01770646160578,4.0,4,True,ceftolozane_tazobactam,70.21929549163403
+Yersinia enterocolitica,Cephalosporins 4G,73.60178164231769,69.92840881778872,77.27515446684666,10.0,4,True,cefepime,73.60178164231769
+Yersinia enterocolitica,Chloramphenicol (J01BA),54.57852373004299,52.09949576338498,57.057551696701,10.0,4,True,chloramphenicol,54.57852373004299
+Yersinia enterocolitica,Fluoroquinolones (J01M),54.414753835160816,51.78205634350433,57.0474513268173,7.5,4,True,ciprofloxacin;levofloxacin;moxifloxacin;ofloxacin,54.414753835160816
+Yersinia enterocolitica,Fosfomycin (J01XX01),,,,,0,False,,0.5373265673896714
+Yersinia enterocolitica,Macrolides (J01F),,,,,0,False,,0.0
+Yersinia enterocolitica,Monobactams,73.17707856144685,69.56041769141386,76.79373943147984,15.0,4,True,aztreonam,73.17707856144685
+Yersinia enterocolitica,Nitrofurans (J01XE),,,,,0,False,,0.02379441624365482
+Yersinia enterocolitica,Novel BL/BLI,5.449461239311169,4.780309461965096,6.1186130166572426,5.0,4,True,aztreonam_avibactam;ceftazidime_avibactam;meropenem_vaborbactam,5.449461239311169
+Yersinia enterocolitica,Penicillins (J01C),73.68657947822192,70.0334304980069,77.33972845843694,25.0,4,True,piperacillin,73.68657947822192
+Yersinia enterocolitica,Polymyxins (J01XB),0.43980357935574205,0.17027108672547286,0.7093360719860112,10.0,4,True,colistin,0.43980357935574205
+Yersinia enterocolitica,Siderophore Cephalosporins,0.0,0.0,0.0,1.0,4,True,cefiderocol,0.0
+Yersinia enterocolitica,Sulfonamides (J01E),19.724031956746607,11.015876586997791,28.432187326495423,12.5,4,True,sulfanilamide;trim_sulf,19.724031956746607
+Yersinia enterocolitica,Tetracyclines (J01A),56.0320403508062,52.743068110883506,59.32101259072889,6.25,4,True,doxycycline;minocycline;tetracycline;tigecycline,56.0320403508062

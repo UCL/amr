@@ -19,6 +19,14 @@ Multiple runs (pass explicit paths or a glob):
 Package/module form:
     python -m amr_simulation_output_analysis.make_paper_tables output_graphs/calibration_summary_*.txt
 
+Recompare existing runs using a verified reference version (without recalibration):
+    python -m amr_simulation_output_analysis.make_paper_tables --resistance-only --resistance-target-set data/resistance_targets_v2.csv <same accepted summary files>
+
+The default comparison reference is v2. Embedded historical resistance targets
+are replaced only in memory, with original run provenance and embedded values
+retained in comparison audit files. --out-dir selects a separate output folder;
+resistance-only defaults to paper_tables_resistance_targets_v2.
+
 Figure 2 summary mode:
     Edit FIGURE2_SUMMARY_MODE below: "median_range" or "mean_ci".
 
@@ -61,6 +69,8 @@ paper_tables/
 from __future__ import annotations
 
 import glob
+import argparse
+import hashlib
 import html
 import io
 import json
@@ -124,6 +134,134 @@ CALIBRATION_TARGETS_PATH = REPO_ROOT / "data" / "calibration_targets.json"
 CALIBRATION_TARGET_RANGES_PATH = REPO_ROOT / "data" / "calibration_target_ranges_v1.csv"
 SIMULATION_OUTPUTS_DIR = REPO_ROOT / "amr_simulation_output_analysis_outputs"
 LEGACY_WITHOUT_SF5_FLAG = "--legacy-without-sf5"
+RESISTANCE_TARGETS_PATH = REPO_ROOT / "data" / "resistance_targets_v2.csv"
+
+
+def _overlay_resistance_references(runs: list[dict], path: Path) -> list[dict]:
+    """Select a verified comparison set; never fall back to embedded targets."""
+    try:
+        from .calibration_summary import _load_resistance_target_set
+    except ImportError:
+        from calibration_summary import _load_resistance_target_set
+
+    prevalence, severity = _load_resistance_target_set(path)
+    version = prevalence.attrs.get("target_set_version", path.stem)
+    provenance = {
+        "target_set_version": version,
+        "target_path": str(path.resolve()),
+        **prevalence.attrs,
+    }
+    lookups = {
+        prefix: {
+            (_f2_slugify_bacteria_value(row["Bacteria"]), _f2_normalize_drug_slug(row["drug"])): row
+            for _, row in frame.iterrows()
+        }
+        for prefix, frame in (("Inf", prevalence), ("Avg", severity))
+    }
+    overlaid: list[dict] = []
+    for run in runs:
+        result = dict(run)
+        result["meta"] = dict(run.get("meta", {}))
+        result["comparison_reference"] = dict(provenance)
+        original = run.get("resistance_benchmarks", pd.DataFrame())
+        result["original_resistance_benchmarks"] = original.copy()
+        table = original.copy()
+        for index, row in table.iterrows():
+            key = (_f2_slugify_bacteria_value(row.get("Bacteria")), _f2_normalize_drug_slug(row.get("Drug")))
+            reasons = [_st2_text(row.get("Flags"))]
+            for prefix, lookup in lookups.items():
+                reference = lookup.get(key)
+                stored = float(reference["target"]) * 100 if reference is not None else np.nan
+                eligible = reference is not None and bool(reference["include_in_score"]) and np.isfinite(stored)
+                table.at[index, f"{prefix} stored reference (%)"] = stored
+                table.at[index, f"{prefix} target (%)"] = stored if eligible else np.nan
+                table.at[index, f"{prefix} comparison eligible"] = eligible
+                for field, source in (("provenance", "provenance_class"), ("source", "source_id"), ("rationale", "rationale")):
+                    table.at[index, f"{prefix} {field}"] = str(reference[source]) if reference is not None else "not_assigned"
+                reason = str(reference["reason"]) if reference is not None else "reference absent from selected target set"
+                if reason:
+                    reasons.append(reason)
+                if not eligible:
+                    exclusions = str(reference["score_exclusion_reason"]) if reference is not None else "reference_missing"
+                    reasons.append(f"{prefix} comparison excluded: {exclusions}")
+            table.at[index, "Flags"] = "; ".join(dict.fromkeys(reason for reason in reasons if reason))
+        result["resistance_benchmarks"] = table
+        overlaid.append(result)
+    return overlaid
+
+
+def _resistance_comparison_note(agg: dict | None) -> str:
+    reference = (agg or {}).get("comparison_reference", {})
+    if not reference:
+        return "Reference provenance is retained from the supplied calibration summaries."
+    return (
+        f"Comparison references: {html.escape(str(reference['target_set_version']))}; "
+        f"SHA-256 {reference['target_sha256']}. Original simulation summaries are unchanged. "
+        "The selected references replace embedded historical targets. Structural-prior zeros "
+        "are modelling conventions, not measured global absence of resistance. Clinical-isolate "
+        "or genomic observations are not equivalent to active-infection person-days with any_r > 0."
+    )
+
+
+def _write_resistance_comparison_audit(runs: list[dict], out: Path) -> None:
+    """Keep run/reference provenance and class membership changes reviewable."""
+    row_audit: list[dict] = []
+    class_audit: list[dict] = []
+    run_provenance: list[dict] = []
+    for index, run in enumerate(runs):
+        label = _f2_run_label(run, index)
+        source_path = Path(str(run.get("meta", {}).get("source_file", "")))
+        run_provenance.append({
+            "original_run_meta": run.get("meta", {}),
+            "original_summary_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest() if source_path.is_file() else None,
+            "original_reference_version": run.get("meta", {}).get("comparison_resistance_target_set", "not recorded in summary; embedded reference values retained in row audit"),
+            "comparison_reference": run.get("comparison_reference", {}),
+        })
+        original = run.get("original_resistance_benchmarks", pd.DataFrame())
+        revised = run.get("resistance_benchmarks", pd.DataFrame())
+        if original.empty or revised.empty:
+            continue
+        for row_index, row in revised.iterrows():
+            old = original.loc[row_index]
+            for prefix, component in (("Inf", "prevalence"), ("Avg", "conditional_severity")):
+                row_audit.append({
+                    "run": label, "bacteria": row["Bacteria"], "drug": row["Drug"], "class": row["Class"],
+                    "component": component,
+                    "original_embedded_reference_percent": old.get(f"{prefix} target (%)"),
+                    "selected_stored_reference_percent": row.get(f"{prefix} stored reference (%)"),
+                    "comparison_reference_percent": row.get(f"{prefix} target (%)"),
+                    "comparison_eligible": row.get(f"{prefix} comparison eligible"),
+                    "simulation_percent_unchanged": row.get(f"{prefix} sim (%)"),
+                    "original_provenance": old.get(f"{prefix} provenance"),
+                    "comparison_provenance": row.get(f"{prefix} provenance"),
+                    "comparison_source": row.get(f"{prefix} source"),
+                    "comparison_rationale": row.get(f"{prefix} rationale"),
+                    "flags": row.get("Flags"),
+                })
+        tables = {}
+        for name, table in (("original", original), ("selected", revised)):
+            table = table.loc[table["Bacteria"].apply(_f2_is_valid_organism_label)].copy()
+            if "Flags" in table:
+                table = table.loc[~table["Flags"].astype(str).str.contains("negligible", case=False, na=False)]
+            tables[name] = _f2_apply_display_filters(table)
+        for (bacterium, drug_class), group in tables["selected"].groupby(["Bacteria", "Class"]):
+            old = tables["original"]
+            old = old.loc[(old["Bacteria"] == bacterium) & (old["Class"] == drug_class)]
+            record = {"run": label, "bacteria": bacterium, "class": drug_class}
+            for name, frame in (("original", old), ("selected", group)):
+                sim = frame["Inf sim (%)"].apply(_first_numeric_value)
+                target = frame["Inf target (%)"].apply(_first_numeric_value)
+                mask = sim.notna() & target.notna()
+                record[f"{name}_paired_drugs"] = ";".join(sorted(frame.loc[mask, "Drug"].astype(str)))
+                record[f"{name}_paired_simulation_mean_percent"] = sim.loc[mask].mean()
+                record[f"{name}_paired_reference_mean_percent"] = target.loc[mask].mean()
+                record[f"{name}_simulation_only_mean_percent"] = sim.mean()
+                if name == "original":
+                    record["legacy_unpaired_reference_mean_percent"] = target.mean()
+            class_audit.append(record)
+    pd.DataFrame(row_audit).to_csv(out / "resistance_reference_overlay_audit.csv", index=False)
+    pd.DataFrame(class_audit).to_csv(out / "resistance_class_membership_audit.csv", index=False)
+    (out / "resistance_comparison_provenance.json").write_text(json.dumps({"runs": run_provenance}, indent=2, default=str) + "\n", encoding="utf-8")
 
 # The shared schema validator deliberately remains strict by default.  This
 # context is enabled only while building explicitly requested non-SF5 paper
@@ -503,8 +641,8 @@ _RESISTANCE_TARGET_SOURCE_NOTES = [
     "calibration targets on the model's unitless resistance scale; they are not MIC values "
     "or direct surveillance estimates.",
     "The versioned target set distinguishes evidence-unresolved benchmarks, expert-informed "
-    "placeholders, and structural priors. No v1 cell is classified as a direct empirical "
-    "estimate with a recovered cell-level source, and no evidence-quality weight is assigned.",
+    "placeholders, and structural priors. See the selected target set and source registry "
+    "for row-level classifications; no evidence-quality weight is assigned.",
     "Both target families compare with simulated active-infection person-days and should "
     "not be interpreted as a harmonised global clinical-isolate surveillance dataset.",
 ]
@@ -1703,6 +1841,7 @@ def _paper_build_provenance_text(
     csv_schema_versions: dict[Path, int],
     *,
     legacy_without_sf5: bool,
+    resistance_only: bool = False,
 ) -> str:
     mode = (
         "legacy compatibility (--legacy-without-sf5)"
@@ -1713,7 +1852,8 @@ def _paper_build_provenance_text(
         "Paper-output build provenance",
         f"Validation mode: {mode}",
         "Supplementary Figure S5: "
-        + ("omitted by compatibility mode" if legacy_without_sf5 else "enabled"),
+        + ("not generated (resistance-only comparison)" if resistance_only else
+           "omitted by compatibility mode" if legacy_without_sf5 else "enabled"),
         "",
         "Calibration-summary inputs:",
     ]
@@ -1763,6 +1903,11 @@ def _paper_build_provenance_text(
     }
     if any(version < 5 for version in {*csv_schema_versions.values(), *reported_versions}):
         lines.extend(["", HISTORICAL_RESISTANCE_TIMING_WARNING])
+    if runs and runs[0].get("comparison_reference"):
+        reference = runs[0]["comparison_reference"]
+        lines.extend(["", "Selected resistance comparison reference (separate from original run provenance):"])
+        lines.extend(f"{key}: {value}" for key, value in reference.items())
+        lines.append("Embedded historical targets are replaced for comparison only; original measurements and summaries are unchanged.")
     return "\n".join(lines) + "\n"
 
 
@@ -3390,10 +3535,9 @@ def _f2_class_summary_from_aggregated_rows(
     tgts: list[float] = []
     for _, row in rows.iterrows():
         parsed = _parse_resistance_val(row.get(sim_col))
-        if parsed is not None:
-            sims.append(parsed)
         tv = _parse_resistance_val(row.get(tgt_col))
-        if tv is not None:
+        if parsed is not None and tv is not None:
+            sims.append(parsed)
             tgts.append(tv[0])
     sim_med = float(np.mean([s[0] for s in sims])) if sims else None
     sim_lo  = float(np.min([s[1] for s in sims]))  if sims else None
@@ -3425,8 +3569,6 @@ def _f2_build_median_range_class_table(rb: pd.DataFrame, sim_col: str, tgt_col: 
     rows: list[dict[str, object]] = []
     for (bacterium, cls), group in rb.groupby(["Bacteria", "Class"], dropna=False, sort=False):
         sim, lo, hi, target = _f2_class_summary_from_aggregated_rows(group, sim_col, tgt_col)
-        if sim is None and target is None:
-            continue
         rows.append({
             "Bacteria": bacterium,
             "Class": cls,
@@ -3434,6 +3576,8 @@ def _f2_build_median_range_class_table(rb: pd.DataFrame, sim_col: str, tgt_col: 
             "lo": lo,
             "hi": hi,
             "target": target,
+            "reference_available": target is not None,
+            "simulation_only": pd.to_numeric(group[sim_col].apply(_first_numeric_value), errors="coerce").mean(),
         })
     return pd.DataFrame(rows)
 
@@ -3454,21 +3598,22 @@ def _f2_build_mean_ci_class_table(runs: list[dict] | None, sim_col: str, tgt_col
     rb["_f2_sim"] = rb[sim_col].apply(_first_numeric_value) if sim_col in rb.columns else np.nan
     rb["_f2_target"] = rb[tgt_col].apply(_first_numeric_value) if tgt_col in rb.columns else np.nan
 
+    # Pair within each run before taking a class mean: an unassigned target
+    # cannot dilute the reference or leave the simulation on a different set.
+    paired = rb.dropna(subset=["_f2_sim", "_f2_target"])
     run_class = (
-        rb.dropna(subset=["_f2_sim"])
-        .groupby(["Bacteria", "Class", "_f2_run"], as_index=False)["_f2_sim"]
+        paired
+        .groupby(["Bacteria", "Class", "_f2_run"], as_index=False)[["_f2_sim", "_f2_target"]]
         .mean()
     )
     target_by_class = (
-        rb.dropna(subset=["_f2_target"])
+        run_class
         .groupby(["Bacteria", "Class"], as_index=False)["_f2_target"]
         .mean()
         .rename(columns={"_f2_target": "target"})
     )
 
-    keys = set(zip(run_class["Bacteria"], run_class["Class"])) | set(
-        zip(target_by_class["Bacteria"], target_by_class["Class"])
-    )
+    keys = set(zip(rb["Bacteria"], rb["Class"]))
     rows: list[dict[str, object]] = []
     target_lookup = {
         (row["Bacteria"], row["Class"]): float(row["target"])
@@ -3482,8 +3627,9 @@ def _f2_build_mean_ci_class_table(runs: list[dict] | None, sim_col: str, tgt_col
         ].astype(float).tolist()
         center, lo, hi = _f2_ci95(values)
         target = target_lookup.get((bacterium, cls))
-        if center is None and target is None:
-            continue
+        group = rb.loc[(rb["Bacteria"] == bacterium) & (rb["Class"] == cls)]
+        simulation_only = group.groupby("_f2_run")["_f2_sim"].mean().mean()
+        paired_group = paired.loc[(paired["Bacteria"] == bacterium) & (paired["Class"] == cls)]
         rows.append({
             "Bacteria": bacterium,
             "Class": cls,
@@ -3492,6 +3638,9 @@ def _f2_build_mean_ci_class_table(runs: list[dict] | None, sim_col: str, tgt_col
             "hi": hi,
             "target": target,
             "n_runs": len([v for v in values if np.isfinite(v)]),
+            "reference_available": target is not None,
+            "paired_drugs": ";".join(sorted(set(paired_group["Drug"].astype(str)))),
+            "simulation_only": simulation_only,
         })
     return pd.DataFrame(rows)
 
@@ -4302,10 +4451,8 @@ def make_figure_2_calibration_resistance_fit(
             hi_val = float(hi) if pd.notna(hi) else sim_val
             target_val = float(target) if pd.notna(target) else None
 
-            if sim_val is None and target_val is None:
-                continue
             bar_classes.append(cls)
-            sim_centers.append(sim_val if sim_val is not None else 0.0)
+            sim_centers.append(sim_val if sim_val is not None else np.nan)
             sim_los.append(lo_val if lo_val is not None else sim_centers[-1])
             sim_his.append(hi_val if hi_val is not None else sim_centers[-1])
             tgt_means.append(target_val)
@@ -4336,17 +4483,14 @@ def make_figure_2_calibration_resistance_fit(
             error_kw={"elinewidth": 0.8, "ecolor": _F2_COLOUR_SIM_ERROR, "capthick": 0.8},
         )
 
-        tgt_vals = [t if t is not None else 0.0 for t in tgt_means]
-        tgt_alpha = [1.0 if t is not None else 0.0 for t in tgt_means]
-        for i, (tv, ta) in enumerate(zip(tgt_vals, tgt_alpha)):
-            ax.bar(
-                x[i] + width / 2,
-                tv,
-                width,
-                color=_F2_COLOUR_TARGET,
-                alpha=0.85 * ta,
-                label=None,
-            )
+        for i, target in enumerate(tgt_means):
+            if target is None:
+                ax.text(x[i], 2.0, "N/A", ha="center", va="bottom", fontsize=6, color="#666")
+            elif target == 0.0:
+                ax.plot(x[i] + width / 2, 0.0, marker="_", markersize=8, color=_F2_COLOUR_TARGET, clip_on=False)
+                ax.text(x[i] + width / 2, 2.0, "0%", ha="center", va="bottom", fontsize=6, color=_F2_COLOUR_TARGET)
+            else:
+                ax.bar(x[i] + width / 2, target, width, color=_F2_COLOUR_TARGET, alpha=0.85, label=None)
 
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=x_tick_fontsize)
@@ -4407,6 +4551,8 @@ def make_figure_2_calibration_resistance_fit(
     fig.savefig(png_path, dpi=150, bbox_inches="tight")
     fig.savefig(svg_path, bbox_inches="tight")
     plt.close(fig)
+    displayed_summary = class_summary.loc[class_summary["Bacteria"].isin(ordered)]
+    displayed_summary.to_csv(fig_dir / f"{stem}__class_comparison.csv", index=False)
     print(f"  Saved: {png_path}")
     print(f"  Saved: {svg_path}")
 
@@ -4486,7 +4632,8 @@ def make_figure_2_calibration_resistance_fit(
             f"{figure_label} summary mode: {mode}. To switch modes, edit "
             "FIGURE2_SUMMARY_MODE in make_paper_tables.py."
         ),
-        "Drug class resistance within a panel is averaged across all specific drugs in that class.",
+        "Paired class averages use the same eligible drugs for simulation and reference within each run. Drugs with unassigned or excluded references do not enter either paired mean. N/A denotes an unavailable paired comparison; an explicit zero reference has a 0% label and baseline marker. Simulation-only class means are retained separately in the companion CSV.",
+        _resistance_comparison_note(agg),
         "Drugs flagged as negligible potency (baseline potency < 0.15) are excluded from class averages.",
         f"Drug classes are shown only where at least one drug in the class has baseline potency >= "
         f"{_F2_DISPLAY_POTENCY_THRESHOLD:.2f} for that bacterium.",
@@ -4601,6 +4748,7 @@ def _make_figure_2_setting_resistance_fit(
 
     setting_agg = aggregate(setting_runs)
     setting_agg["meta"] = agg.get("meta", setting_agg.get("meta", {}))
+    setting_agg["comparison_reference"] = agg.get("comparison_reference", {})
     setting_agg["n_runs"] = len(setting_runs)
     n_runs = len(setting_runs)
     print(
@@ -8850,7 +8998,7 @@ def _st2_notes_html(multiple_runs: bool, missing_columns: list[str], target_inco
         "Infection resistance simulation (%) is the simulated percentage of infection-days for the bacterium-drug combination classified as resistant.",
         "Infection resistance calibration benchmark (%) is an evidence-informed comparison value, not a direct harmonised surveillance estimate.",
         "Average resistant-level comparison values are expert-assigned model benchmarks for mean any_r conditional on any_r > 0; they are not MIC values or direct surveillance estimates.",
-        "Provenance, source, and rationale identifiers are carried from data/resistance_targets_v1.csv. The linked descriptions are in data/resistance_target_sources_v1.csv. No v1 cell is classified as a direct empirical estimate with recovered cell-level provenance.",
+        "Provenance, source, and rationale identifiers follow the selected versioned resistance target set and its source registry; the comparison version is recorded separately from original run provenance. Excluded numerical severity assumptions remain in the overlay audit but do not enter displayed residuals.",
         "Evidence-quality weights have not been assigned and do not enter the score. The displayed score weighting is a model-design choice, not evidence-derived confidence.",
         "Average resistant level is summarised among resistant positives where defined; rows with no resistant infections do not have a meaningful average resistant level.",
         "Microbiome resistance simulation (%) describes simulated resistance in the microbiome/carriage reservoir and is not clinical isolate resistance.",
@@ -8894,7 +9042,7 @@ def _st2_meta_box(agg: dict | None, stats: dict[str, object]) -> str:
         f"<strong>Negligible potency rows:</strong> {stats['n_negligible']:,}",
         f"<strong>Low resistant-sample rows:</strong> {stats['n_low_resistant_sample']:,}",
     ]
-    return "<div class='meta-box'>" + " &nbsp;|&nbsp; ".join(parts) + "</div>\n"
+    return "<div class='meta-box'>" + " &nbsp;|&nbsp; ".join(parts) + "</div>\n" + "<p>" + _resistance_comparison_note(agg) + "</p>\n"
 
 
 def _st2_placeholder(
@@ -13754,27 +13902,17 @@ def make_index(
 # ---------------------------------------------------------------------------
 
 def main(input_args: list[str]) -> None:
-    legacy_without_sf5 = False
-    path_args: list[str] = []
-    for arg in input_args:
-        if arg == LEGACY_WITHOUT_SF5_FLAG:
-            legacy_without_sf5 = True
-        elif arg.startswith("--"):
-            print(f"Unknown option: {arg}")
-            print(
-                "Usage: python -m amr_simulation_output_analysis.make_paper_tables "
-                f"[{LEGACY_WITHOUT_SF5_FLAG}] <calibration_summary_*.txt> [...]"
-            )
-            sys.exit(1)
-        else:
-            path_args.append(arg)
-
-    if not path_args:
-        print(
-            "Usage: python -m amr_simulation_output_analysis.make_paper_tables "
-            f"[{LEGACY_WITHOUT_SF5_FLAG}] <calibration_summary_*.txt> [...]"
-        )
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(LEGACY_WITHOUT_SF5_FLAG, action="store_true")
+    parser.add_argument("--resistance-target-set", type=Path, default=RESISTANCE_TARGETS_PATH,
+                        help="Verified comparison target set; replaces embedded resistance targets (default: v2).")
+    parser.add_argument("--resistance-only", action="store_true",
+                        help="Build only affected resistance comparisons, retaining the supplied runs.")
+    parser.add_argument("--out-dir", type=Path, help="Comparison output directory; resistance-only defaults to a version-labelled directory.")
+    parser.add_argument("paths", nargs="+")
+    args = parser.parse_args(input_args)
+    legacy_without_sf5 = args.legacy_without_sf5
+    path_args = args.paths
 
     # Expand any glob patterns
     paths: list[Path] = []
@@ -13805,7 +13943,9 @@ def main(input_args: list[str]) -> None:
 
     print(f"Parsing {len(paths)} calibration file(s)...")
     runs = parse_files(paths)
+    runs = _overlay_resistance_references(runs, _resolve_project_path(args.resistance_target_set))
     agg  = aggregate(runs)
+    agg["comparison_reference"] = runs[0]["comparison_reference"]
     n    = len(runs)
     print(f"  -> {n} run(s) parsed and aggregated.")
 
@@ -13832,6 +13972,31 @@ def main(input_args: list[str]) -> None:
                 f"Supplementary Figure S5, rerun with {LEGACY_WITHOUT_SF5_FLAG}."
             )
         sys.exit(2)
+
+    if args.resistance_only:
+        version = agg["comparison_reference"]["target_set_version"]
+        out = _resolve_project_path(args.out_dir) if args.out_dir else REPO_ROOT / f"paper_tables_{version}"
+        if out.resolve() == OUT_DIR.resolve():
+            raise ValueError("Use a separate version-labelled output directory for resistance-only comparisons.")
+        out.mkdir(parents=True, exist_ok=True)
+        build_provenance = _paper_build_provenance_text(paths, runs, csv_schema_versions, legacy_without_sf5=legacy_without_sf5, resistance_only=True)
+        build_provenance += "\nOutput scope: resistance comparisons only; original calibration scores are not recomputed.\n"
+        _save(out / "build_provenance.txt", build_provenance)
+        _write_resistance_comparison_audit(runs, out)
+        with _legacy_non_sf5_schema_validation(legacy_without_sf5):
+            make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)
+            make_figure_2_paper_parts(agg, out, runs=runs, summary_mode=FIGURE2_SUMMARY_MODE)
+            make_figure_2a_hospital_resistance_fit(agg, out, csv_paths, summary_mode=FIGURE2_SUMMARY_MODE)
+            make_figure_2b_community_resistance_fit(agg, out, csv_paths, summary_mode=FIGURE2_SUMMARY_MODE)
+        pages = sorted(out.glob("Tables/*.html")) + sorted(out.glob("Figures/*.html"))
+        index_body = _html_head(f"Resistance comparison: {version}")
+        index_body += f"<h1>Resistance comparison: {html.escape(version)}</h1>"
+        index_body += "<p>Existing runs compared with the selected reference set; no simulation or recalibration was performed.</p>"
+        index_body += "<ul>" + "".join(f"<li><a href='{page.relative_to(out).as_posix()}'>{html.escape(page.stem)}</a></li>" for page in pages) + "</ul>"
+        index_body += "<p><a href='resistance_reference_overlay_audit.csv'>Reference overlay audit</a> | <a href='resistance_class_membership_audit.csv'>Class membership and aggregate effects</a> | <a href='resistance_comparison_provenance.json'>Run and comparison provenance</a></p>"
+        index_body += "<pre>" + html.escape(build_provenance) + "</pre></body></html>"
+        _save(out / "index.html", index_body)
+        return
 
     if legacy_without_sf5:
         print(
@@ -13903,7 +14068,7 @@ def main(input_args: list[str]) -> None:
         "Supplementary Figure S6",
     )
 
-    out = OUT_DIR
+    out = _resolve_project_path(args.out_dir) if args.out_dir else OUT_DIR
     build_provenance = _paper_build_provenance_text(
         paths,
         runs,
@@ -13913,6 +14078,7 @@ def main(input_args: list[str]) -> None:
     print(f"\nGenerating paper outputs in {out.absolute()} ...")
     _prepare_output_dirs(out)
     _save(out / "build_provenance.txt", build_provenance)
+    _write_resistance_comparison_audit(runs, out)
     with _legacy_non_sf5_schema_validation(legacy_without_sf5):
         make_t1(out)
         make_supplementary_table_s2_resistance_benchmarks(runs, out, agg=agg)

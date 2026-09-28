@@ -19,7 +19,10 @@ import math
 
 from ..config import PlotConfig
 from ..calibration_summary import (
+    CalibrationTargets,
     get_resistance_benchmark_table,
+    _filter_resistance_rows_for_fit,
+    _load_resistance_target_set,
     RESISTANCE_SIM_COL,
     RESISTANCE_TARGET_COL,
 )
@@ -63,6 +66,30 @@ def _build_normalized_filter(values: Optional[List[str]]) -> Optional[Set[str]]:
     if not values:
         return None
     return {_normalize_identifier(value) for value in values if value is not None}
+
+
+def _load_static_resistance_prevalence_references(
+    project_root: Optional[Path] = None,
+) -> tuple[Dict[tuple, Dict[str, Any]], int, str]:
+    """Load only assigned, eligible prevalence references from the verified set.
+
+    There is deliberately no legacy-wide-table fallback: retained v1 inputs may
+    contain references withdrawn from the selected comparison version.
+    """
+    root = project_root or Path(__file__).resolve().parents[2]
+    targets = CalibrationTargets.load(root)
+    path = targets.resistance_long_form_path
+    prevalence, _ = _load_resistance_target_set(path)
+    values = pd.to_numeric(prevalence["target"], errors="coerce")
+    eligible = prevalence["include_in_score"].eq(True) & np.isfinite(values)
+    lookup = {
+        (row.bacteria_slug, row.drug_slug): {
+            "value": float(row.target),
+            "provenance_class": row.provenance_class,
+        }
+        for row in prevalence.loc[eligible].itertuples()
+    }
+    return lookup, targets.target_year, path.stem
 
 
 def _regional_infection_deaths_use_headline_scope(df: pd.DataFrame) -> bool:
@@ -379,16 +406,13 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         logger.warning("Resistance benchmark table empty, skipping benchmark charts.")
         return
 
-    table = raw_table.copy()
-    note_series = table.get("Note")
-    if note_series is not None:
-        mask = ~note_series.astype(str).str.contains("negligible potency", case=False, na=False)
-        table = table[mask]
+    table = _filter_resistance_rows_for_fit(raw_table)
 
     # These charts compare simulations with assigned benchmarks. Keep simulation-only
     # rows in the diagnostic table, but do not render a missing benchmark as a zero bar.
-    table = table[table[RESISTANCE_TARGET_COL].notna()]
-    table = table.dropna(subset=[RESISTANCE_SIM_COL])
+    for column in (RESISTANCE_TARGET_COL, RESISTANCE_SIM_COL):
+        table[column] = pd.to_numeric(table[column], errors="coerce")
+        table = table[np.isfinite(table[column])]
     if table.empty:
         logger.warning("No resistance benchmark rows eligible for plotting after filtering.")
         return
@@ -416,8 +440,15 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         width = 0.38
 
         fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
-        sim_bars = ax.bar(x - width / 2, np.nan_to_num(sim_values, nan=0.0), width, label="Simulation", color="#4C72B0")
-        target_bars = ax.bar(x + width / 2, np.nan_to_num(target_values, nan=0.0), width, label="Target", color="#55A868")
+        sim_bars = ax.bar(x - width / 2, sim_values, width, label="Simulation", color="#4C72B0")
+        target_bars = ax.bar(x + width / 2, target_values, width, label="Reference", color="#55A868")
+        zero_targets = target_values == 0.0
+        if zero_targets.any():
+            ax.scatter(
+                x[zero_targets] + width / 2, target_values[zero_targets],
+                marker="D", color="#55A868", edgecolors="#234F32",
+                zorder=4, clip_on=False,
+            )
 
         combined = np.concatenate([sim_values, target_values])
         max_val = np.nanmax(combined) if combined.size else 0.0
@@ -426,24 +457,14 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         ax.set_ylim(0, max_val * 1.25)
         label_offset = max_val * 0.04
 
-        # Annotate bars with numeric values or n/a for missing entries
+        # Missing references were excluded above; assigned zero remains visible.
         for rect, value in zip(sim_bars.patches, sim_values):
             xpos = rect.get_x() + rect.get_width() / 2
-            if np.isnan(value):
-                ax.text(xpos, label_offset, "n/a", ha="center", va="bottom", fontsize=9, rotation=90, color="#4C72B0")
-                rect.set_alpha(0.2)
-                rect.set_hatch("//")
-            else:
-                ax.text(xpos, rect.get_height() + label_offset, f"{value:.1f}", ha="center", va="bottom", fontsize=9, color="#1F3A68")
+            ax.text(xpos, rect.get_height() + label_offset, f"{value:.1f}", ha="center", va="bottom", fontsize=9, color="#1F3A68")
 
         for rect, value in zip(target_bars.patches, target_values):
             xpos = rect.get_x() + rect.get_width() / 2
-            if np.isnan(value):
-                ax.text(xpos, label_offset, "n/a", ha="center", va="bottom", fontsize=9, rotation=90, color="#2E5930")
-                rect.set_alpha(0.2)
-                rect.set_hatch("\\\\")
-            else:
-                ax.text(xpos, rect.get_height() + label_offset, f"{value:.1f}", ha="center", va="bottom", fontsize=9, color="#234F32")
+            ax.text(xpos, rect.get_height() + label_offset, f"{value:.1f}", ha="center", va="bottom", fontsize=9, color="#234F32")
 
         ax.set_xticks(x)
         ax.set_xticklabels(drugs, rotation=30, ha="right")
@@ -457,6 +478,8 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         subtitle_parts = [f"Primary window: {window_label}"]
         if expanded_label and expanded_label != window_label:
             subtitle_parts.append(f"expanded: {expanded_label}")
+        if metadata.get("target_set_version"):
+            subtitle_parts.append(f"Reference: {metadata['target_set_version']}")
         ax.text(0.02, 0.94, " | ".join(subtitle_parts), transform=ax.transAxes, fontsize=9, va="top")
 
         ax.legend(loc="upper left")
@@ -1418,36 +1441,13 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         else "Observed comparison"
     )
 
-    # Static prevalence estimates (2025) used for point overlays
-    prevalence_lookup: Dict[tuple, float] = {}
-    prevalence_year = 2025
-    project_root = Path(__file__).resolve().parents[2]
-    prevalence_candidates = [
-        Path("resistance_prevalence_values.csv"),
-        project_root / "resistance_prevalence_values.csv",
-        project_root / "data" / "resistance_prevalence_values.csv",
-    ]
-    prevalence_path = next((candidate for candidate in prevalence_candidates if candidate.exists()), None)
-    if prevalence_path is not None:
-        try:
-            prevalence_raw = pd.read_csv(prevalence_path, na_values='.')
-            prevalence_long = prevalence_raw.melt(
-                id_vars='Bacteria',
-                var_name='Drug',
-                value_name='estimate'
-            ).dropna(subset=['estimate'])
-            prevalence_long['Bacteria'] = prevalence_long['Bacteria'].apply(_normalize_identifier)
-            prevalence_long['Drug'] = prevalence_long['Drug'].apply(_normalize_identifier)
-            prevalence_lookup = {
-                (row.Bacteria, row.Drug): float(row.estimate)
-                for row in prevalence_long.itertuples()
-            }
-            if prevalence_lookup:
-                print(f"  [INFO] Loaded {len(prevalence_lookup)} static resistance prevalence estimates for {prevalence_year}")
-        except Exception as exc:
-            print(f"  [WARNING] Could not load resistance prevalence estimates: {exc}")
-    else:
-        print("  [INFO] resistance_prevalence_values.csv not found; skipping static overlays")
+    prevalence_lookup, prevalence_year, reference_version = (
+        _load_static_resistance_prevalence_references()
+    )
+    print(
+        f"  [INFO] Loaded {len(prevalence_lookup)} eligible prevalence references "
+        f"for {prevalence_year} from {reference_version}"
+    )
     
     # Create output directory
     output_dir = config.output_dir / "mean_any_r_by_drug_for_each_bacteria"
@@ -1563,7 +1563,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         style_labels = []
         drug_handles = []   # For drug color legend
         drug_labels = []
-        static_marker_handle = None
+        static_marker_handles = {}
         
         selected_drugs = relevant_drugs
 
@@ -1728,8 +1728,17 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                 # Overlay single-year prevalence estimate if available
                 norm_bacteria = _normalize_identifier(bacteria)
                 norm_drug = _normalize_identifier(drug)
-                static_value = prevalence_lookup.get((norm_bacteria, norm_drug))
-                if static_value is not None:
+                static_reference = prevalence_lookup.get((norm_bacteria, norm_drug))
+                if static_reference is not None:
+                    static_value = static_reference["value"]
+                    reference_kind = (
+                        "structural prior"
+                        if static_reference["provenance_class"] == "structural_prior"
+                        else "prevalence reference"
+                    )
+                    reference_label = (
+                        f"{prevalence_year} {reference_kind} ({reference_version})"
+                    )
                     estimate_year = max(0, prevalence_year - config.start_year)
                     marker = plt.scatter(
                         [estimate_year],
@@ -1739,10 +1748,16 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                         s=64,
                         edgecolors='black',
                         linewidths=0.6,
-                        zorder=6
+                        zorder=6,
+                        clip_on=False,
                     )
-                    if static_marker_handle is None:
-                        static_marker_handle = marker
+                    static_marker_handles.setdefault(reference_label, marker)
+                    if static_value == 0.0:
+                        plt.annotate(
+                            f"0 ({reference_kind})", (estimate_year, static_value),
+                            xytext=(5, 6), textcoords="offset points",
+                            color=drug_color, fontsize=8,
+                        )
 
                 lines_plotted += 1
         
@@ -1750,7 +1765,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         bacteria_clean = bacteria.replace('_', ' ').title()
         plt.title(f'Mean Resistance Proportion by Drug - {bacteria_clean}', fontsize=14, fontweight='bold')
         plt.xlabel('Time (Years)', fontsize=12)
-        plt.ylabel('Proportion with Resistance', fontsize=12)
+        plt.ylabel('Mean resistance level (unitless any_r)', fontsize=12)
         
         # Set proper axis limits
         plt.xlim(0, max(105, df['time_in_years'].max()) if 'time_in_years' in df.columns else 105)  # Extend to actual simulation length
@@ -1761,13 +1776,25 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         
         # Create legends if we have data
         if lines_plotted > 0:
-            if static_marker_handle is not None:
+            if static_marker_handles:
                 if 'Simulation' not in style_labels and len(drug_handles) > 0:
                     style_handles.append(drug_handles[0])
                     style_labels.append('Simulation')
-                if '2025 Estimate' not in style_labels:
-                    style_handles.append(static_marker_handle)
-                    style_labels.append('2025 Estimate')
+                for reference_label, marker in static_marker_handles.items():
+                    style_handles.append(marker)
+                    style_labels.append(reference_label)
+                plt.gca().text(
+                    0.01, -0.12,
+                    "Reference points describe prevalence of any_r > 0; "
+                    "lines describe mean any_r. These are different quantities.",
+                    transform=plt.gca().transAxes, fontsize=9, va="top",
+                )
+            else:
+                plt.gca().text(
+                    0.01, -0.12,
+                    f"No eligible prevalence reference for the displayed drugs ({reference_version}).",
+                    transform=plt.gca().transAxes, fontsize=9, va="top",
+                )
 
             # Always create style legend showing simulation vs empirical distinction
             # If we have empirical data, show both; otherwise just show simulation

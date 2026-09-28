@@ -45,6 +45,7 @@ Thumbs.db
 
 # Generated figures/images that are not intentionally tracked
 *.png
+!/paper_tables_resistance_targets_v2/Figures/*.png
 
 # Data policy:
 # Ignore new data drops by default, but keep the curated calibration inputs tracked.
@@ -56,6 +57,15 @@ Thumbs.db
 !/data/resistance_target_sources_v1.csv
 !/data/resistance_targets_v1.schema.json
 !/data/resistance_targets_v1.manifest.json
+!/data/resistance_targets_v2.csv
+!/data/resistance_target_sources_v2.csv
+!/data/resistance_targets_v2.schema.json
+!/data/resistance_targets_v2.manifest.json
+!/data/resistance_targets_v2.review.json
+!/data/resistance_targets_v2.revisions.csv
+!/data/resistance_targets_v1_snapshot/
+!/data/resistance_targets_v1_snapshot/**
+!/data/RESISTANCE_TARGETS_V2_REVIEW.md
 !/data/RESISTANCE_TARGETS.md
 !/data/model_potency_matrix.csv
 !/data/microbiome_resistance_resident_values.csv

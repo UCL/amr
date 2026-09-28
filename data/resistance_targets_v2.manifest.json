@@ -1,0 +1,68 @@
+{
+  "artifacts": {
+    "model_potency_matrix.csv": {
+      "bytes": 102935,
+      "sha256": "adee36c324f4854dfe58a479211afe3a79fe324bbe92d58a4b758bdd55a04c34"
+    },
+    "model_resistance_reachability_matrix.csv": {
+      "bytes": 226654,
+      "sha256": "e1e05e1eca7184ed6601026a34e812f4e4d5456d49b17e7c6edc39c294ad50b1"
+    },
+    "resistance_target_sources_v2.csv": {
+      "bytes": 16638,
+      "sha256": "d680527d6bf31e25a226f35025e029b99a6f133d3d6c97e7f5050cd4205ea914"
+    },
+    "resistance_targets_v1_snapshot/model_potency_matrix.csv": {
+      "bytes": 102935,
+      "sha256": "adee36c324f4854dfe58a479211afe3a79fe324bbe92d58a4b758bdd55a04c34"
+    },
+    "resistance_targets_v1_snapshot/model_resistance_reachability_matrix.csv": {
+      "bytes": 226654,
+      "sha256": "e1e05e1eca7184ed6601026a34e812f4e4d5456d49b17e7c6edc39c294ad50b1"
+    },
+    "resistance_targets_v1_snapshot/resistance_average_resistant_values.csv": {
+      "bytes": 11134,
+      "sha256": "738e1ffd8804425f04b90447a9df3bcf7e4a0c64ebddc7cd3abce0f76748e50a"
+    },
+    "resistance_targets_v1_snapshot/resistance_prevalence_values.csv": {
+      "bytes": 19277,
+      "sha256": "56dd97061f1f0c5a1ea04f1102a5e9d2fb725ef6c1728bed414196a84957d213"
+    },
+    "resistance_targets_v1_snapshot/resistance_target_sources_v1.csv": {
+      "bytes": 15286,
+      "sha256": "a6a7ac82bf91d0626d8a35dc3836015d96e526776f67566c4866038c808edbea"
+    },
+    "resistance_targets_v1_snapshot/resistance_targets_v1.csv": {
+      "bytes": 1799658,
+      "sha256": "a1e3b171b079822997243aa7cdcef1d7abd797d4a896ccab976d67d3ff8169e4"
+    },
+    "resistance_targets_v1_snapshot/resistance_targets_v1.manifest.json": {
+      "bytes": 1219,
+      "sha256": "c54e1883fa299a5ee822c0baf8a452bc2068338ab8046ad185a1d777f339a936"
+    },
+    "resistance_targets_v1_snapshot/resistance_targets_v1.schema.json": {
+      "bytes": 3863,
+      "sha256": "e2e25084b975442cb396f564e9e56076403a76e0d45ece601c96e3f1de8980a5"
+    },
+    "resistance_targets_v2.csv": {
+      "bytes": 1801878,
+      "sha256": "118748033b7c989d63203596546b1a6a6c3d5874bbc31b69f5eee46c44f83a35"
+    },
+    "resistance_targets_v2.review.json": {
+      "bytes": 38913,
+      "sha256": "be9f5c9a13a47d7fe0c6a31b2ba4e64b75e4e00909a26057b32d2dec7a2933d3"
+    },
+    "resistance_targets_v2.revisions.csv": {
+      "bytes": 19877,
+      "sha256": "d9fa1e3570be10e12202d6c05c725879566077c77d2208529ceb8226c7a5aa61"
+    },
+    "resistance_targets_v2.schema.json": {
+      "bytes": 4344,
+      "sha256": "1c54db46df2d20b6e22078eaf9bd653473d017f1ba6e1d368570db8754b68a8f"
+    }
+  },
+  "baseline_target_set_version": "resistance_targets_v1",
+  "hash_algorithm": "sha256",
+  "review_date": "2026-09-28",
+  "target_set_version": "resistance_targets_v2"
+}

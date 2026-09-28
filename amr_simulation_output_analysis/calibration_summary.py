@@ -18,7 +18,7 @@ import pandas as pd
 if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     from amr_simulation_output_analysis.config import PlotConfig
-    from amr_simulation_output_analysis.build_resistance_targets_v1 import UPDATE_LOCK_FILENAME
+    from amr_simulation_output_analysis.build_resistance_targets_v2 import UPDATE_LOCK_FILENAME
     from amr_simulation_output_analysis.data_loader import DataCache
     from amr_simulation_output_analysis.bacterium_region_deaths import calculate_bacterium_region_death_counts
     from amr_simulation_output_analysis.regional_incidence import (
@@ -43,7 +43,7 @@ if __package__ is None or __package__ == "":
     )
 else:
     from .config import PlotConfig
-    from .build_resistance_targets_v1 import UPDATE_LOCK_FILENAME
+    from .build_resistance_targets_v2 import UPDATE_LOCK_FILENAME
     from .data_loader import DataCache
     from .bacterium_region_deaths import calculate_bacterium_region_death_counts
     from .regional_incidence import (
@@ -66,7 +66,8 @@ else:
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RESISTANCE_TARGET_SET_VERSION = "resistance_targets_v1"
+RESISTANCE_TARGET_SET_VERSION = "resistance_targets_v2"
+SUPPORTED_RESISTANCE_TARGET_SETS = {"resistance_targets_v1", "resistance_targets_v2"}
 RESISTANCE_PREVALENCE_COMPONENT = "resistance_prevalence_any_r_positive"
 RESISTANCE_SEVERITY_COMPONENT = "resistance_severity_conditional_mean_any_r"
 RESISTANCE_TARGET_INCLUDED_COL = "Infection target included in score"
@@ -77,7 +78,7 @@ RESISTANCE_TARGET_SOURCE_COL = "Infection benchmark source"
 RESISTANCE_AVERAGE_TARGET_SOURCE_COL = "Average benchmark source"
 RESISTANCE_TARGET_RATIONALE_COL = "Infection benchmark rationale"
 RESISTANCE_AVERAGE_TARGET_RATIONALE_COL = "Average benchmark rationale"
-RESISTANCE_TARGET_MANIFEST_FILENAME = "resistance_targets_v1.manifest.json"
+RESISTANCE_TARGET_MANIFEST_FILENAME = f"{RESISTANCE_TARGET_SET_VERSION}.manifest.json"
 RESISTANCE_TARGET_UPDATE_LOCK_FILENAME = UPDATE_LOCK_FILENAME
 RESISTANCE_TARGET_REFRESH_WAIT_SECONDS = 10.0
 RESISTANCE_TARGET_REFRESH_POLL_SECONDS = 0.05
@@ -334,7 +335,7 @@ class CalibrationTargets:
             "average_path", "data/resistance_average_resistant_values.csv"
         )
         long_form_path = resistance_section.get(
-            "long_form_path", "data/resistance_targets_v1.csv"
+            "long_form_path", f"data/{RESISTANCE_TARGET_SET_VERSION}.csv"
         )
         microbiome_resident_path = resistance_section.get(
             "microbiome_resident_path", "data/microbiome_resistance_resident_values.csv"
@@ -1395,8 +1396,16 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _resistance_target_version(path: Path) -> str:
+    version = path.stem
+    if version not in SUPPORTED_RESISTANCE_TARGET_SETS:
+        raise ValueError(f"Unsupported resistance target set: {path}")
+    return version
+
+
 def _verify_resistance_target_manifest(path: Path) -> None:
-    manifest_path = path.parent / RESISTANCE_TARGET_MANIFEST_FILENAME
+    version = _resistance_target_version(path)
+    manifest_path = path.with_suffix(".manifest.json")
     if not manifest_path.exists():
         raise FileNotFoundError(
             f"Missing resistance-target hash manifest: {manifest_path}"
@@ -1404,9 +1413,9 @@ def _verify_resistance_target_manifest(path: Path) -> None:
 
     with manifest_path.open("r", encoding="utf-8") as handle:
         manifest = json.load(handle)
-    if manifest.get("target_set_version") != RESISTANCE_TARGET_SET_VERSION:
+    if manifest.get("target_set_version") != version:
         raise ValueError(
-            f"{manifest_path} does not describe {RESISTANCE_TARGET_SET_VERSION}"
+            f"{manifest_path} does not describe {version}"
         )
     if manifest.get("hash_algorithm") != "sha256":
         raise ValueError(f"{manifest_path} must use sha256")
@@ -1423,6 +1432,9 @@ def _verify_resistance_target_manifest(path: Path) -> None:
         "model_potency_matrix.csv",
         "model_resistance_reachability_matrix.csv",
     }
+    if version == "resistance_targets_v2":
+        from amr_simulation_output_analysis.build_resistance_targets_v2 import MANIFEST_ARTIFACTS
+        required_artifacts = set(MANIFEST_ARTIFACTS)
     missing_artifacts = required_artifacts.difference(artifacts)
     if missing_artifacts:
         raise ValueError(
@@ -1475,8 +1487,8 @@ def _load_resistance_target_set(
     if path is None:
         raise FileNotFoundError(f"Missing versioned resistance target file: {path}")
 
-    manifest_path = path.parent / RESISTANCE_TARGET_MANIFEST_FILENAME
-    update_lock = path.parent / RESISTANCE_TARGET_UPDATE_LOCK_FILENAME
+    manifest_path = path.with_suffix(".manifest.json")
+    update_lock = path.parent / f".{_resistance_target_version(path)}.update.lock"
     deadline = time.monotonic() + RESISTANCE_TARGET_REFRESH_WAIT_SECONDS
 
     def manifest_generation() -> Optional[bytes]:
@@ -1496,6 +1508,11 @@ def _load_resistance_target_set(
                     raise
             else:
                 if not update_lock.exists() and manifest_generation() == generation:
+                    manifest = json.loads(generation)
+                    for frame in frames:
+                        frame.attrs["manifest_path"] = str(manifest_path.resolve())
+                        frame.attrs["manifest_sha256"] = hashlib.sha256(generation).hexdigest()
+                        frame.attrs["target_sha256"] = manifest["artifacts"][path.name]["sha256"]
                     return frames
 
         if time.monotonic() >= deadline:
@@ -1553,10 +1570,11 @@ def _read_resistance_target_set(
     if target_set.empty:
         raise ValueError(f"{path} contains no resistance targets")
 
+    version = _resistance_target_version(path)
     versions = set(target_set["target_set_version"])
-    if versions != {RESISTANCE_TARGET_SET_VERSION}:
+    if versions != {version}:
         raise ValueError(
-            f"{path} must contain only target set {RESISTANCE_TARGET_SET_VERSION!r}; "
+            f"{path} must contain only target set {version!r}; "
             f"found {sorted(versions)}"
         )
     expected_components = {
@@ -1602,12 +1620,27 @@ def _read_resistance_target_set(
     invalid_numeric = target_set["value"].ne("") & numeric_values.isna()
     if invalid_numeric.any():
         raise ValueError(f"{path} contains a non-numeric resistance target value")
+    if (numeric_values.notna() & ~numeric_values.between(0.0, 1.0)).any():
+        raise ValueError(f"{path} resistance targets must be finite proportions in [0, 1]")
     included = target_set["include_in_score"].eq("true")
     if (included & numeric_values.isna()).any():
         raise ValueError(f"{path} includes score rows without numeric target values")
+    allowed_statuses = {
+        "active_target", "active_target_model_unrepresentable",
+        "inactive_above_model_representable_maximum", "inactive_model_unrepresentable",
+        "inactive_unpaired_legacy_benchmark", "legacy_unclassified_missing",
+    }
+    if not set(target_set["cell_status"]).issubset(allowed_statuses):
+        raise ValueError(f"{path} contains unknown cell statuses")
+    if (included & ~target_set["cell_status"].isin(
+        {"active_target", "active_target_model_unrepresentable"}
+    )).any():
+        raise ValueError(f"{path} includes an inactive target status in scoring")
+    if not target_set["score_exclusion_reason"].eq("").eq(included).all():
+        raise ValueError(f"{path} score exclusions disagree with include_in_score")
     if target_set["evidence_weight"].ne("").any():
         raise ValueError(
-            f"{path} assigns evidence weights, but v1 has no reviewed evidence weights"
+            f"{path} assigns evidence weights, but {version} has no reviewed evidence weights"
         )
     expected_score_row_weights = included.map({True: "1.0", False: "0.0"})
     if not target_set["score_row_weight"].eq(expected_score_row_weights).all():
@@ -1628,8 +1661,19 @@ def _read_resistance_target_set(
         raise ValueError(f"{path} contains numeric rows without rationale identities")
     if (numeric & target_set["provenance_class"].eq("not_assigned")).any():
         raise ValueError(f"{path} labels numeric rows as provenance not assigned")
+    if (numeric & target_set["target_type"].eq("not_assigned")).any():
+        raise ValueError(f"{path} labels numeric rows as target not assigned")
+    prevalence_rows = target_set["component"].eq(RESISTANCE_PREVALENCE_COMPONENT)
+    prevalence_pairs = set(map(tuple, target_set.loc[
+        prevalence_rows & numeric, ["bacteria", "drug"]
+    ].to_numpy()))
+    included_severity_pairs = set(map(tuple, target_set.loc[
+        ~prevalence_rows & included, ["bacteria", "drug"]
+    ].to_numpy()))
+    if not included_severity_pairs.issubset(prevalence_pairs):
+        raise ValueError(f"{path} includes severity without a paired prevalence target")
 
-    source_path = path.parent / "resistance_target_sources_v1.csv"
+    source_path = path.parent / f"resistance_target_sources_{version.rsplit('_', 1)[1]}.csv"
     if not source_path.exists():
         raise FileNotFoundError(f"Missing resistance target source table: {source_path}")
     source_table = pd.read_csv(source_path, dtype=str, keep_default_na=False)
@@ -1670,7 +1714,8 @@ def _read_resistance_target_set(
             + ", ".join(sorted(unknown_source_provenance))
         )
     source_provenance = source_table.set_index("source_id")["provenance_class"]
-    unknown_sources = set(target_set.loc[numeric, "source_id"]).difference(
+    assigned_sources = target_set["source_id"].ne("")
+    unknown_sources = set(target_set.loc[assigned_sources, "source_id"]).difference(
         source_provenance.index
     )
     if unknown_sources:
@@ -1678,6 +1723,8 @@ def _read_resistance_target_set(
             f"{path} references unknown source IDs: "
             + ", ".join(sorted(unknown_sources))
         )
+    # Legacy missing rows can retain the generic component source while their
+    # cell provenance remains unassigned. Numeric claims must match the source.
     expected_provenance = target_set.loc[numeric, "source_id"].map(source_provenance)
     actual_provenance = target_set.loc[numeric, "provenance_class"]
     if not actual_provenance.eq(expected_provenance).all():
@@ -1721,7 +1768,7 @@ def _read_resistance_target_set(
         subset.rename(columns={"bacteria": "Bacteria"}, inplace=True)
         subset["bacteria_slug"] = subset["Bacteria"].apply(_slugify_bacteria_value)
         subset["drug_slug"] = subset["drug"].apply(_normalize_drug_slug)
-        return subset[
+        frame = subset[
             [
                 "Bacteria",
                 "drug",
@@ -1740,6 +1787,9 @@ def _read_resistance_target_set(
                 "drug_slug",
             ]
         ]
+        frame.attrs["target_set_version"] = version
+        frame.attrs["target_path"] = str(path.resolve())
+        return frame
 
     return (
         _component_frame(RESISTANCE_PREVALENCE_COMPONENT),
@@ -3664,6 +3714,15 @@ def _build_drug_class_lookup(
     return lookup
 
 
+def _resistance_inclusion_mask(values: pd.Series) -> pd.Series:
+    """Read persisted boolean flags without treating the string 'false' as true."""
+    return values.map(
+        lambda value: False if pd.isna(value) else (
+            value.strip().lower() == "true" if isinstance(value, str) else bool(value)
+        )
+    ).astype(bool)
+
+
 def _filter_resistance_rows_for_fit(
     resistance_df: pd.DataFrame,
     component: Optional[str] = "infection",
@@ -3687,10 +3746,10 @@ def _filter_resistance_rows_for_fit(
     if component is None and explicit_columns:
         include_mask = pd.Series(False, index=filtered.index)
         for column in explicit_columns:
-            include_mask |= filtered[column].fillna(False).astype(bool)
+            include_mask |= _resistance_inclusion_mask(filtered[column])
         filtered = filtered.loc[include_mask]
     elif component is not None and include_columns[component] in filtered.columns:
-        include_mask = filtered[include_columns[component]].fillna(False).astype(bool)
+        include_mask = _resistance_inclusion_mask(filtered[include_columns[component]])
         filtered = filtered.loc[include_mask]
     else:
         # Compatibility path for resistance tables created before explicit target
@@ -3992,7 +4051,7 @@ def _build_resistance_provenance_summary(
         target_values = pd.to_numeric(resistance_df[target_col], errors="coerce")
         provenance_values = resistance_df[provenance_col].fillna("not_assigned")
         include_values = (
-            resistance_df[include_col].fillna(False).astype(bool)
+            _resistance_inclusion_mask(resistance_df[include_col])
             if include_col in resistance_df
             else target_values.notna()
         )
@@ -4101,7 +4160,7 @@ def _write_resistance_provenance_summary(
     else:
         handle.write("(no resistance benchmark provenance available)\n")
     handle.write(
-        "Evidence-quality weights are unassigned in target set v1 and do not enter the "
+        "Evidence-quality weights are unassigned in the selected target set and do not enter the "
         "score. Score weights shown here are design weights only; the resistance block "
         "uses equal rows within each component and configured 4:1 prevalence-to-severity "
         "row weights. Nominal overall shares apply the configured resistance-block weight "
@@ -5094,6 +5153,14 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             )
         )
         handle.write(f"Target year: {targets.target_year}\n")
+        reference_frame = context.get("resistance_targets")
+        if isinstance(reference_frame, pd.DataFrame):
+            reference_metadata = reference_frame.attrs
+            handle.write(
+                f"Comparison resistance target set: {reference_metadata.get('target_set_version', 'unavailable')}\n"
+                f"Comparison resistance target file: {reference_metadata.get('target_path', 'unavailable')}\n"
+                f"Comparison resistance manifest SHA-256: {reference_metadata.get('manifest_sha256', 'unavailable')}\n"
+            )
         handle.write(
             f"Calibration window duration: {window_years:.2f} simulated years"
             " (totals annualized to yearly equivalents)\n\n"
@@ -5878,16 +5945,18 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    calibration score.\n"
         )
         handle.write(
-            "\n(10) Resistance-prevalence values are evidence-informed calibration benchmarks,\n"
-            "     not a matrix of direct observed cell estimates. WHO GLASS, ECDC EARS-Net,\n"
+            "\n(10) Resistance references retain per-row evidence and modelling provenance.\n"
+            "     They are not a matrix of direct observed cell estimates. WHO GLASS, ECDC EARS-Net,\n"
             "     CDC reports, GRAM and organism-specific literature informed the legacy\n"
             "     bacterium-level notes, but cell-level citations, reference years, specimen\n"
             "     definitions, denominators and transformations were not retained. The current\n"
-            "     v1 provenance class therefore records that cell provenance is unrecovered;\n"
-            "     it does not label these values as global surveillance medians. Conditional\n"
-            "     mean-any_r values are expert-informed model placeholders, with five explicitly\n"
-            "     identified rare-positive structural priors. The per-row provenance, source and\n"
-            "     rationale identifiers link to data/resistance_target_sources_v1.csv. Evidence-\n"
+            "     per-row provenance distinguishes unrecovered legacy benchmarks, structural\n"
+            "     priors and unassigned references; none implies a global surveillance median.\n"
+            "     Conditional mean-any_r values retain their separate model-scale interpretation,\n"
+            "     including rare-positive priors. Source and rationale identifiers link to the\n"
+            "     selected version's resistance_target_sources table. Isolate/genomic observations\n"
+            "     differ from active-infection person-days with any_r > 0; a small model effect\n"
+            "     is not clinical breakpoint resistance. Evidence-\n"
             "     quality weights remain unassigned and are not used in scoring. A missing\n"
             "     benchmark means no comparison value was assigned, not intrinsic resistance.\n"
         )
@@ -5926,11 +5995,14 @@ def get_resistance_benchmark_table(
     expanded_label = str(expanded_label_obj) if expanded_label_obj not in (None, "") else ""
 
     targets = context.get("targets")
+    reference_frame = context.get("resistance_targets")
+    reference_metadata = reference_frame.attrs if isinstance(reference_frame, pd.DataFrame) else {}
     return {
         "data": resistance_df,
         "window_label": window_label,
         "expanded_label": expanded_label,
         "target_year": targets.target_year if isinstance(targets, CalibrationTargets) else None,
+        **reference_metadata,
     }
 
 
