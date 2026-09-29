@@ -11,6 +11,7 @@
 use amr_project::config::{get_global_param, PARAMETERS};
 use amr_project::config_validation::{validate_parameter_map, ConfigValidationMode};
 use amr_project::observability;
+use amr_project::output_files::publish_summary_no_clobber;
 use amr_project::simulation::population::BACTERIA_LIST;
 use amr_project::simulation::simulation::CalibrationMode;
 use amr_project::simulation::simulation::Simulation;
@@ -21,7 +22,6 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 const RAYON_WORKER_STACK_BYTES: usize = 4 * 1024 * 1024;
 
@@ -29,6 +29,65 @@ const RAYON_WORKER_STACK_BYTES: usize = 4 * 1024 * 1024;
 struct ResolvedRunSeed {
     value: u64,
     source: &'static str,
+}
+
+struct InvocationPaths {
+    metadata_path: PathBuf,
+    validation_path: PathBuf,
+    validation_file: File,
+}
+
+/// Reserve both diagnostic paths before allocating the research population.
+/// The clock is only a readable label; exclusive creation supplies uniqueness.
+fn reserve_invocation_paths(
+    output_dir: &Path,
+    seed: u64,
+    stamp: &str,
+) -> io::Result<InvocationPaths> {
+    std::fs::create_dir_all(output_dir)?;
+    let mut attempt = 0u64;
+    loop {
+        let token = format!("{stamp}_seed_{seed}_pid_{}_{attempt}", std::process::id());
+        let metadata_path = output_dir.join(format!("run_metadata_{token}.txt"));
+        let validation_path = output_dir.join(format!("config_validation_{token}.txt"));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&metadata_path)
+        {
+            Ok(file) => drop(file),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                attempt = attempt
+                    .checked_add(1)
+                    .ok_or_else(|| io::Error::other("invocation filename space exhausted"))?;
+                continue;
+            }
+            Err(error) => return Err(error),
+        }
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&validation_path)
+        {
+            Ok(validation_file) => {
+                return Ok(InvocationPaths {
+                    metadata_path,
+                    validation_path,
+                    validation_file,
+                })
+            }
+            Err(error) => {
+                // Only remove the empty metadata reservation created by this attempt.
+                std::fs::remove_file(&metadata_path)?;
+                if error.kind() != io::ErrorKind::AlreadyExists {
+                    return Err(error);
+                }
+                attempt = attempt
+                    .checked_add(1)
+                    .ok_or_else(|| io::Error::other("invocation filename space exhausted"))?;
+            }
+        }
+    }
 }
 
 fn configure_rayon_worker_stack() {
@@ -119,19 +178,25 @@ impl RunOutput {
 }
 
 fn reserve_incomplete_file(path: &Path) -> io::Result<(PathBuf, File)> {
-    static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
-    let mut incomplete_name = path.as_os_str().to_os_string();
-    incomplete_name.push(format!(
-        ".{}.{}.incomplete",
-        std::process::id(),
-        NEXT_FILE_ID.fetch_add(1, Ordering::Relaxed)
-    ));
-    let incomplete_path = PathBuf::from(incomplete_name);
-    let file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&incomplete_path)?;
-    Ok((incomplete_path, file))
+    let mut attempt = 0u64;
+    loop {
+        let mut incomplete_name = path.as_os_str().to_os_string();
+        incomplete_name.push(format!(".{}.{attempt}.incomplete", std::process::id()));
+        let incomplete_path = PathBuf::from(incomplete_name);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&incomplete_path)
+        {
+            Ok(file) => return Ok((incomplete_path, file)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                attempt = attempt
+                    .checked_add(1)
+                    .ok_or_else(|| io::Error::other("staging filename space exhausted"))?;
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 fn write_atomic_metadata(
@@ -164,7 +229,7 @@ fn finish_run_output(
         return output;
     }
 
-    // Reserve a unique file. If an old file already has this name, fail without touching it.
+    // Reserve a unique file, preserving any stale diagnostic files from prior attempts.
     let incomplete_path = match reserve_incomplete_file(csv_path) {
         Ok((path, file)) => {
             drop(file);
@@ -188,12 +253,15 @@ fn finish_run_output(
             return output;
         }
     };
-    if let Err(error) = std::fs::rename(&incomplete_path, csv_path) {
-        output.fail("csv_publish_failed", error);
-        return output;
-    }
+    let published_path = match publish_summary_no_clobber(&incomplete_path, csv_path) {
+        Ok(path) => path,
+        Err(error) => {
+            output.fail("csv_publish_failed", error);
+            return output;
+        }
+    };
     output.status = "completed";
-    output.csv_path = Some(csv_path.to_path_buf());
+    output.csv_path = Some(published_path);
     output.summary_hash = Some(hash);
     output
 }
@@ -376,18 +444,18 @@ fn main() -> ExitCode {
     let active_policies = calibration_mode.active_policy_ids();
 
     let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
-    if let Err(err) = std::fs::create_dir_all(output_dir) {
-        eprintln!(
-            "Warning: unable to create output directory {:?}: {}",
-            output_dir, err
-        );
-    }
-
-    let metadata_stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
-    let metadata_path = output_dir.join(format!(
-        "run_metadata_{}_seed_{}.txt",
-        metadata_stamp, resolved_run_seed.value
-    ));
+    let metadata_stamp = Utc::now().format("%Y%m%dT%H%M%S%.9fZ").to_string();
+    let InvocationPaths {
+        metadata_path,
+        validation_path: config_validation_report_path,
+        validation_file: mut config_validation_file,
+    } = match reserve_invocation_paths(output_dir, resolved_run_seed.value, &metadata_stamp) {
+        Ok(paths) => paths,
+        Err(error) => {
+            eprintln!("Unable to reserve output paths before simulation: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     let config_validation_mode = match ConfigValidationMode::from_env() {
         Ok(mode) => mode,
@@ -399,10 +467,9 @@ fn main() -> ExitCode {
     let config_validation_report = validate_parameter_map(&PARAMETERS);
     let rendered_config_validation = config_validation_report.render(config_validation_mode);
     eprint!("{}", rendered_config_validation);
-    let config_validation_report_path =
-        output_dir.join(format!("config_validation_{}.txt", metadata_stamp));
-    let config_validation_report_for_metadata = match File::create(&config_validation_report_path)
-        .and_then(|mut file| file.write_all(rendered_config_validation.as_bytes()))
+    let config_validation_report_for_metadata = match config_validation_file
+        .write_all(rendered_config_validation.as_bytes())
+        .and_then(|()| config_validation_file.sync_all())
     {
         Ok(()) => Some(config_validation_report_path.as_path()),
         Err(err) => {
@@ -414,6 +481,7 @@ fn main() -> ExitCode {
             None
         }
     };
+    drop(config_validation_file);
 
     if config_validation_report.has_errors() && config_validation_mode.blocks_on_errors() {
         if let Err(err) = write_run_metadata(
@@ -529,8 +597,8 @@ fn main() -> ExitCode {
     // Print journey-logging statistics and alternate-branch coverage.
     simulation.print_summary_statistics();
 
-    // Include the pseudo-random run ID in the filename and metadata to associate the summary
-    // with its run. The one-million-value ID space does not provide global uniqueness.
+    // Keep the seed-derived run ID in the CSV. Publication adds a repeat suffix to
+    // the filename if that ID already has a result, without changing simulation data.
     let run_id = simulation.run_id;
     let csv_basename = format!("simulation_summary_{:06}.csv", run_id);
     let csv_path = output_dir.join(&csv_basename);
@@ -578,7 +646,10 @@ fn main() -> ExitCode {
         eprintln!("[run-failure] {}: {}", output.status, detail);
     }
     if output.status == "completed" {
-        println!("Summary data exported to {}", csv_path.display());
+        println!(
+            "Summary data exported to {}",
+            output.csv_path.as_ref().unwrap().display()
+        );
     }
 
     println!(
@@ -758,6 +829,7 @@ fn validate_bacteria_configuration() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     struct TestDirectory(PathBuf);
 
@@ -882,6 +954,159 @@ mod tests {
         );
         assert!(output.failure_detail.is_none());
         assert_eq!(std::fs::read_dir(&directory.0).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn stale_incomplete_files_are_preserved_and_do_not_block_new_exports() {
+        let directory = TestDirectory::new();
+        let requested = directory.csv_path();
+        let (stale_path, mut stale_file) = reserve_incomplete_file(&requested).unwrap();
+        stale_file
+            .write_all(b"previous incomplete attempt")
+            .unwrap();
+        drop(stale_file);
+        let output = finish_run_output(Ok(()), &requested, |path| {
+            std::fs::write(path, "new complete data")
+        });
+        assert_eq!(output.exit_code(), ExitCode::SUCCESS);
+        assert_eq!(
+            std::fs::read_to_string(stale_path).unwrap(),
+            "previous incomplete attempt"
+        );
+        assert_eq!(
+            std::fs::read_to_string(requested).unwrap(),
+            "new complete data"
+        );
+    }
+
+    #[test]
+    fn repeat_publication_preserves_previous_csv_and_metadata() {
+        let directory = TestDirectory::new();
+        let csv_path = directory.csv_path();
+        let first = finish_run_output(Ok(()), &csv_path, |path| {
+            std::fs::write(path, "time_step,value\n0,10\n")
+        });
+        let metadata_path = directory.0.join("original_metadata.txt");
+        write_fixture_metadata(&metadata_path, &first);
+        let original_metadata = std::fs::read(&metadata_path).unwrap();
+        let original_csv = std::fs::read(&csv_path).unwrap();
+
+        let second = finish_run_output(Ok(()), &csv_path, |path| {
+            std::fs::write(path, "time_step,value\n0,20\n")
+        });
+        let repeat_path = directory.0.join("simulation_summary_123456_repeat_1.csv");
+        assert_eq!(second.exit_code(), ExitCode::SUCCESS);
+        assert_eq!(second.csv_path.as_deref(), Some(repeat_path.as_path()));
+        assert_eq!(std::fs::read(&csv_path).unwrap(), original_csv);
+        assert_eq!(std::fs::read(&metadata_path).unwrap(), original_metadata);
+        assert_eq!(
+            first.summary_hash,
+            Some(hash_file_sha256(&csv_path).unwrap())
+        );
+        assert_eq!(
+            second.summary_hash,
+            Some(hash_file_sha256(&repeat_path).unwrap())
+        );
+        assert_ne!(first.summary_hash, second.summary_hash);
+        let repeat_metadata = directory.0.join("repeat_metadata.txt");
+        write_fixture_metadata(&repeat_metadata, &second);
+        assert!(std::fs::read_to_string(repeat_metadata)
+            .unwrap()
+            .contains(&format!("summary_csv={}\n", repeat_path.display())));
+    }
+
+    #[test]
+    fn repeated_fixed_seed_runs_keep_identical_csv_bytes_in_distinct_files() {
+        let directory = TestDirectory::new();
+        let mut outputs = Vec::new();
+        let mut run_ids = Vec::new();
+        for _ in 0..2 {
+            let mut simulation =
+                Simulation::new(2, 2, false, Some(12345), CalibrationMode::Partial);
+            simulation.summary_content_flags =
+                amr_project::simulation::simulation::SummaryContentFlags::none();
+            let run_result = simulation.run();
+            run_ids.push(simulation.run_id);
+            let requested = directory
+                .0
+                .join(format!("simulation_summary_{:06}.csv", simulation.run_id));
+            let output = finish_run_output(run_result, &requested, |path| {
+                simulation.export_summary_to_csv(path)
+            });
+            assert_eq!(output.exit_code(), ExitCode::SUCCESS);
+            outputs.push(output);
+        }
+        assert_eq!(run_ids[0], run_ids[1]);
+        assert_ne!(outputs[0].csv_path, outputs[1].csv_path);
+        assert_eq!(outputs[0].summary_hash, outputs[1].summary_hash);
+        assert_eq!(
+            std::fs::read(outputs[0].csv_path.as_ref().unwrap()).unwrap(),
+            std::fs::read(outputs[1].csv_path.as_ref().unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn identical_invocation_timestamps_never_reuse_diagnostic_paths() {
+        let directory = TestDirectory::new();
+        let mut first = reserve_invocation_paths(&directory.0, 123, "same_timestamp").unwrap();
+        std::fs::write(&first.metadata_path, "original metadata").unwrap();
+        first
+            .validation_file
+            .write_all(b"original validation")
+            .unwrap();
+        let second = reserve_invocation_paths(&directory.0, 123, "same_timestamp").unwrap();
+        assert_ne!(first.metadata_path, second.metadata_path);
+        assert_ne!(first.validation_path, second.validation_path);
+        assert_eq!(
+            std::fs::read_to_string(&first.metadata_path).unwrap(),
+            "original metadata"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&first.validation_path).unwrap(),
+            "original validation"
+        );
+    }
+
+    #[test]
+    fn orphan_validation_report_is_preserved_during_path_reservation() {
+        let directory = TestDirectory::new();
+        let first = reserve_invocation_paths(&directory.0, 123, "same_timestamp").unwrap();
+        drop(first.validation_file);
+        std::fs::write(&first.validation_path, "orphan validation").unwrap();
+        std::fs::remove_file(&first.metadata_path).unwrap();
+
+        let second = reserve_invocation_paths(&directory.0, 123, "same_timestamp").unwrap();
+        assert_ne!(second.validation_path, first.validation_path);
+        assert!(!first.metadata_path.exists());
+        assert_eq!(
+            std::fs::read_to_string(first.validation_path).unwrap(),
+            "orphan validation"
+        );
+    }
+
+    #[test]
+    fn concurrent_invocations_reserve_distinct_metadata_and_validation_files() {
+        let directory = TestDirectory::new();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                let output_dir = directory.0.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    reserve_invocation_paths(&output_dir, 123, "same_timestamp").unwrap()
+                })
+            })
+            .collect();
+        let paths: Vec<_> = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect();
+        let unique: std::collections::HashSet<_> = paths
+            .iter()
+            .flat_map(|paths| [&paths.metadata_path, &paths.validation_path])
+            .collect();
+        assert_eq!(unique.len(), 8);
     }
 
     #[test]

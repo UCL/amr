@@ -9,7 +9,6 @@ without a policy column are treated as baseline.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -18,8 +17,10 @@ import numpy as np
 import pandas as pd
 
 try:
+    from .run_identity import extract_run_artifact_id
     from .summary_schema import validate_summary_frame
 except ImportError:
+    from run_identity import extract_run_artifact_id
     from summary_schema import validate_summary_frame
 
 SMOOTHING_WINDOW_DAYS = 365
@@ -28,7 +29,6 @@ OUTPUT_PATH = Path("amr_simulation_output_analysis_outputs/multi_run_activity_r.
 SUMMARY_OUTPUT_PATH = Path(
     "amr_simulation_output_analysis_outputs/multi_run_activity_r_summary.png"
 )
-RUN_FILE_PATTERN = re.compile(r"simulation_summary_(\d{6})\.csv$")
 
 
 def _detect_bacteria_columns(df: pd.DataFrame) -> List[str]:
@@ -100,9 +100,13 @@ def _collect_run_files() -> Dict[str, Path]:
     if not CSV_DIR.exists():
         raise FileNotFoundError(f"Directory {CSV_DIR} does not exist")
     for path in sorted(CSV_DIR.glob("simulation_summary_*.csv")):
-        match = RUN_FILE_PATTERN.match(path.name)
-        if match:
-            runs[match.group(1)] = path
+        if not path.is_file():
+            continue
+        artifact_id = extract_run_artifact_id(path)
+        # Discovery accepts published canonical names, not the parser's legacy
+        # report-name fallbacks, which could collapse differently named copies.
+        if artifact_id is not None and path.name == f"simulation_summary_{artifact_id}.csv":
+            runs[artifact_id] = path
     if not runs:
         raise FileNotFoundError("No simulation_summary_<id>.csv files were found")
     return runs

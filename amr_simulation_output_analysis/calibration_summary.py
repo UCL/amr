@@ -534,6 +534,53 @@ def _contributor_group_key(block: object, target: object) -> str:
     return f"{block_text.lower()}::{target_text.lower()}"
 
 
+class CalibrationWindowError(ValueError):
+    """The requested observation window cannot support a calibration result."""
+
+
+def _model_time_steps(frame: pd.DataFrame) -> pd.Series:
+    if "time_step" not in frame:
+        raise CalibrationWindowError("Calibration requires time_step to verify its daily observation window")
+    steps = pd.to_numeric(frame["time_step"], errors="coerce")
+    if (steps.isna().any() or not np.isfinite(steps).all()
+            or not steps.eq(np.floor(steps)).all()
+            or not (steps.ge(0) & steps.lt(2**63)).all()):
+        raise CalibrationWindowError("Calibration time_step values must be finite nonnegative integer days")
+    return steps.astype("int64")
+
+
+def _validate_calibration_window(
+    frame: pd.DataFrame,
+    target_year: int,
+    *,
+    simulation_start_year: int = 1930,
+    window_years_before: int = 0,
+    window_years_after: int = 0,
+) -> float:
+    """Require one baseline observation per model day and return the exact duration."""
+    first_year = int(target_year) - max(0, int(window_years_before))
+    end_year = int(target_year) + max(0, int(window_years_after)) + 1
+    first_step = (first_year - simulation_start_year) * 365
+    end_step = (end_year - simulation_start_year) * 365
+    expected_days = end_step - first_step
+    label = _calibration_window_year_range(target_year, window_years_before, window_years_after)
+    steps = _model_time_steps(frame)
+    in_window = steps.ge(first_step) & steps.lt(end_step)
+    missing_days = expected_days - steps.loc[in_window].nunique()
+    duplicate_days = len(steps) - steps.nunique()
+    unexpected_days = int((~in_window).sum())
+    if len(frame) != expected_days or missing_days or duplicate_days or unexpected_days:
+        raise CalibrationWindowError(
+            f"Calibration window {label} requires one baseline row for each of {expected_days} days "
+            f"(time_step {first_step} to {end_step - 1}); found {len(frame)} rows, "
+            f"{missing_days} missing days, {duplicate_days} duplicate rows, and "
+            f"{unexpected_days} out-of-window rows. No substitute period is used."
+        )
+    if "run_id" in frame and (frame["run_id"].isna().any() or frame["run_id"].nunique() != 1):
+        raise CalibrationWindowError(f"Calibration window {label} requires one baseline run_id")
+    return expected_days / 365.0
+
+
 def _gather_calibration_context(
     config: Optional[PlotConfig] = None,
     *,
@@ -572,16 +619,17 @@ def _gather_calibration_context(
             "for comprehensive analysis, or --legacy-without-sf5 for compatible paper outputs."
         )
 
-    df = _select_baseline_policy_rows(df)
-
-    # Avoid full DataFrame copy - only add columns as needed
-    if "time_in_years" not in df.columns and "time_step" in df.columns:
-        df["time_in_years"] = df["time_step"] / 365.0
-
-    if "time_in_years" not in df.columns:
-        raise KeyError("Simulation summary missing 'time_in_years' column")
-
+    # Keep calendar annotations out of the raw cache. Rust's elapsed-year CSV field
+    # is rounded, so integer simulation days are the authority for window coverage.
+    df = _select_baseline_policy_rows(df).copy(deep=False)
+    steps = _model_time_steps(df)
+    if "run_id" in df and (df["run_id"].isna().any() or df["run_id"].nunique() != 1):
+        raise CalibrationWindowError("Calibration requires one baseline run_id, not combined trajectories")
+    df["time_step"] = steps
+    df["time_in_years"] = steps / 365.0
     df["calendar_year"] = config.start_year + df["time_in_years"]
+    if not steps.is_monotonic_increasing:
+        df = df.sort_values("time_step", kind="stable")
     window_years_before = max(0, int(getattr(config, "calibration_window_years_before", 0)))
     window_years_after = max(0, int(getattr(config, "calibration_window_years_after", 0)))
     year_df = _ensure_year_slice(
@@ -592,7 +640,21 @@ def _gather_calibration_context(
         window_years_after=window_years_after,
     )
 
-    window_years = _estimate_window_years(year_df)
+    try:
+        window_years = _validate_calibration_window(
+            year_df,
+            targets.target_year,
+            simulation_start_year=config.start_year,
+            window_years_before=window_years_before,
+            window_years_after=window_years_after,
+        )
+    except CalibrationWindowError as error:
+        first_available = int(np.floor(df["calendar_year"].min()))
+        last_available = int(np.floor(df["calendar_year"].max()))
+        raise CalibrationWindowError(
+            f"{error} Available baseline years: {first_available}-{last_available}; "
+            f"source: {simulation_csv_path}."
+        ) from error
     scale_factor = _compute_population_scale(year_df, targets.world_population)
     calibration_window_label = _calibration_window_label(
         targets.target_year,
@@ -617,6 +679,7 @@ def _gather_calibration_context(
         df,
         df["calendar_year"],
         targets.drug_class_targets,
+        simulation_start_year=config.start_year,
     )
     drug_class_calibration_df = _build_drug_class_calibration_window_table(
         drug_class_df,
@@ -715,7 +778,7 @@ def _select_baseline_policy_rows(df: pd.DataFrame) -> pd.DataFrame:
     policy = pd.to_numeric(df["policy_option"], errors="coerce")
     baseline_mask = policy.eq(0)
     if not baseline_mask.any():
-        raise ValueError(
+        raise CalibrationWindowError(
             "Calibration summary requires policy_option=0 baseline rows when "
             "the policy_option column is present."
         )
@@ -731,36 +794,18 @@ def _ensure_year_slice(
     window_years_before: int = 0,
     window_years_after: int = 0,
 ) -> pd.DataFrame:
-    """Return rows covering the requested window around the target year."""
+    """Return only the requested interval; unavailable periods remain empty."""
 
     if df.empty or calendar_year.empty:
-        return df
+        return df.iloc[0:0]
 
     window_years_before = max(0, int(window_years_before))
     window_years_after = max(0, int(window_years_after))
 
     start_year = target_year - window_years_before
     end_year = target_year + window_years_after + 1
-    mask_target = (calendar_year >= start_year) & (calendar_year < end_year)
-    year_df = df.loc[mask_target]
-    if not year_df.empty:
-        return year_df
-
-    available_years = calendar_year.dropna().unique()
-    if available_years.size == 0:
-        return df
-
-    # Select the closest available calendar year and return its one-year window.
-    nearest_year = float(min(available_years, key=lambda value: abs(value - target_year)))
-    lower_bound = np.floor(nearest_year) - window_years_before
-    upper_bound = np.floor(nearest_year) + window_years_after + 1.0
-    fallback_mask = (calendar_year >= lower_bound) & (calendar_year < upper_bound)
-    fallback_df = df.loc[fallback_mask]
-    if not fallback_df.empty:
-        return fallback_df
-
-    # As a last resort, return the full dataframe to keep downstream logic functional.
-    return df
+    years = pd.to_numeric(calendar_year, errors="coerce")
+    return df.loc[years.ge(start_year) & years.lt(end_year)]
 
 
 def _estimate_window_years(frame: pd.DataFrame) -> float:
@@ -3539,6 +3584,8 @@ def _calculate_drug_class_history_table(
     df: pd.DataFrame,
     calendar_year: pd.Series,
     drug_cfg: Optional[Dict[str, object]],
+    *,
+    simulation_start_year: int = 1930,
 ) -> pd.DataFrame:
     if df.empty or calendar_year.empty or not isinstance(drug_cfg, dict):
         return pd.DataFrame()
@@ -3578,6 +3625,18 @@ def _calculate_drug_class_history_table(
             window_years_before=window_years_before,
             window_years_after=window_years_after,
         )
+        try:
+            _validate_calibration_window(
+                year_frame,
+                year,
+                simulation_start_year=simulation_start_year,
+                window_years_before=window_years_before,
+                window_years_after=window_years_after,
+            )
+        except CalibrationWindowError:
+            # Historical comparisons are optional. Keep their targets, while missing
+            # or partial observation windows contribute no simulated share.
+            year_frame = df.iloc[0:0]
         year_frames[year] = year_frame
         total_drug_days_by_year[year] = _total_configured_drug_days(year_frame, classes)
 
@@ -4906,7 +4965,12 @@ def _calculate_age_region_death_rate_table(
     window_years: float,
     death_count_tables: Optional[InfectionDeathCountTables] = None,
 ) -> pd.DataFrame:
-    """Headline-scope infection deaths per 100,000 per year by age and region."""
+    """Headline-scope infection deaths per 100,000 person-years by age and region.
+
+    Pair each day's regional population and age share before averaging. For the
+    complete daily window supplied by calibration this is summed person-days / 365.
+    Missing denominator observations cannot be dropped while retaining their deaths.
+    """
 
     region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
     region_labels = ['N. America', 'S. America', 'Africa', 'Asia', 'Europe', 'Oceania']
@@ -4937,13 +5001,18 @@ def _calculate_age_region_death_rate_table(
                 continue
 
             total_deaths = float(cell_totals[region_idx, age_idx])
-            avg_pop = float(year_df[pop_col].mean(skipna=True))
-            avg_prop = float(year_df[prop_col].mean(skipna=True))
-            avg_age_pop = avg_pop * avg_prop
+            population = pd.to_numeric(year_df[pop_col], errors="coerce")
+            age_share = pd.to_numeric(year_df[prop_col], errors="coerce")
+            if (population.isna().any() or age_share.isna().any()
+                    or not np.isfinite(population).all() or not np.isfinite(age_share).all()
+                    or not population.ge(0).all() or not age_share.between(0, 1).all()):
+                row[region_label] = np.nan
+                continue
+            daily_age_population = population * age_share
+            person_years = float(daily_age_population.mean()) * window_years
 
-            if avg_age_pop > 0 and np.isfinite(avg_age_pop):
-                annual_deaths = total_deaths / window_years
-                row[region_label] = annual_deaths / avg_age_pop * 100_000.0
+            if person_years > 0 and np.isfinite(person_years):
+                row[region_label] = total_deaths / person_years * 100_000.0
             else:
                 row[region_label] = np.nan
 
@@ -5103,7 +5172,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     if not isinstance(schema_version_obj, (int, np.integer)):
         raise TypeError("Calibration context missing simulation summary schema version")
     simulation_summary_schema_version = int(schema_version_obj)
-    run_identifier = getattr(config, "simulation_run_id", None) or extract_simulation_run_id(simulation_csv_path)
+    run_identifier = extract_simulation_run_id(simulation_csv_path) or getattr(config, "simulation_run_id", None)
     summary_suffix = f"_{run_identifier}" if run_identifier else ""
 
     output_dir = config.output_dir
@@ -5574,7 +5643,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     na_rep="---",
                 )
             )
-            handle.write("\n\n")
+            handle.write(
+                "\nNote: Historical simulation shares require complete daily observations "
+                "for their configured windows. Unavailable periods or drug-use counts "
+                "are shown as ---; another period is never substituted.\n\n"
+            )
         else:
             handle.write(
                 "Drug Class Share History\n(no historical share targets configured or data available)\n\n"
@@ -5980,7 +6053,11 @@ def get_resistance_benchmark_table(
 ) -> Optional[Dict[str, object]]:
     """Return resistance benchmark table and related metadata for plotting."""
 
-    context = _gather_calibration_context(config)
+    try:
+        context = _gather_calibration_context(config)
+    except CalibrationWindowError as error:
+        print(f"[WARN] Resistance calibration benchmarks unavailable: {error}")
+        return None
     if context is None:
         return None
 
@@ -6009,7 +6086,11 @@ def get_resistance_benchmark_table(
 def get_bacteria_burden_table(
     config: Optional[PlotConfig] = None,
 ) -> Optional[Dict[str, object]]:
-    context = _gather_calibration_context(config)
+    try:
+        context = _gather_calibration_context(config)
+    except CalibrationWindowError as error:
+        print(f"[WARN] Bacteria burden calibration unavailable: {error}")
+        return None
     if context is None:
         return None
 
@@ -6037,7 +6118,11 @@ def main() -> int:
     project_root = Path(__file__).resolve().parents[1]
     if Path.cwd() != project_root:
         os.chdir(project_root)
-    output_path = generate_calibration_summary()
+    try:
+        output_path = generate_calibration_summary()
+    except CalibrationWindowError as error:
+        print(f"[ERROR] Calibration snapshot not generated: {error}", file=sys.stderr)
+        return 1
     if output_path is None:
         return 1
     print(f"[OK] Calibration snapshot written to {output_path}")
@@ -6045,6 +6130,7 @@ def main() -> int:
 
 
 __all__ = [
+    "CalibrationWindowError",
     "generate_calibration_summary",
     "get_resistance_benchmark_table",
     "get_bacteria_burden_table",

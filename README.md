@@ -194,8 +194,16 @@ Simulation outputs are written under
 `amr_simulation_output_analysis_outputs/`. A completed run normally produces:
 
 - `simulation_summary_NNNNNN.csv`
-- `run_metadata_<timestamp>_seed_<seed>.txt`
-- `config_validation_<timestamp>.txt`
+- `run_metadata_<invocation>.txt`
+- `config_validation_<invocation>.txt`
+
+An existing summary is never replaced by the launcher. A collision uses
+`simulation_summary_NNNNNN_repeat_1.csv`, then `_repeat_2.csv`, and so on. The
+seed-derived numeric `run_id` inside the CSV stays unchanged: identical fixed-seed
+runs can have identical CSV bytes and distinct filenames. IDs have at least six
+digits; the maximum ID, `1000000`, has seven. Metadata and validation reports use
+an exclusively reserved invocation token containing timestamp, seed, process ID,
+and counter, so concurrent launches and repeated timestamps cannot overwrite them.
 
 The summary CSV uses output schema version 6. Its fields depend on the selected
 run mode and can number in the tens of thousands. Optional diagnostic-cascade
@@ -209,7 +217,9 @@ validation status, and completion or failure state.
 reach the launcher and produce a nonzero exit status with `status=simulation_failed`
 and a `failure_detail` in the metadata. A failed trajectory is not exported.
 CSV output is first written under an `.incomplete` filename, then hashed and
-renamed to its final `.csv` name. Export, checksum, publication, and final metadata
+published atomically to an unused `.csv` name. Publication uses a filesystem hard
+link; unsupported filesystems report failure and retain the staged data. Export,
+checksum, publication, and final metadata
 failures also return nonzero. Metadata is replaced only after its complete write
 succeeds, preserving the previous record if an update fails. Retained `.incomplete`
 files are diagnostic artifacts and are not completed simulation outputs.
@@ -275,6 +285,13 @@ Otherwise the launcher uses the current Git commit and marks a dirty worktree.
 For formal analyses, retain the metadata file and exact source snapshot with
 the CSV.
 
+Unresolved software-provenance concern: the source label is not a complete
+content fingerprint. Supplied labels can be reused, different dirty worktrees
+can share the same commit-and-dirty label, and the fallback is `unknown`.
+Checkpoint source-label equality therefore does not by itself establish that
+all source and configuration contents match. The checkpoint cleanup leaves this
+limitation unresolved and preserves the existing compatibility checks.
+
 Parameter validation is strict by default. `AMR_CONFIG_VALIDATION=warn` permits
 a diagnostic run to continue despite validation errors, but such a run should
 not be used as a calibrated research result.
@@ -300,6 +317,36 @@ The analysis writes calibration summaries and configured plots under
 `output_graphs/`. Plot selection, policies, output format and memory settings
 are controlled by `PlotConfig`; the input CSV and Parquet-cache options are
 controlled by `DataConfig` in `amr_simulation_output_analysis/config.py`.
+
+Select the final CSV path printed by the launcher, including any `_repeat_N`
+suffix. Calibration and counterfactual reports and grouped figures preserve that
+full artifact identifier. Detail plots for a repeat are kept under
+`output_graphs/run_<identifier>/`, followed by `policy_<id>/` when needed. Paper
+discovery follows the recorded source CSV and never substitutes the original run
+for a missing repeat.
+
+Calibration requires one baseline observation for every day in its configured
+window. The default 2022-2025 window contains 1,460 model days, using `time_step`
+as the time authority because the CSV's elapsed-year field is rounded. Missing,
+partial, duplicate, or combined-run windows stop calibration before scoring or
+replacing a report, with a nonzero CLI status. Another year is never substituted.
+Optional historical comparison periods without complete daily observations show
+unavailable simulation shares (`---`) while retaining their reference targets.
+Plotting helpers can report unavailable calibration benchmarks while still
+rendering the ordinary time series.
+
+Age-by-region death rates use matched daily population and age-share observations
+to calculate person-time. Missing or invalid denominator observations make the
+affected rate unavailable instead of silently dropping days from its denominator.
+
+Plot rendering, dependency-loading and file-writing errors propagate to the
+analysis CLI, which returns nonzero even if the calibration summary succeeds.
+Failed plot calls release their own figures without closing unrelated figures.
+Unavailable optional data may still produce an explicit skip. A shared registry
+keeps detail-plot loading and dispatch aligned; `drug_score_analysis_by_bacteria`
+is an alias of `drug_score_summary`. The reserved
+`proportion_share_among_drug_users` option has no implementation and raises a
+clear error when enabled.
 
 Raw and preprocessed Parquet caches record their source-file identity, cache
 version, and preprocessing options inside the file. Cached frames must also

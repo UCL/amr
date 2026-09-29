@@ -6,11 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import re
 from pathlib import Path
 from typing import Sequence
 
 import pandas as pd
+
+try:
+    from .run_identity import extract_run_artifact_id
+except ImportError:  # Allows invocation by direct script path.
+    from run_identity import extract_run_artifact_id
 
 
 # Replace the filename with the run ID from the counterfactual simulation output.
@@ -42,7 +46,6 @@ REQUIRED_COLUMNS = (
 )
 BACTERIA_ROSTER_SUFFIX = "_currently_infected"
 BACTERIA_DEATH_SUFFIX = "_deaths"
-RUN_ID_PATTERN = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 
 
 def _prepare_counterfactual_window(
@@ -425,14 +428,16 @@ def counterfactual_report_path(
     csv_path: Path,
     output_dir: Path = OUTPUT_DIR,
 ) -> Path:
-    """Return the report path using the six-digit ID from the simulation filename."""
+    """Return a report path preserving the source artifact's repeat suffix."""
 
-    match = RUN_ID_PATTERN.search(csv_path.stem)
-    if match is None:
+    artifact_id = extract_run_artifact_id(csv_path)
+    if artifact_id is None:
         raise ValueError(
-            f"Simulation CSV filename must contain a six-digit run ID: {csv_path.name}"
+            "Simulation CSV filename must contain a six-digit run ID "
+            "or a seven-digit run ID, with an optional valid _repeat_N suffix: "
+            f"{csv_path.name}"
         )
-    return output_dir / f"counterfactual_2025_death_rates_{match.group(1)}.txt"
+    return output_dir / f"counterfactual_2025_death_rates_{artifact_id}.txt"
 
 
 def write_counterfactual_report(

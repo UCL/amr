@@ -196,7 +196,7 @@ def main() -> int:
     print("=== Analysis Incomplete ===" if failed else "=== Analysis Complete ===")
     print("Output status:")
     if comprehensive_completed:
-        print("\nAll plots saved to 'output_graphs/' directory.")
+        print("\nPlot workflow completed. Generated plots are in 'output_graphs/'; unavailable plots may have been skipped.")
     elif comprehensive_skipped:
         print("\nComprehensive plots were skipped because of the simulation summary schema.")
     else:

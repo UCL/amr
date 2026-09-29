@@ -288,13 +288,23 @@ DETAIL_PLOT_PATTERNS = {
     # Bacterium-drug treatment scores
     'drug_score_analysis_by_bacteria': [
         r'.*_drug_score_.*',
+        r'.*_drug_selection_count$',
     ],
     'drug_score_summary': [
         r'.*_drug_score_.*',
+        r'.*_drug_selection_count$',
     ],
     # Bacterium-drug mean any_r
     'mean_any_r_by_drug_for_each_bacteria': [
         r'.*_any_r_.*_mean$',
+    ],
+    'mean_any_r_by_drug_for_each_bacteria_hospital': [
+        r'.*_sum_any_r_hospital_.*',
+        r'.*_currently_infected_hospital_count$',
+    ],
+    'proportion_of_people_with_any_resistance_by_drug_for_each_bacteria': [
+        r'.*_infected_with_any_r_positive_(?!hospital_|community_).*',
+        r'.*_currently_infected$',
     ],
     # resistance_mechanism_by_bacteria
     'resistance_mechanism_by_bacteria': [

@@ -27,7 +27,7 @@ from .utils import (
 
 # Plotting modules
 from .plotting.grouped_plots import create_grouped_plots
-from .plotting.detail_plots import create_detail_plots
+from .plotting.detail_plots import create_detail_plots, enabled_detail_plot_names
 
 import time as _time
 
@@ -42,53 +42,8 @@ def create_all_plots(config=None):
     if config is None:
         config = PlotConfig()
     
-    # Determine which detail plots are enabled - collect specific plot names
-    detail_plot_attrs = [
-        'drug_failure_rate_by_bacteria_region',
-        'mean_mic_by_drug_for_each_bacteria',
-        'incidence_of_infection_hospital',
-        'incidence_of_infection',
-        'death_rate_by_bacteria_region',
-        'population_mortality_by_bacteria_region',
-        'mean_any_r_by_drug_for_each_bacteria',
-        'proportion_of_people_taking_each_drug',
-        'death_rate_by_region',
-        'age_specific_death_rate_by_region',
-        'syndrome_distribution_by_bacteria',
-        'age_distribution_by_region',
-        'death_rate_by_syndrome_region',
-        'distribution_drug_use_by_bacteria',
-        'for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2',
-        'proportion_of_people_infected_with_each_bacteria',
-        'infection_resolution_by_bacteria',
-        'proportion_share_among_drug_users',
-        'death_rate_by_bacteria',
-        'mean_activity_r_by_bacteria',
-        'resistance_mechanism_by_bacteria',
-        'microbiome_acquisition_on_off_drug',
-        'microbiome_clearance_on_off_drug',
-        'proportion_of_population_with_microbiome_presence_bacteria',
-        'proportion_of_microbiome_presence_with_resistance_by_drug',
-        'microbiome_resistance_microbiome_vs_infection',
-        'carrier_infection_share',
-        'carrier_vs_non_carrier_incidence',
-        'carriage_duration_distribution',
-        'mean_any_r_by_drug_for_each_bacteria_hospital',
-        'drug_score_analysis_by_bacteria',
-        'drug_score_summary',
-        'clinical_guideline_analysis',
-        'proportion_of_people_with_any_resistance_by_drug_for_each_bacteria',
-        'resistance_benchmark_bar_charts',
-        'basic_plots',
-        'infection_duration',
-        'sepsis_among_infected',
-        'death_causes',
-        'resistance_among_infected',
-        'source_of_new_resistance_by_drug_bacteria',
-        'global_antibiotic_activity',
-    ]
-    # Collect names of enabled detail plots for selective column loading
-    enabled_detail_plots = [attr for attr in detail_plot_attrs if getattr(config, attr, False)]
+    # Validate advertised capabilities before loading the wide simulation data.
+    enabled_detail_plots = enabled_detail_plot_names(config)
     
     # Load and cache data with column subsetting for memory efficiency
     _t0 = _time.time()
@@ -116,6 +71,9 @@ def create_all_plots(config=None):
     df = data_cache.get_preprocessed_data(plot_config=config)
     print(f"[TIME] Preprocessing took {_time.time() - _t1:.1f} seconds")
 
+    if df is None:
+        raise RuntimeError("Failed to preprocess simulation data.")
+
     requested_policies = normalize_policy_identifier_list(getattr(config, 'policies_to_plot', None))
     if requested_policies is not None and 'policy_option' in df.columns:
         policy_set = set(requested_policies)
@@ -136,9 +94,6 @@ def create_all_plots(config=None):
             f"{sorted(policy_set)} (dropped {dropped} rows)."
         )
     
-    if df is None:
-        raise RuntimeError("Failed to preprocess simulation data.")
-    
     # Create grouped plots only when enabled
     if getattr(config, 'grouped_plots', True):
         print("Creating grouped plots...")
@@ -148,59 +103,13 @@ def create_all_plots(config=None):
     else:
         print("Skipping grouped plots (config.grouped_plots=False)...")
     
-    # Create detail plots (check if any individual plot types are enabled)
-    detail_plot_enabled = any([
-        config.drug_failure_rate_by_bacteria_region,
-        config.mean_mic_by_drug_for_each_bacteria,
-        config.incidence_of_infection_hospital,
-        config.incidence_of_infection,
-        config.death_rate_by_bacteria_region,
-        config.population_mortality_by_bacteria_region,
-        config.mean_any_r_by_drug_for_each_bacteria,
-        config.proportion_of_people_taking_each_drug,
-        config.death_rate_by_region,
-        config.age_specific_death_rate_by_region,
-        config.syndrome_distribution_by_bacteria,
-        config.age_distribution_by_region,
-        config.death_rate_by_syndrome_region,
-        config.distribution_drug_use_by_bacteria,
-        config.proportion_of_people_infected_with_each_bacteria,
-        config.for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2,
-        config.infection_resolution_by_bacteria,
-        config.proportion_share_among_drug_users,
-        config.death_rate_by_bacteria,
-        config.mean_activity_r_by_bacteria,
-        config.resistance_mechanism_by_bacteria,
-        config.microbiome_acquisition_on_off_drug,
-        config.microbiome_clearance_on_off_drug,
-        config.proportion_of_population_with_microbiome_presence_bacteria,
-        config.proportion_of_microbiome_presence_with_resistance_by_drug,
-    config.microbiome_resistance_microbiome_vs_infection,
-        config.carrier_infection_share,
-        config.carrier_vs_non_carrier_incidence,
-        config.carriage_duration_distribution,
-        config.mean_any_r_by_drug_for_each_bacteria_hospital,
-        config.source_of_new_resistance_by_drug_bacteria,
-        config.drug_score_analysis_by_bacteria,
-        config.drug_score_summary,
-        config.clinical_guideline_analysis,
-        config.proportion_of_people_with_any_resistance_by_drug_for_each_bacteria,
-        config.resistance_benchmark_bar_charts,
-        config.basic_plots,
-        config.infection_duration,
-        config.sepsis_among_infected,
-        config.death_causes,
-        config.resistance_among_infected,
-        config.global_antibiotic_activity,
-    ])
-    
-    if detail_plot_enabled:
+    if enabled_detail_plots:
         print("Creating detailed individual plots...")
         _t3 = _time.time()
         create_detail_plots(df, config)
         print(f"[TIME] Detail plots took {_time.time() - _t3:.1f} seconds")
     
-    print("Plot generation completed successfully!")
+    print("Plot workflow completed; unavailable plots may have been skipped.")
 
 # Empirical data integration
 from .empirical.data_loader import load_empirical_calibration_data
@@ -218,7 +127,7 @@ __all__ = [
     'create_all_plots',
     
     # Plotting
-    'create_grouped_plots', 'create_detail_plots',
+    'create_grouped_plots', 'create_detail_plots', 'enabled_detail_plot_names',
     
     # Empirical data
     'load_empirical_calibration_data', 'normalize_name_for_empirical_matching'

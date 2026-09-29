@@ -94,6 +94,7 @@ import pandas as pd
 
 try:
     from .death_counts import AGE_GROUPS, REGIONS
+    from .run_identity import extract_run_artifact_id
     from .parse_calibration import aggregate, parse_files
     from .resistance_observation import (
         uses_aligned_resistance_observations,
@@ -111,6 +112,7 @@ try:
     )
 except ImportError:  # Allows direct script execution from this folder.
     from death_counts import AGE_GROUPS, REGIONS
+    from run_identity import extract_run_artifact_id
     from parse_calibration import aggregate, parse_files
     from resistance_observation import (
         uses_aligned_resistance_observations,
@@ -1594,36 +1596,56 @@ _F1_SIM_EPOCH_YEAR: int = 1930
 _F1_TREND_COLOUR_MEAN   = "#1565C0"   # dark blue — mean line
 _F1_TREND_COLOUR_CLOUD  = "#90CAF9"   # light blue — 90% CI band
 
-def _discover_f1_simulation_csvs(input_paths: list[Union[str, Path]]) -> list[Path]:
-    """
-    Return simulation_summary CSVs matching the supplied calibration files.
+def _simulation_csv_candidates(path: Path) -> list[Path]:
+    """Resolve reported provenance first, retaining the complete repeat identity."""
+    candidates: list[Path] = []
+    identity_path = path
+    direct_csv = path.name.startswith("simulation_summary_") and path.suffix.lower() == ".csv"
+    declared_source = None
+    if direct_csv:
+        candidates.append(path)
+    else:
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    if line.startswith("Simulation source CSV:"):
+                        declared_source = line.split(":", 1)[1].strip().strip('"')
+                        break
+                    if line.strip() == "Headline Metrics":
+                        break
+        except OSError:
+            pass
+        if declared_source and declared_source.lower() not in {"unknown", "none", "unavailable"}:
+            identity_path = Path(declared_source)
+            if identity_path.is_absolute():
+                candidates.append(identity_path)
+            else:
+                candidates.extend((path.parent / identity_path, REPO_ROOT / identity_path, Path.cwd() / identity_path))
+        else:
+            declared_source = None
 
-    Calibration summary names are not always exactly calibration_summary_{seed}.txt;
-    some accepted-run files carry prefixes such as calibration_summary_abc574337.txt.
-    For F1 we need the numeric run id, so extract the trailing six digits and look
-    for simulation_summary_{run_id}.csv in the standard output directory.
-    """
-    csv_dir = SIMULATION_OUTPUTS_DIR
+    artifact_id = extract_run_artifact_id(identity_path)
+    # Keep accepted-run prefixes readable, but never treat repeat digits as a run ID.
+    if not declared_source and not direct_csv and "_repeat_" not in path.stem:
+        prefix = "calibration_summary_"
+        if path.stem.startswith(prefix):
+            token = path.stem[len(prefix):]
+            candidates.append(SIMULATION_OUTPUTS_DIR / f"simulation_summary_{token}.csv")
+    if artifact_id is not None:
+        candidates.append(SIMULATION_OUTPUTS_DIR / f"simulation_summary_{artifact_id}.csv")
+    return list(dict.fromkeys(candidates))
+
+
+def _discover_f1_simulation_csvs(input_paths: list[Union[str, Path]]) -> list[Path]:
+    """Find source CSVs without substituting an original run for a missing repeat."""
     csv_paths: list[Path] = []
     seen: set[Path] = set()
 
     for input_path in input_paths:
         path = _resolve_project_path(input_path)
 
-        candidates: list[Path] = []
-        if path.name.startswith("simulation_summary_") and path.suffix.lower() == ".csv":
-            candidates.append(path)
-
-        seed_token = path.stem.split("_")[-1]
-        candidates.append(csv_dir / f"simulation_summary_{seed_token}.csv")
-
-        run_id_match = re.search(r"(\d{6})$", path.stem)
-        if run_id_match:
-            run_id = run_id_match.group(1)
-            candidates.append(csv_dir / f"simulation_summary_{run_id}.csv")
-
-        for candidate in candidates:
-            if candidate.exists():
+        for candidate in _simulation_csv_candidates(path):
+            if candidate.is_file():
                 resolved = candidate.resolve()
                 if resolved not in seen:
                     seen.add(resolved)
@@ -1657,7 +1679,6 @@ def _discover_simulation_csvs_with_scale(
     """
     Return matching simulation_summary CSVs paired with their calibration scale factor.
     """
-    csv_dir = SIMULATION_OUTPUTS_DIR
     rows: list[tuple[Path, float | None]] = []
     seen: set[Path] = set()
 
@@ -1669,20 +1690,8 @@ def _discover_simulation_csvs_with_scale(
             else _population_scale_factor_from_calibration(path)
         )
 
-        candidates: list[Path] = []
-        if path.name.startswith("simulation_summary_") and path.suffix.lower() == ".csv":
-            candidates.append(path)
-
-        seed_token = path.stem.split("_")[-1]
-        candidates.append(csv_dir / f"simulation_summary_{seed_token}.csv")
-
-        run_id_match = re.search(r"(\d{6})$", path.stem)
-        if run_id_match:
-            run_id = run_id_match.group(1)
-            candidates.append(csv_dir / f"simulation_summary_{run_id}.csv")
-
-        for candidate in candidates:
-            if candidate.exists():
+        for candidate in _simulation_csv_candidates(path):
+            if candidate.is_file():
                 resolved = candidate.resolve()
                 if resolved not in seen:
                     seen.add(resolved)

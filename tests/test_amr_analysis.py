@@ -49,7 +49,7 @@ class AnalysisCompletionTests(unittest.TestCase):
         status, output = self.run_analysis(summary_error=ValueError("Invalid targets"))
 
         self.assertEqual(status, 1)
-        self.assertIn("All plots saved", output)
+        self.assertIn("Plot workflow completed", output)
         self.assertIn("Calibration snapshot was not generated.", output)
 
     def test_missing_snapshot_is_nonzero(self):

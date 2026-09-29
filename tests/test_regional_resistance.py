@@ -240,10 +240,17 @@ class RegionalResistanceTests(unittest.TestCase):
             _calculate(frame.drop(columns=removed))
 
     def test_context_uses_same_baseline_calibration_window(self):
-        frame = _frame(steps=(33215, 34675, 34676, 34675))
-        frame["policy_option"] = [0, 0, 0, 2]
-        frame["regional_resistance_collected"] = [0, 1, 1, 0]
-        _set_pair(frame, BACTERIA[0], [1000, 10, 10, 1000], [0, 10, 10, 0], [0, 4, 4, 0])
+        expected_steps = list(range(33580, 35040))  # Every baseline day in 2022-2025.
+        baseline = _frame(steps=expected_steps)
+        _set_pair(baseline, BACTERIA[0], 10, 10, 4.0)
+        historical = _frame(steps=(33215,))  # A baseline observation from 2021.
+        historical["regional_resistance_collected"] = 0
+        _set_pair(historical, BACTERIA[0], 1000, 0, 0.0)
+        counterfactual = _frame(steps=(34675,))
+        counterfactual["policy_option"] = 2
+        counterfactual["regional_resistance_collected"] = 0
+        _set_pair(counterfactual, BACTERIA[0], 1000, 0, 0.0)
+        frame = pd.concat([historical, baseline, counterfactual], ignore_index=True)
         targets = calibration.CalibrationTargets(
             target_year=2025,
             headline_metrics=[],
@@ -260,7 +267,7 @@ class RegionalResistanceTests(unittest.TestCase):
             context = calibration._gather_calibration_context(PlotConfig())
 
         self.assertIsNone(context["regional_resistance_unavailable"])
-        self.assertEqual(context["year_df"]["time_step"].tolist(), [34675, 34676])
+        self.assertEqual(context["year_df"]["time_step"].tolist(), expected_steps)
         africa = context["regional_resistance_df"].set_index("Region").loc["Africa"]
         self.assertEqual(africa[PREVALENCE], 100.0)
         self.assertEqual(africa[CONDITIONAL], 40.0)

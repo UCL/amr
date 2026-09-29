@@ -55685,7 +55685,15 @@ their names describe the intended column structure, not downloaded observations.
 <p>Each simulation run produces a single CSV file:</p>
 <pre><code>amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv
 </code></pre>
-<p>where <code>NNNNNN</code> is a zero-padded pseudo-random run identifier. This identifier is not guaranteed unique across independent runs; the exporter creates or truncates the named file.</p>
+<p>where <code>NNNNNN</code> is a pseudo-random run identifier padded to at least six digits
+(<code>1000000</code> has seven). This numeric identifier is not guaranteed unique across
+independent runs. The launcher preserves existing summaries and publishes a
+collision as <code>simulation_summary_NNNNNN_repeat_1.csv</code>, then <code>_repeat_2.csv</code>, and so
+on. Atomic hard-link publication prevents concurrent writers from replacing one
+another's results. The numeric <code>run_id</code> and simulation random streams are unchanged.
+Metadata and validation filenames are reserved exclusively per invocation, and
+metadata records the actual published CSV path. Python analysis retains the full
+repeat identifier when naming and locating reports and figures.</p>
 <p>Every current file records its output-format version in
 <code>simulation_summary_schema_version</code>; this document describes version <code>3</code>. The Python
 analysis accepts only the file-structure version for which it was written. An unversioned
@@ -55702,12 +55710,32 @@ trajectory. Checkpoint write, restore, checksum, and policy-continuation failure
 to the launcher with stage and policy context. Requested branches outside the run horizon
 and incomplete branch summaries are errors. The launcher records <code>status=simulation_failed</code>
 and <code>failure_detail</code>, skips summary export, and returns a nonzero process exit status.
-Completed trajectories are exported to an <code>.incomplete</code> file, hashed, and only then renamed
-to the final <code>.csv</code> path. Export, hash, publication, or final metadata failures also return
+Completed trajectories are exported to an <code>.incomplete</code> file, hashed, and only then published
+to an unused <code>.csv</code> path. Filesystems without hard-link support fail publication and retain
+the staged file. Export, hash, publication, or final metadata failures also return
 nonzero. Metadata is staged and replaced only after the entire write succeeds, so a failed
 update preserves the previous record. <code>status=completed</code> requires successful trajectories
 and output publication; retained <code>.incomplete</code> files are diagnostic artifacts, not completed
 simulation outputs. Checkpoint handles clean up their temporary files on success and error.</p>
+<p>Calibration reporting requires a complete daily baseline trajectory for the requested
+observation window. The default 2022-2025 window contains exactly 1,460 observations,
+with <code>time_step</code> values 33580 through 35039. Integer timesteps determine the dates;
+the rounded elapsed-year CSV field does not determine window coverage. Missing days,
+duplicate days, invalid timesteps, or combined baseline runs prevent calibration scoring
+and report publication. No nearest-year or whole-file substitution is performed.
+Missing or partial optional historical comparison windows produce unavailable simulation
+shares, preserving the configured reference targets. Calibration-only CLI failures return
+nonzero; optional plotting benchmarks are marked unavailable for these window errors.</p>
+<p>Age-by-region rates divide the corresponding death count by age-group person-years.
+The denominator is the mean of the daily regional population multiplied by that same
+day's age-group share, times the validated window duration. For a complete daily window,
+this equals the summed age-group person-days divided by 365. Missing or invalid daily
+denominator observations make the affected cell unavailable; zero exposure is also
+unavailable, while zero deaths with positive exposure produces a zero rate.</p>
+<p>Plot rendering and output-write failures propagate to the analysis launcher, producing
+a nonzero exit status even if calibration reporting succeeds. Optional unavailable data
+may be skipped explicitly. Plot dispatch and column-loading requirements share a flag
+registry, and unsupported enabled options fail before loading simulation data.</p>
 <h3 id="c2-row-structure">C.2 Row Structure</h3>
 <p>Each retained row represents one simulated day for one policy, identified by <code>policy_option</code>.
 Days use a 365-day year from the 1930 epoch. The current launcher selects 10,000,000 population

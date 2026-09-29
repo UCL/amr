@@ -31,6 +31,7 @@ from ..calibration_summary import (
 )
 from ..data_loader import DataCache
 from ..policy import iter_policy_frames, policy_ids, select_policy_rows
+from ..run_identity import extract_run_artifact_id
 from ..utils import (
     safe_divide,
     extract_bacteria_list_from_csv,
@@ -60,6 +61,82 @@ OUTPUT_FILES = {
 }
 
 
+# One registry drives data loading and dispatch. Names are resolved at call time,
+# so applications and tests can replace handlers without rebuilding this table.
+# drug_score_analysis_by_bacteria is a legacy alias of drug_score_summary.
+DETAIL_PLOT_REGISTRY = (
+    ('basic_plots', 'create_proportion_plots', 'data'),
+    ('infection_duration', 'create_infection_duration_plot', 'cache'),
+    ('sepsis_among_infected', 'create_sepsis_plot', 'cache'),
+    ('death_causes', 'create_death_causes_plot', 'cache'),
+    ('resistance_among_infected', 'create_resistance_plot', 'cache'),
+    ('infection_resolution_by_bacteria', 'create_infection_resolution_by_bacteria_plots', 'cache'),
+    ('resistance_benchmark_bar_charts', 'create_resistance_benchmark_bar_charts', 'baseline'),
+    ('distribution_drug_use_by_bacteria', 'create_distribution_drug_use_by_bacteria_plots', 'data'),
+    ('proportion_of_people_taking_each_drug', 'create_regional_drug_usage_proportion_plots', 'data'),
+    ('proportion_of_people_infected_with_each_bacteria', 'create_bacteria_infection_proportion_plots', 'data'),
+    ('incidence_of_infection', 'create_incidence_of_infection_plots', 'data'),
+    ('mean_any_r_by_drug_for_each_bacteria', 'create_mean_any_r_by_drug_for_each_bacteria_plots', 'data'),
+    ('mean_mic_by_drug_for_each_bacteria', 'create_mean_mic_by_drug_plots', 'data'),
+    ('for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2', 'create_mic_lt2_by_drug_plots', 'data'),
+    ('population_mortality_by_bacteria_region', 'create_population_mortality_by_bacteria_region_plots', 'data'),
+    ('death_rate_by_region', 'create_death_rate_by_region_plots', 'data'),
+    ('incidence_of_infection_hospital', 'create_incidence_of_infection_hospital_plots', 'data'),
+    ('drug_failure_rate_by_bacteria_region', 'create_drug_failure_rate_by_bacteria_region_plots', 'data'),
+    ('death_rate_by_bacteria_region', 'create_death_rate_by_bacteria_region_plots', 'data'),
+    ('age_distribution_by_region', 'create_age_distribution_by_region_plots', 'data'),
+    ('death_rate_by_syndrome_region', 'create_death_rate_by_syndrome_region_plots', 'data'),
+    ('age_specific_death_rate_by_region', 'create_age_specific_death_rate_by_region_plots_working', 'data'),
+    ('syndrome_distribution_by_bacteria', 'create_syndrome_distribution_by_bacteria_plots_working', 'data'),
+    ('drug_score_summary', 'create_drug_score_summary_plots', 'data'),
+    ('drug_score_analysis_by_bacteria', 'create_drug_score_summary_plots', 'data'),
+    ('clinical_guideline_analysis', 'create_clinical_guideline_analysis_plots', 'data'),
+    ('mean_activity_r_by_bacteria', 'create_mean_activity_r_by_bacteria_plots', 'data'),
+    ('resistance_mechanism_by_bacteria', 'create_resistance_mechanism_by_bacteria_plots', 'data'),
+    ('source_of_new_resistance_by_drug_bacteria', 'create_source_of_new_resistance_by_drug_bacteria_plots', 'data'),
+    ('microbiome_acquisition_on_off_drug', 'create_microbiome_acquisition_on_off_drug_plots', 'data'),
+    ('microbiome_clearance_on_off_drug', 'create_microbiome_clearance_on_off_drug_plots', 'data'),
+    ('proportion_of_population_with_microbiome_presence_bacteria', 'create_proportion_of_population_with_microbiome_presence_bacteria_plots', 'data'),
+    ('microbiome_resistance_microbiome_vs_infection', 'create_microbiome_resistance_microbiome_vs_infection_plots', 'data'),
+    ('carrier_infection_share', 'create_carrier_infection_share_plot', 'data'),
+    ('carrier_vs_non_carrier_incidence', 'create_carrier_vs_non_carrier_incidence_plots', 'data'),
+    ('carriage_duration_distribution', 'create_carriage_duration_distribution_plot', 'data'),
+    ('death_rate_by_bacteria', 'create_death_rate_by_bacteria_plots', 'cache'),
+    ('global_antibiotic_activity', 'create_global_antibiotic_activity_plots', 'data'),
+    ('proportion_of_microbiome_presence_with_resistance_by_drug', 'create_proportion_of_microbiome_presence_with_resistance_by_drug_plots', 'cache'),
+    ('mean_any_r_by_drug_for_each_bacteria_hospital', 'create_mean_any_r_by_drug_for_each_bacteria_hospital_plots', 'cache'),
+    ('proportion_of_people_with_any_resistance_by_drug_for_each_bacteria', 'create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots', 'cache'),
+)
+
+
+def enabled_detail_plot_names(config: PlotConfig) -> List[str]:
+    """Validate requested capabilities and list enabled flags in dispatch order."""
+    if getattr(config, 'proportion_share_among_drug_users', False):
+        raise NotImplementedError(
+            "proportion_share_among_drug_users has no plot implementation; "
+            "disable this unsupported option."
+        )
+    return list(dict.fromkeys(
+        flag for flag, _, _ in DETAIL_PLOT_REGISTRY if getattr(config, flag, False)
+    ))
+
+
+def _repeat_plot_config(config: PlotConfig, source_path=None) -> PlotConfig:
+    """Keep repeat artifacts in their own directory before applying policy scope."""
+    scoped = copy(config)
+    identity = source_path if source_path is not None else getattr(config, 'simulation_run_id', None)
+    artifact_id = extract_run_artifact_id(identity)
+    if source_path is not None:
+        scoped.simulation_run_id = artifact_id
+    scoped.output_dir = Path(config.output_dir)
+    if artifact_id is not None and '_repeat_' in artifact_id:
+        folder = f'run_{artifact_id}'
+        if getattr(config, '_detail_run_scope', None) != artifact_id and scoped.output_dir.name != folder:
+            scoped.output_dir /= folder
+        scoped._detail_run_scope = artifact_id
+    return scoped
+
+
 def _policy_plot_config(config: PlotConfig, policy: int, multiple: bool) -> PlotConfig:
     """Give one policy its own output settings without changing the caller's config."""
     scoped = copy(config)
@@ -73,6 +150,7 @@ def _policy_plot_config(config: PlotConfig, policy: int, multiple: bool) -> Plot
 
 
 def _selected_detail_frames(data: pd.DataFrame, config: PlotConfig):
+    config = _repeat_plot_config(config)
     # Count selected policies without retaining another copy of a very wide frame.
     identifiers = pd.DataFrame({'policy_option': policy_ids(data).to_numpy()})
     selected = select_policy_rows(identifiers, config.policies_to_plot)
@@ -165,6 +243,10 @@ def _isolate_cached_policies(*, raw=False):
             )
             if data is None:
                 return None
+            get_source = getattr(data_cache, 'get_simulation_csv_path', None)
+            source = get_source() if callable(get_source) else None
+            if isinstance(source, (str, Path)):
+                config = _repeat_plot_config(config, source)
             results = []
             for frame, scoped_config in _selected_detail_frames(data, config):
                 results.append(function(
@@ -180,7 +262,7 @@ def _baseline_benchmark_plot(function):
     @wraps(function)
     def wrapper(config):
         select_policy_rows(pd.DataFrame({'policy_option': [0]}), config.policies_to_plot)
-        return function(config)
+        return function(_repeat_plot_config(config))
     return wrapper
 
 
@@ -643,145 +725,40 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         logger.info(f"[OK] Resistance benchmark chart saved to {output_path}")
 
 
-@_isolate_dataframe_policies
 def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
-    """Create selected detail outputs independently for each requested policy.
+    """Dispatch enabled plots independently by policy after validating the request.
 
-    Multiple policies use separate ``policy_N`` output directories. A single
-    selected policy retains the existing output layout.
+    Multiple policies use separate ``policy_N`` directories. A single selected
+    policy retains the existing output layout; repeat-run scoping is preserved.
     """
+    enabled_detail_plot_names(config)
+    _dispatch_detail_plots(data, config)
+
+
+@_isolate_dataframe_policies
+def _dispatch_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
+    enabled = set(enabled_detail_plot_names(config))
     logger.info("Creating detail plots for policy %s...", config._detail_policy_scope)
-    
-    # Create basic plots if enabled
-    if config.basic_plots:
-        create_proportion_plots(data, config)
-    
-    # Create infection-related plots
-    data_cache = _PolicyDataCache(DataCache(), data)
-    
-    if config.infection_duration:
-        create_infection_duration_plot(config, data_cache)
-        
-    if config.sepsis_among_infected:
-        create_sepsis_plot(config, data_cache)
-        
-    if config.death_causes:
-        create_death_causes_plot(config, data_cache)
-        
-    if config.resistance_among_infected:
-        create_resistance_plot(config, data_cache)
-        
-    if config.infection_resolution_by_bacteria:
-        create_infection_resolution_by_bacteria_plots(config, data_cache)
-
-    if config.resistance_benchmark_bar_charts and config._detail_policy_scope == 0:
-        create_resistance_benchmark_bar_charts(config)
-    
-    # Create the enabled detail plots.
-    if config.distribution_drug_use_by_bacteria:
-        create_distribution_drug_use_by_bacteria_plots(data, config)
-    
-    if config.proportion_of_people_taking_each_drug:
-        create_regional_drug_usage_proportion_plots(data, config)
-    
-    if config.proportion_of_people_infected_with_each_bacteria:
-        create_bacteria_infection_proportion_plots(data, config)
-    
-    if config.incidence_of_infection:
-        create_incidence_of_infection_plots(data, config)
-        
-    if config.mean_any_r_by_drug_for_each_bacteria:
-        create_mean_any_r_by_drug_for_each_bacteria_plots(data, config)
-        
-    if config.mean_mic_by_drug_for_each_bacteria:
-        create_mean_mic_by_drug_plots(data, config)
-        
-    if config.for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
-        create_mic_lt2_by_drug_plots(data, config)
-    
-    # Population mortality plots with optional comparison overlays
-    if config.population_mortality_by_bacteria_region:
-        create_population_mortality_by_bacteria_region_plots(data, config)
-    
-    # Regional analysis plots
-    if config.death_rate_by_region:
-        create_death_rate_by_region_plots(data, config)
-    
-    # Hospital analysis plots
-    if config.incidence_of_infection_hospital:
-        create_incidence_of_infection_hospital_plots(data, config)
-    
-    # Drug failure analysis plots
-    if config.drug_failure_rate_by_bacteria_region:
-        create_drug_failure_rate_by_bacteria_region_plots(data, config)
-    
-    # Death rate by bacteria and region plots
-    if config.death_rate_by_bacteria_region:
-        create_death_rate_by_bacteria_region_plots(data, config)
-    
-    # Age distribution by region plots
-    if config.age_distribution_by_region:
-        create_age_distribution_by_region_plots(data, config)
-    
-    # Death rate by syndrome and region plots
-    if config.death_rate_by_syndrome_region:
-        create_death_rate_by_syndrome_region_plots(data, config)
-    
-    # Age-specific death rate by region plots
-    if config.age_specific_death_rate_by_region:
-        create_age_specific_death_rate_by_region_plots_working(data, config)
-
-    # Syndrome distribution by bacteria plots
-    if config.syndrome_distribution_by_bacteria:
-        create_syndrome_distribution_by_bacteria_plots_working(data, config)    # Drug score analysis plots
-    if config.drug_score_summary:
-        create_drug_score_summary_plots(data, config)
-    
-    if config.clinical_guideline_analysis:
-        create_clinical_guideline_analysis_plots(data, config)
-    
-    # Resistance analysis plots
-    if config.mean_activity_r_by_bacteria:
-        create_mean_activity_r_by_bacteria_plots(data, config)
-    
-    if config.resistance_mechanism_by_bacteria:
-        create_resistance_mechanism_by_bacteria_plots(data, config)
-    
-    if config.source_of_new_resistance_by_drug_bacteria:
-        create_source_of_new_resistance_by_drug_bacteria_plots(data, config)
-    
-    # Microbiome analysis plots
-    if config.microbiome_acquisition_on_off_drug:
-        create_microbiome_acquisition_on_off_drug_plots(data, config)
-
-    if config.microbiome_clearance_on_off_drug:
-        create_microbiome_clearance_on_off_drug_plots(data, config)
-
-    if config.proportion_of_population_with_microbiome_presence_bacteria:
-        create_proportion_of_population_with_microbiome_presence_bacteria_plots(data, config)
-
-    if config.microbiome_resistance_microbiome_vs_infection:
-        create_microbiome_resistance_microbiome_vs_infection_plots(data, config)
-
-    if config.carrier_infection_share:
-        create_carrier_infection_share_plot(data, config)
-
-    if config.carrier_vs_non_carrier_incidence:
-        create_carrier_vs_non_carrier_incidence_plots(data, config)
-
-    if config.carriage_duration_distribution:
-        create_carriage_duration_distribution_plot(data, config)
-
-    if config.mean_mic_by_drug_for_each_bacteria:
-        create_mean_mic_by_drug_for_each_bacteria_plots(data, config)
-    
-    if config.death_rate_by_bacteria:
-        create_death_rate_by_bacteria_plots(config, data_cache)
-
-    if config.global_antibiotic_activity:
-        create_global_antibiotic_activity_plots(data, config)
-    
-    logger.info("Detail plots creation completed")
+    data_cache = None
+    called = set()
+    for flag, function_name, call_kind in DETAIL_PLOT_REGISTRY:
+        if flag not in enabled or (function_name, call_kind) in called:
+            continue
+        if call_kind == 'baseline' and config._detail_policy_scope != 0:
+            continue
+        function = globals()[function_name]
+        if call_kind == 'data':
+            function(data, config)
+        elif call_kind == 'cache':
+            if data_cache is None:
+                data_cache = _PolicyDataCache(DataCache(), data)
+            function(config, data_cache)
+        elif call_kind == 'baseline':
+            function(config)
+        else:
+            raise ValueError(f"Unknown detail plot call kind: {call_kind}")
+        called.add((function_name, call_kind))
+    logger.info("Detail plot workflow completed; unavailable plots may have been skipped.")
 
 
 @_isolate_dataframe_policies
@@ -2000,6 +1977,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
 
 
 @_isolate_dataframe_policies
+@safe_plot_creation
 def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
     Plot the legacy `_sum_mic_` reciprocal-activity proxy by bacterium and drug.
@@ -5938,7 +5916,7 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
         ax.legend()
         
         # Add summary statistics
-        final_rate = death_rate[-1] if len(death_rate) > 0 else 0
+        final_rate = death_rate.iloc[-1] if len(death_rate) > 0 else 0
         max_rate_val = death_rate.max()
         stats_text = f"Final rate: {final_rate:.3f}\nMax rate: {max_rate_val:.3f}"
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
@@ -5966,7 +5944,7 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
 @safe_plot_creation
 def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing proportion of microbiome presence with resistance by drug."""
-    plot_type = "microbiome_resistance_by_drug"
+    plot_type = "proportion_of_microbiome_presence_with_resistance_by_drug"
     if not config.should_create_plot(plot_type):
         return
     
@@ -5987,15 +5965,15 @@ def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(confi
     # Extract drug names from microbiome resistance columns
     drug_names = []
     for col in df.columns:
-        if '_microbiome_presence_with_any_r_positive_' in col:
-            parts = col.split('_microbiome_presence_with_any_r_positive_')
+        if '_microbiome_r_positive_' in col:
+            parts = col.split('_microbiome_r_positive_')
             if len(parts) == 2:
                 drug = parts[1]
                 if drug not in drug_names:
                     drug_names.append(drug)
     
     if not drug_names:
-        logger.warning("No microbiome resistance columns found (*_microbiome_presence_with_any_r_positive_*)")
+        logger.warning("No microbiome resistance columns found (*_microbiome_r_positive_*)")
         return
     
     logger.info(f"Found {len(drug_names)} drugs with microbiome resistance data: {drug_names}")
@@ -6003,8 +5981,8 @@ def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(confi
     # Extract bacteria names
     bacteria_names = []
     for col in df.columns:
-        if '_microbiome_presence_with_any_r_positive_' in col:
-            bacteria = col.split('_microbiome_presence_with_any_r_positive_')[0]
+        if '_microbiome_r_positive_' in col:
+            bacteria = col.split('_microbiome_r_positive_')[0]
             if bacteria not in bacteria_names:
                 bacteria_names.append(bacteria)
     
@@ -6024,8 +6002,8 @@ def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(confi
         lines_plotted = 0
         
         for i, bacteria in enumerate(bacteria_names):
-            resistance_col = f"{bacteria}_microbiome_presence_with_any_r_positive_{drug}"
-            presence_col = f"{bacteria}_microbiome_presence"
+            resistance_col = f"{bacteria}_microbiome_r_positive_{drug}"
+            presence_col = f"{bacteria}_presence_microbiome"
             
             if resistance_col not in df.columns or presence_col not in df.columns:
                 continue
@@ -6110,7 +6088,7 @@ def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(confi
 @safe_plot_creation
 def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing mean resistance by drug for each bacteria in hospital settings."""
-    plot_type = "hospital_resistance_by_drug_bacteria"
+    plot_type = "mean_any_r_by_drug_for_each_bacteria_hospital"
     if not config.should_create_plot(plot_type):
         return
     
@@ -6128,28 +6106,21 @@ def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfi
     output_dir = config.output_dirs['resistance'] / "hospital_resistance_by_drug_bacteria"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find hospital resistance columns (any_r values for hospital patients)
-    hospital_resistance_cols = [col for col in df.columns if 'hospital' in col and 'any_r' in col]
+    # Match the exported sum and denominator family exactly; positive counts are
+    # different fields and must not be interpreted as sums or extra drug names.
+    hospital_marker = '_sum_any_r_hospital_'
+    hospital_resistance_cols = [col for col in df.columns if hospital_marker in col]
     
     if not hospital_resistance_cols:
-        logger.warning("No hospital resistance columns found (*hospital*any_r*)")
+        logger.warning("No hospital resistance sum columns found (*_sum_any_r_hospital_*)")
         return
     
     # Extract bacteria-drug combinations
     bacteria_drug_combos = []
     for col in hospital_resistance_cols:
-        # Try to parse bacteria and drug from column name
-        # Expected format: bacteria_hospital_any_r_drug or similar
-        parts = col.split('_')
-        if len(parts) >= 4 and 'hospital' in parts and 'any' in parts and 'r' in parts:
-            # Find bacteria (before hospital) and drug (after r)
-            hospital_idx = parts.index('hospital')
-            r_idx = next((i for i, part in enumerate(parts) if part == 'r'), None)
-            
-            if hospital_idx > 0 and r_idx and r_idx < len(parts) - 1:
-                bacteria = '_'.join(parts[:hospital_idx])
-                drug = '_'.join(parts[r_idx+1:])
-                bacteria_drug_combos.append((bacteria, drug, col))
+        bacteria, drug = col.split(hospital_marker, 1)
+        if bacteria and drug:
+            bacteria_drug_combos.append((bacteria, drug, col))
     
     if not bacteria_drug_combos:
         logger.warning("Could not parse bacteria-drug combinations from hospital resistance columns")
@@ -6252,12 +6223,9 @@ def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfi
                 continue
             
             # Get hospital infection count for normalization
-            hospital_infection_col = f"{bacteria}_hospital_currently_infected"
+            hospital_infection_col = f"{bacteria}_currently_infected_hospital_count"
             if hospital_infection_col not in df.columns:
-                # Try alternative naming
-                hospital_infection_col = f"{bacteria}_currently_infected_hospital"
-                if hospital_infection_col not in df.columns:
-                    continue
+                continue
             
             resistance_values = df[col]
             infection_counts = df[hospital_infection_col]
@@ -6787,7 +6755,7 @@ def create_syndrome_distribution_by_bacteria_plots(config: PlotConfig, data_cach
 @safe_plot_creation
 def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(config: PlotConfig, data_cache: DataCache):
     """Create plots showing proportion of people with any resistance by drug for each bacteria."""
-    plot_type = "proportion_resistance_by_drug_bacteria"
+    plot_type = "proportion_of_people_with_any_resistance_by_drug_for_each_bacteria"
     if not config.should_create_plot(plot_type):
         return
     
@@ -6821,6 +6789,8 @@ def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_pl
             parts = col.split('_infected_with_any_r_positive_')
             if len(parts) == 2:
                 drug = parts[1]
+                if drug.startswith(('hospital_', 'community_')):
+                    continue
                 if drug not in drug_names:
                     drug_names.append(drug)
     
@@ -7032,7 +7002,7 @@ def create_global_antibiotic_activity_plots(df: pd.DataFrame, config: PlotConfig
         drug_intro_dates = parse_drug_intro_dates(config_rs_path)
     except Exception as exc:
         print(f"  [ERROR] Could not load static tables from config.rs: {exc}")
-        return
+        raise
 
     # ------------------------------------------------------------------ #
     # 2. Identify bacteria present in this df                            #

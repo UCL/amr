@@ -10673,6 +10673,79 @@ mod tests {
         assert!(error.to_string().contains("metadata mismatch"));
     }
 
+    fn rewrite_test_checkpoint_format_with_valid_checksum(
+        checkpoint: &super::DiskBranchCheckpoint,
+        version: u32,
+    ) {
+        use sha2::{Digest, Sha256};
+
+        let mut bytes = std::fs::read(&checkpoint.path).expect("test checkpoint should be readable");
+        let payload_size = bytes.len() - super::SHA256_DIGEST_LENGTH as usize;
+        let original: super::BranchCheckpoint = bincode::deserialize(&bytes[..payload_size])
+            .expect("the production writer's complete checkpoint should deserialize");
+        assert_eq!(original.format_version, 1);
+
+        // Modify only the first field of this newly created test fixture. Keep its
+        // full production payload and a valid checksum so admission tests metadata.
+        let header = bincode::serialize(&version).expect("wire version should serialize");
+        bytes[..header.len()].copy_from_slice(&header);
+        let digest = Sha256::digest(&bytes[..payload_size]);
+        bytes[payload_size..].copy_from_slice(&digest);
+        std::fs::write(&checkpoint.path, bytes)
+            .expect("modified test checkpoint and its checksum should be written");
+    }
+
+    #[test]
+    fn disk_checkpoint_rejects_unsupported_formats_with_valid_checksums() {
+        let directory = TestDirectory::new("checkpoint_wire_versions");
+        let simulation = small_checkpoint_simulation(directory.path());
+        for version in [0_u32, 2] {
+            let checkpoint = simulation
+                .persist_branch_snapshot_to_disk(33_580)
+                .expect("current checkpoint should persist");
+            simulation
+                .load_branch_snapshot_from_disk(&checkpoint, 33_580)
+                .expect("the current writer's format-1 checkpoint should restore");
+            rewrite_test_checkpoint_format_with_valid_checksum(&checkpoint, version);
+
+            let error = match simulation.load_branch_snapshot_from_disk(&checkpoint, 33_580) {
+                Ok(_) => panic!("unsupported wire format {version} should be rejected"),
+                Err(error) => error,
+            };
+
+            assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+            assert!(error.to_string().contains("metadata mismatch"), "{error}");
+        }
+    }
+
+    #[test]
+    fn unsupported_checkpoint_format_fails_policy_restore_without_losing_baseline() {
+        let directory = TestDirectory::new("checkpoint_format_policy_failure");
+        let (mut simulation, stored_checkpoint) =
+            short_baseline_with_disk_checkpoint(directory.path());
+        let baseline = bincode::serialize(&simulation.summary_log).unwrap();
+        let StoredBranchSnapshot::OnDisk(ref checkpoint) = stored_checkpoint else {
+            panic!("fixture must use disk checkpointing");
+        };
+        let checkpoint_path = checkpoint.path.clone();
+        rewrite_test_checkpoint_format_with_valid_checksum(checkpoint, 2);
+        let policy = PolicyAdjustments::from_id(2, &crate::config::parameter_store().globals)
+            .expect("policy 2 should exist");
+
+        let error = simulation
+            .run_alternate_policy_branches(stored_checkpoint, 1, vec![policy])
+            .expect_err("unsupported checkpoint format must fail the requested continuation");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("restore checkpoint for policy 2"));
+        assert!(error.to_string().contains("metadata mismatch"), "{error}");
+        assert_eq!(bincode::serialize(&simulation.summary_log).unwrap(), baseline);
+        assert!(simulation.policy_branch_summary_log.is_empty());
+        assert!(!simulation.branch_active);
+        assert_eq!(simulation.current_policy_adjustments.policy_option, 0);
+        assert!(!checkpoint_path.exists());
+    }
+
     #[test]
     fn disk_checkpoint_population_moves_into_policy_branch() {
         let directory = TestDirectory::new("checkpoint_move_restore");

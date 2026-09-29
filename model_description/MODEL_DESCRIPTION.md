@@ -11987,7 +11987,15 @@ Each simulation run produces a single CSV file:
 amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv
 ```
 
-where `NNNNNN` is a zero-padded pseudo-random run identifier. This identifier is not guaranteed unique across independent runs; the exporter creates or truncates the named file.
+where `NNNNNN` is a pseudo-random run identifier padded to at least six digits
+(`1000000` has seven). This numeric identifier is not guaranteed unique across
+independent runs. The launcher preserves existing summaries and publishes a
+collision as `simulation_summary_NNNNNN_repeat_1.csv`, then `_repeat_2.csv`, and so
+on. Atomic hard-link publication prevents concurrent writers from replacing one
+another's results. The numeric `run_id` and simulation random streams are unchanged.
+Metadata and validation filenames are reserved exclusively per invocation, and
+metadata records the actual published CSV path. Python analysis retains the full
+repeat identifier when naming and locating reports and figures.
 
 Every current file records its output-format version in
 `simulation_summary_schema_version`; this document describes version `6`. Version 4
@@ -12017,12 +12025,35 @@ trajectory. Checkpoint write, restore, checksum, and policy-continuation failure
 to the launcher with stage and policy context. Requested branches outside the run horizon
 and incomplete branch summaries are errors. The launcher records `status=simulation_failed`
 and `failure_detail`, skips summary export, and returns a nonzero process exit status.
-Completed trajectories are exported to an `.incomplete` file, hashed, and only then renamed
-to the final `.csv` path. Export, hash, publication, or final metadata failures also return
+Completed trajectories are exported to an `.incomplete` file, hashed, and only then published
+to an unused `.csv` path. Filesystems without hard-link support fail publication and retain
+the staged file. Export, hash, publication, or final metadata failures also return
 nonzero. Metadata is staged and replaced only after the entire write succeeds, so a failed
 update preserves the previous record. `status=completed` requires successful trajectories
 and output publication; retained `.incomplete` files are diagnostic artifacts, not completed
 simulation outputs. Checkpoint handles clean up their temporary files on success and error.
+
+Calibration reporting requires a complete daily baseline trajectory for the requested
+observation window. The default 2022-2025 window contains exactly 1,460 observations,
+with `time_step` values 33580 through 35039. Integer timesteps determine the dates;
+the rounded elapsed-year CSV field does not determine window coverage. Missing days,
+duplicate days, invalid timesteps, or combined baseline runs prevent calibration scoring
+and report publication. No nearest-year or whole-file substitution is performed.
+Missing or partial optional historical comparison windows produce unavailable simulation
+shares, preserving the configured reference targets. Calibration-only CLI failures return
+nonzero; optional plotting benchmarks are marked unavailable for these window errors.
+
+Age-by-region rates divide the corresponding death count by age-group person-years.
+The denominator is the mean of the daily regional population multiplied by that same
+day's age-group share, times the validated window duration. For a complete daily window,
+this equals the summed age-group person-days divided by 365. Missing or invalid daily
+denominator observations make the affected cell unavailable; zero exposure is also
+unavailable, while zero deaths with positive exposure produces a zero rate.
+
+Plot rendering and output-write failures propagate to the analysis launcher, producing
+a nonzero exit status even if calibration reporting succeeds. Optional unavailable data
+may be skipped explicitly. Plot dispatch and column-loading requirements share a flag
+registry, and unsupported enabled options fail before loading simulation data.
 
 
 

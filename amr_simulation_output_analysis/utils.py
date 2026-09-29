@@ -9,11 +9,16 @@ logging setup, and data validation functions.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib._pylab_helpers import Gcf
 import logging
-import re
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Any, Iterable
 from functools import wraps
+
+try:
+    from .run_identity import extract_run_artifact_id
+except ImportError:  # Support existing direct-script imports of utils.
+    from run_identity import extract_run_artifact_id
 
 def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> logging.Logger:
     """
@@ -171,29 +176,37 @@ def validate_plot_data(df: pd.DataFrame,
 
 def safe_plot_creation(func):
     """
-    Decorator for safe plot creation with error handling and memory management.
-    
-    Handles common plotting errors gracefully and ensures matplotlib resources
-    are properly cleaned up.
+    Log plot failures, release figures created by the failed call, and propagate errors.
+
+    Existing figures belong to the caller and must survive another plot's failure.
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
         plot_name = func.__name__
         logger = logging.getLogger('amr_analysis')
+        # Read the manager registry without activating figures or creating a new one.
+        # Figure identity also handles reuse of a figure number during the call.
+        existing_figures = {manager.canvas.figure for manager in Gcf.get_all_fig_managers()}
         
         try:
             logger.info(f"Creating plot: {plot_name}")
             result = func(*args, **kwargs)
-            logger.info(f"Successfully created plot: {plot_name}")
+            logger.info(f"Finished plot function: {plot_name}")
             return result
             
-        except Exception as e:
-            logger.error(f"Error creating plot {plot_name}: {str(e)}")
-            print(f"[WARNING] Failed to create {plot_name}: {str(e)}")
-            
-            # Clean up any open matplotlib figures
-            plt.close('all')
-            return None
+        except Exception:
+            logger.exception("Error creating plot %s", plot_name)
+            for manager in Gcf.get_all_fig_managers():
+                figure = manager.canvas.figure
+                if figure not in existing_figures:
+                    try:
+                        plt.close(figure)
+                    except Exception:
+                        # Resource cleanup must never replace the original plot failure.
+                        logger.warning(
+                            "Unable to close a figure created by %s", plot_name, exc_info=True,
+                        )
+            raise
             
     return wrapper
 
@@ -401,20 +414,8 @@ def extract_drug_list_from_csv(df: pd.DataFrame) -> List[str]:
     return drugs
 
 def extract_simulation_run_id(csv_path: Optional[Union[str, Path]]) -> Optional[str]:
-    """Extract the six-digit run identifier embedded in the simulation CSV filename."""
-    if not csv_path:
-        return None
-
-    path = Path(csv_path)
-    candidates = [path.stem, path.name]
-    pattern = re.compile(r"(\d{6})(?!\d)")
-
-    for candidate in candidates:
-        match = pattern.search(candidate)
-        if match:
-            return match.group(1)
-
-    return None
+    """Return the output artifact ID, including any collision-repeat suffix."""
+    return extract_run_artifact_id(csv_path)
 
 def extract_resistance_mechanisms_from_csv(df: pd.DataFrame) -> List[str]:
     """

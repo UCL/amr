@@ -8,5 +8,6 @@
 pub mod config;
 pub mod config_validation;
 pub mod observability;
+pub mod output_files;
 pub mod rules;
 pub mod simulation;
